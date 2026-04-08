@@ -1,0 +1,9 @@
+# IDE
+.idea/
+.claude
+.opencode/
+.cursor
+
+# Go workspace file
+go.work
+go.work.sum
