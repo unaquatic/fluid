@@ -1,0 +1,16 @@
+=== step: empty ===
+|          |
+=== step: typed_H ===
+|H         |
+=== step: typed_e ===
+|He        |
+=== step: typed_l ===
+|Hel       |
+=== step: typed_l ===
+|Hell      |
+=== step: typed_o ===
+|Hello     |
+=== step: backspace_1 ===
+|Hell      |
+=== step: backspace_2 ===
+|Hel       |

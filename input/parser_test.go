@@ -1,0 +1,975 @@
+package input
+
+import "testing"
+
+func TestParser_PrintableASCII(t *testing.T) {
+	p := NewParser()
+	events := p.Parse([]byte("a"))
+
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	ev := events[0]
+	if ev.Type != EventKeyboard || ev.Key == nil {
+		t.Fatal("expected keyboard event")
+	}
+	if ev.Key.Name != "a" {
+		t.Errorf("Name = %q, want 'a'", ev.Key.Name)
+	}
+	if ev.Key.Text != "a" {
+		t.Errorf("Text = %q, want 'a'", ev.Key.Text)
+	}
+	if ev.Key.IsRune() != true {
+		t.Error("'a' should be a rune")
+	}
+}
+
+func TestParser_MultipleChars(t *testing.T) {
+	p := NewParser()
+	events := p.Parse([]byte("abc"))
+
+	if len(events) != 3 {
+		t.Fatalf("expected 3 events, got %d", len(events))
+	}
+	for i, name := range []string{"a", "b", "c"} {
+		if events[i].Key.Name != name {
+			t.Errorf("event %d: Name = %q, want %q", i, events[i].Key.Name, name)
+		}
+	}
+}
+
+func TestParser_UTF8(t *testing.T) {
+	p := NewParser()
+	// '世' = 3 bytes UTF-8
+	events := p.Parse([]byte("\xe4\xb8\x96"))
+
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	if events[0].Key.Name != "\u4e16" {
+		t.Errorf("Name = %q, want '世'", events[0].Key.Name)
+	}
+	if events[0].Key.Text != "\u4e16" {
+		t.Errorf("Text = %q, want '世'", events[0].Key.Text)
+	}
+}
+
+func TestParser_Space(t *testing.T) {
+	p := NewParser()
+	events := p.Parse([]byte(" "))
+
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	ev := events[0].Key
+	if ev.Name != KeySpace {
+		t.Errorf("Name = %q, want %q", ev.Name, KeySpace)
+	}
+	if ev.Text != " " {
+		t.Errorf("Text = %q, want ' '", ev.Text)
+	}
+	if !ev.IsRune() {
+		t.Error("space should be a rune (via Text field)")
+	}
+	if ev.Rune() != ' ' {
+		t.Errorf("Rune() = %q, want ' '", ev.Rune())
+	}
+}
+
+func TestParser_Tab(t *testing.T) {
+	p := NewParser()
+	events := p.Parse([]byte{9})
+
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	if events[0].Key.Name != KeyTab {
+		t.Errorf("Name = %q, want 'tab'", events[0].Key.Name)
+	}
+	if events[0].Key.Text != "" {
+		t.Errorf("Text = %q, want empty (tab is not printable input)", events[0].Key.Text)
+	}
+}
+
+func TestParser_Return(t *testing.T) {
+	p := NewParser()
+	events := p.Parse([]byte{13})
+
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	if events[0].Key.Name != KeyReturn {
+		t.Errorf("Name = %q, want 'return'", events[0].Key.Name)
+	}
+}
+
+func TestParser_Backspace(t *testing.T) {
+	p := NewParser()
+	events := p.Parse([]byte{127})
+
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	if events[0].Key.Name != KeyBackspace {
+		t.Errorf("Name = %q, want 'backspace'", events[0].Key.Name)
+	}
+}
+
+func TestParser_Escape(t *testing.T) {
+	p := NewParser()
+	events := p.Parse([]byte{0x1b})
+
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	if events[0].Key.Name != KeyEscape {
+		t.Errorf("Name = %q, want 'escape'", events[0].Key.Name)
+	}
+}
+
+func TestParser_CtrlKeys(t *testing.T) {
+	tests := []struct {
+		byte byte
+		name string
+	}{
+		{1, "a"},  // Ctrl+A
+		{3, "c"},  // Ctrl+C
+		{4, "d"},  // Ctrl+D
+		{12, "l"}, // Ctrl+L
+		{26, "z"}, // Ctrl+Z
+	}
+	for _, tt := range tests {
+		p := NewParser()
+		events := p.Parse([]byte{tt.byte})
+		if len(events) != 1 {
+			t.Fatalf("Ctrl+%s: expected 1 event, got %d", tt.name, len(events))
+		}
+		ev := events[0].Key
+		if ev.Name != tt.name || !ev.Ctrl {
+			t.Errorf("byte %d: Name=%q Ctrl=%v, want Name=%q Ctrl=true",
+				tt.byte, ev.Name, ev.Ctrl, tt.name)
+		}
+	}
+}
+
+// --- CSI sequences ---
+
+func TestParser_ArrowKeys(t *testing.T) {
+	tests := []struct {
+		seq  string
+		name string
+	}{
+		{"\x1b[A", "up"},
+		{"\x1b[B", "down"},
+		{"\x1b[C", "right"},
+		{"\x1b[D", "left"},
+	}
+	for _, tt := range tests {
+		p := NewParser()
+		events := p.Parse([]byte(tt.seq))
+		if len(events) != 1 {
+			t.Fatalf("%s: expected 1 event, got %d", tt.name, len(events))
+		}
+		if events[0].Key.Name != tt.name {
+			t.Errorf("seq %q: Name = %q, want %q", tt.seq, events[0].Key.Name, tt.name)
+		}
+	}
+}
+
+func TestParser_HomeEnd(t *testing.T) {
+	tests := []struct {
+		seq  string
+		name string
+	}{
+		{"\x1b[H", "home"},
+		{"\x1b[F", "end"},
+	}
+	for _, tt := range tests {
+		p := NewParser()
+		events := p.Parse([]byte(tt.seq))
+		if len(events) != 1 {
+			t.Fatalf("%s: expected 1 event, got %d", tt.name, len(events))
+		}
+		if events[0].Key.Name != tt.name {
+			t.Errorf("Name = %q, want %q", events[0].Key.Name, tt.name)
+		}
+	}
+}
+
+func TestParser_FunctionKeys(t *testing.T) {
+	tests := []struct {
+		seq  string
+		name string
+	}{
+		{"\x1b[P", "f1"},
+		{"\x1b[Q", "f2"},
+		{"\x1b[R", "f3"},
+		{"\x1b[S", "f4"},
+		{"\x1b[15~", "f5"},
+		{"\x1b[17~", "f6"},
+		{"\x1b[18~", "f7"},
+		{"\x1b[19~", "f8"},
+		{"\x1b[20~", "f9"},
+		{"\x1b[21~", "f10"},
+		{"\x1b[23~", "f11"},
+		{"\x1b[24~", "f12"},
+	}
+	for _, tt := range tests {
+		p := NewParser()
+		events := p.Parse([]byte(tt.seq))
+		if len(events) != 1 {
+			t.Fatalf("%s: expected 1 event, got %d", tt.name, len(events))
+		}
+		if events[0].Key.Name != tt.name {
+			t.Errorf("seq %q: Name = %q, want %q", tt.seq, events[0].Key.Name, tt.name)
+		}
+	}
+}
+
+func TestParser_InsertDelete(t *testing.T) {
+	tests := []struct {
+		seq  string
+		name string
+	}{
+		{"\x1b[2~", "insert"},
+		{"\x1b[3~", "delete"},
+	}
+	for _, tt := range tests {
+		p := NewParser()
+		events := p.Parse([]byte(tt.seq))
+		if len(events) != 1 {
+			t.Fatalf("%s: expected 1 event, got %d", tt.name, len(events))
+		}
+		if events[0].Key.Name != tt.name {
+			t.Errorf("Name = %q, want %q", events[0].Key.Name, tt.name)
+		}
+	}
+}
+
+func TestParser_PageUpDown(t *testing.T) {
+	tests := []struct {
+		seq  string
+		name string
+	}{
+		{"\x1b[5~", "pageup"},
+		{"\x1b[6~", "pagedown"},
+	}
+	for _, tt := range tests {
+		p := NewParser()
+		events := p.Parse([]byte(tt.seq))
+		if len(events) != 1 {
+			t.Fatalf("%s: expected 1 event, got %d", tt.name, len(events))
+		}
+		if events[0].Key.Name != tt.name {
+			t.Errorf("Name = %q, want %q", events[0].Key.Name, tt.name)
+		}
+	}
+}
+
+func TestParser_ModifiedArrowKeys(t *testing.T) {
+	tests := []struct {
+		seq   string
+		name  string
+		ctrl  bool
+		shift bool
+		alt   bool
+	}{
+		{"\x1b[1;2A", "up", false, true, false},    // Shift+Up
+		{"\x1b[1;3B", "down", false, false, true},  // Alt+Down
+		{"\x1b[1;5C", "right", true, false, false}, // Ctrl+Right
+		{"\x1b[1;6D", "left", true, true, false},   // Ctrl+Shift+Left
+		{"\x1b[1;7H", "home", true, false, true},   // Ctrl+Alt+Home
+	}
+	for _, tt := range tests {
+		p := NewParser()
+		events := p.Parse([]byte(tt.seq))
+		if len(events) != 1 {
+			t.Fatalf("%q: expected 1 event, got %d", tt.seq, len(events))
+		}
+		ev := events[0].Key
+		if ev.Name != tt.name || ev.Ctrl != tt.ctrl || ev.Shift != tt.shift || ev.Alt != tt.alt {
+			t.Errorf("seq %q: got Name=%q Ctrl=%v Shift=%v Alt=%v, want Name=%q Ctrl=%v Shift=%v Alt=%v",
+				tt.seq, ev.Name, ev.Ctrl, ev.Shift, ev.Alt,
+				tt.name, tt.ctrl, tt.shift, tt.alt)
+		}
+	}
+}
+
+func TestParser_ModifiedTildeKeys(t *testing.T) {
+	// Shift+Delete: ESC [ 3 ; 2 ~
+	p := NewParser()
+	events := p.Parse([]byte("\x1b[3;2~"))
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	ev := events[0].Key
+	if ev.Name != "delete" || !ev.Shift {
+		t.Errorf("got Name=%q Shift=%v, want delete Shift=true", ev.Name, ev.Shift)
+	}
+}
+
+// --- SS3 sequences ---
+
+func TestParser_SS3_ArrowKeys(t *testing.T) {
+	tests := []struct {
+		seq  string
+		name string
+	}{
+		{"\x1bOA", "up"},
+		{"\x1bOB", "down"},
+		{"\x1bOC", "right"},
+		{"\x1bOD", "left"},
+		{"\x1bOH", "home"},
+		{"\x1bOF", "end"},
+		{"\x1bOP", "f1"},
+		{"\x1bOQ", "f2"},
+	}
+	for _, tt := range tests {
+		p := NewParser()
+		events := p.Parse([]byte(tt.seq))
+		if len(events) != 1 {
+			t.Fatalf("SS3 %s: expected 1 event, got %d", tt.name, len(events))
+		}
+		if events[0].Key.Name != tt.name {
+			t.Errorf("SS3 %q: Name = %q, want %q", tt.seq, events[0].Key.Name, tt.name)
+		}
+	}
+}
+
+// --- Alt keys ---
+
+func TestParser_AltKeys(t *testing.T) {
+	tests := []struct {
+		seq  string
+		name string
+	}{
+		{"\x1ba", "a"},
+		{"\x1bz", "z"},
+		{"\x1b1", "1"},
+	}
+	for _, tt := range tests {
+		p := NewParser()
+		events := p.Parse([]byte(tt.seq))
+		if len(events) != 1 {
+			t.Fatalf("Alt+%s: expected 1 event, got %d", tt.name, len(events))
+		}
+		ev := events[0].Key
+		if ev.Name != tt.name || !ev.Alt {
+			t.Errorf("Alt+%s: Name=%q Alt=%v, want Alt=true", tt.name, ev.Name, ev.Alt)
+		}
+	}
+}
+
+func TestParser_AltBackspace(t *testing.T) {
+	p := NewParser()
+	events := p.Parse([]byte{0x1b, 127})
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	ev := events[0].Key
+	if ev.Name != KeyBackspace || !ev.Alt {
+		t.Errorf("got Name=%q Alt=%v, want backspace Alt=true", ev.Name, ev.Alt)
+	}
+}
+
+func TestParser_AltReturn(t *testing.T) {
+	p := NewParser()
+	events := p.Parse([]byte{0x1b, 13})
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	ev := events[0].Key
+	if ev.Name != KeyReturn || !ev.Alt {
+		t.Errorf("got Name=%q Alt=%v, want return Alt=true", ev.Name, ev.Alt)
+	}
+}
+
+// --- Mouse SGR ---
+
+func TestParser_MouseDown_Left(t *testing.T) {
+	// ESC [ < 0 ; 10 ; 20 M  (left button press at 10,20)
+	p := NewParser()
+	events := p.Parse([]byte("\x1b[<0;10;20M"))
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	ev := events[0]
+	if ev.Type != EventMouse || ev.Mouse == nil {
+		t.Fatal("expected mouse event")
+	}
+	m := ev.Mouse
+	if m.Type != MouseDown {
+		t.Errorf("Type = %v, want MouseDown", m.Type)
+	}
+	if m.Button != ButtonLeft {
+		t.Errorf("Button = %d, want ButtonLeft", m.Button)
+	}
+	if m.X != 9 || m.Y != 19 {
+		t.Errorf("position = (%d,%d), want (9,19)", m.X, m.Y)
+	}
+}
+
+func TestParser_MouseUp_Left(t *testing.T) {
+	// ESC [ < 0 ; 5 ; 5 m  (left button release)
+	p := NewParser()
+	events := p.Parse([]byte("\x1b[<0;5;5m"))
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	m := events[0].Mouse
+	if m.Type != MouseUp {
+		t.Errorf("Type = %v, want MouseUp", m.Type)
+	}
+	if m.Button != ButtonLeft {
+		t.Errorf("Button = %d, want ButtonLeft", m.Button)
+	}
+}
+
+func TestParser_MouseDown_Right(t *testing.T) {
+	// ESC [ < 2 ; 1 ; 1 M  (right button press)
+	p := NewParser()
+	events := p.Parse([]byte("\x1b[<2;1;1M"))
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	m := events[0].Mouse
+	if m.Button != ButtonRight {
+		t.Errorf("Button = %d, want ButtonRight", m.Button)
+	}
+}
+
+func TestParser_MouseDown_Middle(t *testing.T) {
+	p := NewParser()
+	events := p.Parse([]byte("\x1b[<1;1;1M"))
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	m := events[0].Mouse
+	if m.Button != ButtonMiddle {
+		t.Errorf("Button = %d, want ButtonMiddle", m.Button)
+	}
+}
+
+func TestParser_MouseScroll_Up(t *testing.T) {
+	// Cb=64 -> wheel, btnBits=0 -> up
+	p := NewParser()
+	events := p.Parse([]byte("\x1b[<64;1;1M"))
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	m := events[0].Mouse
+	if m.Type != MouseScroll {
+		t.Errorf("Type = %v, want MouseScroll", m.Type)
+	}
+	if m.Scroll == nil || m.Scroll.DeltaY != -1 {
+		t.Errorf("Scroll.DeltaY = %v, want -1", m.Scroll)
+	}
+}
+
+func TestParser_MouseScroll_Down(t *testing.T) {
+	// Cb=65 -> wheel, btnBits=1 -> down
+	p := NewParser()
+	events := p.Parse([]byte("\x1b[<65;1;1M"))
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	m := events[0].Mouse
+	if m.Type != MouseScroll {
+		t.Errorf("Type = %v, want MouseScroll", m.Type)
+	}
+	if m.Scroll == nil || m.Scroll.DeltaY != 1 {
+		t.Errorf("Scroll.DeltaY = %v, want 1", m.Scroll)
+	}
+}
+
+func TestParser_MouseDrag(t *testing.T) {
+	// Cb=32 -> motion + left button
+	p := NewParser()
+	events := p.Parse([]byte("\x1b[<32;5;5M"))
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	m := events[0].Mouse
+	if m.Type != MouseDrag {
+		t.Errorf("Type = %v, want MouseDrag", m.Type)
+	}
+	if !m.IsDragging {
+		t.Error("IsDragging should be true")
+	}
+	if m.Button != ButtonLeft {
+		t.Errorf("Button = %d, want ButtonLeft", m.Button)
+	}
+}
+
+func TestParser_MouseMove(t *testing.T) {
+	// Cb=35 -> motion + no button (btnBits=3)
+	p := NewParser()
+	events := p.Parse([]byte("\x1b[<35;5;5M"))
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	m := events[0].Mouse
+	if m.Type != MouseMove {
+		t.Errorf("Type = %v, want MouseMove", m.Type)
+	}
+	if m.IsDragging {
+		t.Error("IsDragging should be false for move")
+	}
+}
+
+func TestParser_MouseModifiers(t *testing.T) {
+	// Cb=4 -> shift + left press
+	p := NewParser()
+	events := p.Parse([]byte("\x1b[<4;1;1M"))
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	m := events[0].Mouse
+	if !m.Modifiers.Shift {
+		t.Error("Shift should be true")
+	}
+
+	// Cb=8 -> alt + left press
+	p = NewParser()
+	events = p.Parse([]byte("\x1b[<8;1;1M"))
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	m = events[0].Mouse
+	if !m.Modifiers.Alt {
+		t.Error("Alt should be true")
+	}
+
+	// Cb=16 -> ctrl + left press
+	p = NewParser()
+	events = p.Parse([]byte("\x1b[<16;1;1M"))
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	m = events[0].Mouse
+	if !m.Modifiers.Ctrl {
+		t.Error("Ctrl should be true")
+	}
+}
+
+// --- Bracketed Paste ---
+
+func TestParser_BracketedPaste(t *testing.T) {
+	p := NewParser()
+	paste := "\x1b[200~Hello World\x1b[201~"
+	events := p.Parse([]byte(paste))
+
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	ev := events[0]
+	if ev.Type != EventPaste || ev.Paste == nil {
+		t.Fatal("expected paste event")
+	}
+	if ev.Paste.Text != "Hello World" {
+		t.Errorf("Text = %q, want 'Hello World'", ev.Paste.Text)
+	}
+}
+
+func TestParser_BracketedPaste_WithANSI(t *testing.T) {
+	p := NewParser()
+	// Paste containing ANSI escape codes that should be stripped
+	paste := "\x1b[200~Hello \x1b[31mRed\x1b[0m World\x1b[201~"
+	events := p.Parse([]byte(paste))
+
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	if events[0].Paste.Text != "Hello Red World" {
+		t.Errorf("Text = %q, want 'Hello Red World'", events[0].Paste.Text)
+	}
+}
+
+func TestParser_BracketedPaste_Incomplete(t *testing.T) {
+	p := NewParser()
+	events := p.Parse([]byte("\x1b[200~Hello"))
+	if len(events) != 0 {
+		t.Errorf("incomplete paste should return 0 events, got %d", len(events))
+	}
+
+	// Complete it
+	events = p.Parse([]byte(" World\x1b[201~"))
+	if len(events) != 1 {
+		t.Fatalf("completed paste: expected 1 event, got %d", len(events))
+	}
+	if events[0].Paste.Text != "Hello World" {
+		t.Errorf("Text = %q, want 'Hello World'", events[0].Paste.Text)
+	}
+}
+
+// --- Kitty Protocol ---
+
+func TestParser_Kitty_SimpleKey(t *testing.T) {
+	p := NewParser()
+	p.SetKittyEnabled(true)
+	// CSI 97 u = 'a' (codepoint 97)
+	events := p.Parse([]byte("\x1b[97u"))
+
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	ev := events[0].Key
+	if ev.Name != "a" {
+		t.Errorf("Name = %q, want 'a'", ev.Name)
+	}
+	if ev.Source != "kitty" {
+		t.Errorf("Source = %q, want 'kitty'", ev.Source)
+	}
+}
+
+func TestParser_Kitty_WithModifiers(t *testing.T) {
+	p := NewParser()
+	p.SetKittyEnabled(true)
+	// CSI 97;5 u = Ctrl+a (modifier 5 = 1 + ctrl*4)
+	events := p.Parse([]byte("\x1b[97;5u"))
+
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	ev := events[0].Key
+	if ev.Name != "a" || !ev.Ctrl {
+		t.Errorf("Name=%q Ctrl=%v, want 'a' Ctrl=true", ev.Name, ev.Ctrl)
+	}
+}
+
+func TestParser_Kitty_EventType(t *testing.T) {
+	p := NewParser()
+	p.SetKittyEnabled(true)
+
+	// CSI 97;1:2 u = 'a' repeat (event type 2)
+	events := p.Parse([]byte("\x1b[97;1:2u"))
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	ev := events[0].Key
+	if ev.Type != KeyRepeat {
+		t.Errorf("Type = %v, want KeyRepeat", ev.Type)
+	}
+	if !ev.Repeated {
+		t.Error("Repeated should be true for repeat event")
+	}
+
+	// CSI 97;1:3 u = 'a' release
+	events = p.Parse([]byte("\x1b[97;1:3u"))
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	if events[0].Key.Type != KeyRelease {
+		t.Errorf("Type = %v, want KeyRelease", events[0].Key.Type)
+	}
+}
+
+func TestParser_Kitty_SpecialKeys(t *testing.T) {
+	p := NewParser()
+	p.SetKittyEnabled(true)
+
+	tests := []struct {
+		seq      string
+		name     string
+		wantText string // expected Text field
+	}{
+		{"\x1b[13u", "return", ""},
+		{"\x1b[27u", "escape", ""},
+		{"\x1b[9u", "tab", ""},
+		{"\x1b[127u", "backspace", ""},
+		{"\x1b[32u", "space", " "},
+	}
+	for _, tt := range tests {
+		events := p.Parse([]byte(tt.seq))
+		if len(events) != 1 {
+			t.Fatalf("Kitty %s: expected 1 event, got %d", tt.name, len(events))
+		}
+		if events[0].Key.Name != tt.name {
+			t.Errorf("Kitty %q: Name = %q, want %q", tt.seq, events[0].Key.Name, tt.name)
+		}
+		if events[0].Key.Text != tt.wantText {
+			t.Errorf("Kitty %q: Text = %q, want %q", tt.seq, events[0].Key.Text, tt.wantText)
+		}
+	}
+}
+
+func TestParser_Kitty_Disabled(t *testing.T) {
+	p := NewParser()
+	// Kitty not enabled — CSI u sequences should not be parsed as kitty
+	events := p.Parse([]byte("\x1b[97u"))
+	// Should be parsed as unknown CSI or ignored
+	if len(events) == 1 && events[0].Key != nil && events[0].Key.Source == "kitty" {
+		t.Error("kitty parsing should be disabled by default")
+	}
+}
+
+// --- StripANSI ---
+
+func TestStripANSI(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"Hello", "Hello"},
+		{"\x1b[31mRed\x1b[0m", "Red"},
+		{"\x1b[1;32mBold Green\x1b[0m text", "Bold Green text"},
+		{"no escapes here", "no escapes here"},
+		{"", ""},
+	}
+	for _, tt := range tests {
+		got := StripANSI(tt.input)
+		if got != tt.want {
+			t.Errorf("StripANSI(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+// --- Edge cases ---
+
+func TestParser_EmptyInput(t *testing.T) {
+	p := NewParser()
+	events := p.Parse([]byte{})
+	if len(events) != 0 {
+		t.Errorf("empty input should return 0 events, got %d", len(events))
+	}
+}
+
+func TestParser_IncrementalInput(t *testing.T) {
+	p := NewParser()
+
+	// Send incomplete CSI sequence
+	events := p.Parse([]byte{0x1b, '['})
+	if len(events) != 0 {
+		t.Errorf("incomplete CSI: expected 0 events, got %d", len(events))
+	}
+
+	// Complete it
+	events = p.Parse([]byte{'A'})
+	if len(events) != 1 {
+		t.Fatalf("completed CSI: expected 1 event, got %d", len(events))
+	}
+	if events[0].Key.Name != "up" {
+		t.Errorf("Name = %q, want 'up'", events[0].Key.Name)
+	}
+}
+
+func TestParser_MixedInput(t *testing.T) {
+	p := NewParser()
+	// 'a' + Up arrow + 'b'
+	events := p.Parse([]byte("a\x1b[Ab"))
+
+	if len(events) != 3 {
+		t.Fatalf("expected 3 events, got %d", len(events))
+	}
+	if events[0].Key.Name != "a" {
+		t.Errorf("event 0: Name = %q, want 'a'", events[0].Key.Name)
+	}
+	if events[1].Key.Name != "up" {
+		t.Errorf("event 1: Name = %q, want 'up'", events[1].Key.Name)
+	}
+	if events[2].Key.Name != "b" {
+		t.Errorf("event 2: Name = %q, want 'b'", events[2].Key.Name)
+	}
+}
+
+// --- Double-ESC sequences (macOS Option+Arrow) ---
+
+func TestParser_DoubleEsc_CSI_AltArrows(t *testing.T) {
+	// Default (macOSOptionAsAlt=false): ESC ESC [X is Alt+Arrow, no Shift.
+	tests := []struct {
+		seq  string
+		name string
+		desc string
+	}{
+		{"\x1b\x1b[D", "left", "Option+Left"},
+		{"\x1b\x1b[C", "right", "Option+Right"},
+		{"\x1b\x1b[A", "up", "Option+Up"},
+		{"\x1b\x1b[B", "down", "Option+Down"},
+	}
+	for _, tt := range tests {
+		p := NewParser()
+		events := p.Parse([]byte(tt.seq))
+		if len(events) != 1 {
+			t.Fatalf("%s (%q): expected 1 event, got %d", tt.desc, tt.seq, len(events))
+		}
+		ev := events[0].Key
+		if ev.Name != tt.name {
+			t.Errorf("%s: Name = %q, want %q", tt.desc, ev.Name, tt.name)
+		}
+		if !ev.Alt {
+			t.Errorf("%s: Alt = false, want true", tt.desc)
+		}
+		if ev.Shift || ev.Ctrl || ev.Meta {
+			t.Errorf("%s: unexpected modifiers Shift=%v Ctrl=%v Meta=%v",
+				tt.desc, ev.Shift, ev.Ctrl, ev.Meta)
+		}
+	}
+}
+
+func TestParser_DoubleEsc_CSI_AltSendsEscPrefix(t *testing.T) {
+	// With AltSendsEscPrefix=true: ESC ESC [X infers Shift because
+	// the terminal uses ESC b/f for plain Alt+Arrow and only
+	// falls back to double-ESC CSI when Shift is also held.
+	tests := []struct {
+		seq  string
+		name string
+		desc string
+	}{
+		{"\x1b\x1b[D", "left", "Shift+Option+Left"},
+		{"\x1b\x1b[C", "right", "Shift+Option+Right"},
+		{"\x1b\x1b[A", "up", "Shift+Option+Up"},
+		{"\x1b\x1b[B", "down", "Shift+Option+Down"},
+	}
+	for _, tt := range tests {
+		p := NewParser()
+		p.SetAltSendsEscPrefix(true)
+		events := p.Parse([]byte(tt.seq))
+		if len(events) != 1 {
+			t.Fatalf("%s (%q): expected 1 event, got %d", tt.desc, tt.seq, len(events))
+		}
+		ev := events[0].Key
+		if ev.Name != tt.name {
+			t.Errorf("%s: Name = %q, want %q", tt.desc, ev.Name, tt.name)
+		}
+		if !ev.Alt {
+			t.Errorf("%s: Alt = false, want true", tt.desc)
+		}
+		if !ev.Shift {
+			t.Errorf("%s: Shift = false, want true (macOS heuristic)", tt.desc)
+		}
+		if ev.Ctrl || ev.Meta {
+			t.Errorf("%s: unexpected modifiers Ctrl=%v Meta=%v", tt.desc, ev.Ctrl, ev.Meta)
+		}
+	}
+}
+
+func TestParser_DoubleEsc_CSI_ShiftAltArrows(t *testing.T) {
+	// Shift+Option+Arrow: ESC ESC [1;2X (the inner modifier 2 = shift,
+	// and the outer ESC adds Alt).
+	tests := []struct {
+		seq   string
+		name  string
+		shift bool
+		desc  string
+	}{
+		{"\x1b\x1b[1;2D", "left", true, "Shift+Option+Left"},
+		{"\x1b\x1b[1;2C", "right", true, "Shift+Option+Right"},
+		{"\x1b\x1b[1;2A", "up", true, "Shift+Option+Up"},
+		{"\x1b\x1b[1;2B", "down", true, "Shift+Option+Down"},
+	}
+	for _, tt := range tests {
+		p := NewParser()
+		events := p.Parse([]byte(tt.seq))
+		if len(events) != 1 {
+			t.Fatalf("%s (%q): expected 1 event, got %d", tt.desc, tt.seq, len(events))
+		}
+		ev := events[0].Key
+		if ev.Name != tt.name {
+			t.Errorf("%s: Name = %q, want %q", tt.desc, ev.Name, tt.name)
+		}
+		if !ev.Alt {
+			t.Errorf("%s: Alt = false, want true", tt.desc)
+		}
+		if ev.Shift != tt.shift {
+			t.Errorf("%s: Shift = %v, want %v", tt.desc, ev.Shift, tt.shift)
+		}
+	}
+}
+
+func TestParser_DoubleEsc_SS3(t *testing.T) {
+	// Default: ESC ESC O X — Alt + nav key, no Shift inferred.
+	tests := []struct {
+		seq  string
+		name string
+		desc string
+	}{
+		{"\x1b\x1bOA", "up", "Alt+SS3 Up"},
+		{"\x1b\x1bOD", "left", "Alt+SS3 Left"},
+		{"\x1b\x1bOH", "home", "Alt+SS3 Home"},
+	}
+	for _, tt := range tests {
+		p := NewParser()
+		events := p.Parse([]byte(tt.seq))
+		if len(events) != 1 {
+			t.Fatalf("%s (%q): expected 1 event, got %d", tt.desc, tt.seq, len(events))
+		}
+		ev := events[0].Key
+		if ev.Name != tt.name {
+			t.Errorf("%s: Name = %q, want %q", tt.desc, ev.Name, tt.name)
+		}
+		if !ev.Alt {
+			t.Errorf("%s: Alt = false, want true", tt.desc)
+		}
+		if ev.Shift {
+			t.Errorf("%s: Shift = true, want false (heuristic off by default)", tt.desc)
+		}
+	}
+}
+
+func TestParser_DoubleEsc_SS3_AltSendsEscPrefix(t *testing.T) {
+	// AltSendsEscPrefix=true: ESC ESC O X infers Shift for nav keys.
+	p := NewParser()
+	p.SetAltSendsEscPrefix(true)
+	events := p.Parse([]byte("\x1b\x1bOD"))
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	ev := events[0].Key
+	if ev.Name != "left" || !ev.Alt || !ev.Shift {
+		t.Errorf("got Name=%q Alt=%v Shift=%v, want left Alt=true Shift=true",
+			ev.Name, ev.Alt, ev.Shift)
+	}
+}
+
+func TestParser_DoubleEsc_InStream(t *testing.T) {
+	// Double-ESC embedded in a larger stream of input (default: no Shift).
+	p := NewParser()
+	events := p.Parse([]byte("a\x1b\x1b[Db"))
+	if len(events) != 3 {
+		t.Fatalf("expected 3 events, got %d", len(events))
+	}
+	if events[0].Key.Name != "a" {
+		t.Errorf("event 0: Name = %q, want 'a'", events[0].Key.Name)
+	}
+	if events[1].Key.Name != "left" || !events[1].Key.Alt {
+		t.Errorf("event 1: Name=%q Alt=%v, want left Alt=true",
+			events[1].Key.Name, events[1].Key.Alt)
+	}
+	if events[2].Key.Name != "b" {
+		t.Errorf("event 2: Name = %q, want 'b'", events[2].Key.Name)
+	}
+}
+
+func TestParser_DoubleEsc_NonNavKey_NoShift(t *testing.T) {
+	// ESC + non-ESC char: the Shift heuristic must NOT apply to
+	// non-navigation keys. ESC a = Alt+a with no Shift.
+	p := NewParser()
+	events := p.Parse([]byte("\x1ba"))
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	ev := events[0].Key
+	if ev.Name != "a" || !ev.Alt {
+		t.Errorf("got Name=%q Alt=%v, want a Alt=true", ev.Name, ev.Alt)
+	}
+	if ev.Shift {
+		t.Error("Shift should be false for Alt+a (not a double-ESC nav key)")
+	}
+}
+
+func TestParser_DoubleEsc_StandaloneEscEsc(t *testing.T) {
+	// ESC ESC with nothing after: the recursive approach treats the first
+	// ESC as an Alt prefix and the second ESC as a standalone escape key,
+	// producing a single Alt+Escape event.
+	p := NewParser()
+	events := p.Parse([]byte("\x1b\x1b"))
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	if events[0].Key.Name != "escape" {
+		t.Errorf("event 0: Name = %q, want 'escape'", events[0].Key.Name)
+	}
+	if !events[0].Key.Alt {
+		t.Errorf("event 0: Alt = false, want true")
+	}
+}

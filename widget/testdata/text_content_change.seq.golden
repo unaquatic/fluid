@@ -1,0 +1,6 @@
+=== step: initial ===
+|Hello               |
+=== step: after_set_content ===
+|World               |
+=== step: after_styled_content ===
+|Red Blue            |

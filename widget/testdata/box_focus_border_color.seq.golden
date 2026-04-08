@@ -1,0 +1,12 @@
+=== step: unfocused ===
+|{#ffffff}┌────────┐|
+|{#ffffff}│        │|
+|{#ffffff}└────────┘|
+=== step: focused ===
+|{#00ff00}┌────────┐|
+|{#00ff00}│{#ffffff}        {#00ff00}│|
+|{#00ff00}└────────┘|
+=== step: blurred ===
+|{#ffffff}┌────────┐|
+|{#ffffff}│        │|
+|{#ffffff}└────────┘|

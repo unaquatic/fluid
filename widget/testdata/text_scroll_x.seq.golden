@@ -1,0 +1,6 @@
+=== step: initial ===
+|ABCDEFGH|
+=== step: scroll_x=3 ===
+|DEFGHIJK|
+=== step: scroll_x=7 ===
+|HIJKLMNO|

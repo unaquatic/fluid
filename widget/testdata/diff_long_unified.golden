@@ -1,0 +1,30 @@
+|      diff --git a/server/handler.go b/server/handler.go              |
+|      index 1a2b3c4..5d6e7f8 100644                                   |
+|      --- a/server/handler.go                                         |
+|      +++ b/server/handler.go                                         |
+|      @@ -12,8 +12,10 @@                                              |
+| 12   import (                                                        |
+| 13       "context"                                                   |
+| 14       "encoding/json"                                             |
+| 15 +     "errors"                                                    |
+| 16       "fmt"                                                       |
+| 17       "net/http"                                                  |
+| 18 +     "time"                                                      |
+| 19   )                                                               |
+| 20                                                                   |
+| 21   type Server struct {                                            |
+|      @@ -45,14 +47,21 @@                                             |
+| 47   func (s *Server) HandleRequest(w http.ResponseWriter, r *http.  |
+|      Request) {                                                      |
+| 48       ctx := r.Context()                                          |
+| 47 -     data, err := s.fetchData(ctx)                               |
+| 49 +     ctx, cancel := context.WithTimeout(ctx, 30*time.Second)     |
+| 50 +     defer cancel()                                              |
+| 51 +                                                                 |
+| 52 +     data, err := s.fetchData(ctx, r.URL.Query())                |
+| 53       if err != nil {                                             |
+| 49 -         http.Error(w, "internal error", http.                   |
+|      StatusInternalServerError)                                      |
+| 54 +         if errors.Is(err, context.DeadlineExceeded) {           |
+| 55 +             http.Error(w, "request timeout", http.              |
+|      StatusGatewayTimeout)                                           |
