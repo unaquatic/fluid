@@ -830,11 +830,8 @@ func TestMarkdown_AppendContent(t *testing.T) {
 	}
 }
 
-func TestMarkdown_Streaming(t *testing.T) {
-	m := NewMarkdown("", MarkdownWithStreaming(true))
-	if !m.Streaming() {
-		t.Error("expected streaming=true")
-	}
+func TestMarkdown_AppendContentStreaming(t *testing.T) {
+	m := NewMarkdown("")
 	m.AppendContent("# Hello\n")
 	m.AppendContent("World")
 	if m.LineCount() < 2 {
@@ -848,8 +845,6 @@ func TestMarkdown_Options(t *testing.T) {
 		MarkdownWithFg(style.ColorGreen),
 		MarkdownWithBg(style.ColorFromInts(30, 30, 30, 255)),
 		MarkdownWithWrapMode(WrapChar),
-		MarkdownWithStreaming(true),
-
 		MarkdownWithWidth(layout.Points(40)),
 		MarkdownWithHeight(layout.Points(10)),
 		MarkdownWithFlexGrow(1),

@@ -1,6 +1,7 @@
 package widget
 
 import (
+	"reflect"
 	"strings"
 	"sync"
 	"unicode"
@@ -18,10 +19,9 @@ import (
 type Markdown struct {
 	*render.BaseRenderable
 
-	mu        sync.Mutex // protects content + contentDirty from concurrent access
-	content   string
-	streaming bool
-	wrapMode  WrapMode
+	mu       sync.Mutex // protects content + contentDirty from concurrent access
+	content  string
+	wrapMode WrapMode
 
 	// Two-phase pipeline:
 	// Phase 1 (parse): content → blocks (width-independent)
@@ -215,6 +215,22 @@ func NewMarkdown(content string, opts ...MarkdownOption) *Markdown {
 		if widthMode == layout.MeasureUndefined {
 			w = 80
 		}
+
+		// Fast path: if we already have rendered lines and the proposed
+		// width matches (or is larger than) the last wrap width, reuse
+		// the cached line count. This avoids expensive re-wraps when
+		// intrinsicMainSize probes with large/varying widths during
+		// ancestor layout passes.
+		if len(m.renderedLines) > 0 && !m.contentDirty && m.lastWrapWidth > 0 && w >= m.lastWrapWidth {
+			h := len(m.renderedLines)
+			if heightMode == layout.MeasureExactly {
+				h = height
+			} else if heightMode == layout.MeasureAtMost && h > height {
+				h = height
+			}
+			return layout.MeasureResult{Width: w, Height: h}
+		}
+
 		// Re-wrap to the proposed width so line count is accurate.
 		m.wrapToWidth(w)
 		h := max(len(m.renderedLines), 1)
@@ -267,11 +283,27 @@ func (m *Markdown) AppendContent(text string) {
 	m.RequestRender()
 }
 
-// SetStreaming sets streaming mode.
-func (m *Markdown) SetStreaming(v bool) { m.streaming = v }
+// SetBlocks replaces the parsed block list directly, bypassing the
+// content→parse phase. Only the wrap phase runs on the next render.
+// Used by StreamMarkdown to distribute pre-parsed blocks to children.
+//
+// If the new blocks are deeply equal to the current ones, this is a
+// no-op (keeps cached renderedLines and wrapDirty state intact). This
+// lets streaming updates cheaply skip unchanged earlier children.
+func (m *Markdown) SetBlocks(blocks []MdBlock) {
+	m.mu.Lock()
+	m.contentDirty = false // blocks are already parsed
+	m.mu.Unlock()
 
-// Streaming returns whether streaming mode is active.
-func (m *Markdown) Streaming() bool { return m.streaming }
+	if reflect.DeepEqual(m.blocks, blocks) {
+		return
+	}
+
+	m.blocks = blocks
+	m.wrapDirty = true
+	m.LayoutNode().MarkDirty()
+	m.RequestRender()
+}
 
 // LineCount returns the number of rendered (post-wrap) lines.
 func (m *Markdown) LineCount() int {
@@ -910,11 +942,6 @@ func MarkdownWithFg(c style.Color) MarkdownOption {
 // MarkdownWithBg sets the background color.
 func MarkdownWithBg(c style.Color) MarkdownOption {
 	return func(m *Markdown) { m.bg = c }
-}
-
-// MarkdownWithStreaming sets streaming mode.
-func MarkdownWithStreaming(v bool) MarkdownOption {
-	return func(m *Markdown) { m.streaming = v }
 }
 
 // MarkdownWithWrapMode sets the wrap mode.
