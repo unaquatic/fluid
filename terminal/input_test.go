@@ -36,10 +36,9 @@ func newInputTestRenderer() *Renderer {
 		controlState:    StateIdle,
 		parser:          input.NewParser(),
 		eventBus:        input.NewEventBus(),
-		renderRequested: make(chan struct{}, 1),
-		stopChan:        make(chan struct{}),
+		pendingWork:     make(chan func(), 512),
+		stopChan:        make(chan struct{}, 1),
 		done:            make(chan struct{}),
-		resizeCh:        make(chan resizeEvent, 1),
 		sel:             render.NewSelection(),
 		linkRegistry:    NewLinkRegistry(),
 		stats:           NewStats(60),
@@ -377,9 +376,7 @@ func TestHandleResize(t *testing.T) {
 		}
 	})
 
-	// Call processResize directly — this is the synchronous path that
-	// handleResize delegates to (via the resizeCh channel + render loop).
-	// Tests don't run a render loop, so we call it directly.
+	// Call processResize directly — tests don't run an event loop.
 	r.processResize(60, 30)
 
 	if r.width != 60 || r.height != 30 {

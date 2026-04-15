@@ -256,36 +256,43 @@ func TestRenderer_RequestRender(t *testing.T) {
 
 	r.RequestRender()
 
-	// Should be able to drain the channel
+	// RequestRender enqueues a closure; drain it and verify renderNeeded.
 	select {
-	case <-r.renderRequested:
-		// ok
+	case fn := <-r.pendingWork:
+		fn()
 	default:
-		t.Error("expected renderRequested to be signaled")
+		t.Fatal("expected work item from RequestRender")
+	}
+
+	if !r.renderNeeded {
+		t.Error("expected renderNeeded to be true after RequestRender")
 	}
 }
 
 func TestRenderer_RequestRenderIdempotent(t *testing.T) {
 	r := newInputTestRenderer()
 
-	// Multiple requests should coalesce
+	// Multiple requests enqueue multiple closures, all set the same flag.
 	r.RequestRender()
 	r.RequestRender()
 	r.RequestRender()
 
-	select {
-	case <-r.renderRequested:
-		// ok
-	default:
-		t.Error("expected at least one render request")
+	drained := 0
+	for {
+		select {
+		case fn := <-r.pendingWork:
+			fn()
+			drained++
+		default:
+			goto done
+		}
 	}
-
-	// Should be empty now
-	select {
-	case <-r.renderRequested:
-		t.Error("expected no more render requests after draining")
-	default:
-		// ok
+done:
+	if drained == 0 {
+		t.Error("expected at least one work item")
+	}
+	if !r.renderNeeded {
+		t.Error("expected renderNeeded to be true")
 	}
 }
 
@@ -312,8 +319,8 @@ func TestRenderer_RenderFrame(t *testing.T) {
 		controlState:    StateExplicitStarted,
 		parser:          input.NewParser(),
 		eventBus:        input.NewEventBus(),
-		renderRequested: make(chan struct{}, 1),
-		stopChan:        make(chan struct{}),
+		pendingWork:     make(chan func(), 512),
+		stopChan:        make(chan struct{}, 1),
 		done:            make(chan struct{}),
 		sel:             render.NewSelection(),
 		linkRegistry:    NewLinkRegistry(),
