@@ -474,4 +474,5 @@ func SelectWithFlexGrow(v int) SelectOpt {
 func (s *Select) SetHeight(h layout.Scalar) {
 	s.LayoutNode().Height = h
 	s.LayoutNode().MarkDirty()
+	s.RequestRender()
 }

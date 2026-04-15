@@ -370,10 +370,12 @@ func Children(children ...render.Renderable) BoxOption {
 func (b *Box) SetWidth(s layout.Scalar) {
 	b.LayoutNode().Width = s
 	b.LayoutNode().MarkDirty()
+	b.RequestRender()
 }
 
 // SetHeight sets the box height dynamically after construction.
 func (b *Box) SetHeight(s layout.Scalar) {
 	b.LayoutNode().Height = s
 	b.LayoutNode().MarkDirty()
+	b.RequestRender()
 }

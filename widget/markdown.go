@@ -928,6 +928,7 @@ func (m *Markdown) WrapModeValue() WrapMode { return m.wrapMode }
 func (m *Markdown) SetHeight(s layout.Scalar) {
 	m.LayoutNode().Height = s
 	m.LayoutNode().MarkDirty()
+	m.RequestRender()
 }
 
 // ---------------------------------------------------------------------------

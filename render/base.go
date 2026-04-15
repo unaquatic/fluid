@@ -396,6 +396,7 @@ func (b *BaseRenderable) Add(child Renderable, index ...int) int {
 	}
 
 	b.dirty = true
+	b.ctx.RequestRender()
 	return idx
 }
 
@@ -409,6 +410,7 @@ func (b *BaseRenderable) Remove(id string) {
 			child.SetParent(nil)
 			b.children = append(b.children[:i], b.children[i+1:]...)
 			b.dirty = true
+			b.ctx.RequestRender()
 			return
 		}
 	}
@@ -474,7 +476,7 @@ func (b *BaseRenderable) SetVisible(v bool) {
 			b.layoutNode.Visibility = layout.Hidden
 		}
 		b.layoutNode.MarkDirty()
-		b.dirty = true
+		b.RequestRender()
 	}
 }
 
@@ -489,7 +491,7 @@ func (b *BaseRenderable) SetGone(g bool) {
 		b.layoutNode.Visibility = layout.Visible
 	}
 	b.layoutNode.MarkDirty()
-	b.dirty = true
+	b.RequestRender()
 }
 
 // IsDirty returns whether this renderable needs re-rendering.

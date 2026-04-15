@@ -1520,6 +1520,7 @@ func (ta *Textarea) syncViewport() {
 
 func (ta *Textarea) emitContentChange() {
 	ta.LayoutNode().MarkDirty()
+	ta.RequestRender()
 	if ta.OnContentChange != nil {
 		ta.OnContentChange(ta.Text())
 	}
