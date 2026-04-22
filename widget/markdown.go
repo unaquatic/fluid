@@ -221,7 +221,13 @@ func NewMarkdown(content string, opts ...MarkdownOption) *Markdown {
 		// the cached line count. This avoids expensive re-wraps when
 		// intrinsicMainSize probes with large/varying widths during
 		// ancestor layout passes.
-		if len(m.renderedLines) > 0 && !m.contentDirty && m.lastWrapWidth > 0 && w >= m.lastWrapWidth {
+		//
+		// Must also check wrapDirty: SetBlocks marks wrapDirty=true
+		// without bumping contentDirty, so renderedLines may be stale
+		// relative to the current m.blocks. Skipping this check leads
+		// to the parent sizing the content box to the pre-swap line
+		// count, clipping any new lines on render.
+		if len(m.renderedLines) > 0 && !m.contentDirty && !m.wrapDirty && m.lastWrapWidth > 0 && w >= m.lastWrapWidth {
 			h := len(m.renderedLines)
 			if heightMode == layout.MeasureExactly {
 				h = height
