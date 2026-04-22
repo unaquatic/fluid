@@ -274,6 +274,16 @@ func (sb *ScrollBox) OnPostLayout(deltaTime float64) {
 		sb.contentWidth = maxWidth
 	}
 
+	// Re-run auto-scroll every frame. Content-size changes above already
+	// call recalculateAutoScroll via SetContentHeight, but the viewport
+	// (inner size) can also change without a content-size delta — for
+	// example when a sibling below the ScrollBox is hidden and the
+	// flex-grow share expands, or when padding/border toggles. Running
+	// unconditionally here keeps scrollY pinned to the configured edge
+	// in all of those cases. The call is a no-op when autoScroll is
+	// None or the user has scrolled away from the edge.
+	sb.recalculateAutoScroll()
+
 	// Keep the anchor fresh after layout settles so the next content-size
 	// change can restore from up-to-date child positions.
 	if sb.anchorScroll && sb.userScrolled {
