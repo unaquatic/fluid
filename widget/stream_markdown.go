@@ -154,3 +154,30 @@ func StreamMarkdownWithFg(c style.Color) StreamMarkdownOption {
 		sm.mdOpts = append(sm.mdOpts, MarkdownWithFg(c))
 	}
 }
+
+// StreamMarkdownWithBg is a convenience that adds MarkdownWithBg to child opts.
+// Setting an explicit bg avoids the default ColorTransparent, which causes
+// the diff flusher to skip emitting the SGR background for text cells and
+// lets the terminal's own default bg show through (visible as a lighter
+// seam under the text compared to the container's fill).
+func StreamMarkdownWithBg(c style.Color) StreamMarkdownOption {
+	return func(sm *StreamMarkdown) {
+		sm.mdOpts = append(sm.mdOpts, MarkdownWithBg(c))
+	}
+}
+
+// StreamMarkdownWithCodeFg is a convenience that adds MarkdownWithCodeFg to
+// child opts.
+func StreamMarkdownWithCodeFg(c style.Color) StreamMarkdownOption {
+	return func(sm *StreamMarkdown) {
+		sm.mdOpts = append(sm.mdOpts, MarkdownWithCodeFg(c))
+	}
+}
+
+// StreamMarkdownWithCodeBg is a convenience that adds MarkdownWithCodeBg to
+// child opts.
+func StreamMarkdownWithCodeBg(c style.Color) StreamMarkdownOption {
+	return func(sm *StreamMarkdown) {
+		sm.mdOpts = append(sm.mdOpts, MarkdownWithCodeBg(c))
+	}
+}

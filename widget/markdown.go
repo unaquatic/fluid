@@ -951,6 +951,21 @@ func MarkdownWithBg(c style.Color) MarkdownOption {
 	return func(m *Markdown) { m.bg = c }
 }
 
+// MarkdownWithCodeFg sets the default foreground color for inline code spans
+// and monochrome fenced code blocks. Syntax-highlighted code still uses its
+// theme's per-token colors.
+func MarkdownWithCodeFg(c style.Color) MarkdownOption {
+	return func(m *Markdown) { m.codeFg = c }
+}
+
+// MarkdownWithCodeBg sets the background color for inline code spans and
+// fenced code blocks. Syntax-highlighted code uses this as the default bg
+// for tokens that don't specify their own. Pass the surrounding container
+// color when you want code to blend in with the message body.
+func MarkdownWithCodeBg(c style.Color) MarkdownOption {
+	return func(m *Markdown) { m.codeBg = c }
+}
+
 // MarkdownWithWrapMode sets the wrap mode.
 func MarkdownWithWrapMode(wm WrapMode) MarkdownOption {
 	return func(m *Markdown) { m.wrapMode = wm }
