@@ -785,16 +785,35 @@ func TestMarkdown_Blockquote(t *testing.T) {
 }
 
 func TestMarkdown_HorizontalRule(t *testing.T) {
-	m := NewMarkdown("---")
-	testutil.SetupWidget(m, 40, 1)
+	// Thematic breaks render as invisible spacing (no visual rule),
+	// styled as margin only rather than a drawn line.
+	// A rule between two paragraphs produces a 2-row gap (one blank
+	// row contributed by InsertBlockSpacing before and after the rule).
+	m := NewMarkdown("before\n\n---\n\nafter")
+	if got := m.LineCount(); got != 4 {
+		t.Errorf("expected paragraph+rule+paragraph to produce 4 lines (before, blank, blank, after), got %d", got)
+	}
 
-	buf := buffer.New(40, 1)
+	testutil.SetupWidget(m, 40, 4)
+	buf := buffer.New(40, 4)
 	m.RenderSelf(buf, 0)
 
-	// Should render horizontal rule char
-	cell := buf.Cell(0, 0)
-	if cell.Char != '─' {
-		t.Errorf("expected '─' at (0,0) for horizontal rule, got %c", cell.Char)
+	// Row 0: "before"
+	if cell := buf.Cell(0, 0); cell.Char != 'b' {
+		t.Errorf("expected 'b' at (0,0), got %q", cell.Char)
+	}
+	// Rows 1-2: blank (the two-row gap).
+	for y := 1; y <= 2; y++ {
+		for x := 0; x < 40; x++ {
+			cell := buf.Cell(x, y)
+			if cell.Char != 0 && cell.Char != ' ' {
+				t.Errorf("expected empty cell at (%d,%d) inside rule gap, got %q", x, y, cell.Char)
+			}
+		}
+	}
+	// Row 3: "after"
+	if cell := buf.Cell(0, 3); cell.Char != 'a' {
+		t.Errorf("expected 'a' at (0,3), got %q", cell.Char)
 	}
 }
 

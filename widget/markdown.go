@@ -573,16 +573,12 @@ func (m *Markdown) wrapBlockList(blocks []MdBlock, w int, indent int) {
 			}
 
 		case MdBlockRule:
-			ruleWidth := 40
-			if avail > 0 && avail < ruleWidth {
-				ruleWidth = avail
-			}
-			m.renderedLines = append(m.renderedLines, mdLine{
-				chunks: []style.TextChunk{
-					{Text: indentStr},
-					{Text: strings.Repeat(string(symbol.Horizontal), ruleWidth), Fg: &m.ruleFg},
-				},
-			})
+			// Render thematic breaks as invisible vertical spacing rather
+			// than a drawn line: the rule border is dropped and
+			// replaced with a tall margin.
+			// The rule itself emits nothing; InsertBlockSpacing contributes
+			// one blank before and one blank after for a total 2-row gap
+			// between surrounding paragraphs.
 		case MdBlockBlank:
 			m.renderedLines = append(m.renderedLines, mdLine{})
 		case MdBlockTable:
