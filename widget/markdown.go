@@ -534,8 +534,10 @@ func (m *Markdown) wrapBlockList(blocks []MdBlock, w int, indent int) {
 				indent, w,
 			)
 		case MdBlockCode:
-			codeIndent := indentStr + "  "
-			m.renderCodeBlock(blk, codeIndent)
+			// Top-level code blocks sit flush with the container edge.
+			// Nested code (inside lists or blockquotes) keeps its parent
+			// indent so it aligns with sibling content.
+			m.renderCodeBlock(blk, indentStr)
 		case MdBlockList, MdBlockOrderedList:
 			// Container: render children (ListItems).
 			m.wrapBlockList(blk.Children, w, indent)
