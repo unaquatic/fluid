@@ -181,3 +181,12 @@ func StreamMarkdownWithCodeBg(c style.Color) StreamMarkdownOption {
 		sm.mdOpts = append(sm.mdOpts, MarkdownWithCodeBg(c))
 	}
 }
+
+// StreamMarkdownWithTheme applies the theme to every child Markdown widget
+// (current and future). Later StreamMarkdownWith... options can still
+// override individual fields on top.
+func StreamMarkdownWithTheme(t *style.Theme) StreamMarkdownOption {
+	return func(sm *StreamMarkdown) {
+		sm.mdOpts = append(sm.mdOpts, MarkdownWithTheme(t))
+	}
+}

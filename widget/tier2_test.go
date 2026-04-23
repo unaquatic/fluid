@@ -817,6 +817,55 @@ func TestMarkdown_HorizontalRule(t *testing.T) {
 	}
 }
 
+func TestMarkdown_Theme_AppliesAllRoles(t *testing.T) {
+	th := style.DefaultDark()
+	// Override a couple of roles so we can assert propagation on values
+	// that differ from the widget's built-in defaults.
+	th.TextStrong = style.ColorFromInts(10, 20, 30, 255)
+	th.MarkdownHeading[0] = style.ColorFromInts(40, 50, 60, 255)
+	th.CodeFg = style.ColorFromInts(70, 80, 90, 255)
+	th.CodeBg = style.ColorFromInts(100, 110, 120, 255)
+	th.MarkdownLink = style.ColorFromInts(130, 140, 150, 255)
+	th.MarkdownBullet = style.ColorFromInts(160, 170, 180, 255)
+	th.MarkdownQuoteFg = style.ColorFromInts(190, 200, 210, 255)
+
+	m := NewMarkdown("hello", MarkdownWithTheme(th))
+	s := m.mdStyles()
+
+	if !s.Fg.Equals(th.TextStrong) {
+		t.Errorf("Fg mismatch: got %v want %v", s.Fg, th.TextStrong)
+	}
+	if !s.H1Fg.Equals(th.MarkdownHeading[0]) {
+		t.Errorf("H1Fg mismatch: got %v want %v", s.H1Fg, th.MarkdownHeading[0])
+	}
+	if !s.CodeFg.Equals(th.CodeFg) {
+		t.Errorf("CodeFg mismatch: got %v want %v", s.CodeFg, th.CodeFg)
+	}
+	if !s.CodeBg.Equals(th.CodeBg) {
+		t.Errorf("CodeBg mismatch: got %v want %v", s.CodeBg, th.CodeBg)
+	}
+	if !s.LinkFg.Equals(th.MarkdownLink) {
+		t.Errorf("LinkFg mismatch: got %v want %v", s.LinkFg, th.MarkdownLink)
+	}
+	if !s.BulletFg.Equals(th.MarkdownBullet) {
+		t.Errorf("BulletFg mismatch: got %v want %v", s.BulletFg, th.MarkdownBullet)
+	}
+	if !s.QuoteFg.Equals(th.MarkdownQuoteFg) {
+		t.Errorf("QuoteFg mismatch: got %v want %v", s.QuoteFg, th.MarkdownQuoteFg)
+	}
+}
+
+func TestMarkdown_Theme_LaterOptionWins(t *testing.T) {
+	// Per-widget With... options applied after a theme must override
+	// the theme's value.
+	th := style.DefaultDark()
+	override := style.ColorFromInts(1, 2, 3, 255)
+	m := NewMarkdown("x", MarkdownWithTheme(th), MarkdownWithFg(override))
+	if got := m.Fg(); !got.Equals(override) {
+		t.Errorf("expected option override to beat theme; got %v want %v", got, override)
+	}
+}
+
 func TestMarkdown_OrderedList(t *testing.T) {
 	m := NewMarkdown("1. first\n2. second\n3. third")
 	if m.LineCount() < 3 {

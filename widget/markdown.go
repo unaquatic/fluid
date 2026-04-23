@@ -1000,3 +1000,40 @@ func MarkdownWithParser(p MarkdownParser) MarkdownOption {
 func MarkdownWithHighlighter(h SyntaxHighlighter) MarkdownOption {
 	return func(m *Markdown) { m.highlighter = h }
 }
+
+// MarkdownWithTheme applies every color role the Markdown widget uses from
+// the given Theme. Later MarkdownWith... options (e.g. MarkdownWithFg) take
+// precedence, so callers can override individual roles on top of a theme.
+// If t is nil the widget's built-in defaults are retained.
+//
+// A Chroma highlighter is installed using a style derived from Theme.Code
+// so syntax-highlighted code harmonises with the rest of the palette.
+// Callers that need a specific pre-built Chroma theme can chain
+// MarkdownWithHighlighter after MarkdownWithTheme.
+func MarkdownWithTheme(t *style.Theme) MarkdownOption {
+	return func(m *Markdown) {
+		if t == nil {
+			return
+		}
+		m.fg = t.TextStrong
+		m.bg = t.Surface
+		m.h1Fg = t.MarkdownHeading[0]
+		m.h2Fg = t.MarkdownHeading[1]
+		m.h3Fg = t.MarkdownHeading[2]
+		m.h4Fg = t.MarkdownHeading[3]
+		m.h5Fg = t.MarkdownHeading[4]
+		m.h6Fg = t.MarkdownHeading[5]
+		m.codeFg = t.CodeFg
+		m.codeBg = t.CodeBg
+		m.linkFg = t.MarkdownLink
+		m.quoteFg = t.MarkdownQuoteFg
+		m.quoteBorder = t.MarkdownQuoteBd
+		m.bulletFg = t.MarkdownBullet
+		m.ruleFg = t.MarkdownRule
+		// Always derive the Chroma style from the theme's palette so
+		// syntax colors harmonise with the rest of the UI. Callers
+		// who want a specific pre-built Chroma theme can still install
+		// one manually via MarkdownWithHighlighter after the theme.
+		m.highlighter = NewChromaHighlighterWithStyle(ChromaStyleFromTheme(t))
+	}
+}
