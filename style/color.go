@@ -490,24 +490,84 @@ func BgColorSeq(c Color, mode ColorMode) string {
 	}
 }
 
-// rgbTo256 maps an RGB color to the nearest xterm-256 color index.
-func rgbTo256(r, g, b int) int {
-	// Check if it's close to a grayscale ramp value (indices 232-255).
-	if r == g && g == b {
-		if r < 8 {
-			return 16 // black
-		}
-		if r > 248 {
-			return 231 // white
-		}
-		return int(math.Round(float64(r-8)/247*23)) + 232
-	}
+// xtermCubeLevels are the six non-linear channel values used by the
+// xterm 6x6x6 color cube (indices 16-231). The cube is not evenly
+// spaced: the first step is 95, subsequent steps are 40.
+var xtermCubeLevels = [6]int{0, 95, 135, 175, 215, 255}
 
-	// Map to the 6x6x6 color cube (indices 16-231).
-	ri := int(math.Round(float64(r) / 255 * 5))
-	gi := int(math.Round(float64(g) / 255 * 5))
-	bi := int(math.Round(float64(b) / 255 * 5))
-	return 16 + 36*ri + 6*gi + bi
+// xtermGreyLevels are the 24 grey-ramp values used by indices 232-255.
+// Level i == 8 + 10*i, spanning 8..238.
+var xtermGreyLevels = [24]int{
+	8, 18, 28, 38, 48, 58, 68, 78, 88, 98, 108, 118,
+	128, 138, 148, 158, 168, 178, 188, 198, 208, 218, 228, 238,
+}
+
+// nearestCubeLevel returns the index in xtermCubeLevels whose value is
+// closest to v. Used to map a single channel onto the 6-step cube.
+func nearestCubeLevel(v int) int {
+	best, bestDist := 0, math.MaxInt
+	for i, lv := range xtermCubeLevels {
+		d := v - lv
+		if d < 0 {
+			d = -d
+		}
+		if d < bestDist {
+			best, bestDist = i, d
+		}
+	}
+	return best
+}
+
+// nearestGreyLevel returns the index in xtermGreyLevels closest to v.
+func nearestGreyLevel(v int) int {
+	best, bestDist := 0, math.MaxInt
+	for i, lv := range xtermGreyLevels {
+		d := v - lv
+		if d < 0 {
+			d = -d
+		}
+		if d < bestDist {
+			best, bestDist = i, d
+		}
+	}
+	return best
+}
+
+// rgbTo256 maps an RGB color to the nearest xterm-256 index. It picks
+// the closer of two candidates — the best match in the 6x6x6 color
+// cube and the best match on the 24-step grey ramp — using squared
+// Euclidean distance in sRGB. This matters for near-grey colors
+// (e.g. Darcula's #cfd2d5 text): the cube quantises them to a flat
+// #d7d7d7 that looks washed out, while the grey ramp has a 10-unit
+// step that reproduces them faithfully.
+func rgbTo256(r, g, b int) int {
+	// Candidate 1: best fit on the 6x6x6 cube.
+	ri := nearestCubeLevel(r)
+	gi := nearestCubeLevel(g)
+	bi := nearestCubeLevel(b)
+	cubeR, cubeG, cubeB := xtermCubeLevels[ri], xtermCubeLevels[gi], xtermCubeLevels[bi]
+	cubeIdx := 16 + 36*ri + 6*gi + bi
+	cubeDist := sqDist(r, g, b, cubeR, cubeG, cubeB)
+
+	// Candidate 2: best fit on the grey ramp. We score it against
+	// the actual RGB, so a tinted grey like #cfd2d5 correctly prefers
+	// the grey ramp when its distance to an equal-channel grey is
+	// smaller than its distance to the cube corner.
+	gi2 := nearestGreyLevel((r + g + b) / 3)
+	grey := xtermGreyLevels[gi2]
+	greyIdx := 232 + gi2
+	greyDist := sqDist(r, g, b, grey, grey, grey)
+
+	if greyDist < cubeDist {
+		return greyIdx
+	}
+	return cubeIdx
+}
+
+// sqDist returns the squared Euclidean distance between two sRGB points.
+func sqDist(r1, g1, b1, r2, g2, b2 int) int {
+	dr, dg, db := r1-r2, g1-g2, b1-b2
+	return dr*dr + dg*dg + db*db
 }
 
 // ansi16Colors are the standard 16 ANSI colors (normal + bright).
