@@ -105,6 +105,42 @@ func TestChromaStyleFromTheme_InheritanceFallbacks(t *testing.T) {
 	}
 }
 
+func TestChromaHighlighter_SvelteErrorTokenRendersAsPlainText(t *testing.T) {
+	// Chroma's Svelte lexer (github.com/alecthomas/chroma v2.23.1) emits
+	// chroma.Error for the '>' that closes an opening tag containing a
+	// template expression (e.g. `<button on:click={() => count++}>`).
+	// The renderer must neutralise Error tokens so malformed-looking
+	// highlighting (underline, etc.) doesn't leak into well-formed source.
+	//
+	// Build a highlighter whose style actively marks chroma.Error with
+	// bold+underline so we can observe the neutralisation working.
+	defaultFg := style.ColorFromInts(200, 200, 200, 255)
+	defaultBg := style.ColorFromInts(30, 30, 30, 255)
+	th := style.DefaultDark()
+	th.Code.ErrorAttrs = style.AttrBold | style.AttrUnderline
+	h := NewChromaHighlighterWithStyle(ChromaStyleFromTheme(th))
+
+	src := "<button on:click={() => count++}>\n  Count: {count}\n</button>\n"
+	lines, err := h.Highlight(src, "svelte", defaultFg, defaultBg)
+	if err != nil {
+		t.Fatalf("Highlight returned error: %v", err)
+	}
+	if len(lines) == 0 {
+		t.Fatal("Highlight returned no lines")
+	}
+
+	// Walk every span on every line; none may carry the Error signature
+	// (bold+underline together is unique to ErrorAttrs in this theme).
+	errMask := style.AttrBold | style.AttrUnderline
+	for y, line := range lines {
+		for x, sp := range line.Spans {
+			if sp.Attributes&errMask == errMask {
+				t.Errorf("line %d span %d (%q): carries bold+underline; Error token was not neutralised", y, x, sp.Text)
+			}
+		}
+	}
+}
+
 func TestMarkdownWithTheme_InstallsDerivedHighlighter(t *testing.T) {
 	th := style.DefaultDark()
 	th.Code.Keyword = style.ColorFromInts(11, 22, 33, 255)

@@ -163,6 +163,16 @@ func (h *ChromaHighlighter) buildLines(iterator chroma.Iterator, lines []string,
 
 // resolveTokenStyle maps a Chroma token type to fg/bg colors and attributes.
 func (h *ChromaHighlighter) resolveTokenStyle(tokenType chroma.TokenType, defaultFg, defaultBg style.Color) (fg, bg style.Color, attrs uint32) {
+	// Chroma emits chroma.Error for input that its lexer fails to classify
+	// (e.g. the Svelte lexer trips on `on:click={...}>` and marks the
+	// trailing '>' as Error). In a chat-style renderer, painting these in
+	// the theme's bold-underlined error colour is misleading — the source
+	// is well-formed, the lexer just has gaps. Treat Error as plain code
+	// text so unclassified characters blend in with their surroundings.
+	if tokenType == chroma.Error {
+		return defaultFg, defaultBg, 0
+	}
+
 	entry := h.chromaStyle.Get(tokenType)
 
 	if entry.Colour.IsSet() {

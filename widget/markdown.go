@@ -474,7 +474,10 @@ func isContinuationBlock(prev, cur MdBlockKind) bool {
 	if prev == MdBlockCode && cur == MdBlockCode {
 		return true
 	}
-	if prev == MdBlockHeading && cur == MdBlockHeading {
+	// A thematic break already contributes its own leading blank via the
+	// spacer inserted before it; skip the trailing spacer so the rule plus
+	// its surrounding gap totals a single blank row between neighbours.
+	if prev == MdBlockRule {
 		return true
 	}
 	return false
@@ -579,8 +582,10 @@ func (m *Markdown) wrapBlockList(blocks []MdBlock, w int, indent int) {
 			// than a drawn line: the rule border is dropped and
 			// replaced with a tall margin.
 			// The rule itself emits nothing; InsertBlockSpacing contributes
-			// one blank before and one blank after for a total 2-row gap
-			// between surrounding paragraphs.
+			// a single blank line before the rule (and suppresses the one
+			// after via isContinuationBlock) so surrounding paragraphs are
+			// separated by exactly one blank row — the same gap as a plain
+			// paragraph break.
 		case MdBlockBlank:
 			m.renderedLines = append(m.renderedLines, mdLine{})
 		case MdBlockTable:

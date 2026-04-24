@@ -578,9 +578,11 @@ func TestNewMarkdown(t *testing.T) {
 }
 
 func TestMarkdown_Headings(t *testing.T) {
+	// Three headings with one blank row inserted between each pair by
+	// InsertBlockSpacing: H1, blank, H2, blank, H3.
 	m := NewMarkdown("# H1\n## H2\n### H3")
-	if m.LineCount() != 3 {
-		t.Errorf("expected 3 lines, got %d", m.LineCount())
+	if m.LineCount() != 5 {
+		t.Errorf("expected 5 lines (3 headings + 2 blank separators), got %d", m.LineCount())
 	}
 }
 
@@ -614,14 +616,15 @@ func TestMarkdown_Render(t *testing.T) {
 }
 
 func TestMarkdown_AllHeadings(t *testing.T) {
+	// Six headings with one blank row between each pair: 6 + 5 = 11.
 	m := NewMarkdown("# H1\n## H2\n### H3\n#### H4\n##### H5\n###### H6")
-	testutil.SetupWidget(m, 40, 10)
+	testutil.SetupWidget(m, 40, 15)
 
-	if m.LineCount() != 6 {
-		t.Errorf("expected 6 heading lines, got %d", m.LineCount())
+	if m.LineCount() != 11 {
+		t.Errorf("expected 11 lines (6 headings + 5 blank separators), got %d", m.LineCount())
 	}
 
-	buf := buffer.New(40, 10)
+	buf := buffer.New(40, 15)
 	m.RenderSelf(buf, 0)
 
 	// H1 should start with 'H'
@@ -787,33 +790,33 @@ func TestMarkdown_Blockquote(t *testing.T) {
 func TestMarkdown_HorizontalRule(t *testing.T) {
 	// Thematic breaks render as invisible spacing (no visual rule),
 	// styled as margin only rather than a drawn line.
-	// A rule between two paragraphs produces a 2-row gap (one blank
-	// row contributed by InsertBlockSpacing before and after the rule).
+	// A rule between two paragraphs produces a 1-row gap — the same as
+	// a plain paragraph break — via a single blank row contributed by
+	// InsertBlockSpacing before the rule (the trailing spacer is
+	// suppressed by isContinuationBlock).
 	m := NewMarkdown("before\n\n---\n\nafter")
-	if got := m.LineCount(); got != 4 {
-		t.Errorf("expected paragraph+rule+paragraph to produce 4 lines (before, blank, blank, after), got %d", got)
+	if got := m.LineCount(); got != 3 {
+		t.Errorf("expected paragraph+rule+paragraph to produce 3 lines (before, blank, after), got %d", got)
 	}
 
-	testutil.SetupWidget(m, 40, 4)
-	buf := buffer.New(40, 4)
+	testutil.SetupWidget(m, 40, 3)
+	buf := buffer.New(40, 3)
 	m.RenderSelf(buf, 0)
 
 	// Row 0: "before"
 	if cell := buf.Cell(0, 0); cell.Char != 'b' {
 		t.Errorf("expected 'b' at (0,0), got %q", cell.Char)
 	}
-	// Rows 1-2: blank (the two-row gap).
-	for y := 1; y <= 2; y++ {
-		for x := 0; x < 40; x++ {
-			cell := buf.Cell(x, y)
-			if cell.Char != 0 && cell.Char != ' ' {
-				t.Errorf("expected empty cell at (%d,%d) inside rule gap, got %q", x, y, cell.Char)
-			}
+	// Row 1: blank (the single-row gap).
+	for x := 0; x < 40; x++ {
+		cell := buf.Cell(x, 1)
+		if cell.Char != 0 && cell.Char != ' ' {
+			t.Errorf("expected empty cell at (%d,1) inside rule gap, got %q", x, cell.Char)
 		}
 	}
-	// Row 3: "after"
-	if cell := buf.Cell(0, 3); cell.Char != 'a' {
-		t.Errorf("expected 'a' at (0,3), got %q", cell.Char)
+	// Row 2: "after"
+	if cell := buf.Cell(0, 2); cell.Char != 'a' {
+		t.Errorf("expected 'a' at (0,2), got %q", cell.Char)
 	}
 }
 
