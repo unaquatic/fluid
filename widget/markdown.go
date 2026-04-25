@@ -239,7 +239,15 @@ func NewMarkdown(content string, opts ...MarkdownOption) *Markdown {
 
 		// Re-wrap to the proposed width so line count is accurate.
 		m.wrapToWidth(w)
-		h := max(len(m.renderedLines), 1)
+		// Height is the number of rendered lines, with no floor: a block
+		// that emits nothing (e.g. MdBlockRule under the current
+		// thematic-break-as-spacing rendering) must report Height=0 so
+		// the parent doesn't allocate an empty row for it. Without this,
+		// StreamMarkdown — which puts each block in its own Markdown
+		// child — would leave a phantom blank row wherever a previous
+		// streamed message contained "\n\n---\n\n", visible as ghost
+		// rows above the message's debug footer.
+		h := len(m.renderedLines)
 		if heightMode == layout.MeasureExactly {
 			h = height
 		} else if heightMode == layout.MeasureAtMost && h > height {
