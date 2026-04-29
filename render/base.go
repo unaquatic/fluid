@@ -602,7 +602,14 @@ func (b *BaseRenderable) UpdateFromLayoutWithOffset(offsetX, offsetY int) {
 	if b.width != b.prevWidth || b.height != b.prevHeight {
 		b.prevWidth = b.width
 		b.prevHeight = b.height
-		b.OnResize(b.width, b.height)
+		// Dispatch through self (the outer Renderable) so widget
+		// overrides of OnResize are reached. Same pattern as
+		// renderContent → self.RenderSelf.
+		if b.self != nil {
+			b.self.OnResize(b.width, b.height)
+		} else {
+			b.OnResize(b.width, b.height)
+		}
 		if b.OnSizeChangeHandler != nil {
 			b.OnSizeChangeHandler()
 		}

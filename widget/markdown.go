@@ -1,6 +1,7 @@
 package widget
 
 import (
+	"math"
 	"reflect"
 	"strings"
 	"sync"
@@ -216,18 +217,40 @@ func NewMarkdown(content string, opts ...MarkdownOption) *Markdown {
 			w = 80
 		}
 
-		// Fast path: if we already have rendered lines and the proposed
-		// width matches (or is larger than) the last wrap width, reuse
-		// the cached line count. This avoids expensive re-wraps when
-		// intrinsicMainSize probes with large/varying widths during
-		// ancestor layout passes.
+		// Unconstrained probe guard: the flex engine's perpendicular
+		// intrinsicMainSize probes with large widths (math.MaxInt16
+		// minus container padding) to find the natural size. These
+		// are never the final layout width. Return the cached line
+		// count WITHOUT modifying lastWrapWidth so the == fast path
+		// below isn't poisoned by alternating probe/real widths.
+		//
+		// Any width above half of MaxInt16 is clearly a probe — real
+		// terminal widths are at most a few hundred columns.
+		if w >= math.MaxInt16/2 && (m.lastWrapWidth > 0 || len(m.blocks) == 0) {
+			h := len(m.renderedLines)
+			if heightMode == layout.MeasureExactly {
+				h = height
+			} else if heightMode == layout.MeasureAtMost && h > height {
+				h = height
+			}
+			return layout.MeasureResult{Width: w, Height: h}
+		}
+
+		// Fast path: reuse the cached line count when the proposed
+		// width exactly matches the last wrap width and nothing is
+		// dirty. We use == (not >=) so that an actual width change
+		// (terminal resize) triggers a re-wrap in the same layout
+		// pass — no second pass needed.
+		//
+		// Also fast-path empty blocks — they always produce 0 lines
+		// regardless of width, so there's nothing to wrap.
 		//
 		// Must also check wrapDirty: SetBlocks marks wrapDirty=true
 		// without bumping contentDirty, so renderedLines may be stale
 		// relative to the current m.blocks. Skipping this check leads
 		// to the parent sizing the content box to the pre-swap line
 		// count, clipping any new lines on render.
-		if len(m.renderedLines) > 0 && !m.contentDirty && !m.wrapDirty && m.lastWrapWidth > 0 && w >= m.lastWrapWidth {
+		if !m.contentDirty && !m.wrapDirty && (len(m.blocks) == 0 || (m.lastWrapWidth > 0 && w == m.lastWrapWidth)) {
 			h := len(m.renderedLines)
 			if heightMode == layout.MeasureExactly {
 				h = height
@@ -377,11 +400,6 @@ func (m *Markdown) wrapToWidth(w int) {
 		return
 	}
 	m.wrapBlocks(w)
-}
-
-// OnResize triggers re-wrap when size changes.
-func (m *Markdown) OnResize(width, height int) {
-	m.wrapDirty = true
 }
 
 // ---------------------------------------------------------------------------
