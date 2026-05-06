@@ -54,6 +54,7 @@ type ScrollBox struct {
 
 	// Sticky positioning.
 	stickyGap int // pixels between consecutive sticky children (default 0)
+
 }
 
 // ScrollBoxOption configures a ScrollBox during construction.
@@ -89,7 +90,7 @@ func NewScrollBox(opts ...ScrollBoxOption) *ScrollBox {
 		if e.Scroll != nil {
 			oldY := sb.scrollY
 			oldX := sb.scrollX
-			sb.handleScroll(e.Scroll.DeltaX, e.Scroll.DeltaY)
+			sb.handleScroll(e.Scroll.DeltaX, e.Scroll.DeltaY, e.Modifiers.Ctrl)
 			if sb.scrollY != oldY || sb.scrollX != oldX {
 				e.StopPropagation()
 			}
@@ -512,12 +513,16 @@ func (sb *ScrollBox) scrollYFromAnchor() int {
 // Internal — scroll mechanics
 // ---------------------------------------------------------------------------
 
-func (sb *ScrollBox) handleScroll(deltaX, deltaY int) {
+func (sb *ScrollBox) handleScroll(deltaX, deltaY int, ctrl bool) {
+	mult := 1
+	if ctrl {
+		mult = 4
+	}
 	if deltaY != 0 {
-		sb.SetScrollY(sb.scrollY + deltaY)
+		sb.SetScrollY(sb.scrollY + deltaY*mult)
 	}
 	if deltaX != 0 {
-		sb.SetScrollX(sb.scrollX + deltaX)
+		sb.SetScrollX(sb.scrollX + deltaX*mult)
 	}
 	// Note: SetScrollY/SetScrollX already set userScrolled when the
 	// resulting position is away from the auto-scroll edge. We must NOT
