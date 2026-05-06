@@ -381,17 +381,16 @@ func (b *BaseRenderable) Add(child Renderable, index ...int) int {
 	child.SetParent(b)
 	child.SetContext(b.ctx)
 
-	// Also wire up the layout node tree
-	b.layoutNode.AddChild(child.LayoutNode())
-
 	idx := len(b.children)
 	if len(index) > 0 && index[0] >= 0 && index[0] <= len(b.children) {
 		idx = index[0]
-		// Insert at position
+		// Insert at position in both render tree and layout tree.
+		b.layoutNode.AddChildAt(child.LayoutNode(), idx)
 		b.children = append(b.children, nil)
 		copy(b.children[idx+1:], b.children[idx:])
 		b.children[idx] = child
 	} else {
+		b.layoutNode.AddChild(child.LayoutNode())
 		b.children = append(b.children, child)
 	}
 
