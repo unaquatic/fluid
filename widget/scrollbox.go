@@ -109,7 +109,7 @@ func (sb *ScrollBox) ScrollX() int { return sb.scrollX }
 // Marks userScrolled unless we end up at the auto-scroll edge.
 func (sb *ScrollBox) SetScrollY(y int) {
 	sb.scrollY = sb.clampScrollY(y)
-	if !sb.isAtAutoScrollEdge() && sb.maxScrollY() > 1 {
+	if !sb.isAtAutoScrollEdge() && sb.maxScrollY() > 0 {
 		sb.userScrolled = true
 	}
 	if sb.anchorScroll {
@@ -123,7 +123,7 @@ func (sb *ScrollBox) SetScrollY(y int) {
 // SetScrollX sets the horizontal scroll offset.
 func (sb *ScrollBox) SetScrollX(x int) {
 	sb.scrollX = sb.clampScrollX(x)
-	if !sb.isAtAutoScrollEdge() && sb.maxScrollX() > 1 {
+	if !sb.isAtAutoScrollEdge() && sb.maxScrollX() > 0 {
 		sb.userScrolled = true
 	}
 	sb.updateAutoScrollState()
