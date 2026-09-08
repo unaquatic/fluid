@@ -41,7 +41,12 @@ func (r *Renderer) inputLoop() {
 // Event Dispatch
 // ---------------------------------------------------------------------------
 
-// dispatchEvent routes a terminal event to the appropriate handler chain.
+// dispatchEvent routes a terminal event through the unified dispatch
+// pipeline. All event types follow the same contract: emit on the
+// EventBus first (handlers may observe, or veto further handling via
+// PreventDefault), then run framework default actions, then dispatch to
+// the target widget. Synthetic hover events (MouseOver/MouseOut) are
+// bookkeeping and exempt from the veto.
 func (r *Renderer) dispatchEvent(evt input.TerminalEvent) {
 	switch evt.Type {
 	case input.EventKeyboard:
@@ -71,25 +76,48 @@ func (r *Renderer) dispatchKeyEvent(evt input.TerminalEvent) {
 		}
 	}
 
-	// Ctrl+C exit — Destroy closes the Done channel, unblocking Wait/Run.
+	// Emit on EventBus — handlers may veto default actions and target
+	// dispatch via PreventDefault.
+	r.eventBus.Emit(evt)
+	if evt.Key.DefaultPrevented() {
+		return
+	}
+
+	// Ctrl+C exit — a default action, so bus handlers can override it.
+	// Destroy closes the Done channel, unblocking Wait/Run.
 	if r.config.ExitOnCtrlC && evt.Key.Ctrl && evt.Key.Name == "c" {
 		r.Destroy()
 		return
 	}
 
-	// Emit on EventBus
-	r.eventBus.Emit(evt)
+	// Dispatch along the focus chain: the focused renderable first, then
+	// its ancestors, until a handler consumes the event or stops its
+	// propagation.
 
-	// Dispatch to focused renderable (unless EventBus handler prevented default)
-	if !evt.Key.DefaultPrevented() {
-		r.mu.Lock()
-		focused := r.focused
-		r.mu.Unlock()
+	r.mu.Lock()
+	target := r.focused
+	r.mu.Unlock()
 
-		if focused != nil && !focused.IsDestroyed() {
-			focused.HandleKeyPress(evt.Key)
+	for target != nil && !target.IsDestroyed() {
+		if target.HandleKeyPress(evt.Key) || evt.Key.PropagationStopped() {
+			return
 		}
+		target = outerRenderable(target.Parent())
 	}
+}
+
+// outerRenderable resolves a parent link — which points at an embedded
+// *render.BaseRenderable — to the outer widget registered under the same
+// num, so overridden methods dispatch correctly. Mirrors the resolution
+// done by FocusRenderable.
+func outerRenderable(p render.Renderable) render.Renderable {
+	if p == nil {
+		return nil
+	}
+	if actual := render.LookupRenderable(p.Num()); actual != nil {
+		return actual
+	}
+	return p
 }
 
 // dispatchMouseEvent handles mouse event routing with hit testing,
@@ -162,6 +190,15 @@ func (r *Renderer) dispatchMouseEvent(evt input.TerminalEvent) {
 		r.mu.Lock()
 		r.lastHovered = target
 		r.mu.Unlock()
+	}
+
+	// Emit on EventBus — handlers may veto drag tracking, auto-focus,
+	// and target dispatch via PreventDefault. The synthetic hover events
+	// above are exempt.
+	r.eventBus.Emit(evt)
+	if me.DefaultPrevented() {
+		r.RequestRender()
+		return
 	}
 
 	// Drag tracking
@@ -242,9 +279,6 @@ func (r *Renderer) dispatchMouseEvent(evt input.TerminalEvent) {
 		target.ProcessMouseEvent(me)
 	}
 
-	// Emit on EventBus
-	r.eventBus.Emit(evt)
-
 	// Request render for mouse activity
 	r.RequestRender()
 }
@@ -252,6 +286,13 @@ func (r *Renderer) dispatchMouseEvent(evt input.TerminalEvent) {
 // dispatchPasteEvent handles paste event routing.
 func (r *Renderer) dispatchPasteEvent(evt input.TerminalEvent) {
 	if evt.Paste == nil {
+		return
+	}
+
+	// Emit on EventBus — handlers may veto target dispatch via
+	// PreventDefault.
+	r.eventBus.Emit(evt)
+	if evt.Paste.DefaultPrevented() {
 		return
 	}
 
@@ -263,9 +304,6 @@ func (r *Renderer) dispatchPasteEvent(evt input.TerminalEvent) {
 	if focused != nil && !focused.IsDestroyed() {
 		focused.HandlePaste(evt.Paste)
 	}
-
-	// Emit on EventBus
-	r.eventBus.Emit(evt)
 }
 
 // ---------------------------------------------------------------------------

@@ -132,6 +132,196 @@ func TestDispatchKeyEvent_InputHandlerStops(t *testing.T) {
 	}
 }
 
+// keyPressEvent builds a keyboard TerminalEvent for dispatch tests.
+func keyPressEvent(name string) input.TerminalEvent {
+	return input.TerminalEvent{
+		Type: input.EventKeyboard,
+		Key: &input.KeyEvent{
+			Name:   name,
+			Type:   input.KeyPress,
+			Raw:    name,
+			Source: "raw",
+		},
+	}
+}
+
+func TestDispatchKeyEvent_BubblesToParent(t *testing.T) {
+	r := newInputTestRenderer()
+
+	parent := render.NewBaseRenderable(render.WithID("parent"))
+	child := render.NewBaseRenderable(render.WithID("child"), render.WithFocusable(true))
+	r.root.Add(parent)
+	parent.Add(child)
+
+	var parentKey string
+	parent.OnKeyDownHandler = func(e *input.KeyEvent) { parentKey = e.Name }
+
+	r.focused = child
+	r.dispatchEvent(keyPressEvent("x"))
+
+	if parentKey != "x" {
+		t.Errorf("expected unhandled key to bubble to parent, got %q", parentKey)
+	}
+}
+
+func TestDispatchKeyEvent_ConsumedStopsBubbling(t *testing.T) {
+	r := newInputTestRenderer()
+
+	parent := render.NewBaseRenderable(render.WithID("parent"))
+	child := render.NewBaseRenderable(render.WithID("child"), render.WithFocusable(true))
+	r.root.Add(parent)
+	parent.Add(child)
+
+	var parentCalled bool
+	child.OnKeyDownHandler = func(e *input.KeyEvent) { e.StopPropagation() }
+	parent.OnKeyDownHandler = func(e *input.KeyEvent) { parentCalled = true }
+
+	r.focused = child
+	r.dispatchEvent(keyPressEvent("x"))
+
+	if parentCalled {
+		t.Error("expected consumed key not to bubble to parent")
+	}
+}
+
+// stopPropRenderable stops propagation without consuming the event,
+// exercising the PropagationStopped branch of the focus-chain walk.
+type stopPropRenderable struct {
+	*render.BaseRenderable
+}
+
+func (s *stopPropRenderable) HandleKeyPress(e *input.KeyEvent) bool {
+	e.StopPropagation()
+	return false
+}
+
+func TestDispatchKeyEvent_StopPropagationStopsBubbling(t *testing.T) {
+	r := newInputTestRenderer()
+
+	parent := render.NewBaseRenderable(render.WithID("parent"))
+	child := &stopPropRenderable{
+		BaseRenderable: render.NewBaseRenderable(render.WithID("child"), render.WithFocusable(true)),
+	}
+	r.root.Add(parent)
+	parent.Add(child)
+
+	var parentCalled bool
+	parent.OnKeyDownHandler = func(e *input.KeyEvent) { parentCalled = true }
+
+	r.focused = child
+	r.dispatchEvent(keyPressEvent("x"))
+
+	if parentCalled {
+		t.Error("expected StopPropagation to halt bubbling even when unconsumed")
+	}
+}
+
+func TestDispatchKeyEvent_UnhandledReachesRoot(t *testing.T) {
+	r := newInputTestRenderer()
+
+	parent := render.NewBaseRenderable(render.WithID("parent"))
+	child := render.NewBaseRenderable(render.WithID("child"), render.WithFocusable(true))
+	r.root.Add(parent)
+	parent.Add(child)
+
+	var rootKey string
+	r.root.OnKeyDownHandler = func(e *input.KeyEvent) { rootKey = e.Name }
+
+	r.focused = child
+	r.dispatchEvent(keyPressEvent("z"))
+
+	if rootKey != "z" {
+		t.Errorf("expected unhandled key to reach root, got %q", rootKey)
+	}
+}
+
+func TestDispatchKeyEvent_ExitOnCtrlC(t *testing.T) {
+	r := newInputTestRenderer()
+	r.config.ExitOnCtrlC = true
+
+	evt := keyPressEvent("c")
+	evt.Key.Ctrl = true
+	r.dispatchEvent(evt)
+
+	if !r.destroyed {
+		t.Error("expected ctrl+c to destroy the renderer")
+	}
+}
+
+func TestDispatchKeyEvent_BusVetoesExitOnCtrlC(t *testing.T) {
+	r := newInputTestRenderer()
+	r.config.ExitOnCtrlC = true
+
+	r.eventBus.On(input.EventKeyboard, func(evt input.TerminalEvent) {
+		evt.Key.PreventDefault()
+	})
+
+	evt := keyPressEvent("c")
+	evt.Key.Ctrl = true
+	r.dispatchEvent(evt)
+
+	if r.destroyed {
+		t.Error("expected PreventDefault to veto the ExitOnCtrlC default action")
+	}
+}
+
+func TestDispatchMouseEvent_BusVetoesTargetDispatch(t *testing.T) {
+	r := newInputTestRenderer()
+
+	child := render.NewBaseRenderable(render.WithID("veto-click"), render.WithFocusable(true))
+	child.SetBounds(0, 0, 10, 10)
+	r.root.Add(child)
+	r.hitGrid.Add(0, 0, 10, 10, child.Num())
+
+	var clicked bool
+	child.OnMouseDownHandler = func(e *input.MouseEvent) { clicked = true }
+
+	r.eventBus.On(input.EventMouse, func(evt input.TerminalEvent) {
+		evt.Mouse.PreventDefault()
+	})
+
+	r.dispatchEvent(input.TerminalEvent{
+		Type: input.EventMouse,
+		Mouse: &input.MouseEvent{
+			Type:   input.MouseDown,
+			Button: input.ButtonLeft,
+			X:      1,
+			Y:      1,
+		},
+	})
+
+	if clicked {
+		t.Error("expected PreventDefault to veto target dispatch")
+	}
+	if r.focused == child {
+		t.Error("expected PreventDefault to veto auto-focus")
+	}
+}
+
+func TestDispatchPasteEvent_BusVetoesFocusedDispatch(t *testing.T) {
+	r := newInputTestRenderer()
+
+	child := render.NewBaseRenderable(render.WithID("paste-veto"), render.WithFocusable(true))
+	r.root.Add(child)
+
+	var pasted bool
+	child.OnPasteHandler = func(e *input.PasteEvent) { pasted = true }
+	r.focused = child
+
+	r.eventBus.On(input.EventPaste, func(evt input.TerminalEvent) {
+		evt.Paste.PreventDefault()
+	})
+
+	r.dispatchEvent(input.TerminalEvent{
+		Type:  input.EventPaste,
+		Paste: &input.PasteEvent{Text: "blocked"},
+	})
+
+	if pasted {
+		t.Error("expected PreventDefault to veto focused paste dispatch")
+	}
+}
+
 func TestPrependInputHandler(t *testing.T) {
 	r := newInputTestRenderer()
 

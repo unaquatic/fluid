@@ -124,7 +124,8 @@ type Renderable interface {
 	// Blur removes keyboard focus from this widget. Called by the renderer.
 	Blur()
 	// HandleKeyPress processes a key event. Returns true if the event was
-	// consumed and should not propagate further.
+	// consumed. Unhandled events must return false so the renderer can
+	// bubble them up the focus chain to ancestor widgets.
 	HandleKeyPress(e *input.KeyEvent) bool
 	// HandlePaste processes a bracketed paste event.
 	HandlePaste(e *input.PasteEvent)
