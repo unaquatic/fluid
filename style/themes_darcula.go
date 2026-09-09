@@ -27,7 +27,7 @@ func DarculaSolid() *Theme {
 		// Semantic
 		consoleGreen = ColorFromHex("#5af78d")
 		consoleRed   = ColorFromHex("#ff5b56")
-		consoleBlue  = ColorFromHex("#5786fe")
+		consoleGray  = ColorFromHex("#8A8A8A")
 
 		// Diff
 		diffAddBg    = ColorFromHex("#444d3b")
@@ -57,14 +57,14 @@ func DarculaSolid() *Theme {
 		// Accent / interactive
 		Accent:            keywordOrange,
 		AccentStrong:      ColorFromHex("#d18616"),
-		Interactive:       consoleBlue,
+		Interactive:       consoleGray,
 		InteractiveStrong: ColorFromHex("#4e94ce"),
 
 		// Semantic
 		Success: consoleGreen,
 		Warning: ColorFromHex("#f3f99c"),
 		Danger:  consoleRed,
-		Info:    consoleBlue,
+		Info:    consoleGray,
 
 		// On-color foregrounds
 		OnAccent:      ColorWhite,
@@ -101,7 +101,7 @@ func DarculaSolid() *Theme {
 		MarkdownEmph:      ColorFromHex("#f3f99c"),
 		MarkdownStrong:    keywordOrange,
 		MarkdownBullet:    keywordOrange,
-		MarkdownListEnum:  consoleBlue,
+		MarkdownListEnum:  consoleGray,
 		MarkdownQuoteFg:   commentFg,
 		MarkdownQuoteBd:   tearline,
 		MarkdownRule:      indentGuide,
