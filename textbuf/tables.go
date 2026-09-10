@@ -41,14 +41,16 @@ func isZeroWidth(r rune) bool {
 // Mn (Nonspacing_Mark) or Me (Enclosing_Mark) general categories.
 // These are format characters, bidi controls, tags, and Hangul jamo
 // that combine with leading consonants in terminal display.
+//
+// The table MUST be sorted by the first element of each range.
 var zeroWidthExtra = []urange{
+	{0x1160, 0x11FF}, // Hangul Jungseong + Jongseong (V+T jamo)
 	{0x200B, 0x200F}, // ZWSP, ZWNJ, ZWJ, LRM, RLM
 	{0x2028, 0x202E}, // Line/Paragraph Separator, Bidi controls
 	{0x2060, 0x206F}, // Word Joiner, invisible operators, deprecated Cf
-	{0xFEFF, 0xFEFF}, // BOM / ZWNBSP
-	{0x1160, 0x11FF}, // Hangul Jungseong + Jongseong (V+T jamo)
 	{0xD7B0, 0xD7C6}, // Hangul Jamo Extended-B (V jamo)
 	{0xD7CB, 0xD7FB}, // Hangul Jamo Extended-B (T jamo)
+	{0xFEFF, 0xFEFF}, // BOM / ZWNBSP
 
 	{0xE0001, 0xE0001}, // Language Tag
 	{0xE0020, 0xE007F}, // Tag characters
@@ -424,8 +426,9 @@ func isGCBExtend(r rune) bool {
 // gcbExtendExtra contains GCB=Extend codepoints NOT covered by Mn or Me.
 // Includes ZWNJ, emoji modifiers, halfwidth katakana marks, tags, and
 // various Mc characters that Unicode assigns Extend rather than SpacingMark.
+//
+// The table MUST be sorted by the first element of each range.
 var gcbExtendExtra = []urange{
-	{0x200C, 0x200C},   // ZWNJ
 	{0x0E31, 0x0E31},   // Thai Character Mai Han Akat
 	{0x0E34, 0x0E3A},   // Thai vowel signs
 	{0x0E47, 0x0E4E},   // Thai marks
@@ -440,6 +443,7 @@ var gcbExtendExtra = []urange{
 	{0x0F80, 0x0F84},   // Tibetan
 	{0x0F86, 0x0F87},   // Tibetan
 	{0x0FC6, 0x0FC6},   // Tibetan
+	{0x200C, 0x200C},   // ZWNJ
 	{0xFF9E, 0xFF9F},   // Halfwidth katakana voiced marks
 	{0x1F3FB, 0x1F3FF}, // Emoji skin tone modifiers
 	{0xE0020, 0xE007F}, // Tags

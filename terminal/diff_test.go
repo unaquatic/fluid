@@ -7,6 +7,7 @@ import (
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/style"
+	"github.com/unaquatic/fluid/textbuf"
 )
 
 // ---------------------------------------------------------------------------
@@ -287,5 +288,79 @@ func TestRendererStats_SlidingWindow(t *testing.T) {
 	// Window: [0.020, 0.030, 0.040], avg = 0.030
 	if s.AvgRenderTime < 0.029 || s.AvgRenderTime > 0.031 {
 		t.Errorf("expected AvgRenderTime ~0.030 after slide, got %f", s.AvgRenderTime)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// flushRune — backstop for broken wide-character pairs
+// ---------------------------------------------------------------------------
+
+// TestFlushRune_BrokenPair verifies the flush still advances exactly the
+// columns a row claims when a wide-character pair has been broken. Buffer
+// writes repair this, so the cases here are forced with raw cell writes; the
+// backstop keeps a stale width table or a future overdraw path from
+// desynchronising the cursor and corrupting the rest of the frame.
+func TestFlushRune_BrokenPair(t *testing.T) {
+	const width = 4
+
+	tests := []struct {
+		name  string
+		setup func(b *buffer.Buffer)
+		want  string
+	}{
+		{
+			name: "intact pair emits head only",
+			setup: func(b *buffer.Buffer) {
+				b.SetCellDirect(1, 0, buffer.Cell{Char: '\u4e16', Width: 2})
+				b.SetCellDirect(2, 0, buffer.Cell{Char: 0, Width: -1})
+			},
+			want: " \u4e16 ",
+		},
+		{
+			name: "stranded continuation claims its column",
+			setup: func(b *buffer.Buffer) {
+				b.SetCellDirect(2, 0, buffer.Cell{Char: 0, Width: -1})
+			},
+			want: "    ",
+		},
+		{
+			name: "stranded head gives up its second column",
+			setup: func(b *buffer.Buffer) {
+				b.SetCellDirect(1, 0, buffer.Cell{Char: '\u4e16', Width: 2})
+				b.SetCellDirect(2, 0, buffer.Cell{Char: 'X', Width: 1})
+			},
+			want: "  X ",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := buffer.New(width, 1)
+			for x := range width {
+				b.SetCellDirect(x, 0, buffer.Cell{Char: ' ', Width: 1})
+			}
+			tt.setup(b)
+
+			var got strings.Builder
+			cols := 0
+			for x := range width {
+				c := b.Cell(x, 0)
+				ch, ok := flushRune(b, x, 0, c)
+				if !ok {
+					continue
+				}
+				got.WriteRune(ch)
+				if ch == c.Char {
+					got.WriteString(c.Combining)
+				}
+				cols += textbuf.RuneWidth(ch)
+			}
+			if got.String() != tt.want {
+				t.Errorf("emitted %q, want %q", got.String(), tt.want)
+			}
+			if cols != width {
+				t.Errorf("row advances %d columns, want %d", cols, width)
+			}
+		})
 	}
 }

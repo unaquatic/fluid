@@ -205,8 +205,8 @@ func (r *Renderer) buildInlineFull(out *bytes.Buffer, buf *buffer.Buffer, overfl
 
 	out.Grow(width * height * 4)
 
-	// Synchronized output
-	out.WriteString("\x1b[?2026h")
+	// Synchronize output and prevent width mismatches from wrapping.
+	out.WriteString("\x1b[?2026h\x1b[?7l")
 
 	// --- Erase ---
 	if overflow {
@@ -238,11 +238,18 @@ func (r *Renderer) buildInlineFull(out *bytes.Buffer, buf *buffer.Buffer, overfl
 			out.WriteString("\r\n")
 		}
 		linesWritten++
+		anchored := true // \r\n put the cursor at column 0
 
 		for x := 0; x <= lastCol; x++ {
 			cell := buf.Cell(x, y)
-			if cell.Width == -1 {
-				continue
+			ch, ok := flushRune(buf, x, y, cell)
+			if !ok {
+				continue // continuation covered by its head
+			}
+
+			if !anchored {
+				anchorColumn(out, x)
+				anchored = true
 			}
 
 			if needsReset || !cell.Fg.Equals(curFg) || !cell.Bg.Equals(curBg) || cell.Attributes != curAttrs {
@@ -264,13 +271,10 @@ func (r *Renderer) buildInlineFull(out *bytes.Buffer, buf *buffer.Buffer, overfl
 				curLinkID = linkID
 			}
 
-			ch := cell.Char
-			if ch == 0 {
-				ch = ' '
-			}
 			out.WriteRune(ch)
-			if cell.Combining != "" {
+			if ch == cell.Char {
 				out.WriteString(cell.Combining)
+				anchored = !widthUncertain(cell)
 			}
 		}
 	}
@@ -284,7 +288,7 @@ func (r *Renderer) buildInlineFull(out *bytes.Buffer, buf *buffer.Buffer, overfl
 	}
 	out.WriteString("\x1b[0m")
 
-	out.WriteString("\x1b[?2026l")
+	out.WriteString("\x1b[?7h\x1b[?2026l")
 }
 
 // ---------------------------------------------------------------------------
@@ -332,7 +336,7 @@ func (r *Renderer) buildInlineDiff(out *bytes.Buffer, prev, next *buffer.Buffer)
 	}
 	out.Grow(width * estRows * 4)
 
-	out.WriteString("\x1b[?2026h") // synchronized output start
+	out.WriteString("\x1b[?2026h\x1b[?7l") // synchronize output and disable auto-wrap
 
 	// Cursor starts at row prevH (the trailing position from the
 	// previous flush — one line below the last content row).
@@ -375,7 +379,7 @@ func (r *Renderer) buildInlineDiff(out *bytes.Buffer, prev, next *buffer.Buffer)
 	inlineMoveToRow(out, curRow, newH)
 
 	out.WriteString("\x1b[0m")
-	out.WriteString("\x1b[?2026l") // synchronized output end
+	out.WriteString("\x1b[?7h\x1b[?2026l") // restore auto-wrap and end synchronized output
 }
 
 // ---------------------------------------------------------------------------
@@ -396,11 +400,18 @@ func (r *Renderer) writeInlineRow(out *bytes.Buffer, buf *buffer.Buffer, y, widt
 	var curAttrs uint32
 	var curLinkID uint32
 	needsReset := true
+	anchored := true // the caller left the cursor at column 0
 
 	for x := 0; x <= lastCol; x++ {
 		cell := buf.Cell(x, y)
-		if cell.Width == -1 {
-			continue // skip wide-char continuation
+		ch, ok := flushRune(buf, x, y, cell)
+		if !ok {
+			continue // continuation covered by its head
+		}
+
+		if !anchored {
+			anchorColumn(out, x)
+			anchored = true
 		}
 
 		if needsReset || !cell.Fg.Equals(curFg) || !cell.Bg.Equals(curBg) || cell.Attributes != curAttrs {
@@ -422,13 +433,10 @@ func (r *Renderer) writeInlineRow(out *bytes.Buffer, buf *buffer.Buffer, y, widt
 			curLinkID = linkID
 		}
 
-		ch := cell.Char
-		if ch == 0 {
-			ch = ' '
-		}
 		out.WriteRune(ch)
-		if cell.Combining != "" {
+		if ch == cell.Char {
 			out.WriteString(cell.Combining)
+			anchored = !widthUncertain(cell)
 		}
 	}
 

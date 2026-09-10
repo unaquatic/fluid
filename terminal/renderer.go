@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -100,6 +101,12 @@ type Renderer struct {
 
 	mu          sync.Mutex
 	invalidated bool // when true, next frame uses FullFlush instead of DiffAndFlush
+
+	// probedWidths holds the columns measured for Config.WidthProbeSamples
+	// during setup, or nil when the terminal was not measured. probeErr says
+	// why in that case.
+	probedWidths []int
+	probeErr     error
 }
 
 // ---------------------------------------------------------------------------
@@ -1002,10 +1009,47 @@ func (r *Renderer) setup() error {
 		r.backend.Clear()
 	}
 
+	// Measure the terminal before the input loop starts — that is the only
+	// window where nothing else is reading stdin, so the cursor position
+	// reports cannot be swallowed by the key parser.
+	r.probeWidths()
+
 	// Re-query size after setup (render loop not started yet, safe to call directly)
 	if w, h, err := r.backend.Size(); err == nil {
 		r.processResize(w, h)
 	}
 
 	return nil
+}
+
+// probeWidths measures the configured samples, recording the result for
+// ProbedWidths. A terminal that does not answer leaves the built-in width
+// tables in place; that is a normal outcome, not an error worth surfacing.
+func (r *Renderer) probeWidths() {
+	if r.config.WidthProbe != WidthProbeAuto || len(r.config.WidthProbeSamples) == 0 {
+		return
+	}
+	widths, err := r.backend.ProbeWidths(r.config.WidthProbeSamples)
+
+	r.mu.Lock()
+	r.probedWidths, r.probeErr = widths, err
+	r.mu.Unlock()
+
+	if r.dbg != nil {
+		if err != nil {
+			r.dbg.Printf("[probe] unavailable: %v", err)
+		} else {
+			r.dbg.Printf("[probe] measured %v", widths)
+		}
+	}
+}
+
+// ProbedWidths returns the column widths measured for
+// Config.WidthProbeSamples, in the same order. err explains why measurement
+// did not happen: probing disabled, unsupported, or the terminal staying
+// silent. Both being nil means probing was never requested.
+func (r *Renderer) ProbedWidths() (widths []int, err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.Clone(r.probedWidths), r.probeErr
 }

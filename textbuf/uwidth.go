@@ -75,6 +75,9 @@ func GraphemeClusterCount(s string) int {
 //   - Extended_Pictographic base + VS16 (U+FE0F) → 2
 //   - Extended_Pictographic base + VS15 (U+FE0E) → 1
 //   - Otherwise → RuneWidth of the base (first) rune
+//
+// Spacing marks glued onto the cluster by UAX #29 GB9a keep their own
+// columns and are added to the base width.
 func graphemeClusterWidth(cluster string) int {
 	if cluster == "" {
 		return 0
@@ -87,30 +90,49 @@ func graphemeClusterWidth(cluster string) int {
 		return 2
 	}
 
-	baseWidth := RuneWidth(r)
-
-	// For Extended_Pictographic, check for variation selectors.
+	rest := cluster[sz:]
+	w := RuneWidth(r)
 	if isExtendedPictographic(r) {
-		hasVS16 := false
-		hasVS15 := false
-		for i := sz; i < len(cluster); {
-			cr, csz := utf8.DecodeRuneInString(cluster[i:])
-			switch cr {
-			case 0xFE0F:
-				hasVS16 = true
-			case 0xFE0E:
-				hasVS15 = true
-			}
-			i += csz
-		}
-		if hasVS15 {
-			return 1
-		}
-		if hasVS16 || baseWidth == 2 {
-			return 2
-		}
-		return baseWidth
+		w = pictographicWidth(w, rest)
 	}
+	return w + spacingMarkWidth(rest)
+}
 
+// pictographicWidth resolves the width of an Extended_Pictographic base rune
+// of width baseWidth against the variation selectors in rest. VS15 (U+FE0E)
+// selects text presentation (one column), VS16 (U+FE0F) selects emoji
+// presentation (two columns).
+func pictographicWidth(baseWidth int, rest string) int {
+	hasVS16 := false
+	for _, r := range rest {
+		switch r {
+		case 0xFE0E:
+			return 1
+		case 0xFE0F:
+			hasVS16 = true
+		}
+	}
+	if hasVS16 || baseWidth == 2 {
+		return 2
+	}
 	return baseWidth
+}
+
+// spacingMarkWidth returns the combined width of the GCB=SpacingMark
+// codepoints in rest.
+//
+// UAX #29 GB9a keeps spacing marks in the preceding grapheme cluster, but
+// unlike nonspacing marks they advance the cursor. Thai Sara Am (U+0E33) and
+// the Indic Mc matras are the common cases: a terminal renders "กำ" in two
+// columns even though it is a single cluster. Ignoring them makes a rendered
+// row wider than the buffer it came from, which overflows the right margin
+// and desynchronises the renderer's cursor model.
+func spacingMarkWidth(rest string) int {
+	w := 0
+	for _, r := range rest {
+		if isGCBSpacingMark(r) {
+			w += RuneWidth(r)
+		}
+	}
+	return w
 }

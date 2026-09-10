@@ -141,6 +141,171 @@ func TestSetCellDirect_WideCell_LastColumn(t *testing.T) {
 	}
 }
 
+// TestSetGraphemeCluster_SpacingMark verifies that a cluster containing a
+// spacing mark claims both of the columns it renders in. Before the fix the
+// cell took its width from the base rune, so Thai "กำ" occupied one buffer
+// column but emitted two codepoints — every occurrence made the flushed row
+// one column wider than the buffer.
+func TestSetGraphemeCluster_SpacingMark(t *testing.T) {
+	b := New(10, 1)
+	b.SetGraphemeCluster(2, 0, "\u0E01\u0E33", style.ColorWhite, style.ColorBlack, 0) // กำ
+
+	c := b.Cell(2, 0)
+	if c.Char != '\u0E01' {
+		t.Errorf("Char = %q, want '\u0E01'", c.Char)
+	}
+	if c.Combining != "\u0E33" {
+		t.Errorf("Combining = %q, want %q", c.Combining, "\u0E33")
+	}
+	if c.Width != 2 {
+		t.Errorf("Width = %d, want 2", c.Width)
+	}
+	if !b.Cell(3, 0).IsContinuation() {
+		t.Error("cell after spacing-mark cluster should be a continuation")
+	}
+}
+
+// TestDrawClusters_ColumnAccounting is the invariant the renderer depends on:
+// the columns claimed by a row's cells must equal the columns the terminal
+// advances when that row is flushed. Any drift desynchronises the renderer's
+// cursor model and corrupts everything drawn after it.
+//
+// The flush emits every codepoint of a cell, and a terminal advances by the
+// per-codepoint width, so that sum — not the cluster width — is the oracle.
+func TestDrawClusters_ColumnAccounting(t *testing.T) {
+	tests := []struct {
+		name string
+		text string
+	}{
+		{"ascii", "the quick brown fox"},
+		{"cjk", "\u4e16\u754c mixed \u4e2d\u6587"},
+		{"thai spacing marks", "\u0E23\u0E32\u0E04\u0E32 100 \u0E1A\u0E32\u0E17 \u0E04\u0E33\u0E19\u0E27\u0E13"},
+		{"thai nonspacing marks", "\u0E17\u0E35\u0E48\u0E19\u0E35\u0E48 here"},
+		{"bom", "\ufeffleading BOM"},
+		{"emoji", "ok \U0001F680 done"},
+	}
+
+	const width = 40
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := New(width, 1)
+			b.Clear(style.ColorTransparent)
+			b.DrawClusters(tt.text, 0, 0, width, style.ColorWhite, style.ColorTransparent, 0, nil)
+
+			claimed, advanced := 0, 0
+			for x := range width {
+				c := b.Cell(x, 0)
+				if c.IsContinuation() {
+					continue
+				}
+				claimed += int(c.Width)
+				ch := c.Char
+				if ch == 0 {
+					ch = ' '
+				}
+				advanced += textbuf.RuneWidth(ch)
+				for _, r := range c.Combining {
+					advanced += textbuf.RuneWidth(r)
+				}
+			}
+			if claimed != width {
+				t.Errorf("cells claim %d columns, want %d", claimed, width)
+			}
+			if advanced != width {
+				t.Errorf("flushed row advances %d columns, want %d", advanced, width)
+			}
+		})
+	}
+}
+
+// TestDetachWide_OverdrawKeepsRowWidth covers drawing over half of a wide
+// character. A stranded continuation makes the flushed row one column short
+// and a stranded head makes it one column long; either desynchronises the
+// renderer's cursor and strands garbage in rows the diff never repaints.
+func TestDetachWide_OverdrawKeepsRowWidth(t *testing.T) {
+	const width = 10
+	fg, bg := style.ColorWhite, style.ColorBlack
+
+	// columns advanced when the row is flushed: continuation cells emit
+	// nothing because their head already advanced two columns.
+	advanced := func(b *Buffer) int {
+		n := 0
+		for x := range width {
+			c := b.Cell(x, 0)
+			if c.Width == -1 {
+				continue
+			}
+			n += textbuf.RuneWidth(c.Char)
+			for _, r := range c.Combining {
+				n += textbuf.RuneWidth(r)
+			}
+		}
+		return n
+	}
+
+	tests := []struct {
+		name      string
+		overdraw  func(b *Buffer)
+		wantAt4   rune
+		wantAt5   rune
+		wantWidth int8
+	}{
+		{
+			name:      "overwrite head",
+			overdraw:  func(b *Buffer) { b.SetCell(4, 0, 'X', fg, bg, 0) },
+			wantAt4:   'X',
+			wantAt5:   ' ',
+			wantWidth: 1,
+		},
+		{
+			name:      "overwrite continuation",
+			overdraw:  func(b *Buffer) { b.SetCell(5, 0, 'X', fg, bg, 0) },
+			wantAt4:   ' ',
+			wantAt5:   'X',
+			wantWidth: 1,
+		},
+		{
+			name:      "fill over head",
+			overdraw:  func(b *Buffer) { b.FillRect(0, 0, 5, 1, bg) },
+			wantAt4:   ' ',
+			wantAt5:   ' ',
+			wantWidth: 1,
+		},
+		{
+			name:      "blend over continuation",
+			overdraw:  func(b *Buffer) { b.SetCellBlended(5, 0, 'X', fg, bg, 0) },
+			wantAt4:   ' ',
+			wantAt5:   'X',
+			wantWidth: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := New(width, 1)
+			b.Clear(style.ColorTransparent)
+			for x := range width {
+				b.SetCell(x, 0, ' ', fg, bg, 0)
+			}
+			b.SetCell(4, 0, '\u4e16', fg, bg, 0) // 世: head at 4, continuation at 5
+			tt.overdraw(b)
+
+			if got := b.Cell(4, 0).Char; got != tt.wantAt4 {
+				t.Errorf("cell 4 Char = %q, want %q", got, tt.wantAt4)
+			}
+			if got := b.Cell(5, 0).Char; got != tt.wantAt5 {
+				t.Errorf("cell 5 Char = %q, want %q", got, tt.wantAt5)
+			}
+			if got := b.Cell(4, 0).Width; got != tt.wantWidth {
+				t.Errorf("cell 4 Width = %d, want %d", got, tt.wantWidth)
+			}
+			if got := advanced(b); got != width {
+				t.Errorf("flushed row advances %d columns, want %d", got, width)
+			}
+		})
+	}
+}
+
 func TestGetCell_OOB(t *testing.T) {
 	b := New(5, 5)
 	c := b.Cell(-1, 0)
@@ -1075,5 +1240,69 @@ func TestInnerRect_SingleSide(t *testing.T) {
 	r := InnerRect(0, 0, 10, 8, style.BorderSidesConfig{Top: true})
 	if r.X != 0 || r.Y != 1 || r.Width != 10 || r.Height != 7 {
 		t.Errorf("InnerRect(Top only) = %+v, want {0 1 10 7}", r)
+	}
+}
+
+// TestDetachWide_RespectsScissor keeps a clipped draw inside its rect. The
+// partner of a broken wide pair can sit outside the clip, and blanking it
+// there would let a widget erase a neighbour's glyph.
+//
+// Leaving the partner stranded is safe: flushRune emits a stranded head or
+// continuation as a space, so the row still advances what its cells claim.
+func TestDetachWide_RespectsScissor(t *testing.T) {
+	tests := []struct {
+		name    string
+		scissor []int // x, y, w, h
+		drawAt  int
+		checkAt int
+	}{
+		{
+			// Wide char at 4-5; clip starts at 5, so blanking the head at 4
+			// would reach outside.
+			name:    "head outside the clip",
+			scissor: []int{5, 0, 5, 1},
+			drawAt:  5,
+			checkAt: 4,
+		},
+		{
+			// Wide char at 4-5; clip ends at 4, so blanking the
+			// continuation at 5 would reach outside.
+			name:    "continuation outside the clip",
+			scissor: []int{0, 0, 5, 1},
+			drawAt:  4,
+			checkAt: 5,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := New(10, 1)
+			b.Clear(style.ColorTransparent)
+			b.SetCell(4, 0, '\u4e16', style.ColorWhite, style.ColorBlack, 0)
+			before := b.Cell(tt.checkAt, 0)
+
+			b.PushScissorRect(tt.scissor[0], tt.scissor[1], tt.scissor[2], tt.scissor[3])
+			b.SetCell(tt.drawAt, 0, 'X', style.ColorWhite, style.ColorBlack, 0)
+			b.PopScissorRect()
+
+			if got := b.Cell(tt.checkAt, 0); got != before {
+				t.Errorf("cell %d lies outside the scissor but was modified: Char=%q Width=%d",
+					tt.checkAt, got.Char, got.Width)
+			}
+		})
+	}
+}
+
+// TestDetachWide_UnclippedStillRepairs keeps the repair working when no clip
+// is in force, which is the ordinary case.
+func TestDetachWide_UnclippedStillRepairs(t *testing.T) {
+	b := New(10, 1)
+	b.Clear(style.ColorTransparent)
+	b.SetCell(4, 0, '\u4e16', style.ColorWhite, style.ColorBlack, 0)
+
+	b.SetCell(4, 0, 'X', style.ColorWhite, style.ColorBlack, 0)
+
+	if b.Cell(5, 0).IsContinuation() {
+		t.Error("continuation should have been blanked when nothing clips it")
 	}
 }

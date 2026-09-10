@@ -257,12 +257,14 @@ func (b *Buffer) SetCellCombining(x, y int, combining string) {
 // The first codepoint becomes Cell.Char; remaining combining codepoints
 // are stored in Cell.Combining. This is the canonical way to write a
 // multi-codepoint cluster (emoji, ZWJ sequence, etc.) to the buffer.
+//
+// Cell.Width is the width of the whole cluster, which can exceed the base
+// rune's width: an emoji with VS16 and a Thai consonant followed by Sara Am
+// both occupy two columns. The flush writes every codepoint of the cluster
+// from this one cell, so the width must match what the terminal advances.
 func (b *Buffer) SetGraphemeCluster(x, y int, cluster string, fg, bg style.Color, attrs uint32) {
 	baseRune, baseSize := utf8.DecodeRuneInString(cluster)
-	b.SetCell(x, y, baseRune, fg, bg, attrs)
-	if combining := cluster[baseSize:]; combining != "" {
-		b.SetCellCombining(x, y, combining)
-	}
+	b.setCluster(x, y, baseRune, cluster[baseSize:], textbuf.StringWidth(cluster), fg, bg, attrs)
 }
 
 // ClusterStyler is called for each grapheme cluster before it is painted.
@@ -326,13 +328,56 @@ func (b *Buffer) Cell(x, y int) Cell {
 // would then emit the 2-column rune, making that row 1 column wider than the
 // buffer and triggering terminal auto-wrap.
 func (b *Buffer) SetCell(x, y int, char rune, fg, bg style.Color, attrs uint32) {
+	b.setCluster(x, y, char, "", RuneWidth(char), fg, bg, attrs)
+}
+
+// detachWide makes column x safe to overwrite by blanking the other half of
+// any wide-character pair occupying it.
+//
+// A wide character spans a Width=2 head and a Width=-1 continuation. Drawing
+// over one half without clearing the other leaves the row claiming a
+// different number of columns than it renders in: a stranded head still emits
+// a two-column rune, a stranded continuation emits nothing at all. Either way
+// the flush desynchronises the renderer's cursor and every cell after it
+// lands in the wrong column.
+func (b *Buffer) detachWide(x, y int) {
+	idx := b.cellIndex(x, y)
+	switch {
+	case b.cells[idx].Width == 2 && x+1 < b.width:
+		b.blankAt(x+1, y)
+	case b.cells[idx].Width == -1 && x > 0:
+		b.blankAt(x-1, y)
+	}
+}
+
+// blankAt replaces the cell at (x, y) with a single-column space, keeping its
+// colors so the gap left by a broken wide character matches its surroundings.
+//
+// The partner of a broken pair can lie outside the caller's scissor rect, and
+// a clipped draw must not reach beyond it. Leaving that half alone costs
+// nothing: flushRune emits a stranded head or continuation as a space, so the
+// row still advances exactly the columns its cells claim.
+func (b *Buffer) blankAt(x, y int) {
+	if b.isClipped(x, y) {
+		return
+	}
+	idx := b.cellIndex(x, y)
+	c := b.cells[idx]
+	b.cells[idx] = Cell{
+		Char:       ' ',
+		Fg:         c.Fg,
+		Bg:         c.Bg,
+		Attributes: c.Attributes,
+		Width:      1,
+	}
+}
+
+// setCluster writes a cell holding char plus any trailing combining
+// codepoints, occupying w columns. Backs SetCell and SetGraphemeCluster.
+func (b *Buffer) setCluster(x, y int, char rune, combining string, w int, fg, bg style.Color, attrs uint32) {
 	if !b.inBounds(x, y) || b.isClipped(x, y) {
 		return
 	}
-
-	b.applyOpacity(&fg, &bg)
-
-	w := RuneWidth(char)
 
 	// A wide char needs x+1 to be a valid column for its continuation cell.
 	// If there is no room, drop the character to avoid a stranded Width=2 cell
@@ -341,9 +386,17 @@ func (b *Buffer) SetCell(x, y int, char rune, fg, bg style.Color, attrs uint32) 
 		return
 	}
 
+	b.applyOpacity(&fg, &bg)
+
+	b.detachWide(x, y)
+	if w == 2 {
+		b.detachWide(x+1, y)
+	}
+
 	idx := b.cellIndex(x, y)
 	b.cells[idx] = Cell{
 		Char:       char,
+		Combining:  combining,
 		Fg:         fg,
 		Bg:         bg,
 		Attributes: attrs,
@@ -364,6 +417,7 @@ func (b *Buffer) SetCell(x, y int, char rune, fg, bg style.Color, attrs uint32) 
 
 // SetCellDirect writes a full Cell struct at (x, y).
 // Respects scissor clipping and opacity.
+// Wide cells also write a continuation with matching colors and attributes.
 // Wide cells (Width == 2) at the last buffer column are dropped (see SetCell).
 func (b *Buffer) SetCellDirect(x, y int, cell Cell) {
 	if !b.inBounds(x, y) || b.isClipped(x, y) {
@@ -374,7 +428,23 @@ func (b *Buffer) SetCellDirect(x, y int, cell Cell) {
 		return
 	}
 	b.applyOpacity(&cell.Fg, &cell.Bg)
-	b.cells[b.cellIndex(x, y)] = cell
+	// Writing a continuation must not detach the head it belongs to.
+	if cell.Width != -1 {
+		b.detachWide(x, y)
+		if cell.Width == 2 {
+			b.detachWide(x+1, y)
+		}
+	}
+	idx := b.cellIndex(x, y)
+	b.cells[idx] = cell
+	if cell.Width == 2 {
+		b.cells[idx+1] = Cell{
+			Fg:         cell.Fg,
+			Bg:         cell.Bg,
+			Attributes: cell.Attributes,
+			Width:      -1,
+		}
+	}
 }
 
 // SetCellBlended writes a cell with alpha blending against the existing cell.
@@ -400,6 +470,11 @@ func (b *Buffer) SetCellBlended(x, y int, char rune, fg, bg style.Color, attrs u
 		Bg:         bg,
 		Attributes: attrs,
 		Width:      int8(w),
+	}
+
+	b.detachWide(x, y)
+	if w == 2 {
+		b.detachWide(x+1, y)
 	}
 
 	idx := b.cellIndex(x, y)
@@ -524,6 +599,7 @@ func (b *Buffer) FillRect(x, y, w, h int, bg style.Color) {
 				fg := style.ColorWhite
 				cellBg := bg
 				b.applyOpacity(&fg, &cellBg)
+				b.detachWide(col, row)
 				idx := b.cellIndex(col, row)
 				b.cells[idx] = Cell{
 					Char:  ' ',
@@ -731,6 +807,7 @@ func (b *Buffer) DrawFrameBuffer(destX, destY int, src *Buffer, srcRect ...Rect)
 				srcCell.Bg.A = uint8(float32(srcCell.Bg.A) * op)
 			}
 
+			b.detachWide(dx, dy)
 			idx := b.cellIndex(dx, dy)
 			if src.respectAlpha {
 				b.cells[idx] = BlendCell(b.cells[idx], srcCell)

@@ -262,6 +262,14 @@ type Config struct {
 	// collected data via Terminal.Stats(). Default: false.
 	GatherStats bool
 
+	// WidthProbe controls whether the renderer measures the terminal's real
+	// cell widths during setup. Default: WidthProbeOff.
+	WidthProbe WidthProbe
+
+	// WidthProbeSamples are the strings measured when WidthProbe is
+	// WidthProbeAuto. Results are read back with Renderer.ProbedWidths.
+	WidthProbeSamples []string
+
 	// DebugLog, when non-empty, enables per-frame diagnostic logging to
 	// the given file path (e.g. "logs/fluid.log"). The directory must
 	// exist. Each line is a tab-separated record:
@@ -325,6 +333,10 @@ func mergeConfig(configs []Config) Config {
 	cfg.UseKittyKeyboard = user.UseKittyKeyboard
 	cfg.AltSendsEscPrefix = user.AltSendsEscPrefix
 	cfg.GatherStats = user.GatherStats
+	if user.WidthProbe.Valid() {
+		cfg.WidthProbe = user.WidthProbe
+	}
+	cfg.WidthProbeSamples = user.WidthProbeSamples
 
 	if cfg.InlineMode {
 		cfg.Fullscreen = false

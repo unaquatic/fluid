@@ -160,6 +160,30 @@ func TestStringWidth_Empty(t *testing.T) {
 	}
 }
 
+func TestStringWidth_SpacingMark(t *testing.T) {
+	// UAX #29 GB9a keeps a spacing mark in the preceding cluster, but the
+	// terminal still advances a column for it.
+	tests := []struct {
+		name string
+		s    string
+		want int
+	}{
+		{"thai sara am", "\u0E01\u0E33", 2},                 // กำ
+		{"thai tone then sara am", "\u0E15\u0E48\u0E33", 2}, // ต่ำ — tone mark is nonspacing
+		{"thai nonspacing only", "\u0E17\u0E35\u0E48", 1},   // ที่
+		{"thai word", "\u0E04\u0E33\u0E19\u0E27\u0E13", 5},  // คำนวณ
+		{"lao vowel am", "\u0E81\u0EB3", 2},
+		{"devanagari matra", "\u0915\u093E", 2}, // का
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := StringWidth(tt.s); got != tt.want {
+				t.Errorf("StringWidth(%q) = %d, want %d", tt.s, got, tt.want)
+			}
+		})
+	}
+}
+
 // ---------------------------------------------------------------------------
 // NextGraphemeCluster
 // ---------------------------------------------------------------------------

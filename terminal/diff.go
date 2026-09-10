@@ -10,6 +10,64 @@ import (
 )
 
 // ---------------------------------------------------------------------------
+// flushRune
+// ---------------------------------------------------------------------------
+
+// flushRune returns the rune to emit for the cell at (x, y) and whether the
+// cell emits anything at all.
+//
+// A wide character is emitted as its head rune, and its Width=-1 continuation
+// emits nothing, because the head already advanced two columns. That only
+// holds while the pair is intact. Buffer.detachWide keeps it intact, and this
+// is the backstop: a half of a broken pair is emitted as a space so the row
+// still advances exactly the columns its cells claim. Letting the drift reach
+// the terminal desynchronises the cursor and corrupts the rest of the frame.
+//
+// The returned rune differs from cell.Char whenever it is a substitution, so
+// callers can tell whether to emit Cell.Combining and whether two columns were
+// consumed.
+//
+// See widthUncertain for what has to happen after emitting the result.
+func flushRune(buf *buffer.Buffer, x, y int, cell buffer.Cell) (rune, bool) {
+	switch {
+	case cell.Width == -1:
+		if x > 0 && buf.Cell(x-1, y).Width == 2 {
+			return 0, false // covered by its head
+		}
+		return ' ', true // stranded continuation: claim its column
+	case cell.Width == 2 && buf.Cell(x+1, y).Width != -1:
+		return ' ', true // stranded head: would claim a column it no longer owns
+	case cell.Char == 0:
+		return ' ', true
+	}
+	return cell.Char, true
+}
+
+// widthUncertain reports whether the terminal's advance for cell may differ
+// from the width the buffer assigned it.
+//
+// A single-codepoint narrow cell is safe: every terminal advances exactly one
+// column for it. Wide characters and multi-codepoint clusters are not — their
+// advance depends on the terminal's own width tables and grapheme handling,
+// which fluid can neither know nor always probe. iTerm composes
+// U+1100 U+1161 U+11A8 into one narrow-looking glyph while advancing four
+// columns; other terminals render emoji sequences one column wide.
+//
+// After emitting one of these the flush re-anchors the cursor to an absolute
+// column. That turns a disagreement into a single misplaced glyph rather than
+// a row that drifts from that point on — and, once the drift runs past the
+// right margin, a wrap that desynchronises every row after it.
+func widthUncertain(c buffer.Cell) bool {
+	return c.Width == 2 || c.Combining != ""
+}
+
+// anchorColumn emits an absolute cursor column move (CHA). Used to re-anchor
+// after a cell whose advance the terminal may disagree about.
+func anchorColumn(out *bytes.Buffer, x int) {
+	fmt.Fprintf(out, "\x1b[%dG", x+1)
+}
+
+// ---------------------------------------------------------------------------
 // DiffAndFlush
 // ---------------------------------------------------------------------------
 
@@ -20,6 +78,7 @@ func (r *Renderer) DiffAndFlush(current, next *buffer.Buffer) {
 	height := next.Height()
 	var output bytes.Buffer
 	output.Grow(width * height * 2) // rough estimate
+	output.WriteString("\x1b[?7l")  // prevent width mismatches from wrapping or scrolling
 
 	cursorX, cursorY := -1, -1
 	curFg := style.Color{}
@@ -65,36 +124,38 @@ func (r *Renderer) DiffAndFlush(current, next *buffer.Buffer) {
 				curLinkID = linkID
 			}
 
-			// Skip wide char continuations
-			if nxt.Width == -1 {
-				continue
+			ch, ok := flushRune(next, x, y, nxt)
+			if !ok {
+				continue // continuation covered by its head
 			}
 
 			// Write character + combining codepoints (ZWJ sequences, etc.)
-			ch := nxt.Char
-			if ch == 0 {
-				ch = ' '
-			}
 			output.WriteRune(ch)
-			if nxt.Combining != "" {
-				output.WriteString(nxt.Combining)
-			}
 			cursorX++
-			if nxt.Width == 2 {
-				cursorX++ // wide char advances 2 columns
+			if ch == nxt.Char {
+				output.WriteString(nxt.Combining)
+				if nxt.Width == 2 {
+					cursorX++ // wide char advances 2 columns
+				}
+				if widthUncertain(nxt) {
+					// The terminal may not have advanced what we budgeted.
+					// Forget our position so the next cell re-anchors.
+					cursorX = -1
+				}
 			}
 		}
 	}
 
-	// Close any open hyperlink and reset
+	if output.Len() == len("\x1b[?7l") {
+		return
+	}
+
+	// Close any open hyperlink, restore auto-wrap, and reset.
 	if curLinkID != 0 {
 		output.WriteString("\x1b]8;;\x1b\\")
 	}
-	output.WriteString("\x1b[0m")
-
-	if output.Len() > 4 { // more than just the reset
-		r.backend.WriteOut(output.Bytes())
-	}
+	output.WriteString("\x1b[?7h\x1b[0m")
+	r.backend.WriteOut(output.Bytes())
 }
 
 // ---------------------------------------------------------------------------
@@ -166,6 +227,7 @@ func (r *Renderer) FullFlush(buf *buffer.Buffer) {
 	height := buf.Height()
 	var output bytes.Buffer
 	output.Grow(width * height * 4)
+	output.WriteString("\x1b[?7l") // prevent width mismatches from wrapping or scrolling
 
 	curFg := style.Color{}
 	curBg := style.Color{}
@@ -175,12 +237,19 @@ func (r *Renderer) FullFlush(buf *buffer.Buffer) {
 
 	for y := range height {
 		output.WriteString(fmt.Sprintf("\x1b[%d;1H", y+1))
+		anchored := true // the row-start CUP just placed the cursor
 
 		for x := range width {
 			cell := buf.Cell(x, y)
 
-			if cell.Width == -1 {
-				continue // skip continuation cells
+			ch, ok := flushRune(buf, x, y, cell)
+			if !ok {
+				continue // continuation covered by its head
+			}
+
+			if !anchored {
+				anchorColumn(&output, x)
+				anchored = true
 			}
 
 			if needsReset || !cell.Fg.Equals(curFg) || !cell.Bg.Equals(curBg) || cell.Attributes != curAttrs {
@@ -203,22 +272,19 @@ func (r *Renderer) FullFlush(buf *buffer.Buffer) {
 				curLinkID = linkID
 			}
 
-			ch := cell.Char
-			if ch == 0 {
-				ch = ' '
-			}
 			output.WriteRune(ch)
-			if cell.Combining != "" {
+			if ch == cell.Char {
 				output.WriteString(cell.Combining)
+				anchored = !widthUncertain(cell)
 			}
 		}
 	}
 
-	// Close any open hyperlink and reset
+	// Close any open hyperlink, restore auto-wrap, and reset.
 	if curLinkID != 0 {
 		output.WriteString("\x1b]8;;\x1b\\")
 	}
-	output.WriteString("\x1b[0m")
+	output.WriteString("\x1b[?7h\x1b[0m")
 	r.backend.WriteOut(output.Bytes())
 }
 
