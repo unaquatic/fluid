@@ -153,11 +153,14 @@ func NewCode(content string, opts ...CodeOption) *Code {
 	// Build highlighted lines into TextBuffer
 	c.highlightContent()
 
-	// Set up mouse scroll handler
+	// Let the parent scroll when this widget cannot move any further.
 	c.OnMouseScrollHandler = func(e *input.MouseEvent) {
 		if e.Scroll != nil {
+			oldX, oldY := c.scrollX, c.scrollY
 			c.handleScroll(e.Scroll.DeltaX, e.Scroll.DeltaY)
-			e.StopPropagation()
+			if c.scrollX != oldX || c.scrollY != oldY {
+				e.StopPropagation()
+			}
 		}
 	}
 
