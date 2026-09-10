@@ -1,6 +1,7 @@
 package widget
 
 import (
+	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/render"
 	"github.com/unaquatic/fluid/style"
@@ -14,6 +15,9 @@ import (
 // tail block.
 type StreamMarkdown struct {
 	*render.BaseRenderable
+
+	// BackgroundColor fills the entire widget behind its content.
+	BackgroundColor style.Color
 
 	// Content tracking
 	fullContent string
@@ -77,6 +81,13 @@ func (sm *StreamMarkdown) SetContent(content string) {
 // Content returns the full content string.
 func (sm *StreamMarkdown) Content() string {
 	return sm.fullContent
+}
+
+// RenderSelf fills the background across the full content area.
+func (sm *StreamMarkdown) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+	if !sm.BackgroundColor.IsTransparent() {
+		buf.FillRect(sm.X(), sm.Y(), sm.Width(), sm.Height(), sm.BackgroundColor)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -155,13 +166,10 @@ func StreamMarkdownWithFg(c style.Color) StreamMarkdownOption {
 	}
 }
 
-// StreamMarkdownWithBg is a convenience that adds MarkdownWithBg to child opts.
-// Setting an explicit bg avoids the default ColorTransparent, which causes
-// the diff flusher to skip emitting the SGR background for text cells and
-// lets the terminal's own default bg show through (visible as a lighter
-// seam under the text compared to the container's fill).
+// StreamMarkdownWithBg sets the widget and child Markdown backgrounds.
 func StreamMarkdownWithBg(c style.Color) StreamMarkdownOption {
 	return func(sm *StreamMarkdown) {
+		sm.BackgroundColor = c
 		sm.mdOpts = append(sm.mdOpts, MarkdownWithBg(c))
 	}
 }
