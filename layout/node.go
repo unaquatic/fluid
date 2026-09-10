@@ -73,11 +73,11 @@ type LayoutNode struct {
 	PaddingLeft   Scalar
 
 	// --- Positioning ---
-	Position Position // default: PositionRelative
-	Top      Scalar   // default: Undefined
-	Right    Scalar   // default: Undefined
-	Bottom   Scalar   // default: Undefined
-	Left     Scalar   // default: Undefined
+	Position   Position   // default: PositionRelative
+	Top        Scalar     // default: Undefined
+	Right      Scalar     // default: Undefined
+	Bottom     Scalar     // default: Undefined
+	Left       Scalar     // default: Undefined
 	Overflow   Overflow   // default: OverflowVisible
 	Sticky     Sticky     // default: StickyNone
 	Visibility Visibility // default: Visible
@@ -185,13 +185,9 @@ func (n *LayoutNode) ChildCount() int {
 
 // MarkDirty marks this node and all ancestors as needing layout.
 func (n *LayoutNode) MarkDirty() {
-	node := n
-	for node != nil {
-		if node.dirty {
-			return // already dirty up the chain
-		}
+	// Skipped Gone nodes can remain dirty after their ancestors become clean.
+	for node := n; node != nil; node = node.Parent {
 		node.dirty = true
-		node = node.Parent
 	}
 }
 
