@@ -16,31 +16,47 @@ import (
 // flushRune returns the rune to emit for the cell at (x, y) and whether the
 // cell emits anything at all.
 //
-// A wide character is emitted as its head rune, and its Width=-1 continuation
-// emits nothing, because the head already advanced two columns. That only
-// holds while the pair is intact. Buffer.detachWide keeps it intact, and this
-// is the backstop: a half of a broken pair is emitted as a space so the row
+// A cluster is emitted from its head, and its continuations emit nothing.
+// That only holds while all the continuation offsets point back to the head.
+// This is the backstop: a cell of a broken cluster is emitted as a space so the row
 // still advances exactly the columns its cells claim. Letting the drift reach
 // the terminal desynchronises the cursor and corrupts the rest of the frame.
 //
 // The returned rune differs from cell.Char whenever it is a substitution, so
-// callers can tell whether to emit Cell.Combining and whether two columns were
+// callers can tell whether to emit Cell.Combining and whether multiple columns were
 // consumed.
 //
 // See widthUncertain for what has to happen after emitting the result.
 func flushRune(buf *buffer.Buffer, x, y int, cell buffer.Cell) (rune, bool) {
-	switch {
-	case cell.Width == -1:
-		if x > 0 && buf.Cell(x-1, y).Width == 2 {
-			return 0, false // covered by its head
+	if cell.IsWide() || cell.IsContinuation() {
+		if !clusterIntact(buf, x, y) {
+			return ' ', true
 		}
-		return ' ', true // stranded continuation: claim its column
-	case cell.Width == 2 && buf.Cell(x+1, y).Width != -1:
-		return ' ', true // stranded head: would claim a column it no longer owns
-	case cell.Char == 0:
+		if cell.IsContinuation() {
+			return 0, false
+		}
+	}
+	if cell.Char == 0 {
 		return ' ', true
 	}
 	return cell.Char, true
+}
+
+func clusterIntact(buf *buffer.Buffer, x, y int) bool {
+	head := x
+	if c := buf.Cell(x, y); c.IsContinuation() {
+		head += c.Width
+	}
+	w := buf.Cell(head, y).Width
+	if head < 0 || w <= max(x-head, 1) || w > buf.Width()-head {
+		return false
+	}
+	for offset := 1; offset < w; offset++ {
+		if buf.Cell(head+offset, y).Width != -offset {
+			return false
+		}
+	}
+	return true
 }
 
 // widthUncertain reports whether the terminal's advance for cell may differ
@@ -58,7 +74,7 @@ func flushRune(buf *buffer.Buffer, x, y int, cell buffer.Cell) (rune, bool) {
 // a row that drifts from that point on — and, once the drift runs past the
 // right margin, a wrap that desynchronises every row after it.
 func widthUncertain(c buffer.Cell) bool {
-	return c.Width == 2 || c.Combining != ""
+	return c.IsWide() || c.Combining != ""
 }
 
 // anchorColumn emits an absolute cursor column move (CHA). Used to re-anchor
@@ -134,9 +150,7 @@ func (r *Renderer) DiffAndFlush(current, next *buffer.Buffer) {
 			cursorX++
 			if ch == nxt.Char {
 				output.WriteString(nxt.Combining)
-				if nxt.Width == 2 {
-					cursorX++ // wide char advances 2 columns
-				}
+				cursorX += max(nxt.Width-1, 0)
 				if widthUncertain(nxt) {
 					// The terminal may not have advanced what we budgeted.
 					// Forget our position so the next cell re-anchors.

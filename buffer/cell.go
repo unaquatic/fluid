@@ -8,13 +8,13 @@ import (
 // Cell represents a single terminal cell.
 type Cell struct {
 	Char      rune   // Primary Unicode codepoint (0 = empty)
-	Combining string // Zero-width combining codepoints that follow Char
+	Combining string // Remaining grapheme cluster codepoints that follow Char
 	//                       (ZWJ sequences, skin-tone modifiers, etc.).
 	//                       Emitted to the terminal immediately after Char.
 	Fg         style.Color // Foreground color
 	Bg         style.Color // Background color
 	Attributes uint32      // Lower 8 bits: style flags; upper bits: link ID
-	Width      int8        // 1 = normal, 2 = wide char first cell, -1 = wide char continuation
+	Width      int         // Head: column width. Continuation: negative offset to its head.
 }
 
 // CellClear is the default empty cell.
@@ -33,18 +33,18 @@ func NewCell(char rune, fg, bg style.Color, attrs uint32) Cell {
 		Fg:         fg,
 		Bg:         bg,
 		Attributes: attrs,
-		Width:      int8(w),
+		Width:      w,
 	}
 }
 
 // IsWide returns true if this cell is the first cell of a wide character.
 func (c Cell) IsWide() bool {
-	return c.Width == 2
+	return c.Width > 1
 }
 
 // IsContinuation returns true if this cell is a continuation of a wide character.
 func (c Cell) IsContinuation() bool {
-	return c.Width == -1
+	return c.Width < 0
 }
 
 // IsEmpty returns true if the cell has no visible character.

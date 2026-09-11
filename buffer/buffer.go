@@ -331,22 +331,21 @@ func (b *Buffer) SetCell(x, y int, char rune, fg, bg style.Color, attrs uint32) 
 	b.setCluster(x, y, char, "", RuneWidth(char), fg, bg, attrs)
 }
 
-// detachWide makes column x safe to overwrite by blanking the other half of
-// any wide-character pair occupying it.
-//
-// A wide character spans a Width=2 head and a Width=-1 continuation. Drawing
-// over one half without clearing the other leaves the row claiming a
-// different number of columns than it renders in: a stranded head still emits
-// a two-column rune, a stranded continuation emits nothing at all. Either way
-// the flush desynchronises the renderer's cursor and every cell after it
-// lands in the wrong column.
+// detachWide blanks the other cells of the cluster occupying column x.
+// Continuation offsets identify the head even for clusters wider than two.
 func (b *Buffer) detachWide(x, y int) {
-	idx := b.cellIndex(x, y)
-	switch {
-	case b.cells[idx].Width == 2 && x+1 < b.width:
-		b.blankAt(x+1, y)
-	case b.cells[idx].Width == -1 && x > 0:
-		b.blankAt(x-1, y)
+	head := x
+	if c := b.Cell(x, y); c.IsContinuation() {
+		head += c.Width
+	}
+	w := b.Cell(head, y).Width
+	if head < 0 || w <= max(x-head, 1) {
+		return
+	}
+	for col := head; col < head+min(w, b.width-head); col++ {
+		if col != x && (col == head || b.Cell(col, y).Width == head-col) {
+			b.blankAt(col, y)
+		}
 	}
 }
 
@@ -375,74 +374,47 @@ func (b *Buffer) blankAt(x, y int) {
 // setCluster writes a cell holding char plus any trailing combining
 // codepoints, occupying w columns. Backs SetCell and SetGraphemeCluster.
 func (b *Buffer) setCluster(x, y int, char rune, combining string, w int, fg, bg style.Color, attrs uint32) {
-	if !b.inBounds(x, y) || b.isClipped(x, y) {
-		return
-	}
-
-	// A wide char needs x+1 to be a valid column for its continuation cell.
-	// If there is no room, drop the character to avoid a stranded Width=2 cell
-	// that would cause the row to visually overflow by one column.
-	if w == 2 && x+1 >= b.width {
-		return
-	}
-
-	b.applyOpacity(&fg, &bg)
-
-	b.detachWide(x, y)
-	if w == 2 {
-		b.detachWide(x+1, y)
-	}
-
-	idx := b.cellIndex(x, y)
-	b.cells[idx] = Cell{
+	b.SetCellDirect(x, y, Cell{
 		Char:       char,
 		Combining:  combining,
 		Fg:         fg,
 		Bg:         bg,
 		Attributes: attrs,
-		Width:      int8(w),
-	}
-
-	// If wide character, set continuation cell
-	if w == 2 {
-		b.cells[idx+1] = Cell{
-			Char:       0,
-			Fg:         fg,
-			Bg:         bg,
-			Attributes: attrs,
-			Width:      -1,
-		}
-	}
+		Width:      w,
+	})
 }
 
 // SetCellDirect writes a full Cell struct at (x, y).
 // Respects scissor clipping and opacity.
 // Wide cells also write a continuation with matching colors and attributes.
-// Wide cells (Width == 2) at the last buffer column are dropped (see SetCell).
+// Clusters that do not fit within the buffer or scissor rect are dropped.
 func (b *Buffer) SetCellDirect(x, y int, cell Cell) {
 	if !b.inBounds(x, y) || b.isClipped(x, y) {
 		return
 	}
-	// Drop wide cells that would have no room for a continuation column.
-	if cell.Width == 2 && x+1 >= b.width {
+	if cell.Width > b.width-x {
 		return
+	}
+	for offset := 1; offset < cell.Width; offset++ {
+		if b.isClipped(x+offset, y) {
+			return
+		}
 	}
 	b.applyOpacity(&cell.Fg, &cell.Bg)
 	// Writing a continuation must not detach the head it belongs to.
-	if cell.Width != -1 {
-		b.detachWide(x, y)
-		if cell.Width == 2 {
-			b.detachWide(x+1, y)
+	if !cell.IsContinuation() {
+		for offset := range max(cell.Width, 1) {
+			b.detachWide(x+offset, y)
 		}
 	}
 	idx := b.cellIndex(x, y)
 	b.cells[idx] = cell
-	if cell.Width == 2 {
-		b.cells[idx+1] = Cell{
+	for offset := 1; offset < cell.Width; offset++ {
+		b.cells[idx+offset] = Cell{
 			Fg:         cell.Fg,
 			Bg:         cell.Bg,
 			Attributes: cell.Attributes,
-			Width:      -1,
+			Width:      -offset,
 		}
 	}
 }
@@ -469,7 +441,7 @@ func (b *Buffer) SetCellBlended(x, y int, char rune, fg, bg style.Color, attrs u
 		Fg:         fg,
 		Bg:         bg,
 		Attributes: attrs,
-		Width:      int8(w),
+		Width:      w,
 	}
 
 	b.detachWide(x, y)
@@ -934,7 +906,7 @@ func (b *Buffer) Attributes() []uint32 {
 }
 
 // ResolvedCharSize returns the total number of UTF-8 bytes needed to encode
-// all characters in the buffer. Continuation cells (Width == -1) are skipped.
+// all characters in the buffer. Continuation cells (Width < 0) are skipped.
 // Go equivalent of bufferGetRealCharSize.
 func (b *Buffer) ResolvedCharSize() int {
 	size := 0

@@ -248,7 +248,7 @@ func TestDetachWide_OverdrawKeepsRowWidth(t *testing.T) {
 		overdraw  func(b *Buffer)
 		wantAt4   rune
 		wantAt5   rune
-		wantWidth int8
+		wantWidth int
 	}{
 		{
 			name:      "overwrite head",

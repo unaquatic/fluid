@@ -275,7 +275,7 @@ func bufferText(b *buffer.Buffer, w int) string {
 	var sb strings.Builder
 	for x := range w {
 		c := b.Cell(x, 0)
-		if c.Width == -1 {
+		if c.IsContinuation() {
 			continue
 		}
 		ch := c.Char
