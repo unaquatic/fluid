@@ -29,11 +29,6 @@ func TestDefaultDark_PopulatesEveryRole(t *testing.T) {
 		{"Warning", th.Warning},
 		{"Danger", th.Danger},
 		{"Info", th.Info},
-		{"MarkdownLink", th.MarkdownLink},
-		{"MarkdownBullet", th.MarkdownBullet},
-		{"MarkdownQuoteFg", th.MarkdownQuoteFg},
-		{"MarkdownQuoteBd", th.MarkdownQuoteBd},
-		{"MarkdownRule", th.MarkdownRule},
 		{"CodeFg", th.CodeFg},
 		{"CodeBg", th.CodeBg},
 	}
@@ -46,17 +41,19 @@ func TestDefaultDark_PopulatesEveryRole(t *testing.T) {
 			t.Errorf("role %s should not be fully transparent", chk.name)
 		}
 	}
-	for i, hc := range th.MarkdownHeading {
-		if hc.A == 0 {
-			t.Errorf("MarkdownHeading[%d] should not be fully transparent", i)
-		}
-	}
-	// Core code palette should be populated so widgets can derive a
-	// Chroma style without the caller having to fill every field.
-	codeChecks := []struct {
+	// Entry roles carry a color plus attributes; populated means the
+	// foreground is opaque.
+	entries := []struct {
 		name string
-		c    Color
+		e    Entry
 	}{
+		{"MarkdownLink", th.MarkdownLink},
+		{"MarkdownBullet", th.MarkdownBullet},
+		{"MarkdownQuote", th.MarkdownQuote},
+		{"MarkdownQuoteBorder", th.MarkdownQuoteBorder},
+		{"MarkdownRule", th.MarkdownRule},
+		// Core code palette should be populated so widgets can derive a
+		// Chroma style without the caller having to fill every field.
 		{"Code.Keyword", th.Code.Keyword},
 		{"Code.Type", th.Code.Type},
 		{"Code.Function", th.Code.Function},
@@ -68,9 +65,14 @@ func TestDefaultDark_PopulatesEveryRole(t *testing.T) {
 		{"Code.Decorator", th.Code.Decorator},
 		{"Code.Error", th.Code.Error},
 	}
-	for _, chk := range codeChecks {
-		if chk.c.A == 0 {
+	for _, chk := range entries {
+		if chk.e.Fg.A == 0 {
 			t.Errorf("role %s should not be fully transparent", chk.name)
+		}
+	}
+	for i, h := range th.MarkdownHeading {
+		if h.Fg.A == 0 {
+			t.Errorf("MarkdownHeading[%d] should not be fully transparent", i)
 		}
 	}
 }
@@ -105,7 +107,7 @@ func TestResolvers_InheritWhenUnset(t *testing.T) {
 		Warning:      ColorBrightYellow,
 		Danger:       ColorBrightRed,
 		Info:         ColorBrightCyan,
-		MarkdownLink: ColorBrightBlue,
+		MarkdownLink: Entry{Fg: ColorBrightBlue, Attrs: AttrUnderline},
 	}
 
 	cases := []struct {
@@ -116,21 +118,36 @@ func TestResolvers_InheritWhenUnset(t *testing.T) {
 		{"ResolveInteractive→Accent", th.ResolveInteractive(), th.Accent},
 		{"ResolveInteractiveStrong→AccentStrong", th.ResolveInteractiveStrong(), th.AccentStrong},
 		{"ResolveTextBase→TextStrong", th.ResolveTextBase(), th.TextStrong},
-		{"ResolveTextLink→MarkdownLink", th.ResolveTextLink(), th.MarkdownLink},
+		{"ResolveTextLink→MarkdownLink", th.ResolveTextLink(), th.MarkdownLink.Fg},
 		{"ResolveSurfaceRaised→SurfaceAlt", th.ResolveSurfaceRaised(), th.SurfaceAlt},
 		{"ResolveBorderFocus→Accent", th.ResolveBorderFocus(), th.Accent},
 		{"ResolveDiffAddFg→Success", th.ResolveDiffAddFg(), th.Success},
 		{"ResolveDiffRemoveFg→Danger", th.ResolveDiffRemoveFg(), th.Danger},
-		{"ResolveMarkdownText→TextStrong", th.ResolveMarkdownText(), th.TextStrong},
-		{"ResolveMarkdownCode→CodeFg (zero)", th.ResolveMarkdownCode(), th.CodeFg},
-		{"ResolveMarkdownStrong→TextStrong", th.ResolveMarkdownStrong(), th.TextStrong},
-		{"ResolveMarkdownEmph→TextWeak", th.ResolveMarkdownEmph(), th.TextWeak},
-		{"ResolveMarkdownListEnum→MarkdownBullet", th.ResolveMarkdownListEnum(), th.MarkdownBullet},
-		{"ResolveMarkdownImage→MarkdownLink", th.ResolveMarkdownImage(), th.MarkdownLink},
 	}
 	for _, tc := range cases {
 		if !tc.got.Equals(tc.want) {
 			t.Errorf("%s: got %v want %v", tc.name, tc.got, tc.want)
+		}
+	}
+
+	// Entry roles inherit as a whole record, and pick up the default
+	// attributes that go with the role.
+	entryCases := []struct {
+		name string
+		got  Entry
+		want Entry
+	}{
+		{"ResolveMarkdownText→TextStrong", th.ResolveMarkdownText(), Entry{Fg: th.TextStrong}},
+		{"ResolveMarkdownCode→CodeFg (zero)", th.ResolveMarkdownCode(), Entry{Fg: th.CodeFg, Bg: th.CodeBg}},
+		{"ResolveMarkdownStrong→TextStrong bold", th.ResolveMarkdownStrong(), Entry{Fg: th.TextStrong, Attrs: AttrBold}},
+		{"ResolveMarkdownEmph→TextWeak italic", th.ResolveMarkdownEmph(), Entry{Fg: th.TextWeak, Attrs: AttrItalic}},
+		{"ResolveMarkdownListEnum→MarkdownBullet", th.ResolveMarkdownListEnum(), th.ResolveMarkdownBullet()},
+		{"ResolveMarkdownImage→MarkdownLink", th.ResolveMarkdownImage(), th.MarkdownLink},
+		{"ResolveMarkdownHeading→bold body", th.ResolveMarkdownHeading(1), Entry{Fg: th.TextStrong, Attrs: AttrBold}},
+	}
+	for _, tc := range entryCases {
+		if tc.got != tc.want {
+			t.Errorf("%s: got %+v want %+v", tc.name, tc.got, tc.want)
 		}
 	}
 }
@@ -142,7 +159,7 @@ func TestResolvers_PreferExplicitFields(t *testing.T) {
 	th.Interactive = ColorFromInts(1, 2, 3, 255)
 	th.TextBase = ColorFromInts(4, 5, 6, 255)
 	th.DiffAddFg = ColorFromInts(7, 8, 9, 255)
-	th.MarkdownEmph = ColorFromInts(10, 11, 12, 255)
+	th.MarkdownEmph = Entry{Fg: ColorFromInts(10, 11, 12, 255)}
 
 	if !th.ResolveInteractive().Equals(th.Interactive) {
 		t.Errorf("Interactive: resolver did not prefer explicit field")
@@ -153,7 +170,7 @@ func TestResolvers_PreferExplicitFields(t *testing.T) {
 	if !th.ResolveDiffAddFg().Equals(th.DiffAddFg) {
 		t.Errorf("DiffAddFg: resolver did not prefer explicit field")
 	}
-	if !th.ResolveMarkdownEmph().Equals(th.MarkdownEmph) {
+	if th.ResolveMarkdownEmph() != th.MarkdownEmph {
 		t.Errorf("MarkdownEmph: resolver did not prefer explicit field")
 	}
 }
@@ -225,4 +242,3 @@ func TestChooseOnColor(t *testing.T) {
 		}
 	}
 }
-

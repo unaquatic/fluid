@@ -15,13 +15,13 @@ func TestDarculaSolid_Signature(t *testing.T) {
 		{"Bg", th.Bg, "#1c1c1c"},
 		{"TextBase", th.TextBase, "#cfd2d5"},
 		{"Accent", th.Accent, "#cc7832"},
-		{"Code.Keyword", th.Code.Keyword, "#cc7832"},
-		{"Code.Function", th.Code.Function, "#ffc66d"},
-		{"Code.Type", th.Code.Type, "#5ca4a9"},
-		{"Code.String", th.Code.String, "#8ea765"},
-		{"Code.Constant", th.Code.Constant, "#a782bb"},
-		{"Code.Comment", th.Code.Comment, "#8a8a8a"},
-		{"Code.Number", th.Code.Number, "#6897bb"},
+		{"Code.Keyword", th.Code.Keyword.Fg, "#cc7832"},
+		{"Code.Function", th.Code.Function.Fg, "#ffc66d"},
+		{"Code.Type", th.Code.Type.Fg, "#5ca4a9"},
+		{"Code.String", th.Code.String.Fg, "#8ea765"},
+		{"Code.Constant", th.Code.Constant.Fg, "#a782bb"},
+		{"Code.Comment", th.Code.Comment.Fg, "#8a8a8a"},
+		{"Code.Number", th.Code.Number.Fg, "#6897bb"},
 		{"SelectionBg", th.SelectionBg, "#176081"},
 	}
 	for _, c := range checks {
@@ -37,17 +37,17 @@ func TestDarculaSolid_Signature(t *testing.T) {
 func TestDarculaSolid_AttributeMasks(t *testing.T) {
 	th := DarculaSolid()
 
-	if th.Code.KeywordAttrs&AttrBold == 0 {
-		t.Error("KeywordAttrs missing AttrBold")
+	if th.Code.Keyword.Attrs&AttrBold == 0 {
+		t.Error("Keyword missing AttrBold")
 	}
-	if th.Code.ConstantAttrs&AttrItalic == 0 {
-		t.Error("ConstantAttrs missing AttrItalic")
+	if th.Code.Constant.Attrs&AttrItalic == 0 {
+		t.Error("Constant missing AttrItalic")
 	}
-	if th.Code.CommentAttrs&AttrItalic == 0 {
-		t.Error("CommentAttrs missing AttrItalic")
+	if th.Code.Comment.Attrs&AttrItalic == 0 {
+		t.Error("Comment missing AttrItalic")
 	}
-	if th.Code.ErrorAttrs&AttrUnderline == 0 {
-		t.Error("ErrorAttrs missing AttrUnderline")
+	if th.Code.Error.Attrs&AttrUnderline == 0 {
+		t.Error("Error missing AttrUnderline")
 	}
 }
 

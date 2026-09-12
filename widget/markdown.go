@@ -38,25 +38,30 @@ type Markdown struct {
 	fg style.Color
 	bg style.Color
 
-	// Heading colors
-	h1Fg style.Color
-	h2Fg style.Color
-	h3Fg style.Color
-	h4Fg style.Color
-	h5Fg style.Color
-	h6Fg style.Color
+	// Heading styles, H1..H6.
+	headings [6]style.Entry
 
 	// Syntax highlighting for fenced code blocks.
 	highlighter SyntaxHighlighter // nil = monochrome fallback
 
-	// Other element colors
-	codeFg      style.Color
-	codeBg      style.Color
-	linkFg      style.Color
-	quoteFg     style.Color
-	quoteBorder style.Color
-	bulletFg    style.Color
-	ruleFg      style.Color
+	// codeFg and codeBg are the monochrome fallback for fenced blocks —
+	// the colors used when no highlighter or language is available. They
+	// are plain Colors because Chroma owns the per-token styling inside
+	// a block. Inline spans use the code Entry instead.
+	codeFg style.Color
+	codeBg style.Color
+
+	// Inline element styles.
+	code        style.Entry
+	link        style.Entry
+	linkText    style.Entry
+	strong      style.Entry
+	emph        style.Entry
+	quote       style.Entry
+	quoteBorder style.Entry
+	bullet      style.Entry
+	listEnum    style.Entry
+	rule        style.Entry
 }
 
 // ---------------------------------------------------------------------------
@@ -72,38 +77,38 @@ type MarkdownParser interface {
 	Parse(content string, styles MdStyles) []MdBlock
 }
 
-// MdStyles provides colors and styles for the markdown parser to apply
-// to inline elements during parsing. This decouples the parser from the
-// Markdown widget's internal color fields.
+// MdStyles provides the styles for the markdown parser to apply to
+// inline elements during parsing. This decouples the parser from the
+// Markdown widget's internal fields.
+//
+// Every element is a style.Entry, so the parser never has to decide
+// whether a span is bold or italic — the theme already said.
 type MdStyles struct {
-	Fg                                 style.Color
-	CodeFg                             style.Color
-	CodeBg                             style.Color
-	LinkFg                             style.Color
-	QuoteFg                            style.Color
-	QuoteBorder                        style.Color
-	BulletFg                           style.Color
-	H1Fg, H2Fg, H3Fg, H4Fg, H5Fg, H6Fg style.Color
+	// Fg is the body foreground. Chunks that carry no Entry of their
+	// own are painted with it at render time.
+	Fg style.Color
+
+	Headings [6]style.Entry
+
+	Code        style.Entry
+	Link        style.Entry
+	LinkText    style.Entry
+	Strong      style.Entry
+	Emph        style.Entry
+	Quote       style.Entry
+	QuoteBorder style.Entry
+	Bullet      style.Entry
+	ListEnum    style.Entry
+	Rule        style.Entry
 }
 
-// HeadingColor returns the color for a heading level.
-func (s MdStyles) HeadingColor(level int) style.Color {
-	switch level {
-	case 1:
-		return s.H1Fg
-	case 2:
-		return s.H2Fg
-	case 3:
-		return s.H3Fg
-	case 4:
-		return s.H4Fg
-	case 5:
-		return s.H5Fg
-	case 6:
-		return s.H6Fg
-	default:
-		return s.Fg
+// Heading returns the style for a heading level, 1-6. Out-of-range
+// levels fall back to H6.
+func (s MdStyles) Heading(level int) style.Entry {
+	if level < 1 || level > len(s.Headings) {
+		return s.Headings[len(s.Headings)-1]
 	}
+	return s.Headings[level-1]
 }
 
 // ---------------------------------------------------------------------------
@@ -177,20 +182,31 @@ func NewMarkdown(content string, opts ...MarkdownOption) *Markdown {
 		bg:             style.ColorTransparent,
 		contentDirty:   true,
 
-		h1Fg: style.ColorBrightCyan,
-		h2Fg: style.ColorBrightGreen,
-		h3Fg: style.ColorBrightYellow,
-		h4Fg: style.ColorBrightMagenta,
-		h5Fg: style.ColorBrightBlue,
-		h6Fg: style.ColorBrightRed,
+		headings: [6]style.Entry{
+			{Fg: style.ColorBrightCyan, Attrs: style.AttrBold},
+			{Fg: style.ColorBrightGreen, Attrs: style.AttrBold},
+			{Fg: style.ColorBrightYellow, Attrs: style.AttrBold},
+			{Fg: style.ColorBrightMagenta, Attrs: style.AttrBold},
+			{Fg: style.ColorBrightBlue, Attrs: style.AttrBold},
+			{Fg: style.ColorBrightRed, Attrs: style.AttrBold},
+		},
 
-		codeFg:      style.ColorFromInts(200, 200, 200, 255),
-		codeBg:      style.ColorFromInts(30, 30, 30, 255),
-		linkFg:      style.ColorBrightBlue,
-		quoteFg:     style.ColorGray,
-		quoteBorder: style.ColorBrightBlack,
-		bulletFg:    style.ColorBrightBlue,
-		ruleFg:      style.ColorGray,
+		codeFg: style.ColorFromInts(200, 200, 200, 255),
+		codeBg: style.ColorFromInts(30, 30, 30, 255),
+
+		code: style.Entry{
+			Fg: style.ColorFromInts(200, 200, 200, 255),
+			Bg: style.ColorFromInts(30, 30, 30, 255),
+		},
+		link:        style.Entry{Fg: style.ColorBrightBlue, Attrs: style.AttrUnderline},
+		linkText:    style.Entry{Fg: style.ColorBrightBlue, Attrs: style.AttrUnderline},
+		strong:      style.Entry{Attrs: style.AttrBold},
+		emph:        style.Entry{Attrs: style.AttrItalic},
+		quote:       style.Entry{Fg: style.ColorGray, Attrs: style.AttrItalic},
+		quoteBorder: style.Entry{Fg: style.ColorBrightBlack},
+		bullet:      style.Entry{Fg: style.ColorBrightBlue},
+		listEnum:    style.Entry{Fg: style.ColorBrightBlue},
+		rule:        style.Entry{Fg: style.ColorGray},
 	}
 
 	for _, opt := range opts {
@@ -355,11 +371,14 @@ func (m *Markdown) LineCount() int {
 // mdStyles builds the MdStyles from the widget's current color fields.
 func (m *Markdown) mdStyles() MdStyles {
 	return MdStyles{
-		Fg: m.fg, CodeFg: m.codeFg, CodeBg: m.codeBg,
-		LinkFg: m.linkFg, QuoteFg: m.quoteFg, QuoteBorder: m.quoteBorder,
-		BulletFg: m.bulletFg,
-		H1Fg:     m.h1Fg, H2Fg: m.h2Fg, H3Fg: m.h3Fg,
-		H4Fg: m.h4Fg, H5Fg: m.h5Fg, H6Fg: m.h6Fg,
+		Fg:       m.fg,
+		Headings: m.headings,
+		Code:     m.code,
+		Link:     m.link, LinkText: m.linkText,
+		Strong: m.strong, Emph: m.emph,
+		Quote: m.quote, QuoteBorder: m.quoteBorder,
+		Bullet: m.bullet, ListEnum: m.listEnum,
+		Rule: m.rule,
 	}
 }
 
@@ -816,7 +835,7 @@ func (m *Markdown) renderTable(rows [][]MdTableCell, aligns []int, maxWidth int)
 		colWidths[c] += 2
 	}
 
-	borderFg := m.ruleFg
+	borderFg := m.rule.Fg
 	bc := symbol.SingleChars
 	m.renderedLines = append(m.renderedLines, m.buildTableBorder(colWidths, bc.TopLeft, bc.TopT, bc.TopRight, bc.Horizontal, borderFg))
 
@@ -984,7 +1003,10 @@ func MarkdownWithBg(c style.Color) MarkdownOption {
 // and monochrome fenced code blocks. Syntax-highlighted code still uses its
 // theme's per-token colors.
 func MarkdownWithCodeFg(c style.Color) MarkdownOption {
-	return func(m *Markdown) { m.codeFg = c }
+	return func(m *Markdown) {
+		m.codeFg = c
+		m.code = m.code.WithFg(c)
+	}
 }
 
 // MarkdownWithCodeBg sets the background color for inline code spans and
@@ -992,7 +1014,27 @@ func MarkdownWithCodeFg(c style.Color) MarkdownOption {
 // for tokens that don't specify their own. Pass the surrounding container
 // color when you want code to blend in with the message body.
 func MarkdownWithCodeBg(c style.Color) MarkdownOption {
-	return func(m *Markdown) { m.codeBg = c }
+	return func(m *Markdown) {
+		m.codeBg = c
+		m.code = m.code.WithBg(c)
+	}
+}
+
+// MarkdownWithCode sets the full style for inline code spans, including
+// any text attributes. Unlike MarkdownWithCodeFg / MarkdownWithCodeBg it
+// leaves the monochrome fenced-block colors alone.
+func MarkdownWithCode(e style.Entry) MarkdownOption {
+	return func(m *Markdown) { m.code = e }
+}
+
+// MarkdownWithStrong sets the style for **strong** spans.
+func MarkdownWithStrong(e style.Entry) MarkdownOption {
+	return func(m *Markdown) { m.strong = e }
+}
+
+// MarkdownWithEmph sets the style for *emphasis* spans.
+func MarkdownWithEmph(e style.Entry) MarkdownOption {
+	return func(m *Markdown) { m.emph = e }
 }
 
 // MarkdownWithWrapMode sets the wrap mode.
@@ -1046,21 +1088,23 @@ func MarkdownWithTheme(t *style.Theme) MarkdownOption {
 		if t == nil {
 			return
 		}
-		m.fg = t.TextStrong
+		m.fg = t.ResolveMarkdownText().Fg
 		m.bg = t.Surface
-		m.h1Fg = t.MarkdownHeading[0]
-		m.h2Fg = t.MarkdownHeading[1]
-		m.h3Fg = t.MarkdownHeading[2]
-		m.h4Fg = t.MarkdownHeading[3]
-		m.h5Fg = t.MarkdownHeading[4]
-		m.h6Fg = t.MarkdownHeading[5]
+		for i := range m.headings {
+			m.headings[i] = t.ResolveMarkdownHeading(i + 1)
+		}
 		m.codeFg = t.CodeFg
 		m.codeBg = t.CodeBg
-		m.linkFg = t.MarkdownLink
-		m.quoteFg = t.MarkdownQuoteFg
-		m.quoteBorder = t.MarkdownQuoteBd
-		m.bulletFg = t.MarkdownBullet
-		m.ruleFg = t.MarkdownRule
+		m.code = t.ResolveMarkdownCode()
+		m.link = t.ResolveMarkdownLink()
+		m.linkText = t.ResolveMarkdownLinkText()
+		m.strong = t.ResolveMarkdownStrong()
+		m.emph = t.ResolveMarkdownEmph()
+		m.quote = t.ResolveMarkdownQuote()
+		m.quoteBorder = t.ResolveMarkdownQuoteBorder()
+		m.bullet = t.ResolveMarkdownBullet()
+		m.listEnum = t.ResolveMarkdownListEnum()
+		m.rule = t.ResolveMarkdownRule()
 		// Always derive the Chroma style from the theme's palette so
 		// syntax colors harmonise with the rest of the UI. Callers
 		// who want a specific pre-built Chroma theme can still install

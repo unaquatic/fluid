@@ -104,31 +104,40 @@ type Theme struct {
 	DiffRemoveFg Color
 
 	// --- Markdown roles --------------------------------------------------
-	MarkdownHeading [6]Color // H1..H6
-	// MarkdownText is the body text color inside rendered markdown.
+	//
+	// Each role is an Entry so a theme states a span's color and its
+	// weight as one decision. Unset roles inherit as documented below.
+	MarkdownHeading [6]Entry // H1..H6
+	// MarkdownText is the body text inside rendered markdown.
 	// Zero → TextBase.
-	MarkdownText    Color
-	MarkdownLink    Color // URL color
-	// MarkdownLinkText is the displayed label for a link when distinct
-	// from the URL. Zero → TextLink (or MarkdownLink).
-	MarkdownLinkText Color
-	// MarkdownCode is the inline-code foreground inside prose.
-	// Zero → CodeFg.
-	MarkdownCode     Color
-	// MarkdownEmph / MarkdownStrong tint italic and bold spans.
-	// Zero → TextStrong (italic inherits from weak).
-	MarkdownEmph    Color
-	MarkdownStrong  Color
-	MarkdownBullet  Color
-	// MarkdownListEnum colors ordered-list numbers. Zero → MarkdownBullet.
-	MarkdownListEnum Color
-	MarkdownQuoteFg Color
-	MarkdownQuoteBd Color
-	MarkdownRule    Color
-	// MarkdownImage / MarkdownImageText color image URLs and alt text.
+	MarkdownText Entry
+	// MarkdownLink styles a URL; MarkdownLinkText the displayed label
+	// when it differs from the URL.
+	// Zero → TextLink / MarkdownLink.
+	MarkdownLink     Entry
+	MarkdownLinkText Entry
+	// MarkdownCode is the inline-code span inside prose. A set Bg chips
+	// the span against the surrounding text.
+	// Zero → CodeFg on CodeBg.
+	MarkdownCode Entry
+	// MarkdownEmph and MarkdownStrong style *italic* and **bold** spans.
+	// Zero → TextWeak italic / TextStrong bold.
+	MarkdownEmph   Entry
+	MarkdownStrong Entry
+	// MarkdownBullet styles unordered list markers, MarkdownListEnum the
+	// numbers of an ordered list.
+	// Zero → MarkdownBullet.
+	MarkdownBullet   Entry
+	MarkdownListEnum Entry
+	// MarkdownQuote styles blockquote prose, MarkdownQuoteBorder the
+	// gutter glyph drawn beside it.
+	MarkdownQuote       Entry
+	MarkdownQuoteBorder Entry
+	MarkdownRule        Entry
+	// MarkdownImage and MarkdownImageText style image URLs and alt text.
 	// Zero → MarkdownLink / MarkdownLinkText.
-	MarkdownImage     Color
-	MarkdownImageText Color
+	MarkdownImage     Entry
+	MarkdownImageText Entry
 
 	// --- Code ------------------------------------------------------------
 	// CodeFg / CodeBg are the default monochrome colors for inline code
@@ -145,57 +154,131 @@ type Theme struct {
 	Code CodePalette
 }
 
-// CodePalette holds semantic color roles that map onto Chroma's ~80 token
+// CodePalette holds semantic roles that map onto Chroma's ~80 token
 // types. The fields are the buckets most syntax themes actually paint;
 // unset fields inherit from close parents so a caller can specify just a
 // handful of roles and still produce a coherent theme.
 //
-// Attribute fields (masks of AttrBold / AttrItalic / AttrUnderline) apply
-// alongside the color. Common defaults: Comment uses AttrItalic, and
-// Keyword occasionally uses AttrBold.
+// Every role carries its attributes alongside its color, so a theme can
+// give any token bold, italic or underline — not just the handful that
+// happen to be wired. Themes like IntelliJ Darcula italicise constants
+// and bold keywords; monochrome themes lean on attributes hard because
+// they have no hue to separate roles with.
 type CodePalette struct {
 	// Core roles — cover ~95% of everyday code.
-	Keyword     Color // if, for, func, class, return, import
-	Type        Color // int, string, MyClass, custom types
-	Function    Color // function / method names (def + call site)
-	Builtin     Color // println, len, true, false, nil, this, self
-	Variable    Color // identifiers that aren't in any role above
-	Constant    Color // SCREAMING_CASE, None, numeric constants by name
-	String      Color // string literals, regex, backticks
-	Number      Color // int / float / hex / binary literals
-	Comment     Color // // ... /* ... */ # ...
-	Operator    Color // + - * / = && ||
-	Punctuation Color // , ; { } ( )
-	Decorator   Color // @decorator, [Attribute], annotations
-	Error       Color // tokenization errors, Chroma's Error token
+	Keyword     Entry // if, for, func, class, return, import
+	Type        Entry // int, string, MyClass, custom types
+	Function    Entry // function / method names (def + call site)
+	Builtin     Entry // println, len, true, false, nil, this, self
+	Variable    Entry // identifiers that aren't in any role above
+	Constant    Entry // SCREAMING_CASE, None, numeric constants by name
+	String      Entry // string literals, backticks
+	Number      Entry // int / float / hex / binary literals
+	Comment     Entry // // ... /* ... */ # ...
+	Operator    Entry // + - * / = && ||
+	Punctuation Entry // , ; { } ( )
+	Decorator   Entry // @decorator, [Attribute], annotations
+	Error       Entry // tokenization errors, Chroma's Error token
 
 	// Optional extras — zero means "inherit from a parent role".
-	StringEscape Color // \n, \x1b etc. inside strings    (zero → Number)
-	Regex        Color // regex literals /foo/            (zero → String)
-	Tag          Color // HTML/XML element names           (zero → Keyword)
-	Attribute    Color // HTML attribute names             (zero → Variable)
-	Property     Color // object/struct property access    (zero → Variable)
-	Primitive    Color // true/false/null/undefined        (zero → Constant)
-	Object       Color // class/module identifiers         (zero → Type)
-	Preproc      Color // #include, #define                (zero → Comment)
-	DiffAdded    Color // GenericInserted (+ lines)        (zero → theme Success)
-	DiffRemoved  Color // GenericDeleted (- lines)         (zero → theme Danger)
+	StringEscape Entry // \n, \x1b etc. inside strings    (zero → Number)
+	Regex        Entry // regex literals /foo/            (zero → String)
+	Tag          Entry // HTML/XML element names           (zero → Keyword)
+	Attribute    Entry // HTML attribute names             (zero → Variable)
+	Property     Entry // object/struct property access    (zero → Variable)
+	Primitive    Entry // true/false/null/undefined        (zero → Constant)
+	Object       Entry // class/module identifiers         (zero → Variable)
+	Preproc      Entry // #include, #define                (zero → Comment)
+	DiffAdded    Entry // GenericInserted (+ lines)        (zero → theme Success)
+	DiffRemoved  Entry // GenericDeleted (- lines)         (zero → theme Danger)
+}
 
-	// Attribute masks (AttrBold | AttrItalic | AttrUnderline) applied
-	// alongside the color. Zero = no attributes.
-	//
-	// Themes like IntelliJ Darcula use italic for constants and bold
-	// for keywords; monochrome themes lean on these fields hard because
-	// they have no hue to distinguish roles with.
-	KeywordAttrs     uint32
-	TypeAttrs        uint32
-	FunctionAttrs    uint32
-	ConstantAttrs    uint32
-	StringAttrs      uint32
-	OperatorAttrs    uint32
-	PunctuationAttrs uint32
-	CommentAttrs     uint32
-	ErrorAttrs       uint32
+// Entry describes how one styled role is drawn: a foreground, an
+// optional background, and a mask of text attributes (AttrBold,
+// AttrItalic, AttrUnderline, ...).
+//
+// Keeping the color and the attributes in one value is deliberate. A
+// role's weight is part of its identity — "strong is orange and bold"
+// is a single decision, and splitting it across a Color field and a
+// parallel attribute field lets one half be wired up while the other
+// is forgotten.
+//
+// The zero Entry means "unset, inherit the parent role". Inheritance is
+// all-or-nothing, so a theme that wants color without any attributes
+// writes Entry{Fg: c} and gets exactly that.
+type Entry struct {
+	Fg    Color
+	Bg    Color
+	Attrs uint32
+}
+
+// IsZero reports whether e is unset and should inherit.
+func (e Entry) IsZero() bool { return e == Entry{} }
+
+// Or returns e when it is set, otherwise fallback.
+func (e Entry) Or(fallback Entry) Entry {
+	if e.IsZero() {
+		return fallback
+	}
+	return e
+}
+
+// WithFg returns a copy of e painted with fg.
+func (e Entry) WithFg(c Color) Entry {
+	e.Fg = c
+	return e
+}
+
+// WithBg returns a copy of e painted with bg.
+func (e Entry) WithBg(c Color) Entry {
+	e.Bg = c
+	return e
+}
+
+// Chunk returns text styled by e. A transparent Fg or Bg is left unset
+// on the chunk so the surrounding widget's own colors show through.
+func (e Entry) Chunk(text string) TextChunk {
+	c := TextChunk{Text: text, Attributes: e.Attrs}
+	if e.Fg.A != 0 {
+		fg := e.Fg
+		c.Fg = &fg
+	}
+	if e.Bg.A != 0 {
+		bg := e.Bg
+		c.Bg = &bg
+	}
+	return c
+}
+
+// Merge layers over on top of e: over's colors win wherever they are
+// set, and the attribute masks union so a code span inside **strong**
+// keeps the code color and gains the bold bit.
+func (e Entry) Merge(over Entry) Entry {
+	e.Attrs |= over.Attrs
+	if over.Fg.A != 0 {
+		e.Fg = over.Fg
+	}
+	if over.Bg.A != 0 {
+		e.Bg = over.Bg
+	}
+	return e
+}
+
+// Apply merges e onto an existing chunk, leaving any color the chunk
+// already carries in place. Used when an inline element nests inside
+// another — a code span inside **strong** keeps the code colors and
+// gains the bold bit.
+func (e Entry) Apply(c TextChunk) TextChunk {
+	c.Attributes |= e.Attrs
+	if c.Fg == nil && e.Fg.A != 0 {
+		fg := e.Fg
+		c.Fg = &fg
+	}
+	if c.Bg == nil && e.Bg.A != 0 {
+		bg := e.Bg
+		c.Bg = &bg
+	}
+	return c
 }
 
 // OrInherit returns c when it has an opaque alpha; otherwise fallback.
@@ -243,7 +326,7 @@ func (t *Theme) ResolveTextBase() Color { return OrInherit(t.TextBase, t.TextStr
 
 // ResolveTextLink returns the color for clickable text.
 func (t *Theme) ResolveTextLink() Color {
-	return OrInherit(t.TextLink, OrInherit(t.MarkdownLink, t.ResolveInteractive()))
+	return OrInherit(t.TextLink, OrInherit(t.MarkdownLink.Fg, t.ResolveInteractive()))
 }
 
 // ResolveSurfaceRaised returns the surface for floating UI.
@@ -340,34 +423,79 @@ func (t *Theme) ResolveDiffAddFg() Color { return OrInherit(t.DiffAddFg, t.Succe
 // ResolveDiffRemoveFg returns the foreground for removed diff markers.
 func (t *Theme) ResolveDiffRemoveFg() Color { return OrInherit(t.DiffRemoveFg, t.Danger) }
 
-// ResolveMarkdownText returns the default body color for markdown prose.
-func (t *Theme) ResolveMarkdownText() Color { return OrInherit(t.MarkdownText, t.ResolveTextBase()) }
-
-// ResolveMarkdownLinkText returns the displayed label color for links.
-func (t *Theme) ResolveMarkdownLinkText() Color {
-	return OrInherit(t.MarkdownLinkText, t.ResolveTextLink())
+// ResolveMarkdownText returns the default body style for markdown prose.
+func (t *Theme) ResolveMarkdownText() Entry {
+	return t.MarkdownText.Or(Entry{Fg: t.ResolveTextBase()})
 }
 
-// ResolveMarkdownCode returns the inline-code foreground inside prose.
-func (t *Theme) ResolveMarkdownCode() Color { return OrInherit(t.MarkdownCode, t.CodeFg) }
-
-// ResolveMarkdownEmph returns the italic/emphasis text color.
-func (t *Theme) ResolveMarkdownEmph() Color { return OrInherit(t.MarkdownEmph, t.TextWeak) }
-
-// ResolveMarkdownStrong returns the bold/strong text color.
-func (t *Theme) ResolveMarkdownStrong() Color { return OrInherit(t.MarkdownStrong, t.TextStrong) }
-
-// ResolveMarkdownListEnum returns the ordered-list number color.
-func (t *Theme) ResolveMarkdownListEnum() Color {
-	return OrInherit(t.MarkdownListEnum, t.MarkdownBullet)
+// ResolveMarkdownHeading returns the style for a heading level, 1-6.
+// Headings are bold unless the theme says otherwise.
+func (t *Theme) ResolveMarkdownHeading(level int) Entry {
+	fallback := Entry{Fg: t.ResolveMarkdownText().Fg, Attrs: AttrBold}
+	if level < 1 || level > len(t.MarkdownHeading) {
+		return fallback
+	}
+	return t.MarkdownHeading[level-1].Or(fallback)
 }
 
-// ResolveMarkdownImage returns the image-URL color.
-func (t *Theme) ResolveMarkdownImage() Color { return OrInherit(t.MarkdownImage, t.MarkdownLink) }
+// ResolveMarkdownLink returns the style for a link URL.
+func (t *Theme) ResolveMarkdownLink() Entry {
+	return t.MarkdownLink.Or(Entry{Fg: t.ResolveTextLink(), Attrs: AttrUnderline})
+}
 
-// ResolveMarkdownImageText returns the image alt-text color.
-func (t *Theme) ResolveMarkdownImageText() Color {
-	return OrInherit(t.MarkdownImageText, t.ResolveMarkdownLinkText())
+// ResolveMarkdownLinkText returns the displayed label style for links.
+func (t *Theme) ResolveMarkdownLinkText() Entry {
+	return t.MarkdownLinkText.Or(t.ResolveMarkdownLink())
+}
+
+// ResolveMarkdownCode returns the inline-code style inside prose.
+func (t *Theme) ResolveMarkdownCode() Entry {
+	return t.MarkdownCode.Or(Entry{Fg: t.CodeFg, Bg: t.CodeBg})
+}
+
+// ResolveMarkdownEmph returns the style for *emphasis* spans.
+func (t *Theme) ResolveMarkdownEmph() Entry {
+	return t.MarkdownEmph.Or(Entry{Fg: t.TextWeak, Attrs: AttrItalic})
+}
+
+// ResolveMarkdownStrong returns the style for **strong** spans.
+func (t *Theme) ResolveMarkdownStrong() Entry {
+	return t.MarkdownStrong.Or(Entry{Fg: t.TextStrong, Attrs: AttrBold})
+}
+
+// ResolveMarkdownBullet returns the style for unordered list markers.
+func (t *Theme) ResolveMarkdownBullet() Entry {
+	return t.MarkdownBullet.Or(Entry{Fg: t.ResolveTextBase()})
+}
+
+// ResolveMarkdownListEnum returns the style for ordered-list numbers.
+func (t *Theme) ResolveMarkdownListEnum() Entry {
+	return t.MarkdownListEnum.Or(t.ResolveMarkdownBullet())
+}
+
+// ResolveMarkdownQuote returns the style for blockquote prose.
+func (t *Theme) ResolveMarkdownQuote() Entry {
+	return t.MarkdownQuote.Or(Entry{Fg: t.TextMuted, Attrs: AttrItalic})
+}
+
+// ResolveMarkdownQuoteBorder returns the style for the blockquote gutter.
+func (t *Theme) ResolveMarkdownQuoteBorder() Entry {
+	return t.MarkdownQuoteBorder.Or(Entry{Fg: t.Border})
+}
+
+// ResolveMarkdownRule returns the style for a horizontal rule.
+func (t *Theme) ResolveMarkdownRule() Entry {
+	return t.MarkdownRule.Or(Entry{Fg: t.ResolveBorderWeak()})
+}
+
+// ResolveMarkdownImage returns the image-URL style.
+func (t *Theme) ResolveMarkdownImage() Entry {
+	return t.MarkdownImage.Or(t.ResolveMarkdownLink())
+}
+
+// ResolveMarkdownImageText returns the image alt-text style.
+func (t *Theme) ResolveMarkdownImageText() Entry {
+	return t.MarkdownImageText.Or(t.ResolveMarkdownLinkText())
 }
 
 // NeutralCodePalette derives a monochromatic syntax palette from a
@@ -389,49 +517,44 @@ func (t *Theme) ResolveMarkdownImageText() Color {
 // chroma, etc. — to get a reading-friendly code palette that matches
 // the rest of the theme without any taste-driven color choices.
 func NeutralCodePalette(ramp [12]Color) CodePalette {
+	// Without hue to separate roles, attributes are the primary
+	// readability cue — hence the bold/italic on the carrying roles.
 	return CodePalette{
-		Keyword:     ramp[11],
-		Type:        ramp[10],
-		Function:    ramp[11],
-		Builtin:     ramp[9],
-		Variable:    ramp[9],
-		Constant:    ramp[10],
-		String:      ramp[8],
-		Number:      ramp[9],
-		Comment:     ramp[6],
-		Operator:    ramp[8],
-		Punctuation: ramp[8],
-		Decorator:   ramp[10],
-		Error:       ramp[11],
-
-		// Attribute-based differentiation: without color to separate
-		// roles, these are the primary readability cues.
-		KeywordAttrs:  AttrBold,
-		FunctionAttrs: AttrBold,
-		TypeAttrs:     AttrBold,
-		CommentAttrs:  AttrItalic,
-		ErrorAttrs:    AttrBold | AttrUnderline,
+		Keyword:     Entry{Fg: ramp[11], Attrs: AttrBold},
+		Type:        Entry{Fg: ramp[10], Attrs: AttrBold},
+		Function:    Entry{Fg: ramp[11], Attrs: AttrBold},
+		Builtin:     Entry{Fg: ramp[9]},
+		Variable:    Entry{Fg: ramp[9]},
+		Constant:    Entry{Fg: ramp[10]},
+		String:      Entry{Fg: ramp[8]},
+		Number:      Entry{Fg: ramp[9]},
+		Comment:     Entry{Fg: ramp[6], Attrs: AttrItalic},
+		Operator:    Entry{Fg: ramp[8]},
+		Punctuation: Entry{Fg: ramp[8]},
+		Decorator:   Entry{Fg: ramp[10]},
+		Error:       Entry{Fg: ramp[11], Attrs: AttrBold | AttrUnderline},
 	}
 }
 
 // MonokaiCodePalette returns the classic Monokai syntax coloring.
 func MonokaiCodePalette() CodePalette {
 	return CodePalette{
-		Keyword:     ColorFromInts(249, 38, 114, 255),  // pink
-		Type:        ColorFromInts(102, 217, 239, 255), // cyan
-		Function:    ColorFromInts(166, 226, 46, 255),  // green
-		Builtin:     ColorFromInts(102, 217, 239, 255), // = Type
-		Variable:    ColorFromInts(248, 248, 242, 255), // default code fg
-		Constant:    ColorFromInts(174, 129, 255, 255), // purple
-		String:      ColorFromInts(230, 219, 116, 255), // yellow
-		Number:      ColorFromInts(174, 129, 255, 255), // = Constant
-		Comment:     ColorFromInts(117, 113, 94, 255),  // comment grey
-		Operator:    ColorFromInts(249, 38, 114, 255),  // = Keyword
-		Punctuation: ColorFromInts(248, 248, 242, 255), // default
-		Decorator:   ColorFromInts(166, 226, 46, 255),  // = Function
-		Error:       ColorFromInts(255, 85, 85, 255),   // brightish red
-
-		CommentAttrs: AttrItalic,
+		Keyword:  Entry{Fg: ColorFromInts(249, 38, 114, 255)},  // pink
+		Type:     Entry{Fg: ColorFromInts(102, 217, 239, 255)}, // cyan
+		Function: Entry{Fg: ColorFromInts(166, 226, 46, 255)},  // green
+		Builtin:  Entry{Fg: ColorFromInts(102, 217, 239, 255)}, // = Type
+		Variable: Entry{Fg: ColorFromInts(248, 248, 242, 255)}, // default code fg
+		Constant: Entry{Fg: ColorFromInts(174, 129, 255, 255)}, // purple
+		String:   Entry{Fg: ColorFromInts(230, 219, 116, 255)}, // yellow
+		Number:   Entry{Fg: ColorFromInts(174, 129, 255, 255)}, // = Constant
+		Comment: Entry{
+			Fg:    ColorFromInts(117, 113, 94, 255), // comment grey
+			Attrs: AttrItalic,
+		},
+		Operator:    Entry{Fg: ColorFromInts(249, 38, 114, 255)},  // = Keyword
+		Punctuation: Entry{Fg: ColorFromInts(248, 248, 242, 255)}, // default
+		Decorator:   Entry{Fg: ColorFromInts(166, 226, 46, 255)},  // = Function
+		Error:       Entry{Fg: ColorFromInts(255, 85, 85, 255)},   // brightish red
 	}
 }
 
@@ -452,4 +575,3 @@ func DefaultDark() *Theme {
 	t.Code = MonokaiCodePalette()
 	return t
 }
-

@@ -54,18 +54,17 @@ func (g *GoldmarkParser) walkChildren(node goldmarkast.Node, src []byte, s MdSty
 func (g *GoldmarkParser) convertBlock(node goldmarkast.Node, src []byte, s MdStyles) (MdBlock, bool) {
 	switch n := node.(type) {
 	case *goldmarkast.Heading:
-		fg := s.HeadingColor(n.Level)
-		chunks := g.inlineChunks(n, src, 0, s)
+		chunks := g.inlineChunks(n, src, style.Entry{}, s)
 		return MdBlock{
 			Kind:  MdBlockHeading,
 			Level: n.Level,
-			Body:  []style.TextChunk{{Text: chunksText(chunks), Fg: &fg, Attributes: style.AttrBold}},
+			Body:  []style.TextChunk{s.Heading(n.Level).Chunk(chunksText(chunks))},
 		}, true
 
 	case *goldmarkast.Paragraph:
 		return MdBlock{
 			Kind: MdBlockParagraph,
-			Body: g.inlineChunks(n, src, 0, s),
+			Body: g.inlineChunks(n, src, style.Entry{}, s),
 		}, true
 
 	case *goldmarkast.FencedCodeBlock:
@@ -121,10 +120,7 @@ func (g *GoldmarkParser) convertBlock(node goldmarkast.Node, src []byte, s MdSty
 				// Apply quote styling to paragraph body chunks.
 				if blk.Kind == MdBlockParagraph {
 					for i := range blk.Body {
-						blk.Body[i].Attributes |= style.AttrItalic
-						if blk.Body[i].Fg == nil {
-							blk.Body[i].Fg = &s.QuoteFg
-						}
+						blk.Body[i] = s.Quote.Apply(blk.Body[i])
 					}
 				}
 				children = append(children, blk)
@@ -132,7 +128,7 @@ func (g *GoldmarkParser) convertBlock(node goldmarkast.Node, src []byte, s MdSty
 		}
 		return MdBlock{
 			Kind:        MdBlockQuote,
-			Prefix:      []style.TextChunk{{Text: string(symbol.Vertical) + " ", Fg: &s.QuoteBorder}},
+			Prefix:      []style.TextChunk{s.QuoteBorder.Chunk(string(symbol.Vertical) + " ")},
 			PrefixWidth: 2,
 			Children:    children,
 		}, true
@@ -148,7 +144,7 @@ func (g *GoldmarkParser) convertBlock(node goldmarkast.Node, src []byte, s MdSty
 			for cell := row.FirstChild(); cell != nil; cell = cell.NextSibling() {
 				if c, ok := cell.(*goldmarkextast.TableCell); ok {
 					cells = append(cells, MdTableCell{
-						Chunks: g.inlineChunks(c, src, 0, s),
+						Chunks: g.inlineChunks(c, src, style.Entry{}, s),
 					})
 					if len(aligns) < len(cells) {
 						a := -1
@@ -188,11 +184,11 @@ func (g *GoldmarkParser) convertListItem(li *goldmarkast.ListItem, src []byte, s
 	var prefixWidth int
 	if listKind == MdBlockOrderedList {
 		p := "  " + intToStr(itemNum) + ". "
-		prefix = []style.TextChunk{{Text: p, Fg: &s.BulletFg}}
+		prefix = []style.TextChunk{s.ListEnum.Chunk(p)}
 		prefixWidth = textbuf.StringWidth(p)
 	} else {
 		p := string(symbol.BulletFilled) + " "
-		prefix = []style.TextChunk{{Text: p, Fg: &s.BulletFg}}
+		prefix = []style.TextChunk{s.Bullet.Chunk(p)}
 		prefixWidth = len(p)
 	}
 
@@ -205,12 +201,12 @@ func (g *GoldmarkParser) convertListItem(li *goldmarkast.ListItem, src []byte, s
 	for liChild := li.FirstChild(); liChild != nil; liChild = liChild.NextSibling() {
 		if first {
 			if p, ok := liChild.(*goldmarkast.Paragraph); ok {
-				body = g.inlineChunks(p, src, 0, s)
+				body = g.inlineChunks(p, src, style.Entry{}, s)
 				first = false
 				continue
 			}
 			if tb, ok := liChild.(*goldmarkast.TextBlock); ok {
-				body = g.inlineChunks(tb, src, 0, s)
+				body = g.inlineChunks(tb, src, style.Entry{}, s)
 				first = false
 				continue
 			}
@@ -269,66 +265,62 @@ func expandCodeTabs(line string) string {
 // AST Walking — Inline Level
 // ---------------------------------------------------------------------------
 
-func (g *GoldmarkParser) inlineChunks(parent goldmarkast.Node, src []byte, attrs uint32, s MdStyles) []style.TextChunk {
+// inlineChunks walks an inline subtree and paints every span with the
+// style it inherits from its ancestors. Each element merges its own
+// Entry over that inherited style, so **bold `code`** keeps the code
+// colors and gains the bold bit. The zero Entry leaves a chunk unpainted
+// and the widget's own foreground shows through at render time.
+func (g *GoldmarkParser) inlineChunks(parent goldmarkast.Node, src []byte, in style.Entry, s MdStyles) []style.TextChunk {
 	var chunks []style.TextChunk
 	for child := parent.FirstChild(); child != nil; child = child.NextSibling() {
 		switch n := child.(type) {
 		case *goldmarkast.Text:
-			chunks = append(chunks, style.TextChunk{
-				Text: string(n.Segment.Value(src)), Attributes: attrs,
-			})
+			chunks = append(chunks, in.Chunk(string(n.Segment.Value(src))))
 			if n.SoftLineBreak() {
-				chunks = append(chunks, style.TextChunk{Text: " ", Attributes: attrs})
+				chunks = append(chunks, in.Chunk(" "))
 			}
 
 		case *goldmarkast.String:
-			chunks = append(chunks, style.TextChunk{
-				Text: string(n.Value), Attributes: attrs,
-			})
+			chunks = append(chunks, in.Chunk(string(n.Value)))
 
 		case *goldmarkast.CodeSpan:
-			chunks = append(chunks, style.TextChunk{
-				Text: string(n.Text(src)), Fg: &s.CodeFg, Bg: &s.CodeBg, Attributes: attrs,
-			})
+			chunks = append(chunks, in.Merge(s.Code).Chunk(string(n.Text(src))))
 
 		case *goldmarkast.Emphasis:
-			childAttrs := attrs
+			e := s.Strong
 			if n.Level == 1 {
-				childAttrs |= style.AttrItalic
-			} else {
-				childAttrs |= style.AttrBold
+				e = s.Emph
 			}
-			chunks = append(chunks, g.inlineChunks(n, src, childAttrs, s)...)
+			chunks = append(chunks, g.inlineChunks(n, src, in.Merge(e), s)...)
 
 		case *goldmarkast.Link:
-			linkChunks := g.inlineChunks(n, src, attrs|style.AttrUnderline, s)
 			url := string(n.Destination)
+			linkChunks := g.inlineChunks(n, src, in.Merge(s.LinkText), s)
 			for i := range linkChunks {
-				linkChunks[i].Fg = &s.LinkFg
 				linkChunks[i].Link = url
 			}
 			chunks = append(chunks, linkChunks...)
 
 		case *goldmarkextast.Strikethrough:
-			chunks = append(chunks, g.inlineChunks(n, src, attrs|style.AttrStrikethrough, s)...)
+			struck := in
+			struck.Attrs |= style.AttrStrikethrough
+			chunks = append(chunks, g.inlineChunks(n, src, struck, s)...)
 
 		case *goldmarkast.AutoLink:
 			url := string(n.URL(src))
-			chunks = append(chunks, style.TextChunk{
-				Text: url, Fg: &s.LinkFg, Attributes: attrs | style.AttrUnderline, Link: url,
-			})
+			c := in.Merge(s.Link).Chunk(url)
+			c.Link = url
+			chunks = append(chunks, c)
 
 		case *goldmarkast.RawHTML:
 			segs := n.Segments
-			for i := 0; i < segs.Len(); i++ {
+			for i := range segs.Len() {
 				seg := segs.At(i)
-				chunks = append(chunks, style.TextChunk{
-					Text: string(seg.Value(src)), Attributes: attrs,
-				})
+				chunks = append(chunks, in.Chunk(string(seg.Value(src))))
 			}
 
 		default:
-			chunks = append(chunks, g.inlineChunks(child, src, attrs, s)...)
+			chunks = append(chunks, g.inlineChunks(child, src, in, s)...)
 		}
 	}
 	return chunks

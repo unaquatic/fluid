@@ -135,8 +135,13 @@ func ThemeFromSeeds(name string, seeds ThemeSeeds, dark bool) *Theme {
 	// the end so lightness stays strictly monotonic: textWeak comes
 	// from the neutral ramp and is typically brighter than primary[6],
 	// which would invert the H5→H6 step.
-	headings := [6]Color{
-		primary[10], primary[9], primary[8], primary[7], primary[6], primary[5],
+	headings := [6]Entry{
+		{Fg: primary[10], Attrs: AttrBold},
+		{Fg: primary[9], Attrs: AttrBold},
+		{Fg: primary[8], Attrs: AttrBold},
+		{Fg: primary[7], Attrs: AttrBold},
+		{Fg: primary[6], Attrs: AttrBold},
+		{Fg: primary[5], Attrs: AttrBold},
 	}
 
 	// Diff surfaces: low-step ramp entries (barely perceptible tint).
@@ -202,20 +207,20 @@ func ThemeFromSeeds(name string, seeds ThemeSeeds, dark bool) *Theme {
 		DiffAddFg:         success[10],
 		DiffRemoveFg:      danger[10],
 
-		MarkdownHeading:   headings,
-		MarkdownText:      textBase,
-		MarkdownLink:      interactive[10],
-		MarkdownLinkText:  interactive[8],
-		MarkdownCode:      success[10],   // green reads as "safe to execute"
-		MarkdownEmph:      warning[10],
-		MarkdownStrong:    primary[10],
-		MarkdownBullet:    interactive[10],
-		MarkdownListEnum:  info[10],
-		MarkdownQuoteFg:   textWeak,
-		MarkdownQuoteBd:   border,
-		MarkdownRule:      borderWeak,
-		MarkdownImage:     interactive[10],
-		MarkdownImageText: interactive[8],
+		MarkdownHeading:     headings,
+		MarkdownText:        Entry{Fg: textBase},
+		MarkdownLink:        Entry{Fg: interactive[10], Attrs: AttrUnderline},
+		MarkdownLinkText:    Entry{Fg: interactive[8], Attrs: AttrUnderline},
+		MarkdownCode:        Entry{Fg: success[10], Bg: surface}, // green reads as "safe to execute"
+		MarkdownEmph:        Entry{Fg: warning[10], Attrs: AttrItalic},
+		MarkdownStrong:      Entry{Fg: primary[10], Attrs: AttrBold},
+		MarkdownBullet:      Entry{Fg: interactive[10]},
+		MarkdownListEnum:    Entry{Fg: info[10]},
+		MarkdownQuote:       Entry{Fg: textWeak, Attrs: AttrItalic},
+		MarkdownQuoteBorder: Entry{Fg: border},
+		MarkdownRule:        Entry{Fg: borderWeak},
+		MarkdownImage:       Entry{Fg: interactive[10], Attrs: AttrUnderline},
+		MarkdownImageText:   Entry{Fg: interactive[8], Attrs: AttrUnderline},
 
 		CodeFg: textBase,
 		CodeBg: surface, // match surface so code blocks read as no-chip

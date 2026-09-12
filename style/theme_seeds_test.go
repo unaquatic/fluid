@@ -53,19 +53,6 @@ func TestThemeFromSeeds_FillsEveryRole(t *testing.T) {
 		{"DiffRemoveSurface", th.DiffRemoveSurface},
 		{"DiffAddFg", th.DiffAddFg},
 		{"DiffRemoveFg", th.DiffRemoveFg},
-		{"MarkdownText", th.MarkdownText},
-		{"MarkdownLink", th.MarkdownLink},
-		{"MarkdownLinkText", th.MarkdownLinkText},
-		{"MarkdownCode", th.MarkdownCode},
-		{"MarkdownEmph", th.MarkdownEmph},
-		{"MarkdownStrong", th.MarkdownStrong},
-		{"MarkdownBullet", th.MarkdownBullet},
-		{"MarkdownListEnum", th.MarkdownListEnum},
-		{"MarkdownQuoteFg", th.MarkdownQuoteFg},
-		{"MarkdownQuoteBd", th.MarkdownQuoteBd},
-		{"MarkdownRule", th.MarkdownRule},
-		{"MarkdownImage", th.MarkdownImage},
-		{"MarkdownImageText", th.MarkdownImageText},
 		{"CodeFg", th.CodeFg},
 		{"CodeBg", th.CodeBg},
 	}
@@ -74,8 +61,31 @@ func TestThemeFromSeeds_FillsEveryRole(t *testing.T) {
 			t.Errorf("role %s should be populated, got transparent", chk.name)
 		}
 	}
+	entries := []struct {
+		name string
+		e    Entry
+	}{
+		{"MarkdownText", th.MarkdownText},
+		{"MarkdownLink", th.MarkdownLink},
+		{"MarkdownLinkText", th.MarkdownLinkText},
+		{"MarkdownCode", th.MarkdownCode},
+		{"MarkdownEmph", th.MarkdownEmph},
+		{"MarkdownStrong", th.MarkdownStrong},
+		{"MarkdownBullet", th.MarkdownBullet},
+		{"MarkdownListEnum", th.MarkdownListEnum},
+		{"MarkdownQuote", th.MarkdownQuote},
+		{"MarkdownQuoteBorder", th.MarkdownQuoteBorder},
+		{"MarkdownRule", th.MarkdownRule},
+		{"MarkdownImage", th.MarkdownImage},
+		{"MarkdownImageText", th.MarkdownImageText},
+	}
+	for _, chk := range entries {
+		if chk.e.Fg.A == 0 {
+			t.Errorf("role %s should be populated, got transparent", chk.name)
+		}
+	}
 	for i, h := range th.MarkdownHeading {
-		if h.A == 0 {
+		if h.Fg.A == 0 {
 			t.Errorf("MarkdownHeading[%d] should be populated", i)
 		}
 	}
@@ -161,7 +171,7 @@ func TestNeutralCodePalette_DerivedFromRamp(t *testing.T) {
 
 	cases := []struct {
 		name string
-		got  Color
+		got  Entry
 		want uint8
 	}{
 		{"Error", p.Error, 11},
@@ -179,29 +189,29 @@ func TestNeutralCodePalette_DerivedFromRamp(t *testing.T) {
 		{"Comment", p.Comment, 6},
 	}
 	for _, c := range cases {
-		if c.got.R != c.want {
+		if c.got.Fg.R != c.want {
 			t.Errorf("%s should draw from ramp[%d] (R=%d), got R=%d",
-				c.name, c.want, c.want, c.got.R)
+				c.name, c.want, c.want, c.got.Fg.R)
 		}
 	}
 
 	// Attribute masks: the monochrome palette must compensate for the
 	// missing hue differentiation with bold/italic/underline. Guard
 	// every mask so a future tweak can't silently strip them.
-	if p.KeywordAttrs&AttrBold == 0 {
-		t.Error("KeywordAttrs should include AttrBold")
+	if p.Keyword.Attrs&AttrBold == 0 {
+		t.Error("Keyword should include AttrBold")
 	}
-	if p.FunctionAttrs&AttrBold == 0 {
-		t.Error("FunctionAttrs should include AttrBold")
+	if p.Function.Attrs&AttrBold == 0 {
+		t.Error("Function should include AttrBold")
 	}
-	if p.TypeAttrs&AttrBold == 0 {
-		t.Error("TypeAttrs should include AttrBold")
+	if p.Type.Attrs&AttrBold == 0 {
+		t.Error("Type should include AttrBold")
 	}
-	if p.CommentAttrs&AttrItalic == 0 {
-		t.Error("CommentAttrs should include AttrItalic")
+	if p.Comment.Attrs&AttrItalic == 0 {
+		t.Error("Comment should include AttrItalic")
 	}
-	if p.ErrorAttrs&(AttrBold|AttrUnderline) != (AttrBold | AttrUnderline) {
-		t.Error("ErrorAttrs should include Bold|Underline")
+	if p.Error.Attrs&(AttrBold|AttrUnderline) != (AttrBold | AttrUnderline) {
+		t.Error("Error should include Bold|Underline")
 	}
 }
 
@@ -225,15 +235,15 @@ func TestThemeFromSeeds_CodePaletteIsNeutralRamp(t *testing.T) {
 	expected := NeutralCodePalette(
 		GenerateNeutralScale(seeds.Neutral, true, seeds.Ink),
 	)
-	if !th.Code.Keyword.Equals(expected.Keyword) {
+	if th.Code.Keyword != expected.Keyword {
 		t.Errorf("Keyword should come from neutral ramp: got %v want %v",
 			th.Code.Keyword, expected.Keyword)
 	}
-	if !th.Code.String.Equals(expected.String) {
+	if th.Code.String != expected.String {
 		t.Errorf("String should come from neutral ramp: got %v want %v",
 			th.Code.String, expected.String)
 	}
-	if !th.Code.Comment.Equals(expected.Comment) {
+	if th.Code.Comment != expected.Comment {
 		t.Errorf("Comment should come from neutral ramp: got %v want %v",
 			th.Code.Comment, expected.Comment)
 	}
@@ -262,8 +272,8 @@ func TestDefaultDark_SeedDerivedInvariants(t *testing.T) {
 	// Heading gradient must descend in lightness (H1 = brightest).
 	// This checks the ramp direction hasn't inverted.
 	for i := 1; i < len(th.MarkdownHeading); i++ {
-		prev := th.MarkdownHeading[i-1].ToOKLCH().L
-		cur := th.MarkdownHeading[i].ToOKLCH().L
+		prev := th.MarkdownHeading[i-1].Fg.ToOKLCH().L
+		cur := th.MarkdownHeading[i].Fg.ToOKLCH().L
 		if cur > prev {
 			t.Errorf("H%d (L=%.3f) should not be brighter than H%d (L=%.3f)",
 				i+1, cur, i, prev)

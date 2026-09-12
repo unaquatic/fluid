@@ -824,37 +824,42 @@ func TestMarkdown_Theme_AppliesAllRoles(t *testing.T) {
 	th := style.DefaultDark()
 	// Override a couple of roles so we can assert propagation on values
 	// that differ from the widget's built-in defaults.
-	th.TextStrong = style.ColorFromInts(10, 20, 30, 255)
-	th.MarkdownHeading[0] = style.ColorFromInts(40, 50, 60, 255)
+	th.MarkdownText = style.Entry{Fg: style.ColorFromInts(10, 20, 30, 255)}
+	th.MarkdownHeading[0] = style.Entry{Fg: style.ColorFromInts(40, 50, 60, 255), Attrs: style.AttrBold}
 	th.CodeFg = style.ColorFromInts(70, 80, 90, 255)
 	th.CodeBg = style.ColorFromInts(100, 110, 120, 255)
-	th.MarkdownLink = style.ColorFromInts(130, 140, 150, 255)
-	th.MarkdownBullet = style.ColorFromInts(160, 170, 180, 255)
-	th.MarkdownQuoteFg = style.ColorFromInts(190, 200, 210, 255)
+	th.MarkdownCode = style.Entry{Fg: th.CodeFg, Bg: th.CodeBg}
+	th.MarkdownLink = style.Entry{Fg: style.ColorFromInts(130, 140, 150, 255), Attrs: style.AttrUnderline}
+	th.MarkdownBullet = style.Entry{Fg: style.ColorFromInts(160, 170, 180, 255)}
+	th.MarkdownListEnum = style.Entry{Fg: style.ColorFromInts(165, 175, 185, 255)}
+	th.MarkdownQuote = style.Entry{Fg: style.ColorFromInts(190, 200, 210, 255), Attrs: style.AttrItalic}
+	th.MarkdownStrong = style.Entry{Fg: style.ColorFromInts(11, 21, 31, 255), Attrs: style.AttrBold}
+	th.MarkdownEmph = style.Entry{Fg: style.ColorFromInts(12, 22, 32, 255), Attrs: style.AttrItalic}
 
 	m := NewMarkdown("hello", MarkdownWithTheme(th))
 	s := m.mdStyles()
 
-	if !s.Fg.Equals(th.TextStrong) {
-		t.Errorf("Fg mismatch: got %v want %v", s.Fg, th.TextStrong)
+	if !s.Fg.Equals(th.MarkdownText.Fg) {
+		t.Errorf("Fg mismatch: got %v want %v", s.Fg, th.MarkdownText.Fg)
 	}
-	if !s.H1Fg.Equals(th.MarkdownHeading[0]) {
-		t.Errorf("H1Fg mismatch: got %v want %v", s.H1Fg, th.MarkdownHeading[0])
+	cases := []struct {
+		name string
+		got  style.Entry
+		want style.Entry
+	}{
+		{"Heading[0]", s.Heading(1), th.MarkdownHeading[0]},
+		{"Code", s.Code, th.MarkdownCode},
+		{"Link", s.Link, th.MarkdownLink},
+		{"Bullet", s.Bullet, th.MarkdownBullet},
+		{"ListEnum", s.ListEnum, th.MarkdownListEnum},
+		{"Quote", s.Quote, th.MarkdownQuote},
+		{"Strong", s.Strong, th.MarkdownStrong},
+		{"Emph", s.Emph, th.MarkdownEmph},
 	}
-	if !s.CodeFg.Equals(th.CodeFg) {
-		t.Errorf("CodeFg mismatch: got %v want %v", s.CodeFg, th.CodeFg)
-	}
-	if !s.CodeBg.Equals(th.CodeBg) {
-		t.Errorf("CodeBg mismatch: got %v want %v", s.CodeBg, th.CodeBg)
-	}
-	if !s.LinkFg.Equals(th.MarkdownLink) {
-		t.Errorf("LinkFg mismatch: got %v want %v", s.LinkFg, th.MarkdownLink)
-	}
-	if !s.BulletFg.Equals(th.MarkdownBullet) {
-		t.Errorf("BulletFg mismatch: got %v want %v", s.BulletFg, th.MarkdownBullet)
-	}
-	if !s.QuoteFg.Equals(th.MarkdownQuoteFg) {
-		t.Errorf("QuoteFg mismatch: got %v want %v", s.QuoteFg, th.MarkdownQuoteFg)
+	for _, c := range cases {
+		if c.got != c.want {
+			t.Errorf("%s mismatch: got %+v want %+v", c.name, c.got, c.want)
+		}
 	}
 }
 
