@@ -386,6 +386,7 @@ func (b *Buffer) setCluster(x, y int, char rune, combining string, w int, fg, bg
 
 // SetCellDirect writes a full Cell struct at (x, y).
 // Respects scissor clipping and opacity.
+// Transparent backgrounds preserve the existing cell's background.
 // Wide cells also write a continuation with matching colors and attributes.
 // Clusters that do not fit within the buffer or scissor rect are dropped.
 func (b *Buffer) SetCellDirect(x, y int, cell Cell) {
@@ -408,6 +409,9 @@ func (b *Buffer) SetCellDirect(x, y int, cell Cell) {
 		}
 	}
 	idx := b.cellIndex(x, y)
+	if cell.Bg.IsTransparent() {
+		cell.Bg = b.cells[idx].Bg
+	}
 	b.cells[idx] = cell
 	for offset := 1; offset < cell.Width; offset++ {
 		b.cells[idx+offset] = Cell{
