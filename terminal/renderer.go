@@ -55,10 +55,14 @@ type Renderer struct {
 	dragButton input.MouseButton
 	dragging   bool
 
-	// Event loop
-	pendingWork  chan func() // unified work queue — all mutations funnelled here
-	stopChan     chan struct{}
-	renderNeeded bool
+	// Event loop. pendingWork is unbuffered: a sender waits until the
+	// loop takes its callback, so producers get back-pressure with no
+	// queue to size or outgrow. wake parks the loop and holds at most
+	// one token, so render requests coalesce. dirty says a frame is owed.
+	pendingWork chan func()
+	wake        chan struct{}
+	stopChan    chan struct{}
+	dirty       atomic.Bool
 
 	// Post-processing
 	postProcessFns []func(*buffer.Buffer, float64)
@@ -139,26 +143,27 @@ func NewRenderer(config ...Config) (*Renderer, error) {
 	eventBus := input.NewEventBus()
 
 	r := &Renderer{
-		root:             root,
-		hitGrid:          hitGrid,
-		backend:          backend,
-		config:           cfg,
-		currentBuffer:    currentBuffer,
-		nextBuffer:       nextBuffer,
-		width:            w,
-		height:           h,
-		controlState:     StateIdle,
-		parser:           parser,
-		eventBus:         eventBus,
-		pendingWork:      make(chan func(), 512),
-		stopChan:         make(chan struct{}, 1),
-		done:             make(chan struct{}),
-		invalidated:      true,
-		postProcessFns:   cfg.PostProcessFns,
-		stats:            NewStats(60),
-		lastFrameTime:    time.Now(),
-		sel:              render.NewSelection(),
-		linkRegistry:     NewLinkRegistry(),
+		root:           root,
+		hitGrid:        hitGrid,
+		backend:        backend,
+		config:         cfg,
+		currentBuffer:  currentBuffer,
+		nextBuffer:     nextBuffer,
+		width:          w,
+		height:         h,
+		controlState:   StateIdle,
+		parser:         parser,
+		eventBus:       eventBus,
+		pendingWork:    make(chan func()),
+		wake:           make(chan struct{}, 1),
+		stopChan:       make(chan struct{}, 1),
+		done:           make(chan struct{}),
+		invalidated:    true,
+		postProcessFns: cfg.PostProcessFns,
+		stats:          NewStats(60),
+		lastFrameTime:  time.Now(),
+		sel:            render.NewSelection(),
+		linkRegistry:   NewLinkRegistry(),
 	}
 
 	// Open debug log file if requested.
@@ -470,9 +475,23 @@ func (r *Renderer) Destroy() {
 	}
 }
 
-// RequestRender signals that a render frame is needed.
+// RequestRender signals that a render frame is needed. Every tree
+// mutation calls it, so it must stay cheap and must not consume work
+// queue space: it raises a flag and pokes the event loop, and any number
+// of requests collapse into the one frame that clears the flag.
 func (r *Renderer) RequestRender() {
-	r.Enqueue(func() { r.renderNeeded = true })
+	r.dirty.Store(true)
+	r.signal()
+}
+
+// signal wakes the event loop. A queue that already holds a token skips
+// the send: the loop has not consumed it yet, so it is guaranteed to
+// come back around and observe whatever the caller just recorded.
+func (r *Renderer) signal() {
+	select {
+	case r.wake <- struct{}{}:
+	default:
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -548,13 +567,16 @@ func (r *Renderer) DropLive() {
 // Enqueue schedules a function to run on the event loop goroutine.
 // This is the safe way to mutate the widget tree from any goroutine.
 // The function will execute before the next render frame.
+//
+// Enqueue blocks while the loop is behind, so callers get back-pressure
+// instead of unbounded queue growth, and it never discards the callback.
+// It must therefore not be called from the event loop goroutine itself:
+// that goroutine is the only drain, so it would wait on itself. Code
+// already running on the loop mutates the tree directly instead.
 func (r *Renderer) Enqueue(fn func()) {
 	select {
 	case r.pendingWork <- fn:
-	default:
-		if r.dbg != nil {
-			r.dbg.Printf("[enqueue] dropped callback — channel full")
-		}
+	case <-r.done:
 	}
 }
 
@@ -563,16 +585,17 @@ func (r *Renderer) Enqueue(fn func()) {
 // rendering happen on this single goroutine, eliminating data races.
 func (r *Renderer) eventLoop() {
 	for {
-		// Block until at least one work item arrives.
+		// Park until work arrives or a frame is owed.
 		select {
 		case fn := <-r.pendingWork:
 			fn()
+		case <-r.wake:
 		case <-r.stopChan:
 			return
 		}
 
-		// Drain all remaining pending work (batch before rendering).
-		r.drainPending()
+		// Batch every pending mutation before rendering.
+		r.drainWork()
 
 		// Check lifecycle state.
 		r.mu.Lock()
@@ -588,18 +611,20 @@ func (r *Renderer) eventLoop() {
 
 		// In explicit/continuous mode, always render.
 		if state == StateExplicitStarted {
-			r.renderNeeded = true
+			r.dirty.Store(true)
 		}
 
-		if r.renderNeeded {
+		// Clear before drawing, so a mutation made during the frame
+		// re-arms the flag and earns a frame of its own.
+		if r.dirty.Swap(false) {
 			r.renderFrame()
-			r.renderNeeded = false
 		}
 	}
 }
 
-// drainPending processes all remaining pending work without blocking.
-func (r *Renderer) drainPending() {
+// drainWork runs every queued callback, including any scheduled while
+// draining, and returns once the queue is empty.
+func (r *Renderer) drainWork() {
 	for {
 		select {
 		case fn := <-r.pendingWork:

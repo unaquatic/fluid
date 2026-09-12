@@ -256,43 +256,41 @@ func TestRenderer_RequestRender(t *testing.T) {
 
 	r.RequestRender()
 
-	// RequestRender enqueues a closure; drain it and verify renderNeeded.
-	select {
-	case fn := <-r.pendingWork:
-		fn()
-	default:
-		t.Fatal("expected work item from RequestRender")
+	if !r.dirty.Load() {
+		t.Error("expected dirty to be true after RequestRender")
 	}
-
-	if !r.renderNeeded {
-		t.Error("expected renderNeeded to be true after RequestRender")
+	select {
+	case <-r.wake:
+	default:
+		t.Error("expected RequestRender to wake the event loop")
+	}
+	select {
+	case <-r.pendingWork:
+		t.Fatal("RequestRender must not queue work")
+	default:
 	}
 }
 
 func TestRenderer_RequestRenderIdempotent(t *testing.T) {
 	r := newInputTestRenderer()
 
-	// Multiple requests enqueue multiple closures, all set the same flag.
+	// Repeated requests collapse into one wake-up and one owed frame.
 	r.RequestRender()
 	r.RequestRender()
 	r.RequestRender()
 
-	drained := 0
-	for {
-		select {
-		case fn := <-r.pendingWork:
-			fn()
-			drained++
-		default:
-			goto done
-		}
+	if !r.dirty.Load() {
+		t.Error("expected dirty to be true")
 	}
-done:
-	if drained == 0 {
-		t.Error("expected at least one work item")
+	select {
+	case <-r.wake:
+	default:
+		t.Fatal("expected a wake-up")
 	}
-	if !r.renderNeeded {
-		t.Error("expected renderNeeded to be true")
+	select {
+	case <-r.wake:
+		t.Error("expected wake-ups to coalesce into one")
+	default:
 	}
 }
 
@@ -308,24 +306,25 @@ func TestRenderer_RenderFrame(t *testing.T) {
 	hitGrid := NewHitGrid(w, h)
 
 	r := &Renderer{
-		root:            root,
-		hitGrid:         hitGrid,
-		backend:         NewBackend(strings.NewReader(""), &outBuf),
-		config:          DefaultConfig(),
-		currentBuffer:   buffer.New(w, h),
-		nextBuffer:      buffer.New(w, h),
-		width:           w,
-		height:          h,
-		controlState:    StateExplicitStarted,
-		parser:          input.NewParser(),
-		eventBus:        input.NewEventBus(),
-		pendingWork:     make(chan func(), 512),
-		stopChan:        make(chan struct{}, 1),
-		done:            make(chan struct{}),
-		sel:             render.NewSelection(),
-		linkRegistry:    NewLinkRegistry(),
-		stats:           NewStats(60),
-		lastFrameTime:   time.Now(),
+		root:          root,
+		hitGrid:       hitGrid,
+		backend:       NewBackend(strings.NewReader(""), &outBuf),
+		config:        DefaultConfig(),
+		currentBuffer: buffer.New(w, h),
+		nextBuffer:    buffer.New(w, h),
+		width:         w,
+		height:        h,
+		controlState:  StateExplicitStarted,
+		parser:        input.NewParser(),
+		eventBus:      input.NewEventBus(),
+		pendingWork:   make(chan func()),
+		wake:          make(chan struct{}, 1),
+		stopChan:      make(chan struct{}, 1),
+		done:          make(chan struct{}),
+		sel:           render.NewSelection(),
+		linkRegistry:  NewLinkRegistry(),
+		stats:         NewStats(60),
+		lastFrameTime: time.Now(),
 	}
 
 	root.SetContext(r)

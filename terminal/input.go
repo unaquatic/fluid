@@ -26,13 +26,8 @@ func (r *Renderer) inputLoop() {
 			continue
 		}
 
-		events := r.parser.Parse(buf[:n])
-		for _, evt := range events {
-			select {
-			case r.pendingWork <- func() { r.dispatchEvent(evt) }:
-			case <-r.stopChan:
-				return
-			}
+		for _, evt := range r.parser.Parse(buf[:n]) {
+			r.Enqueue(func() { r.dispatchEvent(evt) })
 		}
 	}
 }
