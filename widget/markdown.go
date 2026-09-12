@@ -51,6 +51,16 @@ type Markdown struct {
 	codeFg style.Color
 	codeBg style.Color
 
+	// codeBlockPad insets code within its background slab, in cells.
+	// codeBlockMargin insets the slab itself from the widget's left and
+	// right edges — margin is outside the background, padding inside it.
+	codeBlockPad    int
+	codeBlockMargin int
+
+	// prosePad is a gutter around prose, in cells. Top-level code blocks
+	// skip it so their background still reaches the widget's edges.
+	prosePad int
+
 	// Inline element styles.
 	code        style.Entry
 	link        style.Entry
@@ -470,41 +480,81 @@ func (m *Markdown) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 // Parsing helpers
 // ---------------------------------------------------------------------------
 
-// renderCodeBlock renders a fenced/indented code block. Uses the
-// SyntaxHighlighter when available and a language is specified;
+// renderCodeBlock renders a fenced/indented code block into width w.
+// Uses the SyntaxHighlighter when available and a language is specified;
 // otherwise falls back to monochrome codeFg/codeBg.
-func (m *Markdown) renderCodeBlock(blk MdBlock, indent string) {
-	content := strings.Join(blk.CodeLines, "\n")
+//
+// Every line is filled out to w so the block's background reads as one
+// solid slab rather than hugging the ragged right edge of the source.
+// codeBlockPad insets the code within that slab: blank rows above and
+// below, and that many columns before the first character.
+func (m *Markdown) renderCodeBlock(blk MdBlock, indent string, w int) {
+	lead := indent + strings.Repeat(" ", m.codeBlockPad)
 
-	// Try syntax highlighting.
-	if m.highlighter != nil && blk.Lang != "" {
-		highlighted, err := m.highlighter.Highlight(content, blk.Lang, m.codeFg, m.codeBg)
-		if err == nil && len(highlighted) > 0 {
-			for _, line := range highlighted {
-				var chunks []style.TextChunk
-				chunks = append(chunks, style.TextChunk{Text: indent, Bg: &m.codeBg})
-				for _, span := range line.Spans {
-					fg := span.Fg
-					bg := span.Bg
-					chunks = append(chunks, style.TextChunk{
-						Text:       span.Text,
-						Fg:         &fg,
-						Bg:         &bg,
-						Attributes: span.Attributes,
-					})
-				}
-				m.renderedLines = append(m.renderedLines, mdLine{chunks: chunks})
-			}
-			return
+	for range m.codeBlockPad {
+		m.addCodeLine(nil, 0, w)
+	}
+	if !m.renderHighlighted(blk, lead, w) {
+		for _, line := range blk.CodeLines {
+			text := lead + line
+			m.addCodeLine(
+				[]style.TextChunk{{Text: text, Fg: &m.codeFg, Bg: &m.codeBg}},
+				textbuf.StringWidth(text), w,
+			)
 		}
 	}
+	for range m.codeBlockPad {
+		m.addCodeLine(nil, 0, w)
+	}
+}
 
-	// Monochrome fallback.
-	for _, line := range blk.CodeLines {
-		m.renderedLines = append(m.renderedLines, mdLine{
-			chunks: []style.TextChunk{{Text: indent + line, Fg: &m.codeFg, Bg: &m.codeBg}},
+// renderHighlighted appends syntax-highlighted code lines and reports
+// whether highlighting was available at all.
+func (m *Markdown) renderHighlighted(blk MdBlock, lead string, w int) bool {
+	if m.highlighter == nil || blk.Lang == "" {
+		return false
+	}
+	content := strings.Join(blk.CodeLines, "\n")
+	highlighted, err := m.highlighter.Highlight(content, blk.Lang, m.codeFg, m.codeBg)
+	if err != nil || len(highlighted) == 0 {
+		return false
+	}
+	for _, line := range highlighted {
+		chunks := []style.TextChunk{{Text: lead, Bg: &m.codeBg}}
+		used := textbuf.StringWidth(lead)
+		for _, span := range line.Spans {
+			fg, bg := span.Fg, span.Bg
+			chunks = append(chunks, style.TextChunk{
+				Text:       span.Text,
+				Fg:         &fg,
+				Bg:         &bg,
+				Attributes: span.Attributes,
+			})
+			used += textbuf.StringWidth(span.Text)
+		}
+		m.addCodeLine(chunks, used, w)
+	}
+	return true
+}
+
+// addCodeLine appends one code line of a block laid out in width w. The
+// slab runs from codeBlockMargin to w-codeBlockMargin: the leading gutter
+// carries no background, and the rest of the slab is filled with codeBg
+// so the block reads as a solid rectangle.
+func (m *Markdown) addCodeLine(chunks []style.TextChunk, used, w int) {
+	margin := m.codeBlockMargin
+	if margin > 0 {
+		gutter := style.TextChunk{Text: strings.Repeat(" ", margin)}
+		chunks = append([]style.TextChunk{gutter}, chunks...)
+		used += margin
+	}
+	if end := w - margin; used < end {
+		chunks = append(chunks, style.TextChunk{
+			Text: strings.Repeat(" ", end-used),
+			Bg:   &m.codeBg,
 		})
 	}
+	m.renderedLines = append(m.renderedLines, mdLine{chunks: chunks})
 }
 
 // isContinuationBlock returns true when two adjacent blocks belong to the
@@ -558,7 +608,7 @@ func (m *Markdown) wrapBlocks(w int) {
 	m.renderedLines = nil
 	m.lastWrapWidth = w
 	m.wrapDirty = false
-	m.wrapBlockList(m.blocks, w, 0)
+	m.wrapBlockList(m.blocks, w, m.prosePad)
 }
 
 // wrapBlockList recursively wraps a slice of blocks with the given indent.
@@ -568,24 +618,36 @@ func (m *Markdown) wrapBlockList(blocks []MdBlock, w int, indent int) {
 		avail = 4
 	}
 	indentStr := strings.Repeat(" ", indent)
+	// Prose stops short of the right edge by the same gutter it starts
+	// from, so the inset reads symmetrically. A non-positive w means
+	// "don't wrap" and has to stay that way.
+	proseW := w
+	if m.prosePad > 0 {
+		proseW = max(w-m.prosePad, 4)
+	}
 
 	for _, blk := range blocks {
 		switch blk.Kind {
 		case MdBlockParagraph:
 			m.addWrappedLine(
-				[]style.TextChunk{{Text: indentStr}}, indent, w,
+				[]style.TextChunk{{Text: indentStr}}, indent, proseW,
 				blk.Body...,
 			)
 		case MdBlockHeading:
 			m.addWrappedLine(
 				append([]style.TextChunk{{Text: indentStr}}, blk.Body...),
-				indent, w,
+				indent, proseW,
 			)
 		case MdBlockCode:
-			// Top-level code blocks sit flush with the container edge.
-			// Nested code (inside lists or blockquotes) keeps its parent
-			// indent so it aligns with sibling content.
-			m.renderCodeBlock(blk, indentStr)
+			// Top-level code blocks sit flush with the container edge,
+			// dropping the prose gutter so their background spans the
+			// full width. Nested code (inside lists or blockquotes)
+			// keeps its parent indent so it aligns with sibling content.
+			codeIndent := indentStr
+			if indent == m.prosePad {
+				codeIndent = ""
+			}
+			m.renderCodeBlock(blk, codeIndent, w)
 		case MdBlockList, MdBlockOrderedList:
 			// Container: render children (ListItems).
 			m.wrapBlockList(blk.Children, w, indent)
@@ -597,7 +659,7 @@ func (m *Markdown) wrapBlockList(blocks []MdBlock, w int, indent int) {
 				prefix = append(prefix, style.TextChunk{Text: indentStr})
 			}
 			prefix = append(prefix, blk.Prefix...)
-			m.addWrappedLine(prefix, indent+blk.PrefixWidth, w, blk.Body...)
+			m.addWrappedLine(prefix, indent+blk.PrefixWidth, proseW, blk.Body...)
 			// Nested children (more paragraphs, code blocks, nested lists)
 			// are indented by the prefix width.
 			if len(blk.Children) > 0 {
@@ -612,7 +674,7 @@ func (m *Markdown) wrapBlockList(blocks []MdBlock, w int, indent int) {
 			}
 			prefix = append(prefix, blk.Prefix...)
 			if len(blk.Children) > 0 && blk.Children[0].Kind == MdBlockParagraph {
-				m.addWrappedLine(prefix, indent+blk.PrefixWidth, w, blk.Children[0].Body...)
+				m.addWrappedLine(prefix, indent+blk.PrefixWidth, proseW, blk.Children[0].Body...)
 				if len(blk.Children) > 1 {
 					m.wrapBlockList(blk.Children[1:], w, indent+blk.PrefixWidth)
 				}
@@ -705,7 +767,12 @@ func (m *Markdown) addWrappedLine(prefix []style.TextChunk, prefixWidth int, max
 		lineWidth := 0
 		lineAvail := availWidth
 		if !firstLine {
-			lineAvail = maxWidth // continuation lines use full width
+			// Continuation lines drop the prefix but keep the prose
+			// gutter, so a wrapped paragraph stays inset on both edges.
+			lineAvail = maxWidth
+			if m.prosePad > 0 {
+				lineAvail = max(maxWidth-m.prosePad, 4)
+			}
 		}
 
 		lineStart := clusterIdx
@@ -745,6 +812,10 @@ func (m *Markdown) addWrappedLine(prefix []style.TextChunk, prefixWidth int, max
 		var lineChunks []style.TextChunk
 		if firstLine {
 			lineChunks = append(lineChunks, prefix...)
+		} else if m.prosePad > 0 {
+			lineChunks = append(lineChunks, style.TextChunk{
+				Text: strings.Repeat(" ", m.prosePad),
+			})
 		}
 
 		// Group consecutive clusters with same style
@@ -1025,6 +1096,40 @@ func MarkdownWithCodeBg(c style.Color) MarkdownOption {
 // leaves the monochrome fenced-block colors alone.
 func MarkdownWithCode(e style.Entry) MarkdownOption {
 	return func(m *Markdown) { m.code = e }
+}
+
+// MarkdownWithCodeBlockBg sets the background for fenced code blocks only,
+// leaving inline spans on whatever the theme gave them. Use it to raise a
+// block off the surrounding message without turning short inline spans
+// into chips; MarkdownWithCodeBg changes both.
+func MarkdownWithCodeBlockBg(c style.Color) MarkdownOption {
+	return func(m *Markdown) { m.codeBg = c }
+}
+
+// MarkdownWithCodeBlockPadding insets fenced code within its background
+// by n cells: n blank rows above and below, and n columns before the
+// first character. Defaults to 0, which puts code flush against the
+// block edge. Negative values are ignored.
+func MarkdownWithCodeBlockPadding(n int) MarkdownOption {
+	return func(m *Markdown) { m.codeBlockPad = max(n, 0) }
+}
+
+// MarkdownWithCodeBlockMargin insets a fenced block's background by n
+// cells from the widget's left and right edges. Margin is outside the
+// background where padding is inside it, so a block with margin 2 and
+// padding 1 leaves two blank columns, then the slab, then one column of
+// slab before the code. Defaults to 0. Negative values are ignored.
+func MarkdownWithCodeBlockMargin(n int) MarkdownOption {
+	return func(m *Markdown) { m.codeBlockMargin = max(n, 0) }
+}
+
+// MarkdownWithProsePadding sets a gutter of n cells around prose —
+// paragraphs, headings, lists and quotes. Top-level fenced code skips it
+// so its background still spans the full width of the widget. Prefer it
+// over padding the widget's layout node, which would inset that
+// background too. Defaults to 0. Negative values are ignored.
+func MarkdownWithProsePadding(n int) MarkdownOption {
+	return func(m *Markdown) { m.prosePad = max(n, 0) }
 }
 
 // MarkdownWithStrong sets the style for **strong** spans.

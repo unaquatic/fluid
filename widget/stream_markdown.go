@@ -190,6 +190,39 @@ func StreamMarkdownWithCodeBg(c style.Color) StreamMarkdownOption {
 	}
 }
 
+// StreamMarkdownWithCodeBlockBg is a convenience that adds
+// MarkdownWithCodeBlockBg to child opts, raising fenced blocks off the
+// surrounding message without restyling inline spans.
+func StreamMarkdownWithCodeBlockBg(c style.Color) StreamMarkdownOption {
+	return func(sm *StreamMarkdown) {
+		sm.mdOpts = append(sm.mdOpts, MarkdownWithCodeBlockBg(c))
+	}
+}
+
+// StreamMarkdownWithCodeBlockPadding is a convenience that adds
+// MarkdownWithCodeBlockPadding to child opts.
+func StreamMarkdownWithCodeBlockPadding(n int) StreamMarkdownOption {
+	return func(sm *StreamMarkdown) {
+		sm.mdOpts = append(sm.mdOpts, MarkdownWithCodeBlockPadding(n))
+	}
+}
+
+// StreamMarkdownWithCodeBlockMargin is a convenience that adds
+// MarkdownWithCodeBlockMargin to child opts.
+func StreamMarkdownWithCodeBlockMargin(n int) StreamMarkdownOption {
+	return func(sm *StreamMarkdown) {
+		sm.mdOpts = append(sm.mdOpts, MarkdownWithCodeBlockMargin(n))
+	}
+}
+
+// StreamMarkdownWithProsePadding is a convenience that adds
+// MarkdownWithProsePadding to child opts.
+func StreamMarkdownWithProsePadding(n int) StreamMarkdownOption {
+	return func(sm *StreamMarkdown) {
+		sm.mdOpts = append(sm.mdOpts, MarkdownWithProsePadding(n))
+	}
+}
+
 // StreamMarkdownWithTheme applies the theme to every child Markdown widget
 // (current and future). Later StreamMarkdownWith... options can still
 // override individual fields on top.
