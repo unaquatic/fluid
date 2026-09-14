@@ -10,10 +10,6 @@ import (
 	"github.com/unaquatic/fluid/textbuf"
 )
 
-// ---------------------------------------------------------------------------
-// Helper: create a renderer with a captured output buffer
-// ---------------------------------------------------------------------------
-
 func newTestRenderer(w, h int) (*Renderer, *bytes.Buffer) {
 	var outBuf bytes.Buffer
 	r := &Renderer{
@@ -26,13 +22,9 @@ func newTestRenderer(w, h int) (*Renderer, *bytes.Buffer) {
 	return r, &outBuf
 }
 
-// ---------------------------------------------------------------------------
-// buildSGR tests
-// ---------------------------------------------------------------------------
-
 func TestBuildSGR_Reset(t *testing.T) {
 	sgr := buildSGR(style.Color{}, style.Color{}, 0, style.ColorTrueColor)
-	// Should start with reset
+	// Every generated style begins by resetting prior SGR state.
 	if !strings.HasPrefix(sgr, "\x1b[0") {
 		t.Errorf("expected SGR to start with reset, got: %q", sgr)
 	}
@@ -71,7 +63,7 @@ func TestBuildSGR_Strikethrough(t *testing.T) {
 
 func TestBuildSGR_ForegroundColor(t *testing.T) {
 	sgr := buildSGR(style.ColorRed, style.ColorTransparent, 0, style.ColorTrueColor)
-	// Red = (1,0,0,1) -> (255,0,0)
+	// Normalized red converts to RGB 255,0,0.
 	if !strings.Contains(sgr, "38;2;255;0;0") {
 		t.Errorf("expected fg truecolor in SGR, got: %q", sgr)
 	}
@@ -79,7 +71,7 @@ func TestBuildSGR_ForegroundColor(t *testing.T) {
 
 func TestBuildSGR_BackgroundColor(t *testing.T) {
 	sgr := buildSGR(style.ColorWhite, style.ColorBlue, 0, style.ColorTrueColor)
-	// Blue = (0,0,1,1) -> (0,0,255)
+	// Normalized blue converts to RGB 0,0,255.
 	if !strings.Contains(sgr, "48;2;0;0;255") {
 		t.Errorf("expected bg truecolor in SGR, got: %q", sgr)
 	}
@@ -105,21 +97,17 @@ func TestBuildSGR_MultipleAttributes(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// DiffAndFlush tests
-// ---------------------------------------------------------------------------
-
 func TestDiffAndFlush_UnchangedCellsSkipped(t *testing.T) {
 	r, outBuf := newTestRenderer(10, 3)
 
-	// Set identical content in both buffers
+	// Identical buffers require no cell output.
 	r.currentBuffer.SetCell(0, 0, 'A', style.ColorWhite, style.ColorBlack, 0)
 	r.nextBuffer.SetCell(0, 0, 'A', style.ColorWhite, style.ColorBlack, 0)
 
 	r.DiffAndFlush(r.currentBuffer, r.nextBuffer)
 
 	output := outBuf.String()
-	// Should only have the reset at end, no content to write
+	// The unchanged glyph does not appear in the output.
 	if strings.Contains(output, "A") {
 		t.Error("unchanged cell 'A' should not appear in output")
 	}
@@ -128,7 +116,7 @@ func TestDiffAndFlush_UnchangedCellsSkipped(t *testing.T) {
 func TestDiffAndFlush_ChangedCellsWritten(t *testing.T) {
 	r, outBuf := newTestRenderer(10, 3)
 
-	// Current is empty, next has content
+	// A changed cell produces terminal output.
 	r.nextBuffer.SetCell(0, 0, 'X', style.ColorWhite, style.ColorBlack, 0)
 
 	r.DiffAndFlush(r.currentBuffer, r.nextBuffer)
@@ -142,13 +130,13 @@ func TestDiffAndFlush_ChangedCellsWritten(t *testing.T) {
 func TestDiffAndFlush_CursorPositioning(t *testing.T) {
 	r, outBuf := newTestRenderer(10, 5)
 
-	// Set a cell at (5, 3)
+	// Place one changed cell at zero-based (5,3).
 	r.nextBuffer.SetCell(5, 3, 'Z', style.ColorWhite, style.ColorBlack, 0)
 
 	r.DiffAndFlush(r.currentBuffer, r.nextBuffer)
 
 	output := outBuf.String()
-	// Should contain cursor move to row 4, col 6 (1-indexed)
+	// CUP converts it to one-based row 4, column 6.
 	if !strings.Contains(output, "\x1b[4;6H") {
 		t.Errorf("expected cursor position [4;6H, got: %q", output)
 	}
@@ -157,13 +145,13 @@ func TestDiffAndFlush_CursorPositioning(t *testing.T) {
 func TestDiffAndFlush_WideCharContinuationSkipped(t *testing.T) {
 	r, outBuf := newTestRenderer(10, 1)
 
-	// Set a wide character (e.g. CJK)
-	r.nextBuffer.SetCell(0, 0, '\u4e16', style.ColorWhite, style.ColorBlack, 0) // '世' is wide
+	// Set one wide CJK character.
+	r.nextBuffer.SetCell(0, 0, '\u4e16', style.ColorWhite, style.ColorBlack, 0) // 世 occupies two cells.
 
 	r.DiffAndFlush(r.currentBuffer, r.nextBuffer)
 
 	output := outBuf.String()
-	// Should contain the wide char
+	// The head emits the wide character once.
 	if !strings.Contains(output, "世") {
 		t.Error("expected wide character in output")
 	}
@@ -184,7 +172,7 @@ func TestDiffAndFlush_ResetAtEnd(t *testing.T) {
 func TestDiffAndFlush_MultipleCellsDifferentPositions(t *testing.T) {
 	r, outBuf := newTestRenderer(10, 5)
 
-	// Two cells in different locations
+	// Noncontiguous changes require separate cursor positions.
 	r.nextBuffer.SetCell(0, 0, 'A', style.ColorRed, style.ColorBlack, 0)
 	r.nextBuffer.SetCell(5, 3, 'B', style.ColorBlue, style.ColorBlack, 0)
 
@@ -198,10 +186,6 @@ func TestDiffAndFlush_MultipleCellsDifferentPositions(t *testing.T) {
 		t.Error("expected 'B' in output")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// FullFlush tests
-// ---------------------------------------------------------------------------
 
 func TestFullFlush_WritesAllCells(t *testing.T) {
 	r, outBuf := newTestRenderer(3, 2)
@@ -224,13 +208,9 @@ func TestFullFlush_WritesAllCells(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Stats tests
-// ---------------------------------------------------------------------------
-
 func TestRendererStats_Record(t *testing.T) {
 	s := NewStats(10)
-	s.record(0.016) // ~60fps frame
+	s.record(0.016) // Approximately one 60-FPS frame.
 	s.record(0.016)
 	s.record(0.016)
 
@@ -279,27 +259,21 @@ func TestRendererStats_SlidingWindow(t *testing.T) {
 	s.record(0.010)
 	s.record(0.020)
 	s.record(0.030)
-	// Window: [0.010, 0.020, 0.030], avg = 0.020
+	// The first three samples average 0.020 seconds.
 	if s.AvgRenderTime < 0.019 || s.AvgRenderTime > 0.021 {
 		t.Errorf("expected AvgRenderTime ~0.020, got %f", s.AvgRenderTime)
 	}
 
 	s.record(0.040)
-	// Window: [0.020, 0.030, 0.040], avg = 0.030
+	// Adding a fourth sample evicts the oldest and produces a 0.030-second average.
 	if s.AvgRenderTime < 0.029 || s.AvgRenderTime > 0.031 {
 		t.Errorf("expected AvgRenderTime ~0.030 after slide, got %f", s.AvgRenderTime)
 	}
 }
 
-// ---------------------------------------------------------------------------
-// flushRune — backstop for broken wide-character pairs
-// ---------------------------------------------------------------------------
-
-// TestFlushRune_BrokenPair verifies the flush still advances exactly the
-// columns a row claims when a wide-character pair has been broken. Buffer
-// writes repair this, so the cases here are forced with raw cell writes; the
-// backstop keeps a stale width table or a future overdraw path from
-// desynchronising the cursor and corrupting the rest of the frame.
+// TestFlushRune_BrokenPair verifies that malformed wide-character storage emits
+// spaces that preserve the row's recorded width. The test bypasses normal
+// buffer repair to construct each malformed case.
 func TestFlushRune_BrokenPair(t *testing.T) {
 	const width = 4
 

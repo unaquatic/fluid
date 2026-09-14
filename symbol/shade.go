@@ -1,16 +1,15 @@
 package symbol
 
-// Shade characters — used for backgrounds, progress bars, gauges, and fills.
-
+// Shade runes ordered by increasing cell coverage.
 const (
-	ShadeLight  = '░' // U+2591 Light shade (25%)
-	ShadeMedium = '▒' // U+2592 Medium shade (50%)
-	ShadeDark   = '▓' // U+2593 Dark shade (75%)
-	ShadeFull   = '█' // U+2588 Full block (100%)
+	ShadeLight  = '░' // Light shade, approximately 25 percent coverage.
+	ShadeMedium = '▒' // Medium shade, approximately 50 percent coverage.
+	ShadeDark   = '▓' // Dark shade, approximately 75 percent coverage.
+	ShadeFull   = '█' // Full-block coverage.
 )
 
-// GaugeFill is the filled portion character for progress bars/gauges.
+// GaugeFill draws the filled portion of a gauge.
 const GaugeFill = '█'
 
-// GaugeEmpty is the empty portion character for progress bars/gauges.
+// GaugeEmpty draws the unfilled portion of a gauge.
 const GaugeEmpty = '░'

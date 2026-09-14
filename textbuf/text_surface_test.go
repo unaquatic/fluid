@@ -56,7 +56,7 @@ func TestTextBufferView_WrapChar(t *testing.T) {
 
 	vlines := v.VirtualLines()
 
-	// 10 chars at width 4: "abcd", "efgh", "ij" = 3 virtual lines
+	// Ten columns wrap into rows of four, four, and two columns.
 	if len(vlines) != 3 {
 		t.Fatalf("expected 3 virtual lines, got %d", len(vlines))
 	}
@@ -70,7 +70,7 @@ func TestTextBufferView_WrapChar(t *testing.T) {
 		t.Errorf("vline 2 width: expected 2, got %d", vlines[2].Width)
 	}
 
-	// Check source col offsets
+	// Wrapped rows retain their source-column offsets.
 	if vlines[0].SourceColOffset != 0 {
 		t.Errorf("vline 0 SourceColOffset: expected 0, got %d", vlines[0].SourceColOffset)
 	}
@@ -92,19 +92,14 @@ func TestTextBufferView_WrapWord(t *testing.T) {
 
 	vlines := v.VirtualLines()
 
-	// "hello world foo" at width 10:
-	// "hello " (6 cols) + "worl" would be 10 but "world" is 5+space
-	// Actually: "hello " fits, then "world " fits up to 11 but break at "world "
-	// "hello wor" is 9, then "ld" would make 11... word wrap should break at "hello "
-	// Expected: "hello " (line 1), "world foo" (line 2) or "world " + "foo"
-	// With width 10: "hello " = 6 cols, "world" would make 11 > 10,
-	// so break after "hello " -> "hello " then "world foo" = 9 cols fits.
+	// At width ten, adding "world" would overflow after "hello ", so word
+	// wrapping breaks there and keeps "world foo" together.
 
 	if len(vlines) < 2 {
 		t.Fatalf("expected at least 2 virtual lines, got %d", len(vlines))
 	}
 
-	// All virtual lines should be from source line 0
+	// Both wrapped rows map to logical source line zero.
 	for i, vl := range vlines {
 		if vl.SourceLine != 0 {
 			t.Errorf("vline %d: expected source 0, got %d", i, vl.SourceLine)
@@ -226,9 +221,7 @@ func TestTextBufferView_WrapChar_MultiLine(t *testing.T) {
 
 	vlines := v.VirtualLines()
 
-	// "abcdef" at width 3: "abc", "def" = 2 vlines
-	// "xy" at width 3: "xy" = 1 vline
-	// Total: 3 vlines
+	// "abcdef" produces two rows and "xy" one, for three virtual lines.
 	if len(vlines) != 3 {
 		t.Fatalf("expected 3 virtual lines, got %d", len(vlines))
 	}
@@ -240,10 +233,6 @@ func TestTextBufferView_WrapChar_MultiLine(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Tests for new TextSurface methods
-// ---------------------------------------------------------------------------
-
 func TestTextBufferView_SetWrapWidth(t *testing.T) {
 	tb := NewTextBuffer()
 	tb.SetText("abcdefghijklmnop") // 16 chars
@@ -252,16 +241,16 @@ func TestTextBufferView_SetWrapWidth(t *testing.T) {
 	v.SetWrapMode(WrapChar)
 	v.SetViewport(&Viewport{Width: 80, Height: 20}) // viewport is wide
 
-	// Without explicit wrapWidth, uses viewport width (80)
+	// Without an explicit width, wrapping uses the 80-column viewport.
 	vlines := v.VirtualLines()
 	if len(vlines) != 1 {
 		t.Fatalf("expected 1 virtual line with wide viewport, got %d", len(vlines))
 	}
 
-	// Set explicit wrap width to 4
+	// An explicit width of four overrides the viewport width.
 	v.SetWrapWidth(4)
 	vlines = v.VirtualLines()
-	// 16 chars at width 4: 4 virtual lines
+	// Sixteen columns divide into four visual rows.
 	if len(vlines) != 4 {
 		t.Fatalf("expected 4 virtual lines with wrapWidth=4, got %d", len(vlines))
 	}
@@ -271,7 +260,7 @@ func TestTextBufferView_SetWrapWidth(t *testing.T) {
 		}
 	}
 
-	// Reset wrapWidth to 0 -> fallback to viewport width
+	// Resetting to zero restores viewport-width wrapping.
 	v.SetWrapWidth(0)
 	vlines = v.VirtualLines()
 	if len(vlines) != 1 {
@@ -285,7 +274,7 @@ func TestTextBufferView_SetTruncate(t *testing.T) {
 
 	v := NewTextSurface(tb)
 
-	// Default truncation should be false
+	// Truncation is disabled by default.
 	if v.truncate {
 		t.Error("expected truncation to be disabled by default")
 	}
@@ -316,7 +305,7 @@ func TestTextBufferView_SetTabIndicator(t *testing.T) {
 		t.Errorf("expected tab indicator '→', got %c", v.tabIndicator)
 	}
 
-	// Setting should mark dirty for re-layout
+	// Changing the configured indicator invalidates virtual-line layout.
 	v.SetTabIndicator('·')
 	if v.tabIndicator != '·' {
 		t.Errorf("expected tab indicator '·', got %c", v.tabIndicator)
@@ -353,13 +342,13 @@ func TestTextBufferView_GetLogicalLineInfo(t *testing.T) {
 	tb.SetText("hello\nab\nworld!")
 
 	v := NewTextSurface(tb)
-	// Enable wrapping to ensure LogicalLineInfo ignores it
+	// LogicalLineInfo remains unwrapped while rendering wraps.
 	v.SetWrapMode(WrapChar)
 	v.SetViewport(&Viewport{Width: 3, Height: 20})
 
 	info := v.LogicalLineInfo()
 
-	// Should always have 3 entries regardless of wrapping
+	// The result contains one entry per logical line.
 	if len(info.Widths) != 3 {
 		t.Fatalf("expected 3 logical lines, got %d", len(info.Widths))
 	}
@@ -376,14 +365,14 @@ func TestTextBufferView_GetLogicalLineInfo(t *testing.T) {
 		t.Errorf("max width: expected 6, got %d", info.MaxWidth)
 	}
 
-	// Sources should be 0, 1, 2
+	// Source indices follow logical-line order.
 	for i, s := range info.Sources {
 		if s != i {
 			t.Errorf("source[%d]: expected %d, got %d", i, i, s)
 		}
 	}
 
-	// Starts: line 0 starts at 0; line 1 starts at 0+5+1=6; line 2 starts at 6+2+1=9
+	// Starts include each preceding line width and one newline offset.
 	expectedStarts := []int{0, 6, 9}
 	for i, exp := range expectedStarts {
 		if info.Starts[i] != exp {
@@ -402,7 +391,7 @@ func TestTextBufferView_SetLocalSelection(t *testing.T) {
 	bg := style.ColorFromInts(0, 0, 255, 255)
 	fg := style.ColorFromInts(255, 255, 255, 255)
 
-	// Select "ello" (columns 1-5 on row 0)
+	// Select the half-open range containing "ello".
 	ok := v.SetLocalSelection(1, 0, 5, 0, &bg, &fg)
 	if !ok {
 		t.Fatal("expected SetLocalSelection to return true")
@@ -430,7 +419,7 @@ func TestTextBufferView_SetLocalSelection_Invalid(t *testing.T) {
 	v := NewTextSurface(tb)
 	v.SetViewport(&Viewport{Width: 80, Height: 10})
 
-	// Out-of-range Y coordinate
+	// A row outside the viewport cannot establish a selection.
 	ok := v.SetLocalSelection(0, 99, 5, 99, nil, nil)
 	if ok {
 		t.Error("expected SetLocalSelection to return false for out-of-range coords")
@@ -445,7 +434,7 @@ func TestTextBufferView_UpdateSelection(t *testing.T) {
 
 	bg := style.ColorFromInts(0, 0, 255, 255)
 
-	// No selection yet — should create one
+	// Updating without existing state creates a collapsed selection.
 	v.UpdateSelection(3, &bg, nil)
 	sel := v.Selection()
 	if sel == nil {
@@ -455,13 +444,13 @@ func TestTextBufferView_UpdateSelection(t *testing.T) {
 		t.Errorf("expected start=3, end=3, got start=%d, end=%d", sel.Start, sel.End)
 	}
 
-	// Update end
+	// A later update moves the end offset.
 	v.UpdateSelection(8, nil, nil)
 	sel = v.Selection()
 	if sel.End != 8 {
 		t.Errorf("expected end=8, got %d", sel.End)
 	}
-	// BgColor should still be set from before (only nil doesn't overwrite)
+	// Nil colors preserve the existing selection colors.
 	if sel.BgColor == nil || *sel.BgColor != bg {
 		t.Error("expected BgColor to be preserved")
 	}
@@ -508,19 +497,19 @@ func TestTextBufferView_GetSelectedText(t *testing.T) {
 
 	v := NewTextSurface(tb)
 
-	// No selection
+	// Without a selection, no text is returned.
 	if v.SelectedText() != "" {
 		t.Error("expected empty string with no selection")
 	}
 
-	// Select "world" (offsets 6-11)
+	// Select "world" at global offsets [6,11).
 	v.SetSelection(&TextSelection{Start: 6, End: 11})
 	got := v.SelectedText()
 	if got != "world" {
 		t.Errorf("expected 'world', got %q", got)
 	}
 
-	// Reversed selection (start > end) should still work
+	// SelectedText normalizes reversed endpoints.
 	v.SetSelection(&TextSelection{Start: 11, End: 6})
 	got = v.SelectedText()
 	if got != "world" {
@@ -534,7 +523,7 @@ func TestTextBufferView_GetSelectedText_MultiLine(t *testing.T) {
 
 	v := NewTextSurface(tb)
 
-	// Select "llo\nwor" — offsets: h=0, e=1, l=2, l=3, o=4, \n=5, w=6, o=7, r=8
+	// Select "llo\nwor" across the logical-line separator.
 	v.SetSelection(&TextSelection{Start: 2, End: 9})
 	got := v.SelectedText()
 	if got != "llo\nwor" {
@@ -558,7 +547,7 @@ func TestTextBufferView_MeasureForDimensions_NoWrap(t *testing.T) {
 	tb.SetText("hello\nab\nworld!")
 
 	v := NewTextSurface(tb)
-	// No wrap mode set
+	// Without wrapping, measurement returns logical-line dimensions.
 
 	m := v.MeasureForDimensions(80, 24)
 	if m.LineCount != 3 {
@@ -577,13 +566,11 @@ func TestTextBufferView_MeasureForDimensions_WithWrap(t *testing.T) {
 	v.SetWrapMode(WrapChar)
 
 	m := v.MeasureForDimensions(3, 20)
-	// "abcdefgh" at width 3: ceil(8/3) = 3 virtual lines
-	// "xy" at width 3: 1 virtual line
-	// Total: 4
+	// Width three wraps the first line into three rows and leaves the second on one.
 	if m.LineCount != 4 {
 		t.Errorf("expected 4 lines with wrap, got %d", m.LineCount)
 	}
-	// MaxWidth is the widest *wrapped* virtual line (3), not the source (8).
+	// MaxWidth describes wrapped output rather than the source line.
 	if m.MaxWidth != 3 {
 		t.Errorf("expected max width 3 (wrapped), got %d", m.MaxWidth)
 	}
@@ -597,9 +584,9 @@ func TestTextBufferView_MeasureForDimensions_ExplicitWrapWidth(t *testing.T) {
 	v.SetWrapMode(WrapChar)
 	v.SetWrapWidth(5) // explicit wrap width
 
-	// MeasureForDimensions uses the explicit wrapWidth if set
+	// Explicit wrap width takes precedence during measurement.
 	m := v.MeasureForDimensions(80, 20)
-	// 10 chars at width 5 (explicit wrapWidth overrides the provided width): 2 lines
+	// Ten columns at explicit width five produce two rows.
 	if m.LineCount != 2 {
 		t.Errorf("expected 2 lines with explicit wrapWidth=5, got %d", m.LineCount)
 	}
@@ -613,7 +600,7 @@ func TestTextBufferView_GetVirtualLineCount(t *testing.T) {
 	v.SetWrapMode(WrapChar)
 	v.SetViewport(&Viewport{Width: 3, Height: 20})
 
-	// "abcdef" → 2 virtual lines, "xy" → 1 virtual line
+	// The first source line wraps twice and the second remains one row.
 	if v.VirtualLineCount() != 3 {
 		t.Errorf("expected 3 virtual lines, got %d", v.VirtualLineCount())
 	}
@@ -626,7 +613,7 @@ func TestTextBufferView_ViewportClipping(t *testing.T) {
 	v := NewTextSurface(tb)
 	v.SetViewport(&Viewport{X: 0, Y: 3, Width: 80, Height: 10})
 
-	// Only lines 3 and 4 visible (Y=3, only 2 lines left)
+	// A viewport beginning at row three exposes only the final two rows.
 	vlines := v.VirtualLines()
 	if len(vlines) != 2 {
 		t.Fatalf("expected 2 visible lines, got %d", len(vlines))
@@ -645,12 +632,12 @@ func TestTextBufferView_SetViewportSize(t *testing.T) {
 
 	v := NewTextSurface(tb)
 
-	// No viewport initially
+	// A new surface has no viewport.
 	if v.Viewport() != nil {
 		t.Error("expected nil viewport initially")
 	}
 
-	// SetViewportSize should create a viewport
+	// Setting dimensions creates a missing viewport.
 	v.SetViewportSize(40, 10)
 	vp := v.Viewport()
 	if vp == nil {
@@ -660,7 +647,7 @@ func TestTextBufferView_SetViewportSize(t *testing.T) {
 		t.Errorf("expected 40x10, got %dx%d", vp.Width, vp.Height)
 	}
 
-	// Update existing viewport dimensions, preserving offset
+	// Later dimension changes preserve viewport offsets.
 	v.SetViewport(&Viewport{X: 2, Y: 3, Width: 40, Height: 10})
 	v.SetViewportSize(60, 20)
 	vp = v.Viewport()

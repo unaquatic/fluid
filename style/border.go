@@ -2,22 +2,18 @@ package style
 
 import "github.com/unaquatic/fluid/symbol"
 
-// ---------------------------------------------------------------------------
-// BorderStyle
-// ---------------------------------------------------------------------------
-
-// BorderStyle defines the visual style of a border.
+// BorderStyle identifies a preset set of border-drawing characters.
 type BorderStyle int
 
 const (
-	BorderSingle  BorderStyle = iota // thin box-drawing characters
-	BorderDouble                     // double-line box-drawing
-	BorderRounded                    // single with rounded corners
-	BorderHeavy                      // thick/bold box-drawing
-	BorderNone                       // no border
+	BorderSingle  BorderStyle = iota // Thin box-drawing characters.
+	BorderDouble                     // Double-line box-drawing characters.
+	BorderRounded                    // Thin lines with rounded corners.
+	BorderHeavy                      // Heavy box-drawing characters.
+	BorderNone                       // No border.
 )
 
-// String returns the string name of a BorderStyle.
+// String returns bs's name.
 func (bs BorderStyle) String() string {
 	switch bs {
 	case BorderSingle:
@@ -35,8 +31,8 @@ func (bs BorderStyle) String() string {
 	}
 }
 
-// ParseBorderStyle parses a string to a BorderStyle.
-// If the string is invalid, returns the fallback (default: BorderSingle).
+// ParseBorderStyle returns the border style named by s. An unknown name returns
+// the first fallback, or BorderSingle when no fallback is supplied.
 func ParseBorderStyle(s string, fallback ...BorderStyle) BorderStyle {
 	fb := BorderSingle
 	if len(fallback) > 0 {
@@ -58,7 +54,7 @@ func ParseBorderStyle(s string, fallback ...BorderStyle) BorderStyle {
 	}
 }
 
-// IsValidBorderStyle checks if a string is a valid border style name.
+// IsValidBorderStyle reports whether s names a supported border style.
 func IsValidBorderStyle(s string) bool {
 	switch s {
 	case "single", "double", "rounded", "heavy", "none":
@@ -67,10 +63,6 @@ func IsValidBorderStyle(s string) bool {
 		return false
 	}
 }
-
-// ---------------------------------------------------------------------------
-// BorderSide / BorderSidesConfig
-// ---------------------------------------------------------------------------
 
 // BorderSide identifies a side of a box.
 type BorderSide int
@@ -82,7 +74,7 @@ const (
 	SideLeft
 )
 
-// BorderSidesConfig indicates which sides of a border are enabled.
+// BorderSidesConfig selects individual border sides.
 type BorderSidesConfig struct {
 	Top    bool
 	Right  bool
@@ -90,24 +82,20 @@ type BorderSidesConfig struct {
 	Left   bool
 }
 
-// AllSides returns a config with all sides enabled.
+// AllSides returns a configuration with every side enabled.
 func AllSides() BorderSidesConfig {
 	return BorderSidesConfig{Top: true, Right: true, Bottom: true, Left: true}
 }
 
-// NoSides returns a config with all sides disabled.
+// NoSides returns a configuration with every side disabled.
 func NoSides() BorderSidesConfig {
 	return BorderSidesConfig{}
 }
 
-// ---------------------------------------------------------------------------
-// Border
-// ---------------------------------------------------------------------------
-
 // Border specifies which sides to draw.
 type Border struct {
-	All   bool         // true = all sides
-	Sides []BorderSide // specific sides (only used if All is false)
+	All   bool         // Whether every side is enabled.
+	Sides []BorderSide // Enabled sides when All is false.
 }
 
 // BorderAll returns a Border with all sides enabled.
@@ -120,12 +108,12 @@ func BorderNoBorder() Border {
 	return Border{}
 }
 
-// BorderSides returns a Border with specific sides.
+// BorderSides returns a Border containing the supplied sides.
 func BorderSides(sides ...BorderSide) Border {
 	return Border{Sides: sides}
 }
 
-// GetBorderSides converts a Border to per-side booleans.
+// GetBorderSides expands b into per-side flags.
 func GetBorderSides(b Border) BorderSidesConfig {
 	if b.All {
 		return AllSides()
@@ -149,7 +137,7 @@ func GetBorderSides(b Border) BorderSidesConfig {
 	return config
 }
 
-// GetBorderFromSides converts per-side booleans to a Border.
+// GetBorderFromSides compacts per-side flags into a Border.
 func GetBorderFromSides(config BorderSidesConfig) Border {
 	if config.Top && config.Right && config.Bottom && config.Left {
 		return BorderAll()
@@ -173,16 +161,11 @@ func GetBorderFromSides(config BorderSidesConfig) Border {
 	return BorderSides(sides...)
 }
 
-// ---------------------------------------------------------------------------
-// BorderCharacters — type alias for symbols.BorderCharacters
-// ---------------------------------------------------------------------------
-
-// BorderCharacters defines the 11 runes used to draw a box border.
-// The canonical definition lives in the symbols package; this is
-// a type alias so existing code that imports style continues to work.
+// BorderCharacters is an alias for [symbol.BorderCharacters], the runes needed
+// to draw border lines and junctions.
 type BorderCharacters = symbol.BorderCharacters
 
-// Preset border character sets — delegated to symbols.
+// Preset border character sets provided by the symbol package.
 var (
 	SingleChars  = symbol.SingleChars
 	DoubleChars  = symbol.DoubleChars
@@ -190,7 +173,8 @@ var (
 	HeavyChars   = symbol.HeavyChars
 )
 
-// CharsForStyle returns the preset border characters for a given style.
+// CharsForStyle returns the character set for bs. Unsupported styles use the
+// single-line set.
 func CharsForStyle(bs BorderStyle) BorderCharacters {
 	switch bs {
 	case BorderSingle:

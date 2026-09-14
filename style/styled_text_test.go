@@ -4,8 +4,6 @@ import (
 	"testing"
 )
 
-// --- StyledText tests ---
-
 func TestNewStyledText(t *testing.T) {
 	st := NewStyledText(Plain("hello"), TextBold(" world"))
 	if len(st.Chunks) != 2 {
@@ -64,8 +62,6 @@ func TestStyledTextEmpty(t *testing.T) {
 	}
 }
 
-// --- TextChunk helper function tests ---
-
 func TestPlainChunk(t *testing.T) {
 	c := Plain("hello")
 	if c.Text != "hello" {
@@ -121,8 +117,6 @@ func TestInverseChunk(t *testing.T) {
 	}
 }
 
-// --- Curried function tests ---
-
 func TestFgFunction(t *testing.T) {
 	redText := Fg(ColorString("#ff0000"))
 	chunk := redText("hello")
@@ -168,7 +162,7 @@ func TestLinkFunction(t *testing.T) {
 	if chunk.Link != "https://example.com" {
 		t.Errorf("link should be 'https://example.com', got %q", chunk.Link)
 	}
-	// Links should have underline attribute
+	// Link applies the default underline decoration.
 	if !HasAttribute(chunk.Attributes, AttrUnderline) {
 		t.Error("link chunk should have underline attribute")
 	}
@@ -190,8 +184,6 @@ func TestStyledChunk(t *testing.T) {
 		t.Errorf("attrs should be Bold, got %d", chunk.Attributes)
 	}
 }
-
-// --- Convenience foreground color function tests ---
 
 func TestFgBlack(t *testing.T) {
 	c := FgBlack("text")
@@ -249,8 +241,6 @@ func TestFgWhite(t *testing.T) {
 	}
 }
 
-// --- Bright foreground tests ---
-
 func TestFgBrightRed(t *testing.T) {
 	c := FgBrightRed("text")
 	if c.Fg == nil || !c.Fg.Equals(ColorBrightRed) {
@@ -264,8 +254,6 @@ func TestFgBrightGreen(t *testing.T) {
 		t.Error("should have BrightGreen fg")
 	}
 }
-
-// --- Background color function tests ---
 
 func TestBgBlack(t *testing.T) {
 	c := BgBlack("text")
@@ -323,8 +311,6 @@ func TestBgWhite(t *testing.T) {
 	}
 }
 
-// --- Composition test ---
-
 func TestComposedStyledText(t *testing.T) {
 	st := NewStyledText(
 		FgRed("Error: "),
@@ -343,17 +329,17 @@ func TestComposedStyledText(t *testing.T) {
 		t.Errorf("should have 4 chunks, got %d", len(st.Chunks))
 	}
 
-	// Verify first chunk has red fg
+	// The first chunk keeps its red foreground.
 	if st.Chunks[0].Fg == nil || !st.Chunks[0].Fg.Equals(ColorRed) {
 		t.Error("first chunk should have ColorRed fg")
 	}
 
-	// Verify second chunk is bold
+	// The second chunk keeps its bold decoration.
 	if st.Chunks[1].Attributes != AttrBold {
 		t.Error("second chunk should be bold")
 	}
 
-	// Verify fourth chunk has link
+	// The fourth chunk keeps its URL.
 	if st.Chunks[3].Link != "https://docs.example.com" {
 		t.Error("fourth chunk should have link URL")
 	}

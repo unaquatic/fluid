@@ -4,7 +4,7 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// GridDrawOptions configures the DrawGrid method.
+// GridDrawOptions configures DrawGrid.
 type GridDrawOptions struct {
 	// Chars defines the border character set to use.
 	Chars style.BorderCharacters
@@ -12,21 +12,18 @@ type GridDrawOptions struct {
 	BorderFg style.Color
 	// BorderBg is the background color for all border characters.
 	BorderBg style.Color
-	// ColumnOffsets are the X positions of each column boundary (len = columns + 1).
+	// ColumnOffsets contains each column boundary's x-coordinate, including both outer boundaries.
 	ColumnOffsets []int
-	// RowOffsets are the Y positions of each row boundary (len = rows + 1).
+	// RowOffsets contains each row boundary's y-coordinate, including both outer boundaries.
 	RowOffsets []int
-	// DrawInner draws the internal grid lines between cells.
+	// DrawInner enables grid lines between cells.
 	DrawInner bool
-	// DrawOuter draws the outer border around the whole grid.
+	// DrawOuter enables the grid's outer border.
 	DrawOuter bool
 }
 
-// DrawGrid draws a table grid with borders, intersections, and optional
-// inner/outer lines. Column and row offsets define where each border line
-// sits in buffer coordinates.
-//
-// Go equivalent of bufferDrawGrid.
+// DrawGrid draws a table grid at the boundary coordinates in opts. It draws
+// inner lines, the outer border, or both as configured.
 func (b *Buffer) DrawGrid(opts GridDrawOptions) {
 	columnCount := len(opts.ColumnOffsets) - 1
 	rowCount := len(opts.RowOffsets) - 1
@@ -48,9 +45,9 @@ func (b *Buffer) DrawGrid(opts GridDrawOptions) {
 			break
 		}
 
-		// --- Horizontal border line: intersections + horizontal fills ---
+		// Draw each horizontal line as junctions joined by horizontal runes.
 		if shouldDrawHorizontal && borderY >= 0 {
-			// Draw intersections
+			// Draw junctions only where horizontal and vertical lines meet.
 			for colBorderIdx := 0; colBorderIdx <= columnCount; colBorderIdx++ {
 				isOuterCol := colBorderIdx == 0 || colBorderIdx == columnCount
 				shouldDrawVertical := (isOuterCol && opts.DrawOuter) || (!isOuterCol && opts.DrawInner)
@@ -75,7 +72,7 @@ func (b *Buffer) DrawGrid(opts GridDrawOptions) {
 				b.SetCell(bx, borderY, ch, opts.BorderFg, opts.BorderBg, 0)
 			}
 
-			// Draw horizontal fills between intersections
+			// Join adjacent junctions, including an unmarked final boundary.
 			for colIdx := range columnCount {
 				hasBoundaryAfter := (colIdx < columnCount-1 && opts.DrawInner) || (colIdx == columnCount-1 && opts.DrawOuter)
 				boundaryPad := 0
@@ -105,7 +102,7 @@ func (b *Buffer) DrawGrid(opts GridDrawOptions) {
 			break
 		}
 
-		// --- Vertical borders for each content line in this row ---
+		// Draw vertical boundaries through the row's content area.
 		hasRowBoundaryAfter := (rowIdx < rowCount-1 && opts.DrawInner) || (rowIdx == rowCount-1 && opts.DrawOuter)
 		rowBoundaryPad := 0
 		if !hasRowBoundaryAfter {
@@ -141,8 +138,7 @@ func (b *Buffer) DrawGrid(opts GridDrawOptions) {
 	}
 }
 
-// gridIntersection returns the appropriate border character for a junction
-// given which directions have connecting lines.
+// gridIntersection returns the junction rune for the connected directions.
 func gridIntersection(chars style.BorderCharacters, hasUp, hasDown, hasLeft, hasRight bool) rune {
 	if hasUp && hasDown && hasLeft && hasRight {
 		return chars.Cross

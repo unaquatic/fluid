@@ -1,22 +1,13 @@
 package symbol
 
-// Markers and indicators — bullets, arrows, tree-view guides, and other
-// small decorative characters used by List, Tree, Select, and Markdown widgets.
-
-// ---------------------------------------------------------------------------
-// Bullets
-// ---------------------------------------------------------------------------
-
+// Filled, open, and small bullet runes.
 const (
 	BulletFilled = '●' // U+25CF
 	BulletOpen   = '○' // U+25CB
 	BulletSmall  = '•' // U+2022
 )
 
-// ---------------------------------------------------------------------------
-// Arrows / triangles
-// ---------------------------------------------------------------------------
-
+// Directional triangle and arrow runes.
 const (
 	TriangleUp    = '▲' // U+25B2
 	TriangleDown  = '▼' // U+25BC
@@ -29,19 +20,12 @@ const (
 	ArrowRight = '→' // U+2192
 )
 
-// ---------------------------------------------------------------------------
-// Tree-view guides
-// ---------------------------------------------------------------------------
-
 const (
-	TreeExpanded  = string(TriangleDown)  // shown when a tree node is open
-	TreeCollapsed = string(TriangleRight) // shown when a tree node is closed
+	TreeExpanded  = string(TriangleDown)  // Marks an expanded tree node.
+	TreeCollapsed = string(TriangleRight) // Marks a collapsed tree node.
 )
 
-// ---------------------------------------------------------------------------
-// Misc
-// ---------------------------------------------------------------------------
-
+// Miscellaneous status and truncation markers.
 const (
 	Ellipsis  = '…' // U+2026
 	CheckMark = '✓' // U+2713

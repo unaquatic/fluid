@@ -6,19 +6,11 @@ import (
 	"testing"
 )
 
-// ---------------------------------------------------------------------------
-// Helper: capture terminal output
-// ---------------------------------------------------------------------------
-
 func newTestBackend() (*Backend, *bytes.Buffer) {
 	var buf bytes.Buffer
 	t := NewBackend(strings.NewReader(""), &buf)
 	return t, &buf
 }
-
-// ---------------------------------------------------------------------------
-// Mouse control
-// ---------------------------------------------------------------------------
 
 func TestTerminal_EnableMouse(t *testing.T) {
 	term, buf := newTestBackend()
@@ -26,19 +18,19 @@ func TestTerminal_EnableMouse(t *testing.T) {
 
 	output := buf.String()
 
-	// Should have button events
+	// Mouse mode includes button press and release reporting.
 	if !strings.Contains(output, "\x1b[?1000h") {
 		t.Error("expected button events escape")
 	}
-	// Should have button + drag
+	// Mouse mode includes drag reporting.
 	if !strings.Contains(output, "\x1b[?1002h") {
 		t.Error("expected button+drag escape")
 	}
-	// Should NOT have all motion
+	// Disabled movement omits motion without a pressed button.
 	if strings.Contains(output, "\x1b[?1003h") {
 		t.Error("should not enable all motion without enableMovement")
 	}
-	// Should have SGR extended mode
+	// Mouse reports use SGR encoding.
 	if !strings.Contains(output, "\x1b[?1006h") {
 		t.Error("expected SGR extended mode escape")
 	}
@@ -83,13 +75,9 @@ func TestTerminal_DisableMouse(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Kitty keyboard
-// ---------------------------------------------------------------------------
-
 func TestTerminal_EnableKittyKeyboard(t *testing.T) {
 	term, buf := newTestBackend()
-	term.EnableKittyKeyboard(5) // flags = 5
+	term.EnableKittyKeyboard(5) // Enable protocol flags with bitmask 5.
 
 	output := buf.String()
 	if !strings.Contains(output, "\x1b[>5u") {
@@ -149,20 +137,16 @@ func TestTerminal_KittyKeyboardFlags(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Cursor control
-// ---------------------------------------------------------------------------
-
 func TestTerminal_SetCursorPosition(t *testing.T) {
 	term, buf := newTestBackend()
 	term.SetCursorPosition(5, 10, true)
 
 	output := buf.String()
-	// Position: ESC[11;6H (1-indexed)
+	// Zero-based (5,10) becomes the one-based cursor position ESC[11;6H.
 	if !strings.Contains(output, "\x1b[11;6H") {
 		t.Errorf("expected cursor position escape, got: %q", output)
 	}
-	// Visible
+	// The position sequence is followed by cursor visibility.
 	if !strings.Contains(output, "\x1b[?25h") {
 		t.Error("expected cursor show escape")
 	}
@@ -217,10 +201,6 @@ func TestTerminal_ShowHideCursor(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Cursor blinking
-// ---------------------------------------------------------------------------
-
 func TestTerminal_SetCursorBlinking(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -272,10 +252,6 @@ func TestTerminal_CursorStyleAccessors(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Cursor color (OSC 12)
-// ---------------------------------------------------------------------------
-
 func TestTerminal_SetCursorColor(t *testing.T) {
 	term, buf := newTestBackend()
 	term.SetCursorColor(0xFF, 0x00, 0xAB)
@@ -297,10 +273,6 @@ func TestTerminal_ResetCursorColor(t *testing.T) {
 		t.Errorf("expected %q, got: %q", expected, output)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Mouse pointer (OSC 22)
-// ---------------------------------------------------------------------------
 
 func TestTerminal_SetMousePointer(t *testing.T) {
 	tests := []struct {
@@ -326,10 +298,6 @@ func TestTerminal_SetMousePointer(t *testing.T) {
 		})
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Terminal output
-// ---------------------------------------------------------------------------
 
 func TestTerminal_SetTitle(t *testing.T) {
 	term, buf := newTestBackend()
@@ -380,10 +348,6 @@ func TestTerminal_BracketedPaste(t *testing.T) {
 		t.Error("expected bracketed paste disable escape")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Alternate screen
-// ---------------------------------------------------------------------------
 
 func TestTerminal_AlternateScreen(t *testing.T) {
 	term, buf := newTestBackend()

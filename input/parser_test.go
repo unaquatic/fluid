@@ -40,7 +40,7 @@ func TestParser_MultipleChars(t *testing.T) {
 
 func TestParser_UTF8(t *testing.T) {
 	p := NewParser()
-	// '世' = 3 bytes UTF-8
+	// 世 is encoded as three UTF-8 bytes.
 	events := p.Parse([]byte("\xe4\xb8\x96"))
 
 	if len(events) != 1 {
@@ -132,11 +132,11 @@ func TestParser_CtrlKeys(t *testing.T) {
 		byte byte
 		name string
 	}{
-		{1, "a"},  // Ctrl+A
-		{3, "c"},  // Ctrl+C
-		{4, "d"},  // Ctrl+D
-		{12, "l"}, // Ctrl+L
-		{26, "z"}, // Ctrl+Z
+		{1, "a"},  // Control-A.
+		{3, "c"},  // Control-C.
+		{4, "d"},  // Control-D.
+		{12, "l"}, // Control-L.
+		{26, "z"}, // Control-Z.
 	}
 	for _, tt := range tests {
 		p := NewParser()
@@ -151,8 +151,6 @@ func TestParser_CtrlKeys(t *testing.T) {
 		}
 	}
 }
-
-// --- CSI sequences ---
 
 func TestParser_ArrowKeys(t *testing.T) {
 	tests := []struct {
@@ -274,11 +272,11 @@ func TestParser_ModifiedArrowKeys(t *testing.T) {
 		shift bool
 		alt   bool
 	}{
-		{"\x1b[1;2A", "up", false, true, false},    // Shift+Up
-		{"\x1b[1;3B", "down", false, false, true},  // Alt+Down
-		{"\x1b[1;5C", "right", true, false, false}, // Ctrl+Right
-		{"\x1b[1;6D", "left", true, true, false},   // Ctrl+Shift+Left
-		{"\x1b[1;7H", "home", true, false, true},   // Ctrl+Alt+Home
+		{"\x1b[1;2A", "up", false, true, false},    // Shift+Up.
+		{"\x1b[1;3B", "down", false, false, true},  // Alt+Down.
+		{"\x1b[1;5C", "right", true, false, false}, // Control+Right.
+		{"\x1b[1;6D", "left", true, true, false},   // Control+Shift+Left.
+		{"\x1b[1;7H", "home", true, false, true},   // Control+Alt+Home.
 	}
 	for _, tt := range tests {
 		p := NewParser()
@@ -296,7 +294,7 @@ func TestParser_ModifiedArrowKeys(t *testing.T) {
 }
 
 func TestParser_ModifiedTildeKeys(t *testing.T) {
-	// Shift+Delete: ESC [ 3 ; 2 ~
+	// CSI 3;2~ encodes Shift+Delete.
 	p := NewParser()
 	events := p.Parse([]byte("\x1b[3;2~"))
 	if len(events) != 1 {
@@ -307,8 +305,6 @@ func TestParser_ModifiedTildeKeys(t *testing.T) {
 		t.Errorf("got Name=%q Shift=%v, want delete Shift=true", ev.Name, ev.Shift)
 	}
 }
-
-// --- SS3 sequences ---
 
 func TestParser_SS3_ArrowKeys(t *testing.T) {
 	tests := []struct {
@@ -335,8 +331,6 @@ func TestParser_SS3_ArrowKeys(t *testing.T) {
 		}
 	}
 }
-
-// --- Alt keys ---
 
 func TestParser_AltKeys(t *testing.T) {
 	tests := []struct {
@@ -384,10 +378,8 @@ func TestParser_AltReturn(t *testing.T) {
 	}
 }
 
-// --- Mouse SGR ---
-
 func TestParser_MouseDown_Left(t *testing.T) {
-	// ESC [ < 0 ; 10 ; 20 M  (left button press at 10,20)
+	// SGR coordinates 10,20 become zero-based coordinates 9,19.
 	p := NewParser()
 	events := p.Parse([]byte("\x1b[<0;10;20M"))
 	if len(events) != 1 {
@@ -410,7 +402,7 @@ func TestParser_MouseDown_Left(t *testing.T) {
 }
 
 func TestParser_MouseUp_Left(t *testing.T) {
-	// ESC [ < 0 ; 5 ; 5 m  (left button release)
+	// A lowercase SGR terminator reports button release.
 	p := NewParser()
 	events := p.Parse([]byte("\x1b[<0;5;5m"))
 	if len(events) != 1 {
@@ -426,7 +418,7 @@ func TestParser_MouseUp_Left(t *testing.T) {
 }
 
 func TestParser_MouseDown_Right(t *testing.T) {
-	// ESC [ < 2 ; 1 ; 1 M  (right button press)
+	// Button value two reports a right-button press.
 	p := NewParser()
 	events := p.Parse([]byte("\x1b[<2;1;1M"))
 	if len(events) != 1 {
@@ -451,7 +443,7 @@ func TestParser_MouseDown_Middle(t *testing.T) {
 }
 
 func TestParser_MouseScroll_Up(t *testing.T) {
-	// Cb=64 -> wheel, btnBits=0 -> up
+	// Button mask 64 reports upward wheel movement.
 	p := NewParser()
 	events := p.Parse([]byte("\x1b[<64;1;1M"))
 	if len(events) != 1 {
@@ -467,7 +459,7 @@ func TestParser_MouseScroll_Up(t *testing.T) {
 }
 
 func TestParser_MouseScroll_Down(t *testing.T) {
-	// Cb=65 -> wheel, btnBits=1 -> down
+	// Button mask 65 reports downward wheel movement.
 	p := NewParser()
 	events := p.Parse([]byte("\x1b[<65;1;1M"))
 	if len(events) != 1 {
@@ -483,7 +475,7 @@ func TestParser_MouseScroll_Down(t *testing.T) {
 }
 
 func TestParser_MouseDrag(t *testing.T) {
-	// Cb=32 -> motion + left button
+	// Button mask 32 reports motion while the left button is held.
 	p := NewParser()
 	events := p.Parse([]byte("\x1b[<32;5;5M"))
 	if len(events) != 1 {
@@ -502,7 +494,7 @@ func TestParser_MouseDrag(t *testing.T) {
 }
 
 func TestParser_MouseMove(t *testing.T) {
-	// Cb=35 -> motion + no button (btnBits=3)
+	// Button mask 35 reports motion without a held button.
 	p := NewParser()
 	events := p.Parse([]byte("\x1b[<35;5;5M"))
 	if len(events) != 1 {
@@ -518,7 +510,7 @@ func TestParser_MouseMove(t *testing.T) {
 }
 
 func TestParser_MouseModifiers(t *testing.T) {
-	// Cb=4 -> shift + left press
+	// Bit 2 reports Shift.
 	p := NewParser()
 	events := p.Parse([]byte("\x1b[<4;1;1M"))
 	if len(events) != 1 {
@@ -529,7 +521,7 @@ func TestParser_MouseModifiers(t *testing.T) {
 		t.Error("Shift should be true")
 	}
 
-	// Cb=8 -> alt + left press
+	// Bit 3 reports Alt.
 	p = NewParser()
 	events = p.Parse([]byte("\x1b[<8;1;1M"))
 	if len(events) != 1 {
@@ -540,7 +532,7 @@ func TestParser_MouseModifiers(t *testing.T) {
 		t.Error("Alt should be true")
 	}
 
-	// Cb=16 -> ctrl + left press
+	// Bit 4 reports Control.
 	p = NewParser()
 	events = p.Parse([]byte("\x1b[<16;1;1M"))
 	if len(events) != 1 {
@@ -551,8 +543,6 @@ func TestParser_MouseModifiers(t *testing.T) {
 		t.Error("Ctrl should be true")
 	}
 }
-
-// --- Bracketed Paste ---
 
 func TestParser_BracketedPaste(t *testing.T) {
 	p := NewParser()
@@ -573,7 +563,7 @@ func TestParser_BracketedPaste(t *testing.T) {
 
 func TestParser_BracketedPaste_WithANSI(t *testing.T) {
 	p := NewParser()
-	// Paste containing ANSI escape codes that should be stripped
+	// ANSI styling embedded in pasted text is removed.
 	paste := "\x1b[200~Hello \x1b[31mRed\x1b[0m World\x1b[201~"
 	events := p.Parse([]byte(paste))
 
@@ -592,7 +582,7 @@ func TestParser_BracketedPaste_Incomplete(t *testing.T) {
 		t.Errorf("incomplete paste should return 0 events, got %d", len(events))
 	}
 
-	// Complete it
+	// The next call completes the buffered paste.
 	events = p.Parse([]byte(" World\x1b[201~"))
 	if len(events) != 1 {
 		t.Fatalf("completed paste: expected 1 event, got %d", len(events))
@@ -602,12 +592,10 @@ func TestParser_BracketedPaste_Incomplete(t *testing.T) {
 	}
 }
 
-// --- Kitty Protocol ---
-
 func TestParser_Kitty_SimpleKey(t *testing.T) {
 	p := NewParser()
 	p.SetKittyEnabled(true)
-	// CSI 97 u = 'a' (codepoint 97)
+	// Kitty CSI 97u reports Unicode code point 97, "a".
 	events := p.Parse([]byte("\x1b[97u"))
 
 	if len(events) != 1 {
@@ -625,7 +613,7 @@ func TestParser_Kitty_SimpleKey(t *testing.T) {
 func TestParser_Kitty_WithModifiers(t *testing.T) {
 	p := NewParser()
 	p.SetKittyEnabled(true)
-	// CSI 97;5 u = Ctrl+a (modifier 5 = 1 + ctrl*4)
+	// Kitty modifier value 5 encodes Control-A as 1 plus the Control bit.
 	events := p.Parse([]byte("\x1b[97;5u"))
 
 	if len(events) != 1 {
@@ -641,7 +629,7 @@ func TestParser_Kitty_EventType(t *testing.T) {
 	p := NewParser()
 	p.SetKittyEnabled(true)
 
-	// CSI 97;1:2 u = 'a' repeat (event type 2)
+	// Kitty event type 2 reports a repeated key.
 	events := p.Parse([]byte("\x1b[97;1:2u"))
 	if len(events) != 1 {
 		t.Fatalf("expected 1 event, got %d", len(events))
@@ -654,7 +642,7 @@ func TestParser_Kitty_EventType(t *testing.T) {
 		t.Error("Repeated should be true for repeat event")
 	}
 
-	// CSI 97;1:3 u = 'a' release
+	// Kitty event type 3 reports a released key.
 	events = p.Parse([]byte("\x1b[97;1:3u"))
 	if len(events) != 1 {
 		t.Fatalf("expected 1 event, got %d", len(events))
@@ -671,7 +659,7 @@ func TestParser_Kitty_SpecialKeys(t *testing.T) {
 	tests := []struct {
 		seq      string
 		name     string
-		wantText string // expected Text field
+		wantText string // The expected printable text, if any.
 	}{
 		{"\x1b[13u", "return", ""},
 		{"\x1b[27u", "escape", ""},
@@ -695,15 +683,12 @@ func TestParser_Kitty_SpecialKeys(t *testing.T) {
 
 func TestParser_Kitty_Disabled(t *testing.T) {
 	p := NewParser()
-	// Kitty not enabled — CSI u sequences should not be parsed as kitty
+	// CSI u must not produce a Kitty event while the protocol is disabled.
 	events := p.Parse([]byte("\x1b[97u"))
-	// Should be parsed as unknown CSI or ignored
 	if len(events) == 1 && events[0].Key != nil && events[0].Key.Source == "kitty" {
 		t.Error("kitty parsing should be disabled by default")
 	}
 }
-
-// --- StripANSI ---
 
 func TestStripANSI(t *testing.T) {
 	tests := []struct {
@@ -724,8 +709,6 @@ func TestStripANSI(t *testing.T) {
 	}
 }
 
-// --- Edge cases ---
-
 func TestParser_EmptyInput(t *testing.T) {
 	p := NewParser()
 	events := p.Parse([]byte{})
@@ -737,13 +720,13 @@ func TestParser_EmptyInput(t *testing.T) {
 func TestParser_IncrementalInput(t *testing.T) {
 	p := NewParser()
 
-	// Send incomplete CSI sequence
+	// Buffer an incomplete CSI sequence.
 	events := p.Parse([]byte{0x1b, '['})
 	if len(events) != 0 {
 		t.Errorf("incomplete CSI: expected 0 events, got %d", len(events))
 	}
 
-	// Complete it
+	// Complete the buffered sequence in the next call.
 	events = p.Parse([]byte{'A'})
 	if len(events) != 1 {
 		t.Fatalf("completed CSI: expected 1 event, got %d", len(events))
@@ -755,7 +738,7 @@ func TestParser_IncrementalInput(t *testing.T) {
 
 func TestParser_MixedInput(t *testing.T) {
 	p := NewParser()
-	// 'a' + Up arrow + 'b'
+	// Parse printable keys on both sides of an Up sequence.
 	events := p.Parse([]byte("a\x1b[Ab"))
 
 	if len(events) != 3 {
@@ -772,10 +755,8 @@ func TestParser_MixedInput(t *testing.T) {
 	}
 }
 
-// --- Double-ESC sequences (macOS Option+Arrow) ---
-
 func TestParser_DoubleEsc_CSI_AltArrows(t *testing.T) {
-	// Default (macOSOptionAsAlt=false): ESC ESC [X is Alt+Arrow, no Shift.
+	// With the heuristic disabled, double ESC adds Alt without inferring Shift.
 	tests := []struct {
 		seq  string
 		name string
@@ -807,9 +788,8 @@ func TestParser_DoubleEsc_CSI_AltArrows(t *testing.T) {
 }
 
 func TestParser_DoubleEsc_CSI_AltSendsEscPrefix(t *testing.T) {
-	// With AltSendsEscPrefix=true: ESC ESC [X infers Shift because
-	// the terminal uses ESC b/f for plain Alt+Arrow and only
-	// falls back to double-ESC CSI when Shift is also held.
+	// With the heuristic enabled, double-ESC navigation infers Shift because
+	// plain Alt+Arrow is expected to use ESC b or ESC f instead.
 	tests := []struct {
 		seq  string
 		name string
@@ -844,8 +824,8 @@ func TestParser_DoubleEsc_CSI_AltSendsEscPrefix(t *testing.T) {
 }
 
 func TestParser_DoubleEsc_CSI_ShiftAltArrows(t *testing.T) {
-	// Shift+Option+Arrow: ESC ESC [1;2X (the inner modifier 2 = shift,
-	// and the outer ESC adds Alt).
+	// In ESC ESC [1;2X, the inner modifier explicitly sets Shift and the outer
+	// ESC adds Alt.
 	tests := []struct {
 		seq   string
 		name  string
@@ -877,7 +857,7 @@ func TestParser_DoubleEsc_CSI_ShiftAltArrows(t *testing.T) {
 }
 
 func TestParser_DoubleEsc_SS3(t *testing.T) {
-	// Default: ESC ESC O X — Alt + nav key, no Shift inferred.
+	// With the heuristic disabled, a nested SS3 key gains Alt but not Shift.
 	tests := []struct {
 		seq  string
 		name string
@@ -907,7 +887,7 @@ func TestParser_DoubleEsc_SS3(t *testing.T) {
 }
 
 func TestParser_DoubleEsc_SS3_AltSendsEscPrefix(t *testing.T) {
-	// AltSendsEscPrefix=true: ESC ESC O X infers Shift for nav keys.
+	// With the heuristic enabled, nested SS3 navigation also infers Shift.
 	p := NewParser()
 	p.SetAltSendsEscPrefix(true)
 	events := p.Parse([]byte("\x1b\x1bOD"))
@@ -922,7 +902,7 @@ func TestParser_DoubleEsc_SS3_AltSendsEscPrefix(t *testing.T) {
 }
 
 func TestParser_DoubleEsc_InStream(t *testing.T) {
-	// Double-ESC embedded in a larger stream of input (default: no Shift).
+	// A nested CSI sequence remains one event within a larger input stream.
 	p := NewParser()
 	events := p.Parse([]byte("a\x1b\x1b[Db"))
 	if len(events) != 3 {
@@ -941,8 +921,7 @@ func TestParser_DoubleEsc_InStream(t *testing.T) {
 }
 
 func TestParser_DoubleEsc_NonNavKey_NoShift(t *testing.T) {
-	// ESC + non-ESC char: the Shift heuristic must NOT apply to
-	// non-navigation keys. ESC a = Alt+a with no Shift.
+	// The Shift heuristic applies only to double-ESC navigation, not Alt+A.
 	p := NewParser()
 	events := p.Parse([]byte("\x1ba"))
 	if len(events) != 1 {
@@ -958,9 +937,8 @@ func TestParser_DoubleEsc_NonNavKey_NoShift(t *testing.T) {
 }
 
 func TestParser_DoubleEsc_StandaloneEscEsc(t *testing.T) {
-	// ESC ESC with nothing after: the recursive approach treats the first
-	// ESC as an Alt prefix and the second ESC as a standalone escape key,
-	// producing a single Alt+Escape event.
+	// With no following key, the first ESC adds Alt to the second standalone
+	// Escape key.
 	p := NewParser()
 	events := p.Parse([]byte("\x1b\x1b"))
 	if len(events) != 1 {

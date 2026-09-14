@@ -20,45 +20,38 @@ import (
 type Markdown struct {
 	*render.BaseRenderable
 
-	mu       sync.Mutex // protects content + contentDirty from concurrent access
+	mu       sync.Mutex // Protects content and contentDirty.
 	content  string
 	wrapMode WrapMode
 
-	// Two-phase pipeline:
-	// Phase 1 (parse): content → blocks (width-independent)
-	// Phase 2 (wrap):  blocks + width → renderedLines
+	// Parsing produces width-independent blocks; wrapping converts them to lines.
 	blocks        []MdBlock
 	renderedLines []mdLine
-	contentDirty  bool // content changed → need re-parse + re-wrap
-	wrapDirty     bool // width changed → need re-wrap only
-	lastWrapWidth int  // width used for the last wrap
+	contentDirty  bool // Requires parsing and wrapping.
+	wrapDirty     bool // Requires wrapping without parsing.
+	lastWrapWidth int  // Width used to produce renderedLines.
 
-	parser MarkdownParser // pluggable parser (default: GoldmarkParser)
+	parser MarkdownParser // Defaults to GoldmarkParser.
 
 	fg style.Color
 	bg style.Color
 
-	// Heading styles, H1..H6.
+	// headings stores styles for levels one through six.
 	headings [6]style.Entry
 
-	// Syntax highlighting for fenced code blocks.
-	highlighter SyntaxHighlighter // nil = monochrome fallback
+	// highlighter styles fenced code; nil selects the monochrome fallback.
+	highlighter SyntaxHighlighter
 
-	// codeFg and codeBg are the monochrome fallback for fenced blocks —
-	// the colors used when no highlighter or language is available. They
-	// are plain Colors because Chroma owns the per-token styling inside
-	// a block. Inline spans use the code Entry instead.
+	// codeFg and codeBg style fenced blocks when highlighting is unavailable.
+	// Inline code uses code instead, while a highlighter supplies token styles.
 	codeFg style.Color
 	codeBg style.Color
 
-	// codeBlockPad insets code within its background slab, in cells.
-	// codeBlockMargin insets the slab itself from the widget's left and
-	// right edges — margin is outside the background, padding inside it.
+	// codeBlockPad is inside the fenced-code background; codeBlockMargin is outside it.
 	codeBlockPad    int
 	codeBlockMargin int
 
-	// prosePad is a gutter around prose, in cells. Top-level code blocks
-	// skip it so their background still reaches the widget's edges.
+	// prosePad insets prose but not top-level fenced-code backgrounds.
 	prosePad int
 
 	// Inline element styles.
@@ -74,28 +67,19 @@ type Markdown struct {
 	rule        style.Entry
 }
 
-// ---------------------------------------------------------------------------
-// Markdown Parser Interface
-// ---------------------------------------------------------------------------
+// Markdown parsing.
 
-// MarkdownParser parses a markdown string into block-level IR.
-// Implementations may use any parsing strategy (goldmark, regex, etc.)
-// as long as they produce the same []MdBlock output.
+// MarkdownParser converts Markdown source into width-independent blocks.
 type MarkdownParser interface {
-	// Parse converts markdown content into a slice of blocks.
-	// The styles parameter provides colors for styling inline elements.
+	// Parse converts content to blocks and applies styles to inline elements.
 	Parse(content string, styles MdStyles) []MdBlock
 }
 
-// MdStyles provides the styles for the markdown parser to apply to
-// inline elements during parsing. This decouples the parser from the
-// Markdown widget's internal fields.
+// MdStyles contains the inline styles applied while parsing Markdown.
 //
-// Every element is a style.Entry, so the parser never has to decide
-// whether a span is bold or italic — the theme already said.
+// Each entry carries both colors and attributes, keeping style policy outside the parser.
 type MdStyles struct {
-	// Fg is the body foreground. Chunks that carry no Entry of their
-	// own are painted with it at render time.
+	// Fg is the fallback foreground for chunks without an explicit style.
 	Fg style.Color
 
 	Headings [6]style.Entry
@@ -112,8 +96,7 @@ type MdStyles struct {
 	Rule        style.Entry
 }
 
-// Heading returns the style for a heading level, 1-6. Out-of-range
-// levels fall back to H6.
+// Heading returns the style for levels one through six and uses level six otherwise.
 func (s MdStyles) Heading(level int) style.Entry {
 	if level < 1 || level > len(s.Headings) {
 		return s.Headings[len(s.Headings)-1]
@@ -121,9 +104,7 @@ func (s MdStyles) Heading(level int) style.Entry {
 	return s.Headings[level-1]
 }
 
-// ---------------------------------------------------------------------------
-// Block-level intermediate representation (width-independent)
-// ---------------------------------------------------------------------------
+// Width-independent block representation.
 
 // MdBlockKind identifies a markdown block type.
 type MdBlockKind int
@@ -132,9 +113,9 @@ const (
 	MdBlockParagraph MdBlockKind = iota
 	MdBlockHeading
 	MdBlockCode
-	MdBlockList        // unordered list container
-	MdBlockOrderedList // ordered list container
-	MdBlockListItem    // single list item (child of List/OrderedList)
+	MdBlockList        // Unordered-list container.
+	MdBlockOrderedList // Ordered-list container.
+	MdBlockListItem    // Item nested under a list container.
 	MdBlockQuote
 	MdBlockRule
 	MdBlockBlank
@@ -145,15 +126,15 @@ const (
 // (List, OrderedList, Quote, ListItem) hold child blocks in Children.
 type MdBlock struct {
 	Kind        MdBlockKind
-	Level       int               // heading level (1-6), list indent
-	Prefix      []style.TextChunk // rendered prefix (bullet, number, quote marker)
-	PrefixWidth int               // display width of prefix
-	Body        []style.TextChunk // inline-parsed body chunks (not yet wrapped)
-	Children    []MdBlock         // nested blocks (list items, quote contents, etc.)
-	Lang        string            // fenced code block language (e.g. "go", "python")
-	CodeLines   []string          // for code blocks: raw lines
-	TableCells  [][]MdTableCell   // for tables: rows of cells with inline formatting
-	TableAligns []int             // for tables: column alignment (-1=left, 0=center, 1=right)
+	Level       int               // Heading level or list indentation level.
+	Prefix      []style.TextChunk // Bullet, number, or quote marker.
+	PrefixWidth int               // Terminal width of Prefix.
+	Body        []style.TextChunk // Parsed inline content before wrapping.
+	Children    []MdBlock         // Nested list items, quote contents, or other blocks.
+	Lang        string            // Fenced-code language, such as "go" or "python".
+	CodeLines   []string          // Raw code-block lines.
+	TableCells  [][]MdTableCell   // Table rows with inline cell formatting.
+	TableAligns []int             // Column alignment: -1 left, 0 center, or 1 right.
 }
 
 // MdTableCell holds a table cell's inline content.
@@ -161,16 +142,12 @@ type MdTableCell struct {
 	Chunks []style.TextChunk
 }
 
-// ---------------------------------------------------------------------------
-// Wrapped output line (width-dependent)
-// ---------------------------------------------------------------------------
-
-// mdLine is a rendered markdown line (post-wrapping).
+// mdLine contains one width-dependent rendered Markdown line.
 type mdLine struct {
 	chunks []style.TextChunk
 }
 
-// mdLineWidth returns the display width of an mdLine.
+// mdLineWidth returns the terminal width of line.
 func mdLineWidth(line mdLine) int {
 	w := 0
 	for _, c := range line.chunks {
@@ -182,7 +159,7 @@ func mdLineWidth(line mdLine) int {
 // MarkdownOption configures a Markdown widget.
 type MarkdownOption func(*Markdown)
 
-// NewMarkdown creates a Markdown widget.
+// NewMarkdown returns a Markdown widget containing content.
 func NewMarkdown(content string, opts ...MarkdownOption) *Markdown {
 	m := &Markdown{
 		BaseRenderable: render.NewBaseRenderable(),
@@ -223,11 +200,10 @@ func NewMarkdown(content string, opts ...MarkdownOption) *Markdown {
 		opt(m)
 	}
 
-	// Default to goldmark parser if none provided.
+	// Use Goldmark and Chroma unless options supplied replacements.
 	if m.parser == nil {
 		m.parser = NewGoldmarkParser()
 	}
-	// Default to Chroma syntax highlighter for fenced code blocks.
 	if m.highlighter == nil {
 		m.highlighter = NewChromaHighlighter("monokai")
 	}
@@ -243,15 +219,10 @@ func NewMarkdown(content string, opts ...MarkdownOption) *Markdown {
 			w = 80
 		}
 
-		// Unconstrained probe guard: the flex engine's perpendicular
-		// intrinsicMainSize probes with large widths (math.MaxInt16
-		// minus container padding) to find the natural size. These
-		// are never the final layout width. Return the cached line
-		// count WITHOUT modifying lastWrapWidth so the == fast path
-		// below isn't poisoned by alternating probe/real widths.
+		// The flex engine probes intrinsic size with a width near MaxInt16.
+		// Return the cached height without treating that probe as a real wrap width.
 		//
-		// Any width above half of MaxInt16 is clearly a probe — real
-		// terminal widths are at most a few hundred columns.
+		// A real terminal viewport cannot approach half of MaxInt16 columns.
 		if w >= math.MaxInt16/2 && (m.lastWrapWidth > 0 || len(m.blocks) == 0) {
 			h := len(m.renderedLines)
 			if heightMode == layout.MeasureExactly {
@@ -262,20 +233,13 @@ func NewMarkdown(content string, opts ...MarkdownOption) *Markdown {
 			return layout.MeasureResult{Width: w, Height: h}
 		}
 
-		// Fast path: reuse the cached line count when the proposed
-		// width exactly matches the last wrap width and nothing is
-		// dirty. We use == (not >=) so that an actual width change
-		// (terminal resize) triggers a re-wrap in the same layout
-		// pass — no second pass needed.
+		// Reuse cached lines only at the exact width that produced them. An exact
+		// comparison lets a terminal resize trigger wrapping in this layout pass.
 		//
-		// Also fast-path empty blocks — they always produce 0 lines
-		// regardless of width, so there's nothing to wrap.
+		// Empty block lists always have zero height and need no wrapping.
 		//
-		// Must also check wrapDirty: SetBlocks marks wrapDirty=true
-		// without bumping contentDirty, so renderedLines may be stale
-		// relative to the current m.blocks. Skipping this check leads
-		// to the parent sizing the content box to the pre-swap line
-		// count, clipping any new lines on render.
+		// SetBlocks marks only wrapDirty, so both dirty flags must be clear before
+		// renderedLines can supply an intrinsic height.
 		if !m.contentDirty && !m.wrapDirty && (len(m.blocks) == 0 || (m.lastWrapWidth > 0 && w == m.lastWrapWidth)) {
 			h := len(m.renderedLines)
 			if heightMode == layout.MeasureExactly {
@@ -286,16 +250,10 @@ func NewMarkdown(content string, opts ...MarkdownOption) *Markdown {
 			return layout.MeasureResult{Width: w, Height: h}
 		}
 
-		// Re-wrap to the proposed width so line count is accurate.
+		// Wrap at the proposed layout width before reporting height.
 		m.wrapToWidth(w)
-		// Height is the number of rendered lines, with no floor: a block
-		// that emits nothing (e.g. MdBlockRule under the current
-		// thematic-break-as-spacing rendering) must report Height=0 so
-		// the parent doesn't allocate an empty row for it. Without this,
-		// StreamMarkdown — which puts each block in its own Markdown
-		// child — would leave a phantom blank row wherever a previous
-		// streamed message contained "\n\n---\n\n", visible as ghost
-		// rows above the message's debug footer.
+		// Do not impose a minimum height. Blocks such as thematic breaks can emit
+		// no rows, and StreamMarkdown relies on those children measuring zero.
 		h := len(m.renderedLines)
 		if heightMode == layout.MeasureExactly {
 			h = height
@@ -308,13 +266,10 @@ func NewMarkdown(content string, opts ...MarkdownOption) *Markdown {
 	return m
 }
 
-// ---------------------------------------------------------------------------
-// Content Management
-// ---------------------------------------------------------------------------
+// Content management.
 
-// SetContent sets the markdown content.
-// Safe to call from any goroutine — parsing is deferred to the render
-// loop via the lazy ensureWrapped / wrapToWidth path.
+// SetContent replaces the Markdown source.
+// It is safe to call from any goroutine because parsing is deferred until measurement or rendering.
 func (m *Markdown) SetContent(content string) {
 	m.mu.Lock()
 	if m.content == content {
@@ -335,7 +290,7 @@ func (m *Markdown) Content() string {
 	return m.content
 }
 
-// AppendContent appends text (optimized for streaming).
+// AppendContent appends source text and defers parsing until measurement or rendering.
 // Safe to call from any goroutine.
 func (m *Markdown) AppendContent(text string) {
 	m.mu.Lock()
@@ -346,16 +301,13 @@ func (m *Markdown) AppendContent(text string) {
 	m.RequestRender()
 }
 
-// SetBlocks replaces the parsed block list directly, bypassing the
-// content→parse phase. Only the wrap phase runs on the next render.
-// Used by StreamMarkdown to distribute pre-parsed blocks to children.
+// SetBlocks replaces parsed blocks directly and schedules wrapping without parsing.
+// StreamMarkdown uses it to distribute already parsed blocks to children.
 //
-// If the new blocks are deeply equal to the current ones, this is a
-// no-op (keeps cached renderedLines and wrapDirty state intact). This
-// lets streaming updates cheaply skip unchanged earlier children.
+// Equal blocks leave wrapped output and dirty state unchanged.
 func (m *Markdown) SetBlocks(blocks []MdBlock) {
 	m.mu.Lock()
-	m.contentDirty = false // blocks are already parsed
+	m.contentDirty = false // The caller supplied parsed blocks.
 	m.mu.Unlock()
 
 	if reflect.DeepEqual(m.blocks, blocks) {
@@ -374,11 +326,9 @@ func (m *Markdown) LineCount() int {
 	return len(m.renderedLines)
 }
 
-// ---------------------------------------------------------------------------
-// Wrapping
-// ---------------------------------------------------------------------------
+// Markdown wrapping.
 
-// mdStyles builds the MdStyles from the widget's current color fields.
+// mdStyles returns the parser styles configured on the widget.
 func (m *Markdown) mdStyles() MdStyles {
 	return MdStyles{
 		Fg:       m.fg,
@@ -392,8 +342,7 @@ func (m *Markdown) mdStyles() MdStyles {
 	}
 }
 
-// ensureParsed re-parses content into blocks if contentDirty.
-// Must be called from the main goroutine.
+// ensureParsed reparses dirty content. It must run on the main goroutine.
 func (m *Markdown) ensureParsed() {
 	m.mu.Lock()
 	dirty := m.contentDirty
@@ -406,11 +355,11 @@ func (m *Markdown) ensureParsed() {
 		return
 	}
 	m.blocks = m.parser.Parse(content, m.mdStyles())
-	m.wrapDirty = true // blocks changed → need re-wrap
+	m.wrapDirty = true // Parsed blocks require new width-dependent lines.
 }
 
-// ensureWrapped runs both phases if needed and wraps to m.Width().
-// Must be called from the main goroutine (RenderSelf).
+// ensureWrapped parses when needed and wraps at the current widget width.
+// It must run on the main goroutine.
 func (m *Markdown) ensureWrapped() {
 	m.ensureParsed()
 	w := m.Width()
@@ -420,9 +369,8 @@ func (m *Markdown) ensureWrapped() {
 	m.wrapBlocks(w)
 }
 
-// wrapToWidth runs both phases if needed and wraps to the given width.
-// Used by MeasureFunc to wrap to the proposed layout width.
-// Must be called from the main goroutine.
+// wrapToWidth parses when needed and wraps at w for intrinsic measurement.
+// It must run on the main goroutine.
 func (m *Markdown) wrapToWidth(w int) {
 	m.ensureParsed()
 	if !m.wrapDirty && w == m.lastWrapWidth {
@@ -431,13 +379,10 @@ func (m *Markdown) wrapToWidth(w int) {
 	m.wrapBlocks(w)
 }
 
-// ---------------------------------------------------------------------------
-// Rendering
-// ---------------------------------------------------------------------------
+// Markdown rendering.
 
-// RenderSelf draws the markdown content directly from renderedLines.
-// Each mdLine's chunks are rendered as styled grapheme clusters.
-// A parent ScrollBox handles clipping via scissor rect.
+// RenderSelf draws wrapped lines as styled grapheme clusters.
+// An enclosing ScrollBox is responsible for clipping and scrolling.
 func (m *Markdown) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 	w := m.Width()
 	if w <= 0 {
@@ -466,7 +411,7 @@ func (m *Markdown) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 				cluster, rest, rw := textbuf.NextGraphemeCluster(remaining)
 				remaining = rest
 				if cx+rw > x0+w {
-					break // past widget width
+					break // The remaining chunk lies outside the widget.
 				}
 				buf.SetGraphemeCluster(cx, y, cluster, fg, bg, attrs)
 				cx += rw
@@ -476,18 +421,13 @@ func (m *Markdown) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Parsing helpers
-// ---------------------------------------------------------------------------
+// Block rendering helpers.
 
-// renderCodeBlock renders a fenced/indented code block into width w.
-// Uses the SyntaxHighlighter when available and a language is specified;
-// otherwise falls back to monochrome codeFg/codeBg.
+// renderCodeBlock renders a fenced or indented code block at width w.
+// It uses syntax highlighting when both a highlighter and language are available.
 //
-// Every line is filled out to w so the block's background reads as one
-// solid slab rather than hugging the ragged right edge of the source.
-// codeBlockPad insets the code within that slab: blank rows above and
-// below, and that many columns before the first character.
+// Each line fills the block width with codeBg. codeBlockPad inserts blank rows
+// above and below and moves source text inward by the same number of columns.
 func (m *Markdown) renderCodeBlock(blk MdBlock, indent string, w int) {
 	lead := indent + strings.Repeat(" ", m.codeBlockPad)
 
@@ -508,8 +448,7 @@ func (m *Markdown) renderCodeBlock(blk MdBlock, indent string, w int) {
 	}
 }
 
-// renderHighlighted appends syntax-highlighted code lines and reports
-// whether highlighting was available at all.
+// renderHighlighted appends highlighted code lines and reports whether it succeeded.
 func (m *Markdown) renderHighlighted(blk MdBlock, lead string, w int) bool {
 	if m.highlighter == nil || blk.Lang == "" {
 		return false
@@ -537,10 +476,7 @@ func (m *Markdown) renderHighlighted(blk MdBlock, lead string, w int) bool {
 	return true
 }
 
-// addCodeLine appends one code line of a block laid out in width w. The
-// slab runs from codeBlockMargin to w-codeBlockMargin: the leading gutter
-// carries no background, and the rest of the slab is filled with codeBg
-// so the block reads as a solid rectangle.
+// addCodeLine appends one code line whose background spans the configured margins.
 func (m *Markdown) addCodeLine(chunks []style.TextChunk, used, w int) {
 	margin := m.codeBlockMargin
 	if margin > 0 {
@@ -557,8 +493,7 @@ func (m *Markdown) addCodeLine(chunks []style.TextChunk, used, w int) {
 	m.renderedLines = append(m.renderedLines, mdLine{chunks: chunks})
 }
 
-// isContinuationBlock returns true when two adjacent blocks belong to the
-// same logical group and should NOT have a blank line inserted between them.
+// isContinuationBlock reports whether adjacent blocks should have no inserted spacer.
 func isContinuationBlock(prev, cur MdBlockKind) bool {
 	listKinds := func(k MdBlockKind) bool {
 		return k == MdBlockList || k == MdBlockOrderedList || k == MdBlockListItem
@@ -569,17 +504,14 @@ func isContinuationBlock(prev, cur MdBlockKind) bool {
 	if prev == MdBlockCode && cur == MdBlockCode {
 		return true
 	}
-	// A thematic break already contributes its own leading blank via the
-	// spacer inserted before it; skip the trailing spacer so the rule plus
-	// its surrounding gap totals a single blank row between neighbours.
+	// A thematic break uses only its preceding spacer, producing one blank row.
 	if prev == MdBlockRule {
 		return true
 	}
 	return false
 }
 
-// InsertBlockSpacing adds blank lines between blocks that need visual spacing.
-// This is a shared utility used by MarkdownParser implementations.
+// InsertBlockSpacing inserts blank blocks between unrelated adjacent blocks.
 func InsertBlockSpacing(blocks []MdBlock) []MdBlock {
 	if len(blocks) <= 1 {
 		return blocks
@@ -599,11 +531,7 @@ func InsertBlockSpacing(blocks []MdBlock) []MdBlock {
 	return spaced
 }
 
-// ---------------------------------------------------------------------------
-// Phase 2: Wrap — []MdBlock + width → []mdLine (width-dependent)
-// ---------------------------------------------------------------------------
-
-// wrapBlocks converts blocks to renderedLines at the given width.
+// wrapBlocks converts parsed blocks to rendered lines at width w.
 func (m *Markdown) wrapBlocks(w int) {
 	m.renderedLines = nil
 	m.lastWrapWidth = w
@@ -611,16 +539,14 @@ func (m *Markdown) wrapBlocks(w int) {
 	m.wrapBlockList(m.blocks, w, m.prosePad)
 }
 
-// wrapBlockList recursively wraps a slice of blocks with the given indent.
+// wrapBlockList recursively wraps blocks with indent columns of left indentation.
 func (m *Markdown) wrapBlockList(blocks []MdBlock, w int, indent int) {
 	avail := w - indent
 	if avail < 4 {
 		avail = 4
 	}
 	indentStr := strings.Repeat(" ", indent)
-	// Prose stops short of the right edge by the same gutter it starts
-	// from, so the inset reads symmetrically. A non-positive w means
-	// "don't wrap" and has to stay that way.
+	// Apply prosePad on both sides while preserving non-positive no-wrap widths.
 	proseW := w
 	if m.prosePad > 0 {
 		proseW = max(w-m.prosePad, 4)
@@ -639,35 +565,31 @@ func (m *Markdown) wrapBlockList(blocks []MdBlock, w int, indent int) {
 				indent, proseW,
 			)
 		case MdBlockCode:
-			// Top-level code blocks sit flush with the container edge,
-			// dropping the prose gutter so their background spans the
-			// full width. Nested code (inside lists or blockquotes)
-			// keeps its parent indent so it aligns with sibling content.
+			// Top-level code ignores prosePad; nested code retains its parent indent.
 			codeIndent := indentStr
 			if indent == m.prosePad {
 				codeIndent = ""
 			}
 			m.renderCodeBlock(blk, codeIndent, w)
 		case MdBlockList, MdBlockOrderedList:
-			// Container: render children (ListItems).
+			// List containers render their child items at the current indentation.
 			m.wrapBlockList(blk.Children, w, indent)
 
 		case MdBlockListItem:
-			// Prefix + body on the first line.
+			// Place the item prefix and body on the first line.
 			prefix := make([]style.TextChunk, 0, len(blk.Prefix)+1)
 			if indent > 0 {
 				prefix = append(prefix, style.TextChunk{Text: indentStr})
 			}
 			prefix = append(prefix, blk.Prefix...)
 			m.addWrappedLine(prefix, indent+blk.PrefixWidth, proseW, blk.Body...)
-			// Nested children (more paragraphs, code blocks, nested lists)
-			// are indented by the prefix width.
+			// Align nested blocks after the item prefix.
 			if len(blk.Children) > 0 {
 				m.wrapBlockList(blk.Children, w, indent+blk.PrefixWidth)
 			}
 
 		case MdBlockQuote:
-			// Prefix + first child paragraph body on the first line.
+			// Place the quote prefix and first paragraph on the same line.
 			prefix := make([]style.TextChunk, 0, len(blk.Prefix)+1)
 			if indent > 0 {
 				prefix = append(prefix, style.TextChunk{Text: indentStr})
@@ -679,20 +601,14 @@ func (m *Markdown) wrapBlockList(blocks []MdBlock, w int, indent int) {
 					m.wrapBlockList(blk.Children[1:], w, indent+blk.PrefixWidth)
 				}
 			} else {
-				// Quote with no paragraph body — just render prefix.
+				// Preserve the prefix even when the quote starts with another block type.
 				m.renderedLines = append(m.renderedLines, mdLine{chunks: prefix})
 				m.wrapBlockList(blk.Children, w, indent+blk.PrefixWidth)
 			}
 
 		case MdBlockRule:
-			// Render thematic breaks as invisible vertical spacing rather
-			// than a drawn line: the rule border is dropped and
-			// replaced with a tall margin.
-			// The rule itself emits nothing; InsertBlockSpacing contributes
-			// a single blank line before the rule (and suppresses the one
-			// after via isContinuationBlock) so surrounding paragraphs are
-			// separated by exactly one blank row — the same gap as a plain
-			// paragraph break.
+			// A thematic break emits no cells. Its preceding MdBlockBlank supplies
+			// the same one-row separation as an ordinary paragraph boundary.
 		case MdBlockBlank:
 			m.renderedLines = append(m.renderedLines, mdLine{})
 		case MdBlockTable:
@@ -701,12 +617,10 @@ func (m *Markdown) wrapBlockList(blocks []MdBlock, w int, indent int) {
 	}
 }
 
-// addWrappedLine adds chunks to renderedLines, optionally wrapping.
-// prefix chunks are prepended, prefixWidth is their total display width.
-// The remaining chunks form the body that gets wrapped.
+// addWrappedLine appends prefix and body, wrapping body around the prefix width.
 func (m *Markdown) addWrappedLine(prefix []style.TextChunk, prefixWidth int, maxWidth int, body ...style.TextChunk) {
 	if m.wrapMode == WrapNone || maxWidth <= 0 {
-		// No wrapping — single line
+		// Preserve all chunks on one line when wrapping is disabled.
 		all := make([]style.TextChunk, 0, len(prefix)+len(body))
 		all = append(all, prefix...)
 		all = append(all, body...)
@@ -716,14 +630,14 @@ func (m *Markdown) addWrappedLine(prefix []style.TextChunk, prefixWidth int, max
 
 	availWidth := max(maxWidth-prefixWidth, 4)
 
-	// Calculate total body width
+	// Avoid cluster conversion when the body already fits.
 	totalWidth := 0
 	for _, c := range body {
 		totalWidth += m.StringWidth(c.Text)
 	}
 
 	if totalWidth <= availWidth {
-		// Fits on one line
+		// Preserve the original chunks and their style boundaries.
 		all := make([]style.TextChunk, 0, len(prefix)+len(body))
 		all = append(all, prefix...)
 		all = append(all, body...)
@@ -731,10 +645,10 @@ func (m *Markdown) addWrappedLine(prefix []style.TextChunk, prefixWidth int, max
 		return
 	}
 
-	// Need to wrap: flatten body chunks into grapheme clusters with style
+	// Flatten styled chunks into indivisible grapheme clusters for wrapping.
 	type styledCluster struct {
 		text string
-		base rune // first rune — used for word-break detection
+		base rune // First rune used to detect whitespace boundaries.
 		w    int
 		fg   *style.Color
 		bg   *style.Color
@@ -767,8 +681,7 @@ func (m *Markdown) addWrappedLine(prefix []style.TextChunk, prefixWidth int, max
 		lineWidth := 0
 		lineAvail := availWidth
 		if !firstLine {
-			// Continuation lines drop the prefix but keep the prose
-			// gutter, so a wrapped paragraph stays inset on both edges.
+			// Continuations omit the prefix but retain prose padding.
 			lineAvail = maxWidth
 			if m.prosePad > 0 {
 				lineAvail = max(maxWidth-m.prosePad, 4)
@@ -778,7 +691,7 @@ func (m *Markdown) addWrappedLine(prefix []style.TextChunk, prefixWidth int, max
 		lineStart := clusterIdx
 
 		if m.wrapMode == WrapWord {
-			// Find word boundary
+			// Track the last whitespace boundary that fits.
 			lastBreak := -1
 			for clusterIdx < len(allClusters) {
 				rw := allClusters[clusterIdx].w
@@ -792,12 +705,12 @@ func (m *Markdown) addWrappedLine(prefix []style.TextChunk, prefixWidth int, max
 				clusterIdx++
 			}
 
-			// If we found a word boundary and didn't consume all, break there
+			// Prefer the last complete word when more clusters remain.
 			if clusterIdx < len(allClusters) && lastBreak > lineStart {
 				clusterIdx = lastBreak + 1
 			}
 		} else {
-			// Char wrap
+			// Character wrapping fills each line by grapheme width.
 			for clusterIdx < len(allClusters) {
 				rw := allClusters[clusterIdx].w
 				if lineWidth+rw > lineAvail {
@@ -808,7 +721,7 @@ func (m *Markdown) addWrappedLine(prefix []style.TextChunk, prefixWidth int, max
 			}
 		}
 
-		// Build chunks for this line
+		// Reassemble this line while preserving style boundaries.
 		var lineChunks []style.TextChunk
 		if firstLine {
 			lineChunks = append(lineChunks, prefix...)
@@ -818,7 +731,7 @@ func (m *Markdown) addWrappedLine(prefix []style.TextChunk, prefixWidth int, max
 			})
 		}
 
-		// Group consecutive clusters with same style
+		// Merge adjacent clusters with identical styles.
 		var sb strings.Builder
 		var curFg *style.Color
 		var curBg *style.Color
@@ -862,19 +775,19 @@ func (m *Markdown) addWrappedLine(prefix []style.TextChunk, prefixWidth int, max
 		m.renderedLines = append(m.renderedLines, mdLine{chunks: lineChunks})
 		firstLine = false
 
-		// Skip leading whitespace on continuation lines
+		// Drop whitespace that would begin the next continuation line.
 		for clusterIdx < len(allClusters) && unicode.IsSpace(allClusters[clusterIdx].base) {
 			clusterIdx++
 		}
 	}
 }
 
-// cellText extracts plain text from an MdTableCell.
+// cellText returns a table cell's text without styling.
 func cellText(cell MdTableCell) string {
 	return chunksText(cell.Chunks)
 }
 
-// renderTable renders a parsed table into mdLines.
+// renderTable appends a bordered table to renderedLines.
 func (m *Markdown) renderTable(rows [][]MdTableCell, aligns []int, maxWidth int) {
 	if len(rows) == 0 {
 		return
@@ -890,7 +803,7 @@ func (m *Markdown) renderTable(rows [][]MdTableCell, aligns []int, maxWidth int)
 		return
 	}
 
-	// Calculate column widths from cell content.
+	// Size each column to its widest cell.
 	colWidths := make([]int, numCols)
 	for _, row := range rows {
 		for c := 0; c < numCols && c < len(row); c++ {
@@ -901,7 +814,7 @@ func (m *Markdown) renderTable(rows [][]MdTableCell, aligns []int, maxWidth int)
 		}
 	}
 
-	// Add padding (1 space each side).
+	// Reserve one padding column on each side of a cell.
 	for c := range colWidths {
 		colWidths[c] += 2
 	}
@@ -948,7 +861,7 @@ func (m *Markdown) renderTable(rows [][]MdTableCell, aligns []int, maxWidth int)
 			}
 
 			if rowIdx == 0 {
-				// Header row: bold, use fg color.
+				// Render the header in bold with the body foreground.
 				fg := m.fg
 				chunks = append(chunks, style.TextChunk{
 					Text:       strings.Repeat(" ", leftPad) + text + strings.Repeat(" ", rightPad),
@@ -956,7 +869,7 @@ func (m *Markdown) renderTable(rows [][]MdTableCell, aligns []int, maxWidth int)
 					Attributes: style.AttrBold,
 				})
 			} else if len(cell.Chunks) > 0 {
-				// Data row with inline formatting: pad left, emit styled chunks, pad right.
+				// Preserve inline formatting between the alignment padding.
 				if leftPad > 0 {
 					chunks = append(chunks, style.TextChunk{Text: strings.Repeat(" ", leftPad)})
 				}
@@ -965,7 +878,7 @@ func (m *Markdown) renderTable(rows [][]MdTableCell, aligns []int, maxWidth int)
 					chunks = append(chunks, style.TextChunk{Text: strings.Repeat(" ", rightPad)})
 				}
 			} else {
-				// Empty cell.
+				// Fill an empty cell to its complete column width.
 				chunks = append(chunks, style.TextChunk{Text: strings.Repeat(" ", cellWidth)})
 			}
 		}
@@ -996,8 +909,8 @@ func (m *Markdown) buildTableBorder(colWidths []int, left, mid, right, fill rune
 	return mdLine{chunks: []style.TextChunk{{Text: sb.String(), Fg: &fg}}}
 }
 
-// truncateStringToWidth truncates a string to fit within maxWidth display columns.
-// Uses grapheme cluster iteration so multi-codepoint emoji are kept intact.
+// truncateStringToWidth returns the longest prefix that fits in maxWidth columns.
+// It preserves complete grapheme clusters, including multi-codepoint emoji.
 func truncateStringToWidth(s string, maxWidth int) string {
 	var sb strings.Builder
 	width := 0
@@ -1014,14 +927,12 @@ func truncateStringToWidth(s string, maxWidth int) string {
 	return sb.String()
 }
 
-// ---------------------------------------------------------------------------
-// Setters
-// ---------------------------------------------------------------------------
+// Markdown appearance and wrapping.
 
 // SetFg sets the default foreground color.
 func (m *Markdown) SetFg(c style.Color) {
 	m.fg = c
-	m.contentDirty = true // colors affect inline parsing
+	m.contentDirty = true // Inline styles are applied during parsing.
 	m.RequestRender()
 }
 
@@ -1046,7 +957,7 @@ func (m *Markdown) Fg() style.Color { return m.fg }
 // Bg returns the background color.
 func (m *Markdown) Bg() style.Color { return m.bg }
 
-// WrapModeValue returns the current wrap mode.
+// WrapModeValue returns the configured wrap mode.
 func (m *Markdown) WrapModeValue() WrapMode { return m.wrapMode }
 
 // SetHeight sets the markdown widget height dynamically after construction.
@@ -1056,9 +967,7 @@ func (m *Markdown) SetHeight(s layout.Scalar) {
 	m.RequestRender()
 }
 
-// ---------------------------------------------------------------------------
-// Markdown Options
-// ---------------------------------------------------------------------------
+// Markdown options.
 
 // MarkdownWithFg sets the foreground color.
 func MarkdownWithFg(c style.Color) MarkdownOption {
@@ -1070,9 +979,8 @@ func MarkdownWithBg(c style.Color) MarkdownOption {
 	return func(m *Markdown) { m.bg = c }
 }
 
-// MarkdownWithCodeFg sets the default foreground color for inline code spans
-// and monochrome fenced code blocks. Syntax-highlighted code still uses its
-// theme's per-token colors.
+// MarkdownWithCodeFg sets the inline-code foreground and fenced-code fallback foreground.
+// Syntax-highlighted tokens retain their highlighter colors.
 func MarkdownWithCodeFg(c style.Color) MarkdownOption {
 	return func(m *Markdown) {
 		m.codeFg = c
@@ -1080,10 +988,8 @@ func MarkdownWithCodeFg(c style.Color) MarkdownOption {
 	}
 }
 
-// MarkdownWithCodeBg sets the background color for inline code spans and
-// fenced code blocks. Syntax-highlighted code uses this as the default bg
-// for tokens that don't specify their own. Pass the surrounding container
-// color when you want code to blend in with the message body.
+// MarkdownWithCodeBg sets the background for inline and fenced code.
+// Highlighted tokens use it when their syntax style has no background.
 func MarkdownWithCodeBg(c style.Color) MarkdownOption {
 	return func(m *Markdown) {
 		m.codeBg = c
@@ -1091,43 +997,30 @@ func MarkdownWithCodeBg(c style.Color) MarkdownOption {
 	}
 }
 
-// MarkdownWithCode sets the full style for inline code spans, including
-// any text attributes. Unlike MarkdownWithCodeFg / MarkdownWithCodeBg it
-// leaves the monochrome fenced-block colors alone.
+// MarkdownWithCode sets the complete inline-code style without changing fenced-code fallbacks.
 func MarkdownWithCode(e style.Entry) MarkdownOption {
 	return func(m *Markdown) { m.code = e }
 }
 
-// MarkdownWithCodeBlockBg sets the background for fenced code blocks only,
-// leaving inline spans on whatever the theme gave them. Use it to raise a
-// block off the surrounding message without turning short inline spans
-// into chips; MarkdownWithCodeBg changes both.
+// MarkdownWithCodeBlockBg sets the fenced-code background without changing inline code.
 func MarkdownWithCodeBlockBg(c style.Color) MarkdownOption {
 	return func(m *Markdown) { m.codeBg = c }
 }
 
-// MarkdownWithCodeBlockPadding insets fenced code within its background
-// by n cells: n blank rows above and below, and n columns before the
-// first character. Defaults to 0, which puts code flush against the
-// block edge. Negative values are ignored.
+// MarkdownWithCodeBlockPadding adds n rows above and below fenced code and
+// n columns before its text. Negative values become zero.
 func MarkdownWithCodeBlockPadding(n int) MarkdownOption {
 	return func(m *Markdown) { m.codeBlockPad = max(n, 0) }
 }
 
-// MarkdownWithCodeBlockMargin insets a fenced block's background by n
-// cells from the widget's left and right edges. Margin is outside the
-// background where padding is inside it, so a block with margin 2 and
-// padding 1 leaves two blank columns, then the slab, then one column of
-// slab before the code. Defaults to 0. Negative values are ignored.
+// MarkdownWithCodeBlockMargin leaves n columns outside each side of a fenced-code
+// background. Negative values become zero.
 func MarkdownWithCodeBlockMargin(n int) MarkdownOption {
 	return func(m *Markdown) { m.codeBlockMargin = max(n, 0) }
 }
 
-// MarkdownWithProsePadding sets a gutter of n cells around prose —
-// paragraphs, headings, lists and quotes. Top-level fenced code skips it
-// so its background still spans the full width of the widget. Prefer it
-// over padding the widget's layout node, which would inset that
-// background too. Defaults to 0. Negative values are ignored.
+// MarkdownWithProsePadding insets paragraphs, headings, lists, and quotes by n columns.
+// Top-level fenced code remains full width. Negative values become zero.
 func MarkdownWithProsePadding(n int) MarkdownOption {
 	return func(m *Markdown) { m.prosePad = max(n, 0) }
 }
@@ -1162,7 +1055,7 @@ func MarkdownWithHeight(s layout.Scalar) MarkdownOption {
 	return func(m *Markdown) { m.LayoutNode().Height = s }
 }
 
-// MarkdownWithFlexGrow sets flex grow.
+// MarkdownWithFlexGrow sets the flex-grow factor.
 func MarkdownWithFlexGrow(v int) MarkdownOption {
 	return func(m *Markdown) { m.LayoutNode().FlexGrow = v }
 }
@@ -1179,15 +1072,11 @@ func MarkdownWithHighlighter(h SyntaxHighlighter) MarkdownOption {
 	return func(m *Markdown) { m.highlighter = h }
 }
 
-// MarkdownWithTheme applies every color role the Markdown widget uses from
-// the given Theme. Later MarkdownWith... options (e.g. MarkdownWithFg) take
-// precedence, so callers can override individual roles on top of a theme.
-// If t is nil the widget's built-in defaults are retained.
+// MarkdownWithTheme applies Markdown and code roles from t.
+// Later options override individual roles. A nil theme leaves defaults unchanged.
 //
-// A Chroma highlighter is installed using a style derived from Theme.Code
-// so syntax-highlighted code harmonises with the rest of the palette.
-// Callers that need a specific pre-built Chroma theme can chain
-// MarkdownWithHighlighter after MarkdownWithTheme.
+// It also installs a Chroma style derived from t.Code. Apply MarkdownWithHighlighter
+// afterward to use a different highlighter.
 func MarkdownWithTheme(t *style.Theme) MarkdownOption {
 	return func(m *Markdown) {
 		if t == nil {
@@ -1210,10 +1099,7 @@ func MarkdownWithTheme(t *style.Theme) MarkdownOption {
 		m.bullet = t.ResolveMarkdownBullet()
 		m.listEnum = t.ResolveMarkdownListEnum()
 		m.rule = t.ResolveMarkdownRule()
-		// Always derive the Chroma style from the theme's palette so
-		// syntax colors harmonise with the rest of the UI. Callers
-		// who want a specific pre-built Chroma theme can still install
-		// one manually via MarkdownWithHighlighter after the theme.
+		// Keep fenced-code token colors consistent with the selected UI theme.
 		m.highlighter = NewChromaHighlighterWithStyle(ChromaStyleFromTheme(t))
 	}
 }

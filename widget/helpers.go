@@ -6,7 +6,7 @@ import (
 	"github.com/unaquatic/fluid/textbuf"
 )
 
-// displayWidth returns the display column width of a string.
+// displayWidth returns the terminal column width of s.
 func displayWidth(s string) int {
 	width := 0
 	remaining := s
@@ -18,8 +18,8 @@ func displayWidth(s string) int {
 	return width
 }
 
-// truncateToWidth truncates a string to fit within maxWidth display columns.
-// Uses grapheme cluster iteration so multi-codepoint emoji are kept intact.
+// truncateToWidth returns the longest prefix of s that fits in maxWidth columns.
+// It preserves complete grapheme clusters, including multi-codepoint emoji.
 func truncateToWidth(s string, maxWidth int) string {
 	var sb strings.Builder
 	width := 0

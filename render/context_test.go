@@ -4,10 +4,7 @@ import (
 	"testing"
 )
 
-// ---------------------------------------------------------------------------
-// mockContext — embeds NoopContext, overrides specific methods
-// ---------------------------------------------------------------------------
-
+// mockContext records the Context calls observed by each test.
 type mockContext struct {
 	NoopContext
 
@@ -48,10 +45,6 @@ func (m *mockContext) ClearHitGrid() {
 	m.hitGridCleared = true
 }
 
-// ---------------------------------------------------------------------------
-// NoopContext satisfies the interface
-// ---------------------------------------------------------------------------
-
 func TestNoopContext_SatisfiesInterface(t *testing.T) {
 	var ctx Context = NoopContext{}
 	ctx.RequestRender()
@@ -70,10 +63,6 @@ func TestNoopContext_SatisfiesInterface(t *testing.T) {
 	ctx.RequestLive()
 	ctx.DropLive()
 }
-
-// ---------------------------------------------------------------------------
-// mockContext usage
-// ---------------------------------------------------------------------------
 
 func TestMockContext_RequestRender(t *testing.T) {
 	m := &mockContext{}

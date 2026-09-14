@@ -8,27 +8,25 @@ import (
 	"github.com/unaquatic/fluid/render"
 )
 
-// RootRenderable is the top-level node in the scene graph. It orchestrates
-// the multi-pass render pipeline: lifecycle → update → layout → sync →
-// command generation → render → flush. All user widgets are descendants
-// of this node.
+// RootRenderable is the scene graph root. It coordinates lifecycle callbacks,
+// flexbox layout, position synchronization, and ordered render commands.
 type RootRenderable struct {
 	*render.BaseRenderable
 
-	lifecyclePasses map[uint64]render.Renderable // registered for lifecycle pass
+	lifecyclePasses map[uint64]render.Renderable // Renderables with lifecycle callbacks.
 
-	// LastFrameStats is populated after each Render call.
+	// LastFrameStats contains measurements from the most recent frame.
 	LastFrameStats FrameStats
 }
 
-// NewRootRenderable creates a root renderable with the given viewport size.
+// NewRootRenderable returns a scene root sized to the viewport.
 func NewRootRenderable(width, height int) *RootRenderable {
 	r := &RootRenderable{
 		BaseRenderable:  render.NewBaseRenderable(render.WithID("root")),
 		lifecyclePasses: make(map[uint64]render.Renderable),
 	}
 
-	// Set root layout node to fill the viewport
+	// The root is a column that exactly fills the viewport.
 	r.LayoutNode().Width = layout.Points(width)
 	r.LayoutNode().Height = layout.Points(height)
 	r.LayoutNode().FlexDirection = layout.DirectionColumn
@@ -38,28 +36,23 @@ func NewRootRenderable(width, height int) *RootRenderable {
 	return r
 }
 
-// RegisterLifecyclePass registers a renderable for the lifecycle pass.
+// RegisterLifecyclePass adds renderable to the per-frame lifecycle pass.
 func (r *RootRenderable) RegisterLifecyclePass(renderable render.Renderable) {
 	r.lifecyclePasses[renderable.Num()] = renderable
 }
 
-// UnregisterLifecyclePass removes a renderable from the lifecycle pass.
+// UnregisterLifecyclePass removes the renderable identified by num from the
+// lifecycle pass.
 func (r *RootRenderable) UnregisterLifecyclePass(num uint64) {
 	delete(r.lifecyclePasses, num)
 }
 
-// ---------------------------------------------------------------------------
-// Render Pipeline
-// ---------------------------------------------------------------------------
-
-// Render executes the full render pipeline:
+// Render executes these root rendering passes:
 //
-//  1. Lifecycle     — registered per-frame callbacks (animations, timers)
-//  2. Layout        — flexbox algorithm resolves Computed positions/sizes
-//  3. SyncPositions — pull Computed → widget x/y/w/h with translate offsets,
-//     then OnPostLayout hooks (react to fresh sizes, e.g. scroll recalc)
-//  4. Render commands — build scissor/opacity/render list (children order)
-//  5. Execute       — draw to buffer
+//  1. Run registered lifecycle callbacks.
+//  2. Resolve flexbox layout.
+//  3. Synchronize widget positions and run post-layout hooks.
+//  4. Build and execute render, clipping, and opacity commands.
 func (r *RootRenderable) Render(buf *buffer.Buffer, deltaTime float64) {
 	prepStats := r.PrepareLayout(deltaTime)
 	execStats := r.ExecuteRender(buf, deltaTime)
@@ -75,16 +68,15 @@ func (r *RootRenderable) Render(buf *buffer.Buffer, deltaTime float64) {
 	}
 }
 
-// PrepareLayout runs the lifecycle, update, and layout passes.
-// After calling this, the Computed fields on all layout nodes are valid.
-// Call ExecuteRender to sync positions, build commands, and draw to a buffer.
+// PrepareLayout runs lifecycle callbacks and computes layout. On return, each
+// layout node's Computed field is current.
 //
-// This split allows inline mode to inspect computed layout (to derive
-// content height) before allocating the render buffer.
+// Inline rendering calls this separately so it can derive content height before
+// allocating its frame buffer.
 func (r *RootRenderable) PrepareLayout(deltaTime float64) FrameStats {
 	t0 := time.Now()
 
-	// 1. Lifecycle
+	// Run registered lifecycle hooks before layout.
 	for _, renderable := range r.lifecyclePasses {
 		if renderable.IsDestroyed() {
 			continue
@@ -95,7 +87,6 @@ func (r *RootRenderable) PrepareLayout(deltaTime float64) FrameStats {
 	}
 	t1 := time.Now()
 
-	// 2. Layout
 	r.CalculateLayout()
 	t2 := time.Now()
 
@@ -105,26 +96,25 @@ func (r *RootRenderable) PrepareLayout(deltaTime float64) FrameStats {
 	}
 }
 
-// ExecuteRender syncs positions from the computed layout, builds render
-// commands, and executes them into the buffer. Must be called after
-// PrepareLayout.
+// ExecuteRender synchronizes positions from prepared layout, builds commands,
+// and executes them into buf. Call it after PrepareLayout.
 func (r *RootRenderable) ExecuteRender(buf *buffer.Buffer, deltaTime float64) FrameStats {
 	t0 := time.Now()
 
-	// 4. Position sync + post-layout hooks
+	// Synchronize positions and run post-layout hooks.
 	nodeCount := 0
 	r.syncPositionsRecursive(r.BaseRenderable, deltaTime, 0, 0, &nodeCount)
 	t1 := time.Now()
 
-	// 5. Build render commands
+	// Build the complete ordered command stream.
 	var commands []DrawCommand
 	r.collectRenderCommands(r.BaseRenderable, &commands)
 	t2 := time.Now()
 
-	// Clear hit grid before rebuilding
+	// Visible render commands repopulate the hit grid.
 	r.Context().ClearHitGrid()
 
-	// 6. Execute render commands
+	// Execute render and stack operations in order.
 	t3 := time.Now()
 	for _, cmd := range commands {
 		switch cmd.Action {
@@ -155,19 +145,11 @@ func (r *RootRenderable) ExecuteRender(buf *buffer.Buffer, deltaTime float64) Fr
 	}
 }
 
-// syncPositionsRecursive syncs widget positions from the freshly-computed
-// layout and then runs OnPostLayout hooks. Must be called after
-// CalculateLayout.
+// syncPositionsRecursive synchronizes a laid-out subtree and runs post-layout
+// hooks in pre-order.
 //
-// For each node (pre-order, natural tree order):
-//  1. UpdateFromLayoutWithOffset — copies Computed → x/y/w/h with the
-//     accumulated parent translate offset. The node's own translate is NOT
-//     applied to itself (so a ScrollBox's scissor rect stays at its layout
-//     position), but IS accumulated for descendants.
-//  2. OnPostLayout — the widget reacts to its final size. For example,
-//     ScrollBox recalculates contentHeight and adjusts scrollY/translateY.
-//  3. Read TranslateX/Y AFTER OnPostLayout — hooks may have changed the
-//     translate (e.g. auto-scroll), so children see the updated offset.
+// Each node receives inherited translation without its own translation. After
+// OnPostLayout, the node's current translation is added for descendants.
 func (r *RootRenderable) syncPositionsRecursive(node render.Renderable, deltaTime float64, parentTX, parentTY int, nodeCount *int) {
 	r.syncPositionsWithClip(node, deltaTime, parentTX, parentTY, nil, nodeCount)
 }
@@ -179,11 +161,10 @@ func (r *RootRenderable) syncPositionsWithClip(node render.Renderable, deltaTime
 
 	*nodeCount++
 
-	// Sync position: Computed → widget x/y/w/h (triggers OnResize if changed)
+	// Copy computed geometry and trigger resize handling when dimensions changed.
 	node.UpdateFromLayoutWithOffset(parentTX, parentTY)
 
-	// Viewport culling: after position is synced, skip recursion into
-	// children if this node is entirely outside the active scissor.
+	// Do not run post-layout hooks or descend when the node is outside the clip.
 	if clip != nil {
 		nx, ny, nw, nh := node.X(), node.Y(), node.Width(), node.Height()
 		if nx+nw <= clip.x || nx >= clip.x+clip.w ||
@@ -192,16 +173,14 @@ func (r *RootRenderable) syncPositionsWithClip(node render.Renderable, deltaTime
 		}
 	}
 
-	// Post-layout hook (may change translate, e.g. ScrollBox scroll)
+	// Post-layout hooks can update descendant translation.
 	node.OnPostLayout(deltaTime)
 
-	// Accumulate this node's translate for descendants.
-	// Read AFTER OnPostLayout so we pick up any translate changes.
-	// Include sticky offsets so descendants of a sticky child move with it.
+	// Descendants inherit current translation and sticky movement.
 	childTX := parentTX + node.TranslateX() + node.StickyOffsetX()
 	childTY := parentTY + node.TranslateY() + node.StickyOffsetY()
 
-	// If this node is a scroll/clip container, create a clip rect for children.
+	// A clipping container supplies the child culling rectangle.
 	childClip := clip
 	overflow := node.LayoutNode().Overflow
 	if overflow == layout.OverflowScroll || overflow == layout.OverflowHidden {
@@ -216,19 +195,13 @@ func (r *RootRenderable) syncPositionsWithClip(node render.Renderable, deltaTime
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Layout
-// ---------------------------------------------------------------------------
-
-// CalculateLayout runs the flexbox algorithm on the layout tree.
+// CalculateLayout computes flexbox geometry for the current root dimensions.
 func (r *RootRenderable) CalculateLayout() {
 	r.LayoutNode().ComputeLayout(r.Width(), r.Height())
 }
 
-// UpdateLayout syncs widget positions from the computed layout, runs
-// post-layout hooks, and returns the list of render commands. This is
-// the public entry point used by tests; Render() calls the underlying
-// steps directly with deltaTime.
+// UpdateLayout synchronizes positions, runs post-layout hooks with zero delta,
+// and returns render commands without executing them.
 func (r *RootRenderable) UpdateLayout() []DrawCommand {
 	nodeCount := 0
 	r.syncPositionsRecursive(r.BaseRenderable, 0, 0, 0, &nodeCount)
@@ -237,16 +210,14 @@ func (r *RootRenderable) UpdateLayout() []DrawCommand {
 	return commands
 }
 
-// scissorRect tracks the current clipping region for viewport culling.
+// scissorRect contains a clipping region used for subtree culling.
 type scissorRect struct {
 	x, y, w, h int
 }
 
-// collectRenderCommands builds the render command list from already-synced
-// widget positions. Traverses depth-first in children order for
-// correct paint order. Emits scissor, opacity, and render commands.
-// Viewport culling: children entirely outside the active scissor rect are
-// skipped (no render command emitted, no recursion).
+// collectRenderCommands builds a depth-first command stream from synchronized
+// widget positions. Nodes outside an active clipping region are omitted with
+// their subtrees.
 func (r *RootRenderable) collectRenderCommands(node render.Renderable, commands *[]DrawCommand) {
 	r.collectRenderCommandsWithScissor(node, commands, nil)
 }
@@ -256,7 +227,7 @@ func (r *RootRenderable) collectRenderCommandsWithScissor(node render.Renderable
 		return
 	}
 
-	// Viewport culling: skip nodes entirely outside the active scissor.
+	// Cull a complete subtree when its root lies outside the active clip.
 	if clip != nil {
 		nx, ny, nw, nh := node.X(), node.Y(), node.Width(), node.Height()
 		if nx+nw <= clip.x || nx >= clip.x+clip.w ||
@@ -276,16 +247,14 @@ func (r *RootRenderable) collectRenderCommandsWithScissor(node render.Renderable
 		})
 	}
 
-	// Render the node itself (border, background) BEFORE the scissor
-	// push so borders are not clipped by the inset scissor.
+	// Render the container before clipping its descendants so its border remains
+	// visible.
 	*commands = append(*commands, DrawCommand{
 		Action: "render",
 		Target: node,
 	})
 
-	// Push scissor rect inset by padding so scrolled children cannot
-	// paint over borders. The node already rendered above so its
-	// border draws at full bounds.
+	// Inset descendant clipping by resolved padding.
 	sx, sy := node.X(), node.Y()
 	sw, sh := node.Width(), node.Height()
 	if needsScissor {
@@ -323,7 +292,7 @@ func (r *RootRenderable) collectRenderCommandsWithScissor(node render.Renderable
 		})
 	}
 
-	// Update the active clip region for child culling.
+	// Use the emitted scissor rectangle when culling descendants.
 	childClip := clip
 	if needsScissor {
 		childClip = &scissorRect{x: sx, y: sy, w: sw, h: sh}
@@ -344,9 +313,8 @@ func (r *RootRenderable) collectRenderCommandsWithScissor(node render.Renderable
 	}
 }
 
-// collectChildCommands emits render commands for a node's children. In scroll
-// containers, sticky children are deferred so they draw on top of siblings
-// that may scroll beneath them.
+// collectChildCommands appends child command streams. In a scroll container,
+// sticky children follow non-sticky siblings so they paint on top.
 func (r *RootRenderable) collectChildCommands(node render.Renderable, commands *[]DrawCommand, clip *scissorRect) {
 	children := node.ChildrenRaw()
 	if node.LayoutNode().Overflow != layout.OverflowScroll {
@@ -355,7 +323,7 @@ func (r *RootRenderable) collectChildCommands(node render.Renderable, commands *
 		}
 		return
 	}
-	// Scroll container: non-sticky first, then sticky on top.
+	// Paint non-sticky children before sticky children.
 	for _, child := range children {
 		if child.LayoutNode().Sticky != layout.StickyNone {
 			continue
@@ -370,7 +338,7 @@ func (r *RootRenderable) collectChildCommands(node render.Renderable, commands *
 	}
 }
 
-// Resize updates the root viewport size.
+// Resize updates the root viewport dimensions and requests a new frame.
 func (r *RootRenderable) Resize(width, height int) {
 	r.SetBounds(0, 0, width, height)
 	r.LayoutNode().Width = layout.Points(width)

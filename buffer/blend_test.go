@@ -12,7 +12,7 @@ func TestBlendCell_OpaqueOverOpaque(t *testing.T) {
 
 	result := BlendCell(dst, src)
 
-	// Opaque source should fully cover destination
+	// An opaque source completely replaces the destination.
 	if result.Char != 'B' {
 		t.Errorf("Char = %q, want 'B'", result.Char)
 	}
@@ -30,7 +30,7 @@ func TestBlendCell_TransparentOverOpaque(t *testing.T) {
 
 	result := BlendCell(dst, src)
 
-	// Transparent source: should keep destination
+	// A transparent source preserves the destination character.
 	if result.Char != 'A' {
 		t.Errorf("Char = %q, want 'A'", result.Char)
 	}
@@ -42,17 +42,14 @@ func TestBlendCell_SemiTransparent(t *testing.T) {
 
 	result := BlendCell(dst, src)
 
-	// With perceptual alpha:
-	// alpha=128/255≈0.502, perceptualAlpha = pow(0.502, 0.9) ≈ 0.536
-	// blendedBg.R = 0*0.536 + 255*0.464 ≈ 118
-	// blendedBg.B = 255*0.536 + 0*0.464 ≈ 137
-	// finalBgAlpha = src.Bg.A = 128
+	// Perceptual alpha maps 128/255 to about 0.536, producing approximately
+	// 118 red and 137 blue while retaining the source alpha of 128.
 
 	if result.Bg.A != 128 {
 		t.Errorf("Bg.A = %d, want 128", result.Bg.A)
 	}
 
-	// Perceptual blend: R should be around 102-140
+	// Allow for rounding around the expected perceptual blend.
 	if result.Bg.R < 100 || result.Bg.R > 145 {
 		t.Errorf("Bg.R = %d, want ~118 (perceptual blend)", result.Bg.R)
 	}
@@ -60,24 +57,22 @@ func TestBlendCell_SemiTransparent(t *testing.T) {
 		t.Errorf("Bg.B = %d, want ~137 (perceptual blend)", result.Bg.B)
 	}
 
-	// Source has empty char, dst has 'A' with width=1 → preserveChar=true
+	// An empty source preserves a single-column destination character.
 	if result.Char != 'A' {
 		t.Errorf("Char = %q, want 'A' (inherited from dst)", result.Char)
 	}
 }
 
 func TestBlendCell_EmptySourceInheritsChar(t *testing.T) {
-	// When src bg has alpha, empty src char should inherit dst char
+	// A translucent background with no character preserves the destination glyph.
 	dst := NewCell('Z', style.ColorRed, style.ColorBlack, style.AttrBold)
 	src := NewCell(0, style.ColorGreen, style.ColorFromInts(0, 0, 0, 128), 0)
 
 	result := BlendCell(dst, src)
-	// src char=0, dst char='Z' width=1 → preserveChar=true
 	if result.Char != 'Z' {
 		t.Errorf("empty src should inherit dst Char, got %q", result.Char)
 	}
-	// When preserving char, fg = blendColors(src.Bg, dst.Fg)
-	// The blended fg should be influenced by both src.Bg and dst.Fg (Red)
+	// The source background tints the preserved destination foreground.
 	if result.Fg.R < 75 {
 		t.Errorf("empty src should inherit blended Fg with dst.Fg Red component, got R=%d", result.Fg.R)
 	}
@@ -88,7 +83,7 @@ func TestBlendCell_ZeroAlphaPreservesDst(t *testing.T) {
 	src := NewCell('S', style.ColorRed, style.ColorFromInts(0, 0, 0, 0), 0)
 
 	result := BlendCell(dst, src)
-	// Zero src alpha → preserve dst bg
+	// A zero source alpha preserves the destination background.
 	if result.Bg.R != 255 {
 		t.Errorf("Bg.R = %d, want 255 (dst preserved)", result.Bg.R)
 	}
@@ -121,17 +116,17 @@ func TestDrawFrameBuffer_NoAlpha(t *testing.T) {
 
 func TestDrawFrameBuffer_WithAlpha(t *testing.T) {
 	dst := New(10, 10)
-	dst.Clear(style.ColorRed) // all red bg
+	dst.Clear(style.ColorRed) // Start with an opaque red destination.
 
 	src := New(3, 1)
-	src.SetRespectAlpha(true) // src.respectAlpha triggers blending
-	// Semi-transparent blue bg
+	src.SetRespectAlpha(true) // Enable blending when src is copied.
+	// Blend a translucent blue source background over red.
 	src.SetCell(0, 0, ' ', style.ColorTransparent, style.ColorFromInts(0, 0, 255, 128), 0)
 
 	dst.DrawFrameBuffer(0, 0, src)
 
 	c := dst.Cell(0, 0)
-	// Perceptual alpha blending: R should be around 100-140, B around 115-155
+	// Allow for rounding around the expected perceptual blend.
 	if c.Bg.R < 100 || c.Bg.R > 145 {
 		t.Errorf("blended Bg.R = %d, want ~118 (perceptual)", c.Bg.R)
 	}
@@ -147,7 +142,7 @@ func TestDrawFrameBuffer_WithSrcRect(t *testing.T) {
 	src := New(5, 5)
 	src.SetCell(2, 2, 'X', style.ColorWhite, style.ColorRed, 0)
 
-	// Only blit sub-region {2,2,1,1}
+	// Copy only the one-cell source region at (2,2).
 	dst.DrawFrameBuffer(0, 0, src, Rect{X: 2, Y: 2, Width: 1, Height: 1})
 
 	c := dst.Cell(0, 0)
@@ -159,12 +154,12 @@ func TestDrawFrameBuffer_WithSrcRect(t *testing.T) {
 func TestDrawFrameBuffer_ScissorClipping(t *testing.T) {
 	dst := New(10, 10)
 	dst.Clear(style.ColorBlack)
-	dst.PushScissorRect(5, 5, 5, 5) // only allow writes in bottom-right quadrant
+	dst.PushScissorRect(5, 5, 5, 5) // Permit writes only in the bottom-right quadrant.
 
 	src := New(3, 3)
 	src.SetCell(0, 0, 'Z', style.ColorWhite, style.ColorRed, 0)
 
-	// Blit at (0,0) which is outside scissor
+	// The destination lies outside the clipping region.
 	dst.DrawFrameBuffer(0, 0, src)
 
 	c := dst.Cell(0, 0)
@@ -187,7 +182,7 @@ func TestDrawFrameBuffer_OpacityApplied(t *testing.T) {
 	dst.PopOpacity()
 
 	c := dst.Cell(0, 0)
-	// With 0.5 opacity, A should be approximately 128
+	// Half opacity reduces the source foreground alpha to about 128.
 	if c.Fg.A < 125 || c.Fg.A > 130 {
 		t.Errorf("with opacity 0.5, Fg.A = %d, want ~128", c.Fg.A)
 	}

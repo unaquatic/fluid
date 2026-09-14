@@ -7,38 +7,33 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// ---------------------------------------------------------------------------
-// TextSurface
-// ---------------------------------------------------------------------------
-
-// TextSurface provides a viewport-aware, wrap-aware, selection-aware view
-// over a TextBuffer. It computes virtual lines (the result of wrapping logical
-// lines) and slices them to the viewport.
+// TextSurface presents a TextBuffer as wrapped virtual lines within an optional
+// viewport and selection.
 type TextSurface struct {
 	buf       *TextBuffer
 	selection *TextSelection
 	viewport  *Viewport
 	wrapMode  WrapMode
-	wrapWidth int // explicit wrap width (0 = use viewport width)
+	wrapWidth int // Explicit wrap width; zero uses viewport width.
 	truncate  bool
 
-	// Tab indicator
-	tabIndicator      rune // codepoint shown instead of tab space (0 = none)
+	// Configured tab indicator.
+	tabIndicator      rune // Zero disables the indicator.
 	tabIndicatorColor *style.Color
 
-	// Per-line backgrounds
-	lineBackgrounds map[int]style.Color // logical line → bg color
-	activeLine      int                 // -1 = none
+	// Per-line backgrounds.
+	lineBackgrounds map[int]style.Color // Logical line to background color.
+	activeLine      int                 // Negative means no active line.
 	activeLineBg    style.Color
 
-	// Cached virtual lines
+	// Cached virtual-line layout.
 	vlines      []VirtualLine
 	lineInfo    LineInfo
 	dirty       bool
 	cachedEpoch uint64
 }
 
-// NewTextSurface creates a view over the given TextBuffer.
+// NewTextSurface returns a dirty view over buf with no active line.
 func NewTextSurface(buf *TextBuffer) *TextSurface {
 	return &TextSurface{
 		buf:        buf,
@@ -47,17 +42,14 @@ func NewTextSurface(buf *TextBuffer) *TextSurface {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Configuration
-// ---------------------------------------------------------------------------
-
-// SetViewport sets the viewport. Pass nil to clear.
+// SetViewport sets vp and invalidates virtual-line layout. Nil removes the
+// viewport.
 func (v *TextSurface) SetViewport(vp *Viewport) {
 	v.viewport = vp
 	v.dirty = true
 }
 
-// SetViewportSize sets/updates just the viewport dimensions, preserving offset.
+// SetViewportSize changes viewport dimensions while preserving its offset.
 func (v *TextSurface) SetViewportSize(width, height int) {
 	if v.viewport != nil {
 		v.viewport.Width = width
@@ -68,7 +60,7 @@ func (v *TextSurface) SetViewportSize(width, height int) {
 	v.dirty = true
 }
 
-// SetWrapMode sets the line wrap mode.
+// SetWrapMode sets the line-wrapping mode.
 func (v *TextSurface) SetWrapMode(mode WrapMode) {
 	if v.wrapMode != mode {
 		v.wrapMode = mode
@@ -76,8 +68,7 @@ func (v *TextSurface) SetWrapMode(mode WrapMode) {
 	}
 }
 
-// SetWrapWidth sets the wrap width explicitly.
-// If set to 0, the viewport width is used (default behavior).
+// SetWrapWidth sets an explicit wrap width. Zero uses viewport width.
 func (v *TextSurface) SetWrapWidth(width int) {
 	if v.wrapWidth != width {
 		v.wrapWidth = width
@@ -85,37 +76,38 @@ func (v *TextSurface) SetWrapWidth(width int) {
 	}
 }
 
-// SetTruncate enables or disables line truncation.
-// When enabled, lines longer than the viewport width are clipped.
+// SetTruncate controls whether rendering replaces viewport overflow with an
+// ellipsis.
 func (v *TextSurface) SetTruncate(truncate bool) {
 	v.truncate = truncate
 }
 
-// Truncate returns whether line truncation is enabled.
+// Truncate reports whether line truncation is enabled.
 func (v *TextSurface) Truncate() bool {
 	return v.truncate
 }
 
-// SetLineBackgrounds sets per-line background colors (logical line → RGBA).
-// Pass nil to clear all line backgrounds.
+// SetLineBackgrounds retains colors as logical-line backgrounds. Nil clears
+// them.
 func (v *TextSurface) SetLineBackgrounds(colors map[int]style.Color) {
 	v.lineBackgrounds = colors
 }
 
-// SetActiveLine sets the active (highlighted) line index. Pass -1 to disable.
+// SetActiveLine sets a logical line background that overrides other line
+// backgrounds. A negative line disables it.
 func (v *TextSurface) SetActiveLine(line int, bg style.Color) {
 	v.activeLine = line
 	v.activeLineBg = bg
 }
 
-// LineBackground returns the background color for a source (physical) line.
-// Returns transparent if no background is configured for that line.
+// LineBackground returns the active or configured background for a logical
+// source line, or a transparent color.
 func (v *TextSurface) LineBackground(lineIdx int) style.Color {
-	// Active line takes priority
+	// The active-line color has highest priority.
 	if v.activeLine >= 0 && lineIdx == v.activeLine && !v.activeLineBg.IsTransparent() {
 		return v.activeLineBg
 	}
-	// Then per-line backgrounds
+	// Fall back to the per-line map.
 	if v.lineBackgrounds != nil {
 		if bg, ok := v.lineBackgrounds[lineIdx]; ok && !bg.IsTransparent() {
 			return bg
@@ -124,43 +116,38 @@ func (v *TextSurface) LineBackground(lineIdx int) style.Color {
 	return style.Color{}
 }
 
-// SetTabIndicator sets the codepoint displayed for tab characters.
-// Pass 0 to disable the indicator.
+// SetTabIndicator stores the configured tab indicator. Zero disables it.
 func (v *TextSurface) SetTabIndicator(indicator rune) {
 	v.tabIndicator = indicator
 	v.dirty = true
 }
 
-// SetTabIndicatorColor sets the color for tab indicator characters.
+// SetTabIndicatorColor stores the configured tab-indicator color.
 func (v *TextSurface) SetTabIndicatorColor(color style.Color) {
 	v.tabIndicatorColor = &color
 }
 
-// SetSelection sets the selection range.
+// SetSelection sets the global display-width selection range.
 func (v *TextSurface) SetSelection(sel *TextSelection) {
 	v.selection = sel
 }
 
-// ResetSelection clears the selection.
+// ResetSelection removes the current selection.
 func (v *TextSurface) ResetSelection() {
 	v.selection = nil
 }
 
-// Selection returns the current selection or nil.
+// Selection returns the current selection, or nil when absent.
 func (v *TextSurface) Selection() *TextSelection {
 	return v.selection
 }
 
-// Buffer returns the underlying TextBuffer.
+// Buffer returns the underlying text buffer.
 func (v *TextSurface) Buffer() *TextBuffer {
 	return v.buf
 }
 
-// ---------------------------------------------------------------------------
-// Surface implementation
-// ---------------------------------------------------------------------------
-
-// VirtualLines returns the visible virtual lines.
+// VirtualLines returns virtual lines within the vertical viewport.
 func (v *TextSurface) VirtualLines() []VirtualLine {
 	v.ensureUpdated()
 	if v.viewport != nil {
@@ -174,20 +161,18 @@ func (v *TextSurface) VirtualLines() []VirtualLine {
 	return v.vlines
 }
 
-// Viewport returns the current viewport or nil.
+// Viewport returns the current viewport, or nil when unset.
 func (v *TextSurface) Viewport() *Viewport {
 	return v.viewport
 }
 
-// CachedLineInfo returns layout metadata for visible lines.
-// FullLineInfo returns the complete (unsliced) line info for all virtual
-// lines, regardless of viewport. Use this for global visual-to-logical
-// mappings (e.g. LogicalLineForVisualLine).
+// FullLineInfo returns metadata for all virtual lines, ignoring the viewport.
 func (v *TextSurface) FullLineInfo() LineInfo {
 	v.ensureUpdated()
 	return v.lineInfo
 }
 
+// CachedLineInfo returns metadata sliced to the vertical viewport.
 func (v *TextSurface) CachedLineInfo() LineInfo {
 	v.ensureUpdated()
 	if v.viewport != nil {
@@ -219,23 +204,19 @@ func (v *TextSurface) DefaultFg() style.Color { return v.buf.DefaultFg() }
 // DefaultBg returns the default background color.
 func (v *TextSurface) DefaultBg() style.Color { return v.buf.DefaultBg() }
 
-// LineHighlights returns the highlights for a source (physical) line.
+// LineHighlights returns highlights for a logical source line.
 func (v *TextSurface) LineHighlights(lineIdx int) []Highlight {
 	return v.buf.LineHighlights(lineIdx)
 }
 
-// VirtualLineCount returns the total number of virtual lines.
+// VirtualLineCount returns the total number of virtual lines before viewport
+// slicing.
 func (v *TextSurface) VirtualLineCount() int {
 	v.ensureUpdated()
 	return len(v.vlines)
 }
 
-// ---------------------------------------------------------------------------
-// Logical line info
-// ---------------------------------------------------------------------------
-
-// LogicalLineInfo returns line info based on logical (unwrapped) lines,
-// regardless of wrap mode. Each entry corresponds to one source line.
+// LogicalLineInfo returns metadata for unwrapped logical lines.
 func (v *TextSurface) LogicalLineInfo() LineInfo {
 	var starts, widths, sources []int
 	maxW := 0
@@ -256,12 +237,8 @@ func (v *TextSurface) LogicalLineInfo() LineInfo {
 	return LineInfo{Starts: starts, Widths: widths, Sources: sources, MaxWidth: maxW}
 }
 
-// ---------------------------------------------------------------------------
-// Local (visual-coordinate) selection
-// ---------------------------------------------------------------------------
-
-// SetLocalSelection sets a selection by visual (viewport-relative) coordinates.
-// Returns true if a valid selection was established.
+// SetLocalSelection maps viewport-relative endpoints to a global selection and
+// reports whether both coordinates were valid.
 func (v *TextSurface) SetLocalSelection(anchorX, anchorY, focusX, focusY int, bg, fg *style.Color) bool {
 	startOff := v.visualToCharOffset(anchorX, anchorY)
 	endOff := v.visualToCharOffset(focusX, focusY)
@@ -275,7 +252,7 @@ func (v *TextSurface) SetLocalSelection(anchorX, anchorY, focusX, focusY int, bg
 	return true
 }
 
-// UpdateSelection updates the selection end offset.
+// UpdateSelection sets the selection end offset and replaces non-nil colors.
 func (v *TextSurface) UpdateSelection(end int, bg, fg *style.Color) {
 	if v.selection == nil {
 		v.selection = &TextSelection{Start: end, End: end, BgColor: bg, FgColor: fg}
@@ -290,22 +267,18 @@ func (v *TextSurface) UpdateSelection(end int, bg, fg *style.Color) {
 	}
 }
 
-// UpdateLocalSelection updates the selection by visual coordinates.
-// Returns true if valid.
+// UpdateLocalSelection replaces the selection from viewport-relative endpoints.
 func (v *TextSurface) UpdateLocalSelection(anchorX, anchorY, focusX, focusY int, bg, fg *style.Color) bool {
 	return v.SetLocalSelection(anchorX, anchorY, focusX, focusY, bg, fg)
 }
 
-// ResetLocalSelection clears the local selection (same as ResetSelection).
+// ResetLocalSelection removes the current selection.
 func (v *TextSurface) ResetLocalSelection() {
 	v.selection = nil
 }
 
-// ---------------------------------------------------------------------------
-// Text extraction
-// ---------------------------------------------------------------------------
-
-// SelectedText returns the selected text, or "" if no selection.
+// SelectedText returns text in the normalized selection range, or an empty
+// string when no selection exists.
 func (v *TextSurface) SelectedText() string {
 	if v.selection == nil {
 		return ""
@@ -317,25 +290,19 @@ func (v *TextSurface) SelectedText() string {
 	return v.buf.TextRange(start, end)
 }
 
-// PlainText returns the full plain text of the underlying buffer.
+// PlainText returns all unstyled buffer content.
 func (v *TextSurface) PlainText() string {
 	return v.buf.PlainText()
 }
 
-// ---------------------------------------------------------------------------
-// Measurement
-// ---------------------------------------------------------------------------
-
-// MeasureDimensions represents the result of MeasureForDimensions.
+// MeasureDimensions contains virtual-line count and maximum width.
 type MeasureDimensions struct {
 	LineCount int
 	MaxWidth  int
 }
 
-// MeasureForDimensions computes the layout that would result from the given
-// dimensions without actually changing the viewport. It uses the same virtual
-// line computation as the rendering path (calculateVirtualLines) so that
-// measurement and rendering always agree on line counts and widths.
+// MeasureForDimensions calculates virtual-line dimensions without changing the
+// viewport. width constrains wrapping; height is currently unused.
 func (v *TextSurface) MeasureForDimensions(width, height int) *MeasureDimensions {
 	wrapWidth := 0
 	if v.wrapMode != WrapNone && width > 0 {
@@ -345,18 +312,14 @@ func (v *TextSurface) MeasureForDimensions(width, height int) *MeasureDimensions
 		}
 	}
 
-	// Use the same wrapping path as updateVirtualLines.
+	// Share virtual-line construction with rendering.
 	vlines, info := v.calculateVirtualLines(wrapWidth)
 
 	return &MeasureDimensions{LineCount: len(vlines), MaxWidth: info.MaxWidth}
 }
 
-// ---------------------------------------------------------------------------
-// Internal: visual-to-offset conversion
-// ---------------------------------------------------------------------------
-
-// visualToCharOffset converts viewport-relative visual coordinates to a
-// global character offset.
+// visualToCharOffset maps viewport-relative coordinates to a global
+// display-width offset, or -1 for an invalid row.
 func (v *TextSurface) visualToCharOffset(x, y int) int {
 	v.ensureUpdated()
 
@@ -373,7 +336,7 @@ func (v *TextSurface) visualToCharOffset(x, y int) int {
 	vl := v.vlines[absY]
 	offset := vl.CharOffset
 
-	// Walk through chunks by grapheme cluster to find the column offset
+	// Advance through complete grapheme clusters to x.
 	col := 0
 	for _, chunk := range vl.Chunks {
 		remaining := chunk.Text
@@ -390,10 +353,6 @@ func (v *TextSurface) visualToCharOffset(x, y int) int {
 	}
 	return offset
 }
-
-// ---------------------------------------------------------------------------
-// Virtual line computation
-// ---------------------------------------------------------------------------
 
 func (v *TextSurface) ensureUpdated() {
 	bufEpoch := v.buf.Epoch()
@@ -418,9 +377,7 @@ func (v *TextSurface) updateVirtualLines() {
 	v.vlines, v.lineInfo = v.calculateVirtualLines(wrapWidth)
 }
 
-// calculateVirtualLines is the single source of truth for virtual line
-// computation. Both updateVirtualLines (for rendering) and
-// MeasureForDimensions (for layout) call this so they always agree.
+// calculateVirtualLines builds wrapped lines and their parallel metadata.
 func (v *TextSurface) calculateVirtualLines(wrapWidth int) ([]VirtualLine, LineInfo) {
 	var vlines []VirtualLine
 	var starts, widths, sources []int
@@ -461,7 +418,7 @@ func (v *TextSurface) calculateVirtualLines(wrapWidth int) ([]VirtualLine, LineI
 	return vlines, info
 }
 
-// buildUnwrappedVLine creates a single virtual line from a logical line.
+// buildUnwrappedVLine converts one logical line without wrapping it.
 func (v *TextSurface) buildUnwrappedVLine(line Line, lineIdx, charOffset int) VirtualLine {
 	runes := v.flattenSpans(line)
 	if len(runes) == 0 {
@@ -483,21 +440,17 @@ func (v *TextSurface) buildUnwrappedVLine(line Line, lineIdx, charOffset int) Vi
 	}
 }
 
-// ---------------------------------------------------------------------------
-// styledRune is a flattened rune with style info, used during wrapping.
-// ---------------------------------------------------------------------------
-
+// styledRune stores one code point and its cluster-head width during wrapping.
 type styledRune struct {
 	r    rune
-	w    int // display width
+	w    int // Display width, or zero for trailing cluster code points.
 	fg   style.Color
 	bg   style.Color
 	attr uint32
 }
 
-// flattenSpans converts a Line's spans into a flat []styledRune stream,
-// expanding tab characters into spaces (with optional tab indicator glyph).
-// This is the single place where tab handling occurs for all virtual line paths.
+// flattenSpans expands a line into styled code points while recording display
+// width only on each grapheme cluster's first code point.
 func (v *TextSurface) flattenSpans(line Line) []styledRune {
 	var runes []styledRune
 
@@ -511,13 +464,10 @@ func (v *TextSurface) flattenSpans(line Line) []styledRune {
 		for len(remaining) > 0 {
 			cluster, rest, cw := NextGraphemeCluster(remaining)
 			remaining = rest
-			// Decode the base rune for the styledRune; store the full
-			// cluster width so wrapping uses grapheme-aware widths.
+			// Store cluster width on its first code point for wrapping.
 			r, _ := utf8.DecodeRuneInString(cluster)
 			runes = append(runes, styledRune{r: r, w: cw, fg: fg, bg: bg, attr: span.Attributes})
-			// Append remaining codepoints of the cluster as zero-width
-			// so they are included in the text output but don't affect
-			// column arithmetic.
+			// Preserve trailing code points without counting their width again.
 			for j := utf8.RuneLen(r); j < len(cluster); {
 				cr, sz := utf8.DecodeRuneInString(cluster[j:])
 				j += sz
@@ -528,7 +478,7 @@ func (v *TextSurface) flattenSpans(line Line) []styledRune {
 	return runes
 }
 
-// wrapLine wraps a single logical line into multiple virtual lines.
+// wrapLineInto appends one logical line as one or more virtual lines.
 func (v *TextSurface) wrapLineInto(
 	line Line, lineIdx, wrapWidth int,
 	globalCharOffset *int,
@@ -538,7 +488,7 @@ func (v *TextSurface) wrapLineInto(
 	runes := v.flattenSpans(line)
 
 	if len(runes) == 0 {
-		// Empty line still produces one virtual line.
+		// Preserve an empty logical line as one empty visual row.
 		vl := VirtualLine{
 			CharOffset: *globalCharOffset,
 			SourceLine: lineIdx,
@@ -557,16 +507,16 @@ func (v *TextSurface) wrapLineInto(
 		lineStart := *globalCharOffset
 		lineColOffset := colOffset
 
-		// Determine how many runes fit on this virtual line.
+		// Find the next segment that fits this visual row.
 		endIdx, lineWidth := v.fitRunesOnLine(runes, runeIdx, wrapWidth)
 
-		// Handle case where nothing fits (single wide char exceeds wrapWidth).
+		// Keep an oversized cluster intact on its own row.
 		if endIdx == runeIdx && runeIdx < len(runes) {
 			endIdx = runeIdx + 1
 			lineWidth = runes[runeIdx].w
 		}
 
-		// Build chunks from runes[runeIdx..endIdx], grouping by style.
+		// Regroup the selected code points into styled chunks.
 		chunks := buildChunksFromRunes(runes[runeIdx:endIdx], colOffset-lineColOffset)
 
 		vl := VirtualLine{
@@ -587,18 +537,17 @@ func (v *TextSurface) wrapLineInto(
 	}
 }
 
-// fitRunesOnLine determines how many runes from runes[start:] fit within
-// wrapWidth columns. For WrapWord mode, it tries to break at word boundaries.
-// Returns (endIdx, totalWidth).
+// fitRunesOnLine returns the exclusive code-point index and display width that
+// fit from start. WrapWord prefers the latest word boundary.
 func (v *TextSurface) fitRunesOnLine(runes []styledRune, start, wrapWidth int) (int, int) {
 	width := 0
-	lastBreakIdx := -1 // index AFTER the last word-break rune
+	lastBreakIdx := -1 // Exclusive index after the latest word break.
 	lastBreakWidth := 0
 
 	for i := start; i < len(runes); i++ {
 		rw := runes[i].w
 		if width+rw > wrapWidth {
-			// Won't fit. For word wrap, try to break at last boundary.
+			// Prefer a prior word boundary before splitting at the width limit.
 			if v.wrapMode == WrapWord && lastBreakIdx > start {
 				return lastBreakIdx, lastBreakWidth
 			}
@@ -606,18 +555,18 @@ func (v *TextSurface) fitRunesOnLine(runes []styledRune, start, wrapWidth int) (
 		}
 		width += rw
 
-		// Track word break positions (break AFTER space/punct).
+		// Word wrapping breaks after recognized spaces or punctuation.
 		if v.wrapMode == WrapWord && isWordBreak(runes[i].r) {
 			lastBreakIdx = i + 1
 			lastBreakWidth = width
 		}
 	}
 
-	// Everything fits.
+	// The remaining code points fit on one row.
 	return len(runes), width
 }
 
-// buildChunksFromRunes groups consecutive runes with the same style into chunks.
+// buildChunksFromRunes groups adjacent code points with equal styles.
 func buildChunksFromRunes(runes []styledRune, graphemeStartBase int) []VirtualChunk {
 	if len(runes) == 0 {
 		return nil
@@ -635,7 +584,7 @@ func buildChunksFromRunes(runes []styledRune, graphemeStartBase int) []VirtualCh
 			continue
 		}
 
-		// Build chunk from runes[chunkStart..i]
+		// Materialize the completed half-open code-point range.
 		var text []rune
 		w := 0
 		for j := chunkStart; j < i; j++ {
@@ -656,18 +605,16 @@ func buildChunksFromRunes(runes []styledRune, graphemeStartBase int) []VirtualCh
 	return chunks
 }
 
-// isWordBreak returns true if the rune is a word break character.
-// This uses an explicit set of characters rather than the broad
-// unicode.IsPunct category, which would break at quotes, asterisks, etc.
-// and produce ugly mid-token wraps.
+// isWordBreak reports whether wrapping can break after r. It uses a limited
+// punctuation set to avoid splitting punctuation-heavy tokens too aggressively.
 func isWordBreak(r rune) bool {
 	if unicode.IsSpace(r) {
 		return true
 	}
 	switch r {
-	case '-', '/', '\\', // dashes & slashes
-		'.', ',', ';', ':', '!', '?', // punctuation
-		'(', ')', '[', ']', '{', '}': // brackets
+	case '-', '/', '\\', // Dashes and slashes.
+		'.', ',', ';', ':', '!', '?', // Sentence punctuation.
+		'(', ')', '[', ']', '{', '}': // Brackets.
 		return true
 	}
 	return false

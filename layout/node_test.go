@@ -2,8 +2,6 @@ package layout
 
 import "testing"
 
-// --- NewNode Tests ---
-
 func TestNewNode_Defaults(t *testing.T) {
 	n := NewNode()
 
@@ -47,8 +45,6 @@ func TestNewNode_Defaults(t *testing.T) {
 		t.Error("new node should be dirty")
 	}
 }
-
-// --- AddChild Tests ---
 
 func TestAddChild(t *testing.T) {
 	parent := NewNode()
@@ -95,7 +91,7 @@ func TestAddChild_ReparentsFromOldParent(t *testing.T) {
 		t.Fatalf("p1 should have 1 child, got %d", p1.ChildCount())
 	}
 
-	p2.AddChild(child) // should remove from p1
+	p2.AddChild(child) // Reparenting removes child from p1.
 	if p1.ChildCount() != 0 {
 		t.Errorf("p1 ChildCount() = %d, want 0 after reparent", p1.ChildCount())
 	}
@@ -106,8 +102,6 @@ func TestAddChild_ReparentsFromOldParent(t *testing.T) {
 		t.Error("child.Parent should be p2")
 	}
 }
-
-// --- AddChildAt Tests ---
 
 func TestAddChildAt_Beginning(t *testing.T) {
 	parent := NewNode()
@@ -144,13 +138,11 @@ func TestAddChildAt_OutOfRange(t *testing.T) {
 	parent := NewNode()
 	child := NewNode()
 
-	parent.AddChildAt(child, 99) // should append
+	parent.AddChildAt(child, 99) // An out-of-range index appends child.
 	if parent.ChildCount() != 1 {
 		t.Errorf("ChildCount() = %d, want 1", parent.ChildCount())
 	}
 }
-
-// --- RemoveChild Tests ---
 
 func TestRemoveChild(t *testing.T) {
 	parent := NewNode()
@@ -173,7 +165,7 @@ func TestRemoveChild_NotFound(t *testing.T) {
 	other := NewNode()
 
 	parent.AddChild(child)
-	parent.RemoveChild(other) // should be a no-op
+	parent.RemoveChild(other) // Removing a node that is not a child is a no-op.
 
 	if parent.ChildCount() != 1 {
 		t.Errorf("ChildCount() = %d, want 1", parent.ChildCount())
@@ -199,8 +191,6 @@ func TestRemoveChild_Middle(t *testing.T) {
 	}
 }
 
-// --- Dirty Propagation Tests ---
-
 func TestMarkDirty_Propagates(t *testing.T) {
 	root := NewNode()
 	child := NewNode()
@@ -209,7 +199,7 @@ func TestMarkDirty_Propagates(t *testing.T) {
 	root.AddChild(child)
 	child.AddChild(grandchild)
 
-	// Clear dirty flags
+	// Start with a clean tree to observe upward propagation.
 	root.dirty = false
 	child.dirty = false
 	grandchild.dirty = false
@@ -235,20 +225,17 @@ func TestMarkDirty_StopsAtAlreadyDirty(t *testing.T) {
 	root.AddChild(child)
 	child.AddChild(grandchild)
 
-	// Only root is dirty
+	// An already dirty root remains dirty when its child is marked.
 	root.dirty = true
 	child.dirty = false
 	grandchild.dirty = false
 
-	// When child is marked dirty, it should stop at root since it's already dirty
 	child.MarkDirty()
 
 	if !child.IsDirty() {
 		t.Error("child should be dirty")
 	}
 }
-
-// --- Shorthand Setter Tests ---
 
 func TestSetMargin(t *testing.T) {
 	n := NewNode()

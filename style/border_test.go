@@ -5,10 +5,6 @@ import (
 	"unicode"
 )
 
-// ---------------------------------------------------------------------------
-// BorderStyle tests
-// ---------------------------------------------------------------------------
-
 func TestBorderStyle_String(t *testing.T) {
 	tests := []struct {
 		bs   BorderStyle
@@ -19,7 +15,7 @@ func TestBorderStyle_String(t *testing.T) {
 		{BorderRounded, "rounded"},
 		{BorderHeavy, "heavy"},
 		{BorderNone, "none"},
-		{BorderStyle(99), "single"}, // unknown defaults to single
+		{BorderStyle(99), "single"}, // Unknown values use the single-line name.
 	}
 	for _, tt := range tests {
 		if got := tt.bs.String(); got != tt.want {
@@ -47,7 +43,7 @@ func TestParseBorderStyle(t *testing.T) {
 }
 
 func TestParseBorderStyle_InvalidDefault(t *testing.T) {
-	// Default fallback is BorderSingle
+	// Without an explicit fallback, unknown names use BorderSingle.
 	got := ParseBorderStyle("invalid")
 	if got != BorderSingle {
 		t.Errorf("ParseBorderStyle(\"invalid\") = %d, want BorderSingle", got)
@@ -77,10 +73,6 @@ func TestIsValidBorderStyle(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// BorderSidesConfig tests
-// ---------------------------------------------------------------------------
-
 func TestAllSides(t *testing.T) {
 	s := AllSides()
 	if !s.Top || !s.Right || !s.Bottom || !s.Left {
@@ -94,10 +86,6 @@ func TestNoSides(t *testing.T) {
 		t.Errorf("NoSides() = %+v, want all false", s)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Border tests
-// ---------------------------------------------------------------------------
 
 func TestBorderAll(t *testing.T) {
 	b := BorderAll()
@@ -170,7 +158,7 @@ func TestGetBorderFromSides_Partial(t *testing.T) {
 	if len(b.Sides) != 2 {
 		t.Fatalf("expected 2 sides, got %d", len(b.Sides))
 	}
-	// Check roundtrip
+	// Expanding and compacting preserves the selected sides.
 	config2 := GetBorderSides(b)
 	if config2.Top != config.Top || config2.Right != config.Right ||
 		config2.Bottom != config.Bottom || config2.Left != config.Left {
@@ -179,7 +167,7 @@ func TestGetBorderFromSides_Partial(t *testing.T) {
 }
 
 func TestGetBorderSides_Roundtrip(t *testing.T) {
-	// Test all 16 combinations
+	// All 16 combinations of four sides round-trip.
 	bools := []bool{false, true}
 	for _, top := range bools {
 		for _, right := range bools {
@@ -196,10 +184,6 @@ func TestGetBorderSides_Roundtrip(t *testing.T) {
 		}
 	}
 }
-
-// ---------------------------------------------------------------------------
-// BorderCharacters tests
-// ---------------------------------------------------------------------------
 
 func TestCharsForStyle_SingleChars(t *testing.T) {
 	chars := CharsForStyle(BorderSingle)
@@ -230,15 +214,15 @@ func TestCharsForStyle_HeavyChars(t *testing.T) {
 }
 
 func TestCharsForStyle_None(t *testing.T) {
-	// BorderNone falls through to SingleChars
+	// BorderNone uses SingleChars when characters are requested directly.
 	chars := CharsForStyle(BorderNone)
 	if chars != SingleChars {
 		t.Errorf("CharsForStyle(None) should fallback to SingleChars")
 	}
 }
 
-// TestAllPresetsHaveValidRunes checks that all runes in all presets are valid
-// printable Unicode characters (box-drawing range).
+// TestAllPresetsHaveValidRunes verifies that every preset contains printable
+// Unicode border runes.
 func TestAllPresetsHaveValidRunes(t *testing.T) {
 	presets := map[string]BorderCharacters{
 		"Single":  SingleChars,
@@ -310,7 +294,7 @@ func TestRoundedChars_CorrectCorners(t *testing.T) {
 	if RoundedChars.BottomRight != '╯' {
 		t.Errorf("BottomRight = %q, want '╯'", RoundedChars.BottomRight)
 	}
-	// Edges should be same as single
+	// Rounded borders differ from single borders only at their corners.
 	if RoundedChars.Horizontal != SingleChars.Horizontal {
 		t.Error("Rounded horizontal should match Single")
 	}

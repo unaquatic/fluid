@@ -2,8 +2,7 @@ package style
 
 import "testing"
 
-// TestDarculaSolid_Signature pins the most recognisable color choices.
-// If any of these drift the theme should be renamed.
+// TestDarculaSolid_Signature pins the palette's identifying colors.
 func TestDarculaSolid_Signature(t *testing.T) {
 	th := DarculaSolid()
 
@@ -32,8 +31,8 @@ func TestDarculaSolid_Signature(t *testing.T) {
 	}
 }
 
-// TestDarculaSolid_AttributeMasks verifies bold/italic/underline masks
-// on keyword, constant, comment, and error tokens.
+// TestDarculaSolid_AttributeMasks verifies decorations on representative syntax
+// roles.
 func TestDarculaSolid_AttributeMasks(t *testing.T) {
 	th := DarculaSolid()
 
@@ -51,9 +50,8 @@ func TestDarculaSolid_AttributeMasks(t *testing.T) {
 	}
 }
 
-// TestDarculaSolid_FullyPopulated ensures every color role the
-// renderer reads is opaque, so the chat UI never falls back to
-// zero-alpha.
+// TestDarculaSolid_FullyPopulated verifies that every directly consumed color
+// role is opaque.
 func TestDarculaSolid_FullyPopulated(t *testing.T) {
 	th := DarculaSolid()
 

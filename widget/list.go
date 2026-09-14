@@ -9,13 +9,13 @@ import (
 	"github.com/unaquatic/fluid/symbol"
 )
 
-// ListItem represents an item in the List widget.
+// ListItem contains the displayed text and caller-defined value for one list row.
 type ListItem struct {
 	Text  string
 	Value any
 }
 
-// List is a scrollable list with single/multi-selection and key navigation.
+// List is a keyboard-navigable, scrollable list with one selected item.
 type List struct {
 	*render.BaseRenderable
 
@@ -32,13 +32,14 @@ type List struct {
 	bulletChar    rune
 	wrapSelection bool
 
+	// OnItemSelected is called when the user activates the selected item.
 	OnItemSelected func(index int, item ListItem)
 }
 
 // ListOption configures a List.
 type ListOption func(*List)
 
-// NewList creates a List widget.
+// NewList returns a focusable List containing items.
 func NewList(items []ListItem, opts ...ListOption) *List {
 	l := &List{
 		BaseRenderable:  render.NewBaseRenderable(render.WithFocusable(true)),
@@ -59,7 +60,7 @@ func NewList(items []ListItem, opts ...ListOption) *List {
 	return l
 }
 
-// SelectedIndex returns the selected index.
+// SelectedIndex returns the zero-based index of the selected item.
 func (l *List) SelectedIndex() int { return l.selectedIndex }
 
 // SetItems replaces the list items.
@@ -117,7 +118,7 @@ func (l *List) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 	}
 }
 
-// HandleKeyPress processes keyboard input.
+// HandleKeyPress moves or activates the selection for a supported key event.
 func (l *List) HandleKeyPress(e *input.KeyEvent) bool {
 	if e.Type == input.KeyRelease || len(l.items) == 0 {
 		return false
@@ -168,24 +169,24 @@ func (l *List) ensureVisible() {
 	}
 }
 
-// --- List Options ---
+// List options.
 
 // ListWithTextColor sets the text color.
 func ListWithTextColor(c style.Color) ListOption {
 	return func(l *List) { l.textColor = c }
 }
 
-// ListWithSelectedBg sets the selected background.
+// ListWithSelectedBg sets the selected row's background color.
 func ListWithSelectedBg(c style.Color) ListOption {
 	return func(l *List) { l.selectedBg = c }
 }
 
-// ListWithShowBullet enables/disables bullet display.
+// ListWithShowBullet controls whether rows reserve space for the selection bullet.
 func ListWithShowBullet(v bool) ListOption {
 	return func(l *List) { l.showBullet = v }
 }
 
-// ListWithOnItemSelected sets the item selected callback.
+// ListWithOnItemSelected sets the callback invoked when a user activates an item.
 func ListWithOnItemSelected(fn func(int, ListItem)) ListOption {
 	return func(l *List) { l.OnItemSelected = fn }
 }
@@ -205,7 +206,7 @@ func ListWithHeight(s layout.Scalar) ListOption {
 	return func(l *List) { l.LayoutNode().Height = s }
 }
 
-// ListWithFlexGrow sets flex grow.
+// ListWithFlexGrow sets the flex-grow factor.
 func ListWithFlexGrow(v int) ListOption {
 	return func(l *List) { l.LayoutNode().FlexGrow = v }
 }

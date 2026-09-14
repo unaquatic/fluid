@@ -12,10 +12,6 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// ---------------------------------------------------------------------------
-// Config tests
-// ---------------------------------------------------------------------------
-
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 
@@ -72,10 +68,6 @@ func TestMergeConfig_Override(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// ControlState tests
-// ---------------------------------------------------------------------------
-
 func TestRendererControlState_String(t *testing.T) {
 	tests := []struct {
 		state    ControlState
@@ -96,10 +88,6 @@ func TestRendererControlState_String(t *testing.T) {
 		}
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Renderer constructor tests
-// ---------------------------------------------------------------------------
 
 func TestNewRenderer_Properties(t *testing.T) {
 	r := newInputTestRenderer()
@@ -140,10 +128,6 @@ func TestNewRenderer_Buffers(t *testing.T) {
 		t.Error("expected buffer dimensions to match terminal size")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Lifecycle state transitions
-// ---------------------------------------------------------------------------
 
 func TestRenderer_PauseResume(t *testing.T) {
 	r := newInputTestRenderer()
@@ -215,10 +199,6 @@ func TestRenderer_DestroyIdempotent(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Focus management
-// ---------------------------------------------------------------------------
-
 func TestRenderer_FocusRenderable(t *testing.T) {
 	r := newInputTestRenderer()
 
@@ -247,10 +227,6 @@ func TestRenderer_FocusRenderable(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// RequestRender
-// ---------------------------------------------------------------------------
-
 func TestRenderer_RequestRender(t *testing.T) {
 	r := newInputTestRenderer()
 
@@ -274,7 +250,7 @@ func TestRenderer_RequestRender(t *testing.T) {
 func TestRenderer_RequestRenderIdempotent(t *testing.T) {
 	r := newInputTestRenderer()
 
-	// Repeated requests collapse into one wake-up and one owed frame.
+	// Repeated requests retain one wake token and one dirty frame.
 	r.RequestRender()
 	r.RequestRender()
 	r.RequestRender()
@@ -293,10 +269,6 @@ func TestRenderer_RequestRenderIdempotent(t *testing.T) {
 	default:
 	}
 }
-
-// ---------------------------------------------------------------------------
-// renderFrame test
-// ---------------------------------------------------------------------------
 
 func TestRenderer_RenderFrame(t *testing.T) {
 	var outBuf bytes.Buffer
@@ -329,7 +301,7 @@ func TestRenderer_RenderFrame(t *testing.T) {
 
 	root.SetContext(r)
 
-	// Add a child that renders something
+	// Render one child to exercise a complete frame.
 	child := render.NewBaseRenderable(render.WithID("test-child"))
 	child.RenderBeforeHook = func(buf *buffer.Buffer, dt float64) {
 		buf.SetCell(0, 0, 'T', style.ColorWhite, style.ColorBlack, 0)
@@ -339,16 +311,12 @@ func TestRenderer_RenderFrame(t *testing.T) {
 	r.config.GatherStats = true
 	r.renderFrame()
 
-	// Stats should be updated
+	// Enabled statistics count the rendered frame.
 	stats := r.Stats()
 	if stats.FrameCount != 1 {
 		t.Errorf("expected FrameCount=1, got %d", stats.FrameCount)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Background color
-// ---------------------------------------------------------------------------
 
 func TestRenderer_SetBackgroundColor(t *testing.T) {
 	r := newInputTestRenderer()
@@ -364,10 +332,6 @@ func TestRenderer_SetBackgroundColor(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Title
-// ---------------------------------------------------------------------------
-
 func TestRenderer_SetTitle(t *testing.T) {
 	var outBuf bytes.Buffer
 	r := newInputTestRenderer()
@@ -379,10 +343,6 @@ func TestRenderer_SetTitle(t *testing.T) {
 		t.Errorf("expected title escape, got: %q", outBuf.String())
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Post-process functions
-// ---------------------------------------------------------------------------
 
 func TestRenderer_PostProcessFns(t *testing.T) {
 	r := newInputTestRenderer()
@@ -401,12 +361,8 @@ func TestRenderer_PostProcessFns(t *testing.T) {
 		t.Errorf("expected 0 post-process fns after clear, got %d", len(r.postProcessFns))
 	}
 
-	_ = called // fn not called in this test
+	_ = called // This test verifies registration state, not callback execution.
 }
-
-// ---------------------------------------------------------------------------
-// Stats
-// ---------------------------------------------------------------------------
 
 func TestRenderer_StatsToggle(t *testing.T) {
 	r := newInputTestRenderer()
@@ -438,10 +394,6 @@ func TestRenderer_ResetStats(t *testing.T) {
 		t.Errorf("expected FrameCount=0 after reset, got %d", stats.FrameCount)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Cursor
-// ---------------------------------------------------------------------------
 
 func TestRenderer_SetCursorPosition(t *testing.T) {
 	r := newInputTestRenderer()
@@ -489,7 +441,7 @@ func TestRenderer_SetCursorColor(t *testing.T) {
 		t.Errorf("expected cursor color red, got %v", cc)
 	}
 
-	// Should have written OSC 12 escape
+	// Setting color writes an OSC 12 sequence immediately.
 	output := outBuf.String()
 	if !strings.Contains(output, "\x1b]12;rgb:") {
 		t.Errorf("expected OSC 12 escape in output, got: %q", output)
@@ -558,7 +510,7 @@ func TestRenderer_SetCursorStyleOptions(t *testing.T) {
 		t.Errorf("expected mousePointer='text', got %q", mp)
 	}
 
-	// Verify terminal output includes cursor style + color + pointer escapes
+	// Each non-nil option writes its corresponding terminal sequence.
 	output := outBuf.String()
 	if !strings.Contains(output, "\x1b]12;rgb:") {
 		t.Error("expected OSC 12 cursor color escape")
@@ -571,11 +523,11 @@ func TestRenderer_SetCursorStyleOptions(t *testing.T) {
 func TestRenderer_SetCursorStyleOptions_Partial(t *testing.T) {
 	r := newInputTestRenderer()
 
-	// Set initial state
+	// Establish cursor state before a partial update.
 	r.SetCursorStyle("block")
 	r.SetCursorPosition(1, 2, true)
 
-	// Only update style, leave everything else
+	// Update only the style field.
 	newStyle := CursorUnderline
 	r.SetCursorStyleOptions(CursorStyleOptions{
 		Style: &newStyle,
@@ -585,7 +537,7 @@ func TestRenderer_SetCursorStyleOptions_Partial(t *testing.T) {
 	if state.Style != CursorUnderline {
 		t.Errorf("expected style='underline', got %q", state.Style)
 	}
-	// Position should be unchanged
+	// Unspecified position and visibility remain unchanged.
 	if state.X != 1 || state.Y != 2 {
 		t.Errorf("expected position (1,2), got (%d,%d)", state.X, state.Y)
 	}

@@ -21,11 +21,9 @@ func ioctlPtr(fd int, req uint, arg unsafe.Pointer) error {
 	return nil
 }
 
-// These tests need a real character device. The pty ioctls below are
-// Darwin's; Linux uses a different unlock/name pair.
+// These tests use Darwin-specific pseudo-terminal ioctls.
 
-// openPTY returns a connected master/slave pair so the probe can be exercised
-// against a real character device, which is the case SetReadDeadline failed on.
+// openPTY returns a connected pseudo-terminal master and slave.
 func openPTY(t *testing.T) (master, slave *os.File) {
 	t.Helper()
 	m, err := os.OpenFile("/dev/ptmx", os.O_RDWR, 0)
@@ -50,8 +48,7 @@ func openPTY(t *testing.T) (master, slave *os.File) {
 	if err != nil {
 		t.Skipf("open slave: %v", err)
 	}
-	// Raw mode: a cursor position report carries no newline, so a canonical
-	// slave would block until the deadline. Setup() does this in real use.
+	// Cursor reports contain no newline, so the slave must use raw mode.
 	old, err := term.MakeRaw(int(s.Fd()))
 	if err != nil {
 		t.Skipf("makeraw: %v", err)
@@ -60,17 +57,14 @@ func openPTY(t *testing.T) (master, slave *os.File) {
 	return m, s
 }
 
-// TestProbeWidths_AgainstPTY is the regression for the original failure: on a
-// terminal, os.Stdin is blocking and unregistered with the runtime poller, so
-// SetReadDeadline returns ErrNoDeadline and the probe aborted before reading
-// anything. poll(2) has no such requirement.
+// TestProbeWidths_AgainstPTY verifies width probing through a blocking terminal
+// file descriptor.
 func TestProbeWidths_AgainstPTY(t *testing.T) {
 	master, slave := openPTY(t)
 
 	b := NewBackend(slave, slave)
 
-	// Stand in for the terminal: read the probe output and answer each
-	// cursor position request with a column of our choosing.
+	// Emulate terminal replies with chosen cursor columns.
 	widthsWanted := []int{1, 2, 3}
 	go func() {
 		buf := make([]byte, 4096)
@@ -103,8 +97,8 @@ func TestProbeWidths_AgainstPTY(t *testing.T) {
 	}
 }
 
-// TestProbeWidths_SilentTerminal proves a terminal that ignores DSR ends at
-// the deadline instead of hanging startup forever.
+// TestProbeWidths_SilentTerminal verifies that an unanswered DSR request times
+// out.
 func TestProbeWidths_SilentTerminal(t *testing.T) {
 	_, slave := openPTY(t)
 	b := NewBackend(slave, slave)
@@ -134,10 +128,7 @@ func itoa(n int) string {
 	return string(b)
 }
 
-// residue reports how many bytes the terminal still has waiting. It polls
-// rather than setting a read deadline: stdin on a terminal is blocking and
-// unregistered with the runtime poller, so SetReadDeadline does not work and a
-// bare Read would hang.
+// residue returns the number of bytes waiting on a blocking pseudo-terminal.
 func residue(t *testing.T, f *os.File, within time.Duration) []byte {
 	t.Helper()
 	ready, err := waitReadable(int(f.Fd()), time.Now().Add(within))
@@ -149,15 +140,13 @@ func residue(t *testing.T, f *os.File, within time.Duration) []byte {
 	return buf[:n]
 }
 
-// TestProbeWidths_DrainsLateReplies covers a terminal that answers too slowly.
-// Replies abandoned mid-probe would otherwise be read by the input loop, which
-// resolves a cursor position report (CSI row ; col R) to a function key and
-// injects keystrokes the user never typed.
+// TestProbeWidths_DrainsLateReplies verifies that timed-out cursor reports do
+// not remain for the input loop.
 func TestProbeWidths_DrainsLateReplies(t *testing.T) {
 	master, slave := openPTY(t)
 	b := NewBackend(slave, slave)
 
-	// Answer nothing until the probe has given up, then reply anyway.
+	// Reply only after the probe deadline.
 	go func() {
 		buf := make([]byte, 4096)
 		if _, err := master.Read(buf); err != nil {
@@ -175,8 +164,8 @@ func TestProbeWidths_DrainsLateReplies(t *testing.T) {
 	}
 }
 
-// TestProbeWidths_SuccessLeavesNoResidue checks the ordinary path: a terminal
-// that answers every request leaves nothing behind either.
+// TestProbeWidths_SuccessLeavesNoResidue verifies that successful probing
+// consumes every reply.
 func TestProbeWidths_SuccessLeavesNoResidue(t *testing.T) {
 	master, slave := openPTY(t)
 	b := NewBackend(slave, slave)

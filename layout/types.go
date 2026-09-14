@@ -2,57 +2,54 @@ package layout
 
 import "fmt"
 
-// ScalarUnit indicates how a scalar value should be interpreted.
+// ScalarUnit identifies how a layout scalar is resolved.
 type ScalarUnit int
 
 const (
-	UnitPoints    ScalarUnit = iota // Absolute cell count
-	UnitPercent                     // Percentage of parent dimension
-	UnitAuto                        // Auto-sized (content or stretch)
-	UnitUndefined                   // Not set
+	UnitPoints    ScalarUnit = iota // An absolute number of cells.
+	UnitPercent                     // A percentage of the parent dimension.
+	UnitAuto                        // A size determined from content or stretching.
+	UnitUndefined                   // No value is specified.
 )
 
-// Scalar represents a dimension value with a unit.
+// Scalar is an integer layout value paired with its unit.
 type Scalar struct {
 	Value int
 	Unit  ScalarUnit
 }
 
-// --- Scalar Constructors ---
-
-// Points creates a Scalar with absolute cell count.
+// Points returns an absolute size of v cells.
 func Points(v int) Scalar {
 	return Scalar{Value: v, Unit: UnitPoints}
 }
 
-// Percent creates a Scalar with percentage of parent dimension.
+// Percent returns v percent of a parent dimension.
 func Percent(v int) Scalar {
 	return Scalar{Value: v, Unit: UnitPercent}
 }
 
-// Auto creates an auto-sized Scalar.
+// Auto returns a scalar whose size is determined during layout.
 func Auto() Scalar {
 	return Scalar{Value: 0, Unit: UnitAuto}
 }
 
-// Undefined creates an undefined Scalar.
+// Undefined returns a scalar with no specified value.
 func Undefined() Scalar {
 	return Scalar{Value: 0, Unit: UnitUndefined}
 }
 
-// --- Scalar Methods ---
-
-// IsUndefined returns true if the scalar's unit is UnitUndefined.
+// IsUndefined reports whether s has no specified value.
 func (s Scalar) IsUndefined() bool {
 	return s.Unit == UnitUndefined
 }
 
-// IsAuto returns true if the scalar's unit is UnitAuto.
+// IsAuto reports whether s is sized during layout.
 func (s Scalar) IsAuto() bool {
 	return s.Unit == UnitAuto
 }
 
-// String returns a human-readable representation of the scalar (e.g. "103pt", "50%", "auto").
+// String returns a readable representation such as "103pt", "50%", or
+// "auto".
 func (s Scalar) String() string {
 	switch s.Unit {
 	case UnitPoints:
@@ -68,9 +65,8 @@ func (s Scalar) String() string {
 	}
 }
 
-// Resolve resolves the scalar to an absolute integer value given the parent dimension.
-// Points returns Value directly, Percent returns Value*parentDimension/100.
-// Auto and Undefined return (0, false).
+// Resolve converts s to cells relative to parentDimension. It reports false
+// for automatic and undefined values.
 func (s Scalar) Resolve(parentDimension int) (int, bool) {
 	switch s.Unit {
 	case UnitPoints:
@@ -82,150 +78,127 @@ func (s Scalar) Resolve(parentDimension int) (int, bool) {
 	}
 }
 
-// --- Visibility ---
-
-// Visibility controls how a node participates in layout and rendering.
+// Visibility controls a node's participation in layout and rendering.
 type Visibility int
 
 const (
-	Visible Visibility = iota // normal: participates in layout and renders
-	Hidden                    // invisible: participates in layout but does not render
-	Gone                      // removed: does not participate in layout or render
+	Visible Visibility = iota // The node participates in layout and rendering.
+	Hidden                    // The node participates in layout but is not rendered.
+	Gone                      // The node participates in neither layout nor rendering.
 )
 
-// --- FlexDirection ---
-
-// FlexDirection controls the primary axis of layout.
+// FlexDirection identifies the main axis and item order of a flex container.
 type FlexDirection int
 
 const (
-	DirectionRow           FlexDirection = iota // left to right
-	DirectionColumn                             // top to bottom
-	DirectionRowReverse                         // right to left
-	DirectionColumnReverse                      // bottom to top
+	DirectionRow           FlexDirection = iota // Lay out items from left to right.
+	DirectionColumn                             // Lay out items from top to bottom.
+	DirectionRowReverse                         // Lay out items from right to left.
+	DirectionColumnReverse                      // Lay out items from bottom to top.
 )
 
-// IsRow returns true for Row or RowReverse.
+// IsRow reports whether d uses the horizontal axis.
 func (d FlexDirection) IsRow() bool {
 	return d == DirectionRow || d == DirectionRowReverse
 }
 
-// IsColumn returns true for Column or ColumnReverse.
+// IsColumn reports whether d uses the vertical axis.
 func (d FlexDirection) IsColumn() bool {
 	return d == DirectionColumn || d == DirectionColumnReverse
 }
 
-// IsReverse returns true for RowReverse or ColumnReverse.
+// IsReverse reports whether d reverses item order.
 func (d FlexDirection) IsReverse() bool {
 	return d == DirectionRowReverse || d == DirectionColumnReverse
 }
 
-// --- JustifyContent ---
-
-// JustifyContent controls distribution of items along the main axis.
+// JustifyContent controls item distribution along the main axis.
 type JustifyContent int
 
 const (
-	JustifyStart        JustifyContent = iota // pack items at start
-	JustifyCenter                             // center items
-	JustifyEnd                                // pack items at end
-	JustifySpaceBetween                       // even space between items
-	JustifySpaceAround                        // even space around items
-	JustifySpaceEvenly                        // equal space between and around
+	JustifyStart        JustifyContent = iota // Pack items at the start.
+	JustifyCenter                             // Center items.
+	JustifyEnd                                // Pack items at the end.
+	JustifySpaceBetween                       // Distribute space between items.
+	JustifySpaceAround                        // Give each item equal surrounding space.
+	JustifySpaceEvenly                        // Make all outer and inner spaces equal.
 )
 
-// --- Align ---
-
-// Align controls alignment on the cross axis (used for AlignItems and AlignSelf).
+// Align controls item alignment along the cross axis.
 type Align int
 
 const (
-	AlignStart   Align = iota // align to cross-axis start
-	AlignCenter               // center on cross-axis
-	AlignEnd                  // align to cross-axis end
-	AlignStretch              // stretch to fill cross-axis (default for items)
-	AlignAuto                 // inherit from parent's AlignItems (for self)
+	AlignStart   Align = iota // Align at the cross-axis start.
+	AlignCenter               // Center on the cross axis.
+	AlignEnd                  // Align at the cross-axis end.
+	AlignStretch              // Stretch to fill the cross axis.
+	AlignAuto                 // Use the parent's AlignItems value for AlignSelf.
 )
 
-// --- FlexWrap ---
-
-// FlexWrap controls whether items wrap to new lines.
+// FlexWrap controls whether and in which direction items form additional
+// lines.
 type FlexWrap int
 
 const (
-	WrapNone    FlexWrap = iota // no wrapping (single line)
-	WrapWrap                    // wrap to next line
-	WrapReverse                 // wrap in reverse direction
+	WrapNone    FlexWrap = iota // Keep all items on one line.
+	WrapWrap                    // Add lines in the cross-axis direction.
+	WrapReverse                 // Add lines in the reverse cross-axis direction.
 )
-
-// --- Position ---
 
 // Position controls whether a node participates in flex flow.
 type Position int
 
 const (
-	PositionRelative Position = iota // participates in flex layout
-	PositionAbsolute                 // removed from flex flow, positioned via offsets
+	PositionRelative Position = iota // Participate in flex layout.
+	PositionAbsolute                 // Use offsets outside flex flow.
 )
 
-// --- Sticky ---
-
-// Sticky controls whether a node pins to a viewport edge when
-// scrolled inside a ScrollBox. The node participates in normal flex layout
-// but receives a post-layout offset that keeps it visible.
+// Sticky controls whether a node remains pinned to a viewport edge while its
+// container scrolls. Sticky nodes still participate in normal flex layout.
 type Sticky int
 
 const (
-	StickyNone   Sticky = iota // normal scrolling
-	StickyTop                  // pins to the top edge of the scroll viewport
-	StickyBottom               // pins to the bottom edge of the scroll viewport
-	StickyLeft                 // pins to the left edge of the scroll viewport
-	StickyRight                // pins to the right edge of the scroll viewport
+	StickyNone   Sticky = iota // Scroll normally.
+	StickyTop                  // Pin to the viewport's top edge.
+	StickyBottom               // Pin to the viewport's bottom edge.
+	StickyLeft                 // Pin to the viewport's left edge.
+	StickyRight                // Pin to the viewport's right edge.
 )
 
-// --- Overflow ---
-
-// Overflow controls how content that exceeds bounds is handled.
+// Overflow controls content that extends beyond a node's bounds.
 type Overflow int
 
 const (
-	OverflowVisible Overflow = iota // content can extend beyond bounds
-	OverflowHidden                  // content is clipped (triggers scissor rect)
-	OverflowScroll                  // content is clipped + scrollable
+	OverflowVisible Overflow = iota // Allow content outside the bounds.
+	OverflowHidden                  // Clip content to the bounds.
+	OverflowScroll                  // Clip content and allow scrolling.
 )
 
-// --- ComputedLayout ---
-
-// --- Alignment (text) ---
-
-// Alignment controls horizontal text alignment (e.g. for titles, labels).
-// This is distinct from [Align], which controls cross-axis positioning in
-// a flexbox container.
+// Alignment controls horizontal text alignment. It is distinct from [Align],
+// which positions flex items along a container's cross axis.
 type Alignment int
 
 const (
-	TextAlignLeft   Alignment = iota // align text to the left (default)
-	TextAlignCenter                  // center text horizontally
-	TextAlignRight                   // align text to the right
+	TextAlignLeft   Alignment = iota // Align text to the left.
+	TextAlignCenter                  // Center text horizontally.
+	TextAlignRight                   // Align text to the right.
 )
 
-// ComputedLayout holds the resolved position and size of a node.
-// All values are in integer cells — the natural unit for a TUI.
+// ComputedLayout contains a node's resolved absolute position and size in
+// terminal cells.
 type ComputedLayout struct {
-	X      int // Absolute x position (relative to root)
-	Y      int // Absolute y position (relative to root)
-	Width  int // Resolved width in cells
-	Height int // Resolved height in cells
+	X      int // The absolute x-coordinate relative to the root.
+	Y      int // The absolute y-coordinate relative to the root.
+	Width  int // The resolved width in cells.
+	Height int // The resolved height in cells.
 }
 
-// LayoutCache stores the inputs from the last layoutFlexContainer call.
-// When a clean node receives the same available dimensions, its layout
-// result is identical — the entire subtree can be skipped.
-// This is the same approach Yoga uses (YGCachedMeasurement).
+// LayoutCache contains the inputs from a node's most recent layout. A clean
+// node can reuse its subtree layout when the available dimensions match.
 type LayoutCache struct {
-	AvailWidth  int // available width passed to layoutFlexContainer
-	AvailHeight int // available height passed to layoutFlexContainer
-	ParentX     int // absolute X from parent (for shift detection)
-	ParentY     int // absolute Y from parent (for shift detection)
+	AvailWidth  int // The available width used for the cached layout.
+	AvailHeight int // The available height used for the cached layout.
+	ParentX     int // The cached absolute x-coordinate of the node.
+	ParentY     int // The cached absolute y-coordinate of the node.
 	Valid       bool
 }

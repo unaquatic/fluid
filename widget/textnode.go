@@ -7,67 +7,49 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// ---------------------------------------------------------------------------
-// TextNode
-// ---------------------------------------------------------------------------
-//
-// TextNode forms a tree of inline styled text. Each node can override
-// fg, bg, attributes, and link; children inherit from their parent.
-//
-// Text modifier elements (<span>, <b>, <i>, <u>, <a>, <br>) are all
-// represented as TextNode instances with pre-configured options.
-
 var textNodeNextID uint64
 
-// TextChild is a child of a TextNode: either a plain string or another *TextNode.
+// TextChild contains either plain text or a nested TextNode.
 type TextChild struct {
-	Text string    // non-empty when this child is a plain string
-	Node *TextNode // non-nil when this child is a sub-node
+	Text string    // Used when Node is nil.
+	Node *TextNode // Non-nil for a nested node.
 }
 
-// IsText returns true if this child is a plain string.
+// IsText reports whether the child contains text instead of a nested node.
 func (tc TextChild) IsText() bool { return tc.Node == nil }
 
-// StringChild creates a TextChild from a plain string.
+// StringChild returns a plain-text child containing s.
 func StringChild(s string) TextChild {
 	return TextChild{Text: s}
 }
 
-// NodeChild creates a TextChild from a *TextNode.
+// NodeChild returns a nested-node child containing n.
 func NodeChild(n *TextNode) TextChild {
 	return TextChild{Node: n}
 }
 
-// TextNode represents an inline text element within a Text widget.
-// Each node can have:
-//   - Optional fg, bg, attributes, link overrides (nil = inherit from parent)
-//   - Children that are either string literals or other TextNodes
-//
-// Style inheritance works like CSS: child nodes inherit parent styles unless
-// they provide their own overrides. Attributes (bold, italic, etc.) are merged
-// via bitwise OR with the parent's attributes.
-//
-// The tree is flattened via GatherChunks() into []style.TextChunk for rendering.
+// TextNode contains ordered text and node children with inheritable style overrides.
+// Foreground, background, and link values replace inherited values. Attributes
+// combine with inherited attributes. GatherChunks flattens the tree for rendering.
 type TextNode struct {
 	id         string
-	fg         *style.Color // nil = inherit from parent
-	bg         *style.Color // nil = inherit
-	attributes uint32       // bitmask, OR'd with inherited
-	link       string       // URL, empty = inherit
+	fg         *style.Color // Nil inherits the parent foreground.
+	bg         *style.Color // Nil inherits the parent background.
+	attributes uint32       // Combined with inherited attributes.
+	link       string       // An empty value inherits the parent link.
 
 	children []TextChild
 	parent   *TextNode
 	dirty    bool
 
-	// ownerText is the Text widget that owns the root TextNode.
-	// Set only on the root node; used to propagate dirty state.
+	// ownerText is set on the root node to propagate mutations to its Text widget.
 	ownerText interface{ textNodeDirtied() }
 }
 
 // TextNodeOption configures a TextNode during construction.
 type TextNodeOption func(*TextNode)
 
-// NewTextNode creates a new TextNode with optional configuration.
+// NewTextNode returns an empty, dirty TextNode with optional configuration.
 func NewTextNode(opts ...TextNodeOption) *TextNode {
 	n := &TextNode{
 		id:    fmt.Sprintf("textnode-%d", atomic.AddUint64(&textNodeNextID, 1)),
@@ -79,9 +61,7 @@ func NewTextNode(opts ...TextNodeOption) *TextNode {
 	return n
 }
 
-// ---------------------------------------------------------------------------
-// TextNode Options
-// ---------------------------------------------------------------------------
+// TextNode options.
 
 // TextNodeWithID sets the node ID.
 func TextNodeWithID(id string) TextNodeOption {
@@ -108,30 +88,24 @@ func TextNodeWithLink(url string) TextNodeOption {
 	return func(n *TextNode) { n.link = url }
 }
 
-// ---------------------------------------------------------------------------
-// Identity
-// ---------------------------------------------------------------------------
-
 // ID returns the node's identifier.
 func (n *TextNode) ID() string { return n.id }
 
 // SetID sets the node's identifier.
 func (n *TextNode) SetID(id string) { n.id = id }
 
-// ---------------------------------------------------------------------------
-// Tree Manipulation
-// ---------------------------------------------------------------------------
+// Tree manipulation.
 
 // Parent returns the parent TextNode, or nil if this is the root.
 func (n *TextNode) Parent() *TextNode { return n.parent }
 
-// Children returns the list of children.
+// ChildrenList returns the node's ordered children.
 func (n *TextNode) ChildrenList() []TextChild { return n.children }
 
 // ChildrenCount returns the number of children.
 func (n *TextNode) ChildrenCount() int { return len(n.children) }
 
-// Add appends a child (string or *TextNode). Returns the insertion index.
+// Add appends child, reparents a nested node, and returns its insertion index.
 func (n *TextNode) Add(child TextChild) int {
 	idx := len(n.children)
 	n.children = append(n.children, child)
@@ -145,17 +119,17 @@ func (n *TextNode) Add(child TextChild) int {
 	return idx
 }
 
-// AddString appends a plain string child. Returns the insertion index.
+// AddString appends plain text and returns its insertion index.
 func (n *TextNode) AddString(s string) int {
 	return n.Add(StringChild(s))
 }
 
-// AddNode appends a *TextNode child. Returns the insertion index.
+// AddNode appends and reparents child, then returns its insertion index.
 func (n *TextNode) AddNode(child *TextNode) int {
 	return n.Add(NodeChild(child))
 }
 
-// InsertAt inserts a child at the given index.
+// InsertAt inserts child at a clamped index and reparents nested nodes.
 func (n *TextNode) InsertAt(index int, child TextChild) {
 	if index < 0 {
 		index = 0
@@ -175,7 +149,7 @@ func (n *TextNode) InsertAt(index int, child TextChild) {
 	n.markDirty()
 }
 
-// Remove removes a child TextNode by ID. Returns true if found.
+// Remove detaches the direct child node with id and reports whether it was found.
 func (n *TextNode) Remove(id string) bool {
 	for i, child := range n.children {
 		if child.Node != nil && child.Node.id == id {
@@ -188,7 +162,7 @@ func (n *TextNode) Remove(id string) bool {
 	return false
 }
 
-// RemoveAt removes a child at the given index.
+// RemoveAt removes and detaches the child at index when it exists.
 func (n *TextNode) RemoveAt(index int) {
 	if index < 0 || index >= len(n.children) {
 		return
@@ -211,16 +185,16 @@ func (n *TextNode) Clear() {
 	n.markDirty()
 }
 
-// ReplaceChildren replaces all children at once.
+// ReplaceChildren detaches existing nodes and adopts children.
 func (n *TextNode) ReplaceChildren(children []TextChild) {
-	// Detach old children
+	// Remove parent links from the previous child nodes.
 	for _, child := range n.children {
 		if child.Node != nil {
 			child.Node.parent = nil
 		}
 	}
 	n.children = children
-	// Attach new children
+	// Point each new child node back to this parent.
 	for _, child := range n.children {
 		if child.Node != nil {
 			child.Node.parent = n
@@ -229,7 +203,7 @@ func (n *TextNode) ReplaceChildren(children []TextChild) {
 	n.markDirty()
 }
 
-// ReplaceTextAt replaces the child at the given index with a new string.
+// ReplaceTextAt replaces an existing child with plain text.
 func (n *TextNode) ReplaceTextAt(text string, index int) {
 	if index < 0 || index >= len(n.children) {
 		return
@@ -241,7 +215,7 @@ func (n *TextNode) ReplaceTextAt(text string, index int) {
 	n.markDirty()
 }
 
-// ReplaceNodeAt replaces the child at the given index with a TextNode.
+// ReplaceNodeAt replaces an existing child and reparents the new node.
 func (n *TextNode) ReplaceNodeAt(child *TextNode, index int) {
 	if index < 0 || index >= len(n.children) {
 		return
@@ -257,7 +231,7 @@ func (n *TextNode) ReplaceNodeAt(child *TextNode, index int) {
 	n.markDirty()
 }
 
-// InsertBefore inserts a child node before the anchor node (by ID).
+// InsertBefore inserts child before the direct child named by anchorID.
 func (n *TextNode) InsertBefore(child *TextNode, anchorID string) {
 	for i, c := range n.children {
 		if c.Node != nil && c.Node.id == anchorID {
@@ -265,24 +239,22 @@ func (n *TextNode) InsertBefore(child *TextNode, anchorID string) {
 			return
 		}
 	}
-	// Anchor not found, append
+	// Append when no direct child has the requested ID.
 	n.AddNode(child)
 }
 
-// ---------------------------------------------------------------------------
-// Style Getters/Setters
-// ---------------------------------------------------------------------------
+// Style access.
 
-// Fg returns the foreground color override, or nil.
+// Fg returns the foreground override, or nil when it is inherited.
 func (n *TextNode) Fg() *style.Color { return n.fg }
 
-// Bg returns the background color override, or nil.
+// Bg returns the background override, or nil when it is inherited.
 func (n *TextNode) Bg() *style.Color { return n.bg }
 
 // Attributes returns the attribute bitmask.
 func (n *TextNode) Attributes() uint32 { return n.attributes }
 
-// Link returns the link URL, or "".
+// Link returns the link override, or an empty string when it is inherited.
 func (n *TextNode) Link() string { return n.link }
 
 // SetFg sets the foreground color override.
@@ -309,9 +281,7 @@ func (n *TextNode) SetLink(url string) {
 	n.markDirty()
 }
 
-// ---------------------------------------------------------------------------
-// Dirty Tracking
-// ---------------------------------------------------------------------------
+// Dirty tracking.
 
 // IsDirty returns true if this node or any descendant has been modified.
 func (n *TextNode) IsDirty() bool { return n.dirty }
@@ -328,15 +298,15 @@ func (n *TextNode) ClearDirty() {
 
 func (n *TextNode) markDirty() {
 	n.dirty = true
-	// Propagate up to parent
+	// Mark ancestors so root state reflects descendant mutations.
 	if n.parent != nil {
 		n.parent.markDirty()
 	}
-	// Notify owner Text widget via the root node
+	// Notify immediately when this node is the owned root.
 	if n.ownerText != nil {
 		n.ownerText.textNodeDirtied()
 	}
-	// Walk up to root to find ownerText (for non-root mutations)
+	// Descendant mutations find the owner through their root.
 	root := n
 	for root.parent != nil {
 		root = root.parent
@@ -346,11 +316,9 @@ func (n *TextNode) markDirty() {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Style Gathering / Flattening
-// ---------------------------------------------------------------------------
+// Style inheritance and flattening.
 
-// InheritedStyle is the style context passed down during chunk gathering.
+// InheritedStyle contains the effective parent style passed to child nodes.
 type InheritedStyle struct {
 	Fg         style.Color
 	Bg         style.Color
@@ -358,11 +326,9 @@ type InheritedStyle struct {
 	Link       string
 }
 
-// GatherChunks recursively collects all text content as styled chunks,
-// inheriting styles from ancestors. This is the main method that converts
-// the TextNode tree into a flat []style.TextChunk for rendering.
+// GatherChunks flattens descendant text into chunks with inherited styles resolved.
 func (n *TextNode) GatherChunks(inherited InheritedStyle) []style.TextChunk {
-	// Resolve this node's effective style
+	// Resolve once and pass the effective style to every child.
 	effective := n.resolveStyle(inherited)
 
 	var chunks []style.TextChunk
@@ -402,7 +368,7 @@ func (n *TextNode) resolveStyle(inherited InheritedStyle) InheritedStyle {
 	if n.bg != nil {
 		result.Bg = *n.bg
 	}
-	// Attributes are OR'd (additive)
+	// Attributes are additive across the ancestry chain.
 	result.Attributes = inherited.Attributes | n.attributes
 	if n.link != "" {
 		result.Link = n.link
@@ -428,18 +394,14 @@ func (n *TextNode) plainTextInto(buf *[]byte) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Text Modifier Nodes — convenience constructors
-// ---------------------------------------------------------------------------
+// Styled-node constructors.
 
-// NewSpanNode creates a generic inline styled span.
-// Maps to <span> element / SpanRenderable.
+// NewSpanNode returns a generic inline style node.
 func NewSpanNode(opts ...TextNodeOption) *TextNode {
 	return NewTextNode(opts...)
 }
 
-// NewBoldNode creates a bold text node. Maps to <b> / <strong>.
-// Accepts optional initial children.
+// NewBoldNode returns a bold node containing children.
 func NewBoldNode(children ...TextChild) *TextNode {
 	n := NewTextNode(TextNodeWithAttributes(style.AttrBold))
 	for _, child := range children {
@@ -448,8 +410,7 @@ func NewBoldNode(children ...TextChild) *TextNode {
 	return n
 }
 
-// NewItalicNode creates an italic text node. Maps to <i> / <em>.
-// Accepts optional initial children.
+// NewItalicNode returns an italic node containing children.
 func NewItalicNode(children ...TextChild) *TextNode {
 	n := NewTextNode(TextNodeWithAttributes(style.AttrItalic))
 	for _, child := range children {
@@ -458,8 +419,7 @@ func NewItalicNode(children ...TextChild) *TextNode {
 	return n
 }
 
-// NewUnderlineNode creates an underlined text node. Maps to <u>.
-// Accepts optional initial children.
+// NewUnderlineNode returns an underlined node containing children.
 func NewUnderlineNode(children ...TextChild) *TextNode {
 	n := NewTextNode(TextNodeWithAttributes(style.AttrUnderline))
 	for _, child := range children {
@@ -468,9 +428,7 @@ func NewUnderlineNode(children ...TextChild) *TextNode {
 	return n
 }
 
-// NewLinkNode creates a hyperlink text node. Maps to <a href="...">.
-// Automatically adds underline attribute.
-// Accepts optional initial children.
+// NewLinkNode returns an underlined hyperlink node containing children.
 func NewLinkNode(href string, children ...TextChild) *TextNode {
 	n := NewTextNode(
 		TextNodeWithLink(href),
@@ -482,16 +440,14 @@ func NewLinkNode(href string, children ...TextChild) *TextNode {
 	return n
 }
 
-// NewLineBreakNode creates a line break. Maps to <br>.
+// NewLineBreakNode returns a node containing one newline.
 func NewLineBreakNode() *TextNode {
 	n := NewTextNode()
 	n.AddString("\n")
 	return n
 }
 
-// ---------------------------------------------------------------------------
-// Convenience: Styled text builders
-// ---------------------------------------------------------------------------
+// Text-containing node constructors.
 
 // SpanText creates a span node containing the given text.
 func SpanText(text string, opts ...TextNodeOption) *TextNode {

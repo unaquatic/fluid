@@ -2,26 +2,16 @@ package style
 
 import "math"
 
-// OKLCH is a perceptually-uniform color space derived from Oklab.
+// OKLCH represents a color in the perceptually uniform cylindrical form of
+// Oklab.
 //
-//   - L (lightness) is in [0, 1]. 0 is black, 1 is white; intermediate
-//     values correspond to perceived brightness, not linear intensity.
-//   - C (chroma) is in [0, ~0.4]. 0 is fully desaturated (gray); higher
-//     values are more saturated. The practical upper bound inside the
-//     sRGB gamut depends on L and H.
-//   - H (hue) is in degrees [0, 360). 0 is pinkish red, 90 is yellow,
-//     180 is cyan-green, 270 is blue.
+// L is lightness in [0, 1], C is nonnegative chroma, and H is hue in degrees.
+// The maximum in-gamut chroma depends on lightness and hue.
 //
-// OKLCH is useful for theme generation because lightness/chroma/hue can
-// be adjusted independently without perceptual coupling — e.g. shifting
-// L builds a tonal scale that stays within the same hue family.
-//
-// Reference: https://bottosson.github.io/posts/oklab/
+// See https://bottosson.github.io/posts/oklab/.
 type OKLCH struct {
 	L, C, H float64
 }
-
-// --- sRGB ↔ linear RGB -----------------------------------------------------
 
 func srgbToLinear(c float64) float64 {
 	if c <= 0.04045 {
@@ -37,16 +27,14 @@ func linearToSrgb(c float64) float64 {
 	return 1.055*math.Pow(c, 1.0/2.4) - 0.055
 }
 
-// --- Color ↔ OKLCH ---------------------------------------------------------
-
-// ToOKLCH converts this color to OKLCH, ignoring alpha.
+// ToOKLCH converts c from sRGB to OKLCH and ignores alpha.
 func (c Color) ToOKLCH() OKLCH {
-	// sRGB [0, 255] → linear [0, 1]
+	// Convert normalized sRGB channels to linear RGB.
 	lr := srgbToLinear(float64(c.R) / 255.0)
 	lg := srgbToLinear(float64(c.G) / 255.0)
 	lb := srgbToLinear(float64(c.B) / 255.0)
 
-	// Linear RGB → LMS (Oklab matrix).
+	// Transform linear RGB into Oklab's LMS intermediate space.
 	l_ := 0.4122214708*lr + 0.5363325363*lg + 0.0514459929*lb
 	m_ := 0.2119034982*lr + 0.6806995451*lg + 0.1073969566*lb
 	s_ := 0.0883024619*lr + 0.2817188376*lg + 0.6299787005*lb
@@ -55,12 +43,12 @@ func (c Color) ToOKLCH() OKLCH {
 	m := math.Cbrt(m_)
 	s := math.Cbrt(s_)
 
-	// LMS → Oklab.
+	// Transform cube-root LMS into Cartesian Oklab.
 	L := 0.2104542553*l + 0.7936177850*m - 0.0040720468*s
 	a := 1.9779984951*l - 2.4285922050*m + 0.4505937099*s
 	b := 0.0259040371*l + 0.7827717662*m - 0.8086757660*s
 
-	// Oklab → OKLCH (polar form).
+	// Convert Cartesian Oklab to polar chroma and hue.
 	C := math.Sqrt(a*a + b*b)
 	H := math.Atan2(b, a) * (180.0 / math.Pi)
 	if H < 0 {
@@ -69,9 +57,8 @@ func (c Color) ToOKLCH() OKLCH {
 	return OKLCH{L: L, C: C, H: H}
 }
 
-// linearRGB returns the (unclamped) linear-RGB triple for this OKLCH.
-// Callers that need to stay in-gamut should use ToColor, which clips
-// chroma to fit.
+// linearRGB returns o as unclamped linear RGB. Use ToColor when the result must
+// fit within sRGB.
 func (o OKLCH) linearRGB() (lr, lg, lb float64) {
 	rad := o.H * (math.Pi / 180.0)
 	a := o.C * math.Cos(rad)
@@ -91,25 +78,17 @@ func (o OKLCH) linearRGB() (lr, lg, lb float64) {
 	return
 }
 
-// inGamut reports whether the given linear-RGB triple lies within [0, 1].
+// inGamut reports whether all three linear RGB channels lie in [0, 1].
 func inGamut(lr, lg, lb float64) bool {
 	return lr >= 0 && lr <= 1 && lg >= 0 && lg <= 1 && lb >= 0 && lb <= 1
 }
 
-// gamutEpsilon is the tolerance used by Fit before triggering chroma
-// reduction. Round-tripping a saturated sRGB color (e.g. #ff0000)
-// produces values that overshoot [0, 1] by ~1e-7 due to FP error in
-// the Oklab matrices; treating those as "in gamut" avoids desaturating
-// on a no-op round trip. The downstream ToColor path still clamps each
-// channel to [0, 255] via clampU8F, so the emitted color is exactly
-// the input.
+// gamutEpsilon tolerates small matrix round-trip errors at the sRGB boundary so
+// an in-gamut source color is not needlessly desaturated.
 const gamutEpsilon = 1e-5
 
-// Fit clamps L into [0, 1], nudges C to be non-negative, normalises H,
-// and iteratively reduces chroma until the color is representable in
-// sRGB. This is the "fit" strategy used by the CSS Colors Module Level 4
-// when converting wide-gamut OKLCH to sRGB: preserve hue, preserve
-// lightness, sacrifice chroma.
+// Fit normalizes o and reduces chroma until it fits in sRGB. It preserves hue
+// and clamped lightness while fitting.
 func (o OKLCH) Fit() OKLCH {
 	base := OKLCH{
 		L: clamp64(o.L, 0, 1),
@@ -119,9 +98,7 @@ func (o OKLCH) Fit() OKLCH {
 	if lr, lg, lb := base.linearRGB(); inGamutEps(lr, lg, lb, gamutEpsilon) {
 		return base
 	}
-	// Geometric falloff: multiply chroma by 0.9 per iteration until the
-	// color fits. 24 iterations reduces chroma to ~8% of the original,
-	// which is ample for anything sane.
+	// Reduce chroma geometrically for at most 24 attempts, then fall back to gray.
 	c := base.C
 	for i := 0; i < 24; i++ {
 		c *= 0.9
@@ -134,19 +111,14 @@ func (o OKLCH) Fit() OKLCH {
 	return OKLCH{L: base.L, C: 0, H: base.H}
 }
 
-// inGamutEps is inGamut with a small tolerance for floating-point
-// overshoot at the sRGB gamut boundary. The downstream ToColor clamps
-// channels to [0, 255] regardless, so treating (-1e-7, 1+1e-7) as
-// "in gamut" is safe and avoids spurious chroma reduction.
+// inGamutEps applies a floating-point tolerance to the sRGB gamut boundary.
 func inGamutEps(lr, lg, lb, eps float64) bool {
 	return lr >= -eps && lr <= 1+eps &&
 		lg >= -eps && lg <= 1+eps &&
 		lb >= -eps && lb <= 1+eps
 }
 
-// ToColor converts OKLCH back to sRGB, reducing chroma as needed to
-// stay within gamut. Alpha is always 255; callers needing translucency
-// should wrap with WithAlpha.
+// ToColor converts o to an opaque sRGB color after fitting it to the gamut.
 func (o OKLCH) ToColor() Color {
 	fit := o.Fit()
 	lr, lg, lb := fit.linearRGB()
@@ -158,27 +130,26 @@ func (o OKLCH) ToColor() Color {
 	}
 }
 
-// --- Perceptual transforms -------------------------------------------------
-
-// Lighten shifts L by amount (clamped to [0, 1]) and returns the result
-// as an sRGB Color. Positive amounts brighten; negative amounts darken.
+// Lighten adds amount to OKLCH lightness and returns an opaque sRGB color.
+// Positive amounts brighten and negative amounts darken.
 func (c Color) Lighten(amount float64) Color {
 	o := c.ToOKLCH()
 	o.L = clamp64(o.L+amount, 0, 1)
 	return o.ToColor()
 }
 
-// Darken is the inverse of Lighten.
+// Darken subtracts amount from OKLCH lightness.
 func (c Color) Darken(amount float64) Color { return c.Lighten(-amount) }
 
-// ShiftHue rotates H by delta degrees and returns the result.
+// ShiftHue rotates c's OKLCH hue by delta degrees and returns an opaque color.
 func (c Color) ShiftHue(delta float64) Color {
 	o := c.ToOKLCH()
 	o.H = hueNorm(o.H + delta)
 	return o.ToColor()
 }
 
-// ScaleChroma multiplies C by factor (saturate if >1, desaturate if <1).
+// ScaleChroma multiplies c's OKLCH chroma by factor. Negative results clamp to
+// zero.
 func (c Color) ScaleChroma(factor float64) Color {
 	o := c.ToOKLCH()
 	o.C *= factor
@@ -188,14 +159,12 @@ func (c Color) ScaleChroma(factor float64) Color {
 	return o.ToColor()
 }
 
-// MixPerceptual blends two colors in OKLCH with t=0 → a, t=1 → b. Hue
-// takes the shorter arc (i.e. blue↔red goes via magenta, not via green).
-// This is the perceptual analog of Color.Blend, which interpolates in
-// sRGB and can produce muddy midpoints.
+// MixPerceptual interpolates a and b in OKLCH, following the shorter hue arc.
+// t=0 selects a and t=1 selects b; output alpha is always opaque.
 func MixPerceptual(a, b Color, t float64) Color {
 	oa := a.ToOKLCH()
 	ob := b.ToOKLCH()
-	// Shortest-arc hue interpolation.
+	// Normalize the hue delta to [-180, 180).
 	delta := math.Mod(math.Mod(ob.H-oa.H, 360)+540, 360) - 180
 	return OKLCH{
 		L: oa.L + (ob.L-oa.L)*t,
@@ -204,21 +173,16 @@ func MixPerceptual(a, b Color, t float64) Color {
 	}.ToColor()
 }
 
-// --- Scale generation ------------------------------------------------------
-
-// GenerateScale builds a 12-step tonal ramp keyed on seed, tuned for
-// either dark or light themes. The ramp is indexed 0..11:
+// GenerateScale returns a 12-step tonal ramp in seed's hue family. The dark
+// flag selects a dark or light theme progression. Indices have these roles:
 //
-//	0..2   near-bg tints (panel backgrounds, subtle fills)
-//	3..5   weak fills / low-contrast dividers
-//	6..7   borders, weak text
-//	8..10  the seed's own family (primary use)
-//	11     highest-contrast — approaches the theme's fg
+//	0..2   low-contrast background tints
+//	3..5   fills and subtle dividers
+//	6..7   borders and weak text
+//	8..10  prominent seed-family colors
+//	11     highest-contrast endpoint
 //
-// Lightness and chroma curves are hand-tuned to produce perceptually
-// even steps across the ramp — the low end stays close to bg, the
-// high end approaches fg, and the middle has enough chroma for
-// distinct selection/focus tints. Hue is kept constant.
+// The lightness and chroma curves are fixed; hue remains constant.
 func GenerateScale(seed Color, dark bool) [12]Color {
 	base := seed.ToOKLCH()
 
@@ -263,16 +227,10 @@ func GenerateScale(seed Color, dark bool) [12]Color {
 	return scale
 }
 
-// GenerateNeutralScale builds a 12-step ramp bridging bg and ink.
+// GenerateNeutralScale returns a 12-step ramp derived from seed.
 //
-// When ink is zero, the ramp is derived from seed alone with a muted
-// chroma — useful for themes that want a single hue to inform the
-// whole neutral axis without committing to a specific fg color.
-//
-// When ink is non-zero, the ramp interpolates perceptually between a
-// seed-derived bg and ink. This produces the cleanest canvas-to-
-// foreground gradient and is what authors typically want when they
-// care about the exact body text color.
+// A transparent ink produces a muted, seed-hued neutral ramp. An opaque ink
+// produces a perceptual interpolation from a seed-derived background to ink.
 func GenerateNeutralScale(seed Color, dark bool, ink Color) [12]Color {
 	if ink.A != 0 {
 		base := seed.ToOKLCH()
@@ -296,8 +254,7 @@ func GenerateNeutralScale(seed Color, dark bool, ink Color) [12]Color {
 			}.ToColor()
 		}
 
-		// Derive a bg color from the seed. Dark: sink toward black with
-		// a chroma/lightness-dependent amount. Light: lift toward white.
+		// Derive the background by moving the seed toward black or white.
 		var bg Color
 		if dark {
 			tone := clamp64(0.19+math.Max(0, base.L-0.12)*0.33+base.C*1.95, 0.17, 0.27)
@@ -323,7 +280,7 @@ func GenerateNeutralScale(seed Color, dark bool, ink Color) [12]Color {
 		return out
 	}
 
-	// Seed-only neutral: muted chroma ramp keyed on seed's hue.
+	// Without ink, retain seed's hue but cap chroma for neutral surfaces.
 	base := seed.ToOKLCH()
 	maxChroma := 0.04
 	if dark {
@@ -352,8 +309,6 @@ func GenerateNeutralScale(seed Color, dark bool, ink Color) [12]Color {
 	}
 	return scale
 }
-
-// --- Small utilities -------------------------------------------------------
 
 func clamp64(v, lo, hi float64) float64 {
 	if v < lo {

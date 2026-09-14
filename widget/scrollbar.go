@@ -8,7 +8,7 @@ import (
 	"github.com/unaquatic/fluid/symbol"
 )
 
-// ScrollBarOrientation determines whether the scrollbar is vertical or horizontal.
+// ScrollBarOrientation identifies the axis represented by a ScrollBar.
 type ScrollBarOrientation int
 
 const (
@@ -33,16 +33,15 @@ type ScrollBar struct {
 	trackColor style.Color
 	thumbColor style.Color
 
-	// OnChange is called when the scroll position changes (e.g. from
-	// mouse interaction on the scrollbar — not yet implemented, but
-	// the callback is ready for future use).
+	// OnChange is reserved for interactive position changes. ScrollBar does not
+	// currently implement pointer interaction, so it does not call this callback.
 	OnChange func(position int)
 }
 
 // ScrollBarOption configures a ScrollBar.
 type ScrollBarOption func(*ScrollBar)
 
-// NewScrollBar creates a ScrollBar widget.
+// NewScrollBar returns a vertical ScrollBar unless an option changes its orientation.
 func NewScrollBar(opts ...ScrollBarOption) *ScrollBar {
 	sb := &ScrollBar{
 		BaseRenderable: render.NewBaseRenderable(),
@@ -51,14 +50,14 @@ func NewScrollBar(opts ...ScrollBarOption) *ScrollBar {
 		thumbColor:     style.ColorFromInts(100, 100, 100, 255),
 	}
 
-	// Default: 1 cell wide for vertical, 1 cell tall for horizontal.
+	// A vertical scrollbar reserves one column by default.
 	sb.LayoutNode().Width = layout.Points(1)
 
 	for _, opt := range opts {
 		opt(sb)
 	}
 
-	// Adjust default sizing based on orientation.
+	// A horizontal scrollbar reserves one row and leaves its width automatic.
 	if sb.orientation == ScrollBarHorizontal {
 		sb.LayoutNode().Width = layout.Scalar{} // auto
 		sb.LayoutNode().Height = layout.Points(1)
@@ -67,11 +66,9 @@ func NewScrollBar(opts ...ScrollBarOption) *ScrollBar {
 	return sb
 }
 
-// ---------------------------------------------------------------------------
-// State setters/getters
-// ---------------------------------------------------------------------------
+// Scroll state.
 
-// SetScrollState sets all three values at once (avoids multiple redraws).
+// SetScrollState updates the content size, viewport size, and clamped position in one render request.
 func (sb *ScrollBar) SetScrollState(scrollSize, viewportSize, scrollPosition int) {
 	sb.scrollSize = scrollSize
 	sb.viewportSize = viewportSize
@@ -111,7 +108,7 @@ func (sb *ScrollBar) SetViewportSize(v int) {
 // ScrollPosition returns the current scroll offset.
 func (sb *ScrollBar) ScrollPosition() int { return sb.scrollPosition }
 
-// SetScrollPosition sets the current scroll offset (clamped).
+// SetScrollPosition sets the current scroll offset, clamped to the scrollable range.
 func (sb *ScrollBar) SetScrollPosition(v int) {
 	v = clampScrollPosition(v, sb.scrollSize, sb.viewportSize)
 	if sb.scrollPosition == v {
@@ -121,9 +118,7 @@ func (sb *ScrollBar) SetScrollPosition(v int) {
 	sb.RequestRender()
 }
 
-// ---------------------------------------------------------------------------
-// Rendering
-// ---------------------------------------------------------------------------
+// ScrollBar rendering.
 
 // RenderSelf draws the track and thumb.
 func (sb *ScrollBar) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
@@ -146,7 +141,7 @@ func (sb *ScrollBar) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 func (sb *ScrollBar) renderVertical(buf *buffer.Buffer, x, y, w, h int) {
 	barX := x + w - 1
 
-	// Draw track
+	// Paint the last column as the track.
 	for row := range h {
 		buf.SetCell(barX, y+row, ' ', sb.trackColor, sb.trackColor, 0)
 	}
@@ -177,7 +172,7 @@ func (sb *ScrollBar) renderVertical(buf *buffer.Buffer, x, y, w, h int) {
 func (sb *ScrollBar) renderHorizontal(buf *buffer.Buffer, x, y, w, h int) {
 	barY := y + h - 1
 
-	// Draw track
+	// Paint the last row as the track.
 	for col := range w {
 		buf.SetCell(x+col, barY, ' ', sb.trackColor, sb.trackColor, 0)
 	}
@@ -205,12 +200,8 @@ func (sb *ScrollBar) renderHorizontal(buf *buffer.Buffer, x, y, w, h int) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Internal
-// ---------------------------------------------------------------------------
-
 func (sb *ScrollBar) updateVisibility() {
-	// Auto-hide when content fits in viewport.
+	// Hide the bar when the entire content fits in the viewport.
 	sb.SetVisible(sb.scrollSize > sb.viewportSize)
 }
 
@@ -228,9 +219,7 @@ func clampScrollPosition(pos, scrollSize, viewportSize int) int {
 	return pos
 }
 
-// ---------------------------------------------------------------------------
-// Options
-// ---------------------------------------------------------------------------
+// ScrollBar options.
 
 // ScrollBarWithOrientation sets the scrollbar orientation.
 func ScrollBarWithOrientation(o ScrollBarOrientation) ScrollBarOption {
@@ -252,22 +241,15 @@ func ScrollBarWithID(id string) ScrollBarOption {
 	return func(sb *ScrollBar) { sb.SetID(id) }
 }
 
-// ScrollBarWithOnChange sets the change callback.
+// ScrollBarWithOnChange sets the callback reserved for interactive position changes.
 func ScrollBarWithOnChange(fn func(int)) ScrollBarOption {
 	return func(sb *ScrollBar) { sb.OnChange = fn }
 }
 
-// ---------------------------------------------------------------------------
-// Convenience: bind a ScrollBar to a ScrollBox
-// ---------------------------------------------------------------------------
-
-// BindScrollBar connects a vertical ScrollBar to a ScrollBox so the
-// scrollbar automatically reflects the ScrollBox's scroll state.
-// Call this after creating both widgets. It installs a RenderAfterHook
-// on the ScrollBox that syncs on every frame.
+// BindScrollBar keeps scrollBar synchronized with scrollBox's vertical state.
+// It installs a hook on scrollBox that updates scrollBar after every render.
 func BindScrollBar(scrollBox *ScrollBox, scrollBar *ScrollBar) {
-	// Ensure the ScrollBox uses basis=0 so the ScrollBar sibling gets
-	// its 1-cell width in a row layout instead of being squeezed out.
+	// Reserve room for the one-column scrollbar in a row layout.
 	scrollBox.LayoutNode().FlexBasis = layout.Points(0)
 
 	scrollBox.RenderAfterHook = func(_ *buffer.Buffer, _ float64) {

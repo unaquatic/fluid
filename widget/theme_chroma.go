@@ -7,44 +7,37 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// ChromaStyleFromTheme builds a *chroma.Style whose colors come from the
-// given Theme's CodePalette. The result can be plugged into a
-// ChromaHighlighter via NewChromaHighlighterWithStyle so syntax
-// highlighting stays in harmony with the rest of the UI palette.
+// ChromaStyleFromTheme returns a Chroma style derived from t's code palette.
+// Use the result with NewChromaHighlighterWithStyle to keep syntax colors
+// consistent with the rest of the UI theme.
 //
-// When a CodePalette field is unset (zero-alpha Color), a sensible parent
-// role is used (see the OrInherit calls below). That way callers can
-// specify just a handful of roles and still get full coverage.
+// Unset code colors inherit from related theme roles, so a partially specified
+// code palette still produces a complete syntax style.
 //
-// Chroma's inheritance tree means we only need to paint ~15 top-level
-// token types; the library propagates them to every child (e.g.
-// KeywordDeclaration inherits from Keyword, LiteralStringDouble from
-// LiteralString, CommentMultiline from Comment, etc.).
+// Chroma propagates these entries through its token hierarchy. For example,
+// KeywordDeclaration inherits Keyword and LiteralStringDouble inherits LiteralString.
 func ChromaStyleFromTheme(t *style.Theme) *chroma.Style {
 	c := t.Code
 
 	variable := c.Variable.Or(style.Entry{Fg: t.TextStrong})
 
 	entries := chroma.StyleEntries{
-		// Base — sets the fallback fg/bg for tokens that don't inherit
-		// a more specific color. The Background entry's bg feeds into
-		// what Chroma reports as the theme bg, but we also override
-		// per-token bg to t.CodeBg in resolveTokenStyle, so this is
-		// mostly cosmetic.
+		// Base entries provide fallbacks for tokens without a more specific style.
+		// resolveTokenStyle still applies t.CodeBg as each token's background.
 		chroma.Background: spec(variable.WithBg(t.CodeBg)),
 		chroma.Text:       spec(variable),
 		chroma.Other:      spec(variable),
 
-		// Errors — leaf token types, no inheritance subtree.
+		// Error is a leaf token type.
 		chroma.Error: spec(c.Error),
 
-		// Keywords — all KeywordXxx inherit from Keyword.
+		// Specific keyword token types inherit Keyword unless overridden here.
 		chroma.Keyword:         spec(c.Keyword),
 		chroma.KeywordConstant: spec(c.Constant),
 		chroma.KeywordType:     spec(c.Type),
 		chroma.KeywordPseudo:   spec(c.Primitive.Or(c.Constant)),
 
-		// Names — Name is the parent of most identifiers.
+		// Name is the parent style for most identifiers.
 		chroma.Name:                 spec(variable),
 		chroma.NameBuiltin:          spec(c.Builtin),
 		chroma.NameBuiltinPseudo:    spec(c.Builtin),
@@ -64,7 +57,7 @@ func ChromaStyleFromTheme(t *style.Theme) *chroma.Style {
 		chroma.NameVariableGlobal:   spec(variable),
 		chroma.NameVariableInstance: spec(variable),
 
-		// Literals — String and Number have deep subtrees that inherit.
+		// String and Number styles propagate to their literal subtypes.
 		chroma.LiteralString:       spec(c.String),
 		chroma.LiteralStringEscape: spec(c.StringEscape.Or(c.Number)),
 		chroma.LiteralStringRegex:  spec(c.Regex.Or(c.String)),
@@ -82,7 +75,7 @@ func ChromaStyleFromTheme(t *style.Theme) *chroma.Style {
 		chroma.Comment:        spec(c.Comment),
 		chroma.CommentPreproc: spec(c.Preproc.Or(c.Comment)),
 
-		// Generic (mostly diff output and markdown-as-code)
+		// Generic token types primarily style diff and Markdown-like source.
 		chroma.GenericInserted:  spec(c.DiffAdded.Or(style.Entry{Fg: t.Success})),
 		chroma.GenericDeleted:   spec(c.DiffRemoved.Or(style.Entry{Fg: t.Danger})),
 		chroma.GenericEmph:      spec(t.ResolveMarkdownEmph()),
@@ -94,27 +87,21 @@ func ChromaStyleFromTheme(t *style.Theme) *chroma.Style {
 		chroma.GenericTraceback: spec(c.Error),
 	}
 
-	// chroma.MustNewStyle panics on parse errors; because all inputs are
-	// hex-from-color (well-formed) or fixed literals, this won't happen
-	// in practice.
+	// Every specification below is generated from a Color or fixed keyword,
+	// so MustNewStyle cannot receive malformed style syntax.
 	return chroma.MustNewStyle("fluid-theme", entries)
 }
 
-// NewChromaHighlighterWithStyle returns a ChromaHighlighter that uses the
-// given pre-built chroma.Style, bypassing the name-based theme lookup.
-// Used when deriving a syntax style from a Theme palette.
+// NewChromaHighlighterWithStyle returns a highlighter that uses s directly
+// instead of resolving a Chroma theme by name.
 func NewChromaHighlighterWithStyle(s *chroma.Style) *ChromaHighlighter {
 	h := &ChromaHighlighter{theme: "fluid-theme"}
 	h.chromaStyle = s
 	return h
 }
 
-// ---------------------------------------------------------------------------
-// helpers
-// ---------------------------------------------------------------------------
-
-// spec renders an Entry in the space-separated word format Chroma's
-// StyleEntries parser expects, e.g. `#cc7832 bg:#1c1c1c bold`. Unset
+// spec formats an Entry for Chroma's StyleEntries parser, for example
+// `#cc7832 bg:#1c1c1c bold`. Unset
 // colors are omitted so Chroma's own inheritance fills them in.
 func spec(e style.Entry) string {
 	var parts []string

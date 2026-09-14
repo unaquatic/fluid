@@ -2,9 +2,8 @@ package textbuf
 
 import "testing"
 
-// allTables lists every range table consulted by inRange. inRange is a binary
-// search, so an unsorted table silently returns wrong answers for the entries
-// that follow the misplaced one.
+// allTables lists every interval table that requires sorted order for binary
+// search.
 var allTables = map[string][]urange{
 	"zeroWidthExtra":   zeroWidthExtra,
 	"wideRanges":       wideRanges,
@@ -42,8 +41,7 @@ func TestInRangeMatchesLinearScan(t *testing.T) {
 
 	for name, table := range allTables {
 		t.Run(name, func(t *testing.T) {
-			// Probe each boundary and its neighbours: a binary search that
-			// disagrees with a linear scan does so at a range edge.
+			// Compare binary and linear lookup at each interval boundary and neighbor.
 			for _, rg := range table {
 				for _, r := range []rune{rg[0] - 1, rg[0], rg[1], rg[1] + 1} {
 					if got, want := inRange(r, table), linear(r, table); got != want {
@@ -56,7 +54,7 @@ func TestInRangeMatchesLinearScan(t *testing.T) {
 }
 
 func TestRuneWidthZeroWidthExtra(t *testing.T) {
-	// Regression: these resolved to width 1 while zeroWidthExtra was unsorted.
+	// These code points depend on zeroWidthExtra remaining sorted.
 	zero := []rune{
 		0x1160, // Hangul Jungseong Filler
 		0x11FF, // Hangul Jongseong Ssangnieun

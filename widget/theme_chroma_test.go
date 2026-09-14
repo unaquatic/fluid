@@ -9,8 +9,7 @@ import (
 
 func TestChromaStyleFromTheme_CorePaletteMapsToTokens(t *testing.T) {
 	th := style.DefaultDark()
-	// DefaultDark populates Code; make every role unique so we can
-	// assert the exact field each token type uses.
+	// Unique role colors reveal exactly which fallback each token uses.
 	th.Code.Keyword = style.Entry{Fg: style.ColorFromInts(10, 10, 10, 255)}
 	th.Code.Type = style.Entry{Fg: style.ColorFromInts(20, 20, 20, 255)}
 	th.Code.Function = style.Entry{Fg: style.ColorFromInts(30, 30, 30, 255)}
@@ -67,8 +66,7 @@ func TestChromaStyleFromTheme_CommentItalicFromAttrs(t *testing.T) {
 }
 
 func TestChromaStyleFromTheme_InheritanceFallbacks(t *testing.T) {
-	// Leave DiffAdded / DiffRemoved / Tag / Attribute / Preproc /
-	// StringEscape zero to verify they fall back to parent roles.
+	// Leave selected roles unset to exercise their documented fallbacks.
 	th := style.DefaultDark()
 	th.Code.DiffAdded = style.Entry{}
 	th.Code.DiffRemoved = style.Entry{}
@@ -106,14 +104,8 @@ func TestChromaStyleFromTheme_InheritanceFallbacks(t *testing.T) {
 }
 
 func TestChromaHighlighter_SvelteErrorTokenRendersAsPlainText(t *testing.T) {
-	// Chroma's Svelte lexer (github.com/alecthomas/chroma v2.23.1) emits
-	// chroma.Error for the '>' that closes an opening tag containing a
-	// template expression (e.g. `<button on:click={() => count++}>`).
-	// The renderer must neutralise Error tokens so malformed-looking
-	// highlighting (underline, etc.) doesn't leak into well-formed source.
-	//
-	// Build a highlighter whose style actively marks chroma.Error with
-	// bold+underline so we can observe the neutralisation working.
+	// Chroma's Svelte lexer can classify valid template syntax as Error.
+	// Give Error a unique bold-underlined style so neutralization is observable.
 	defaultFg := style.ColorFromInts(200, 200, 200, 255)
 	defaultBg := style.ColorFromInts(30, 30, 30, 255)
 	th := style.DefaultDark()
@@ -129,8 +121,7 @@ func TestChromaHighlighter_SvelteErrorTokenRendersAsPlainText(t *testing.T) {
 		t.Fatal("Highlight returned no lines")
 	}
 
-	// Walk every span on every line; none may carry the Error signature
-	// (bold+underline together is unique to Code.Error in this theme).
+	// No output span may retain the unique Error attribute combination.
 	errMask := style.AttrBold | style.AttrUnderline
 	for y, line := range lines {
 		for x, sp := range line.Spans {

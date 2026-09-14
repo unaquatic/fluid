@@ -31,8 +31,6 @@ func TestStyleFrom(t *testing.T) {
 	}
 }
 
-// --- Builder chain tests ---
-
 func TestStyleBold(t *testing.T) {
 	s := NewStyle().Bold()
 	if !HasAttribute(s.Attributes, AttrBold) {
@@ -115,8 +113,6 @@ func TestStyleWithAttrs(t *testing.T) {
 	}
 }
 
-// --- Immutability test ---
-
 func TestStyleImmutability(t *testing.T) {
 	s1 := NewStyle()
 	s2 := s1.Bold()
@@ -127,8 +123,6 @@ func TestStyleImmutability(t *testing.T) {
 		t.Error("new style should have Bold")
 	}
 }
-
-// --- Merge tests ---
 
 func TestStyleMerge_FgOverride(t *testing.T) {
 	base := NewStyle().WithFg(ColorWhite)
@@ -169,8 +163,6 @@ func TestStyleMerge_AttributesCombine(t *testing.T) {
 	}
 }
 
-// --- Equals tests ---
-
 func TestStyleEquals_Same(t *testing.T) {
 	s1 := NewStyle().Bold().WithFg(ColorRed)
 	s2 := NewStyle().Bold().WithFg(ColorRed)
@@ -186,8 +178,6 @@ func TestStyleEquals_Different(t *testing.T) {
 		t.Error("different styles should not be equal")
 	}
 }
-
-// --- ANSI helper tests ---
 
 func TestAttrsANSI_None(t *testing.T) {
 	result := AttrsANSI(AttrNone)

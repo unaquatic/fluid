@@ -10,12 +10,9 @@ import (
 	"github.com/unaquatic/fluid/widget"
 )
 
-// ---------------------------------------------------------------------------
-// Box with border -> correct characters at edges
-// ---------------------------------------------------------------------------
+// Border rendering.
 
-// TestBox_SingleBorder verifies that a Box with a single border renders
-// correct box-drawing characters at the corners and edges.
+// TestBox_SingleBorder verifies the characters used for each border position.
 func TestBox_SingleBorder(t *testing.T) {
 	box := widget.NewBox(
 		widget.BoxWithBorder(style.BorderAll()),
@@ -23,18 +20,18 @@ func TestBox_SingleBorder(t *testing.T) {
 	)
 	buf := testutil.RenderWidget(box, 5, 3)
 
-	// Corners
+	// Check all four corners independently.
 	testutil.AssertCell(t, buf, 0, 0, '┌') // top-left
 	testutil.AssertCell(t, buf, 4, 0, '┐') // top-right
 	testutil.AssertCell(t, buf, 0, 2, '└') // bottom-left
 	testutil.AssertCell(t, buf, 4, 2, '┘') // bottom-right
 
-	// Horizontal edges
+	// Check a non-corner cell on each horizontal edge.
 	testutil.AssertCell(t, buf, 1, 0, '─')
 	testutil.AssertCell(t, buf, 2, 0, '─')
 	testutil.AssertCell(t, buf, 3, 0, '─')
 
-	// Vertical edges
+	// Check a non-corner cell on each vertical edge.
 	testutil.AssertCell(t, buf, 0, 1, '│')
 	testutil.AssertCell(t, buf, 4, 1, '│')
 }
@@ -62,7 +59,7 @@ func TestBox_BackgroundFill(t *testing.T) {
 	)
 	buf := testutil.RenderWidget(box, 5, 3)
 
-	// Interior cells (1,1) to (3,1) should have red bg
+	// The border encloses three red background cells.
 	for x := 1; x <= 3; x++ {
 		cell := buf.Cell(x, 1)
 		if !cell.Bg.Equals(style.ColorRed) {
@@ -71,8 +68,7 @@ func TestBox_BackgroundFill(t *testing.T) {
 	}
 }
 
-// TestBox_NoBorder_BackgroundFillsAll verifies that without border,
-// background fills the entire area.
+// TestBox_NoBorder_BackgroundFillsAll verifies that an unbordered fill covers every cell.
 func TestBox_NoBorder_BackgroundFillsAll(t *testing.T) {
 	box := widget.NewBox(
 		widget.BoxWithBackgroundColor(style.ColorBlue),
@@ -90,12 +86,9 @@ func TestBox_NoBorder_BackgroundFillsAll(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Box + children layout positioning
-// ---------------------------------------------------------------------------
+// Child layout.
 
-// TestBox_ChildTextPositioning verifies that a Text widget inside a Box
-// renders at the correct position based on layout.
+// TestBox_ChildTextPositioning verifies that layout places child text in its parent.
 func TestBox_ChildTextPositioning(t *testing.T) {
 	box := widget.NewBox(
 		widget.BoxWithWidth(layout.Points(20)),
@@ -117,8 +110,7 @@ func TestBox_ChildTextPositioning(t *testing.T) {
 	testutil.AssertRow(t, buf, 0, "Hello")
 }
 
-// TestBox_MultipleChildrenStack verifies that multiple Text children in a
-// column-direction Box render on successive rows.
+// TestBox_MultipleChildrenStack verifies that a column Box stacks text children.
 func TestBox_MultipleChildrenStack(t *testing.T) {
 	box := widget.NewBox(
 		widget.BoxWithWidth(layout.Points(10)),
@@ -155,8 +147,7 @@ func TestBox_MultipleChildrenStack(t *testing.T) {
 	testutil.AssertRow(t, buf, 2, "Third")
 }
 
-// TestBox_RowDirection verifies children in a row-direction Box render
-// side by side horizontally.
+// TestBox_RowDirection verifies that a row Box places children side by side.
 func TestBox_RowDirection(t *testing.T) {
 	box := widget.NewBox(
 		widget.BoxWithWidth(layout.Points(10)),
@@ -188,9 +179,7 @@ func TestBox_RowDirection(t *testing.T) {
 	testutil.AssertCell(t, buf, 3, 0, 'D')
 }
 
-// TestBox_BorderWithChild verifies that a child renders inside the border area.
-// Note: Box borders are purely visual — you must set padding to offset children
-// from the style. This test uses padding(1) to match the 1-cell-wide style.
+// TestBox_BorderWithChild verifies that border padding keeps child content inside the border.
 func TestBox_BorderWithChild(t *testing.T) {
 	box := widget.NewBox(
 		widget.BoxWithWidth(layout.Points(12)),
@@ -212,11 +201,11 @@ func TestBox_BorderWithChild(t *testing.T) {
 	box.RenderSelf(buf, 0)
 	txt.RenderSelf(buf, 0)
 
-	// Border characters
+	// The surrounding border must remain intact.
 	testutil.AssertCell(t, buf, 0, 0, '┌')
 	testutil.AssertCell(t, buf, 11, 0, '┐')
 
-	// Text should be inside the border at y=1, starting at x=1
+	// One cell of border padding places text at (1,1).
 	testutil.AssertCell(t, buf, 1, 1, 'i')
 	testutil.AssertCell(t, buf, 2, 1, 'n')
 	testutil.AssertCell(t, buf, 3, 1, 'n')
@@ -244,13 +233,13 @@ func TestBox_PaddingOffsetsChild(t *testing.T) {
 	box.RenderSelf(buf, 0)
 	txt.RenderSelf(buf, 0)
 
-	// Nothing at (0,0) — that's the padding area
+	// Padding leaves the first cell empty.
 	cell00 := buf.Cell(0, 0)
 	if cell00.Char == 'p' {
 		t.Error("text should not render at (0,0) with 1px padding")
 	}
 
-	// Text should start at (1,1) due to padding
+	// Content starts after one cell of padding on each axis.
 	testutil.AssertCell(t, buf, 1, 1, 'p')
 	testutil.AssertCell(t, buf, 2, 1, 'a')
 }
@@ -263,11 +252,11 @@ func TestBox_FlexGrow(t *testing.T) {
 		widget.BoxWithFlexDirection(layout.DirectionColumn),
 	)
 
-	// Fixed height child
+	// The first child reserves one row.
 	fixed := widget.NewText("F",
 		widget.TextWithHeight(layout.Points(1)),
 	)
-	// Flex-grow child
+	// The second child receives the remaining rows.
 	grow := widget.NewText("G",
 		widget.TextWithFlexGrow(1),
 	)
@@ -276,7 +265,7 @@ func TestBox_FlexGrow(t *testing.T) {
 
 	testutil.SetupWidgetTree(box, 10, 3, fixed, grow)
 
-	// Fixed should get 1 row, grow should get 2 rows
+	// The three-row parent allocates one fixed row and two flexible rows.
 	if fixed.Height() != 1 {
 		t.Errorf("fixed height: expected 1, got %d", fixed.Height())
 	}
@@ -285,9 +274,7 @@ func TestBox_FlexGrow(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Nested boxes
-// ---------------------------------------------------------------------------
+// Nested boxes.
 
 // TestBox_NestedBoxes verifies correct rendering with nested boxes.
 func TestBox_NestedBoxes(t *testing.T) {
@@ -316,19 +303,19 @@ func TestBox_NestedBoxes(t *testing.T) {
 	header.RenderSelf(buf, 0)
 	body.RenderSelf(buf, 0)
 
-	// Header row (y=0) should have red bg
+	// The fixed header occupies the first row.
 	c0 := buf.Cell(0, 0)
 	if !c0.Bg.Equals(style.ColorRed) {
 		t.Errorf("header bg: expected red, got %v", c0.Bg)
 	}
 
-	// Body area (y=1..4) should have blue bg
+	// The flexible body fills the remaining four rows.
 	c1 := buf.Cell(0, 1)
 	if !c1.Bg.Equals(style.ColorBlue) {
 		t.Errorf("body bg: expected blue, got %v", c1.Bg)
 	}
 
-	// Header = 1 row, body = 4 rows (flex grow fills remaining)
+	// Computed heights match the fixed and remaining allocations.
 	if header.Height() != 1 {
 		t.Errorf("header height: expected 1, got %d", header.Height())
 	}

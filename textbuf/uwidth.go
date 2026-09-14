@@ -2,38 +2,34 @@ package textbuf
 
 import "unicode/utf8"
 
-// RuneWidth returns the display width of a rune (0, 1, or 2).
+// RuneWidth returns r's terminal width as zero, one, or two columns.
 //
-// Zero-width characters (control codes, combining marks, ZWJ, variation
-// selectors, etc.) return 0. East Asian Wide and Fullwidth characters
-// return 2. All others return 1.
+// Controls, combining marks, format characters, and variation selectors have
+// zero width. East Asian Wide and Fullwidth runes have width two. Other runes
+// have width one.
 func RuneWidth(r rune) int {
-	// C0 control characters (including NUL)
+	// C0 controls, including NUL, have no display width.
 	if r < 0x20 {
 		return 0
 	}
-	// ASCII printable — fast path for the overwhelmingly common case
+	// Handle printable ASCII without table lookup.
 	if r < 0x7F {
 		return 1
 	}
-	// DEL + C1 control characters
+	// DEL and C1 controls have no display width.
 	if r <= 0x9F {
 		return 0
 	}
-	// Zero-width characters (combining marks, format chars, etc.)
 	if isZeroWidth(r) {
 		return 0
 	}
-	// East Asian Wide / Fullwidth
 	if isWide(r) {
 		return 2
 	}
 	return 1
 }
 
-// StringWidth returns the display width of s using grapheme-cluster-aware
-// width calculation (UAX #29). Handles ZWJ sequences, skin tone modifiers,
-// flag pairs, combining marks, variation selectors, etc.
+// StringWidth returns s's terminal width after UAX #29 grapheme segmentation.
 func StringWidth(s string) int {
 	w := 0
 	for len(s) > 0 {
@@ -44,8 +40,8 @@ func StringWidth(s string) int {
 	return w
 }
 
-// NextGraphemeCluster extracts the first grapheme cluster from s.
-// Returns (cluster, rest, clusterWidth).
+// NextGraphemeCluster returns s's first grapheme cluster, remaining text, and
+// cluster display width.
 func NextGraphemeCluster(s string) (cluster, rest string, width int) {
 	if s == "" {
 		return "", "", 0
@@ -68,16 +64,13 @@ func GraphemeClusterCount(s string) int {
 	return n
 }
 
-// graphemeClusterWidth returns the display width of a single grapheme cluster.
+// graphemeClusterWidth returns one grapheme cluster's terminal width.
 //
-// Width rules:
-//   - Regional indicator pairs → 2
-//   - Extended_Pictographic base + VS16 (U+FE0F) → 2
-//   - Extended_Pictographic base + VS15 (U+FE0E) → 1
-//   - Otherwise → RuneWidth of the base (first) rune
+// Regional-indicator clusters use two columns. VS16 selects two-column emoji
+// presentation and VS15 selects one-column text presentation. Other clusters
+// begin with the base rune's RuneWidth.
 //
-// Spacing marks glued onto the cluster by UAX #29 GB9a keep their own
-// columns and are added to the base width.
+// Spacing marks joined by GB9a add their own display widths.
 func graphemeClusterWidth(cluster string) int {
 	if cluster == "" {
 		return 0
@@ -85,7 +78,7 @@ func graphemeClusterWidth(cluster string) int {
 
 	r, sz := utf8.DecodeRuneInString(cluster)
 
-	// Regional indicator pair → width 2
+	// Regional-indicator clusters represent flags in two columns.
 	if r >= 0x1F1E6 && r <= 0x1F1FF {
 		return 2
 	}
@@ -98,10 +91,9 @@ func graphemeClusterWidth(cluster string) int {
 	return w + spacingMarkWidth(rest)
 }
 
-// pictographicWidth resolves the width of an Extended_Pictographic base rune
-// of width baseWidth against the variation selectors in rest. VS15 (U+FE0E)
-// selects text presentation (one column), VS16 (U+FE0F) selects emoji
-// presentation (two columns).
+// pictographicWidth applies variation selectors after an
+// Extended_Pictographic base. VS15 selects one-column text presentation and
+// VS16 selects two-column emoji presentation.
 func pictographicWidth(baseWidth int, rest string) int {
 	hasVS16 := false
 	for _, r := range rest {
@@ -118,15 +110,11 @@ func pictographicWidth(baseWidth int, rest string) int {
 	return baseWidth
 }
 
-// spacingMarkWidth returns the combined width of the GCB=SpacingMark
-// codepoints in rest.
+// spacingMarkWidth returns the combined width of SpacingMark code points in
+// rest.
 //
-// UAX #29 GB9a keeps spacing marks in the preceding grapheme cluster, but
-// unlike nonspacing marks they advance the cursor. Thai Sara Am (U+0E33) and
-// the Indic Mc matras are the common cases: a terminal renders "กำ" in two
-// columns even though it is a single cluster. Ignoring them makes a rendered
-// row wider than the buffer it came from, which overflows the right margin
-// and desynchronises the renderer's cursor model.
+// GB9a joins these marks to the preceding cluster even though they can still
+// advance the terminal cursor.
 func spacingMarkWidth(rest string) int {
 	w := 0
 	for _, r := range rest {

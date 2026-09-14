@@ -1,83 +1,60 @@
 package render
 
-// SelectionUpdateOption controls how UpdateSelection behaves.
+// SelectionUpdateOption configures an UpdateSelection call.
 type SelectionUpdateOption struct {
-	// FinishDragging indicates the selection update is the final one
-	// (e.g. after a keyboard movement completes). If true, the renderer
-	// marks the selection as no longer dragging.
+	// FinishDragging ends the active drag after applying the update.
 	FinishDragging bool
 }
 
-// Context is the interface widgets use to communicate back to the
-// renderer. The Renderer satisfies this directly; standalone widgets
-// (e.g. in tests) can use NoopContext instead.
+// Context exposes renderer services to widgets. A detached widget uses
+// NoopContext.
 type Context interface {
-	// RequestRender marks the scene as dirty so the renderer will repaint
-	// on the next frame. Widgets should call this after any state change
-	// that affects visual output.
+	// RequestRender marks the scene for repainting.
 	RequestRender()
 
-	// FocusRenderable moves keyboard focus to the given widget. The
-	// previously focused widget receives a Blur call, and the new target
-	// receives Focus.
+	// FocusRenderable transfers keyboard focus to r.
 	FocusRenderable(r Renderable)
 
-	// AddToHitGrid registers a rectangular region in the hit-test grid,
-	// mapping (x, y, w, h) to the widget's unique numeric id. The
-	// renderer uses this grid to resolve mouse events to widgets.
+	// AddToHitGrid maps a terminal-cell rectangle to a renderable's numeric ID.
 	AddToHitGrid(x, y, w, h int, id uint64)
 
-	// PushHitGridScissorRect pushes a clipping rectangle onto the hit-grid
-	// scissor stack. Subsequent AddToHitGrid calls are intersected with
-	// this rect, preventing widgets inside scroll containers from receiving
-	// hits outside their visible bounds.
+	// PushHitGridScissorRect restricts subsequent hit regions to the intersection
+	// of the current clipping region and the supplied rectangle.
 	PushHitGridScissorRect(x, y, w, h int)
 
-	// PopHitGridScissorRect removes the most recently pushed scissor rect
-	// from the hit-grid stack.
+	// PopHitGridScissorRect restores the preceding hit-grid clipping region.
 	PopHitGridScissorRect()
 
-	// ClearHitGrid removes all entries from the hit-test grid. Called at
-	// the start of each render pass before widgets re-register themselves.
+	// ClearHitGrid removes all registered hit-test regions.
 	ClearHitGrid()
 
-	// SetCursorPosition moves the terminal's hardware cursor to (x, y)
-	// and controls its visibility. Widgets with text input call this to
-	// position the blinking cursor at the insertion point.
+	// SetCursorPosition sets the terminal cursor's position and visibility.
 	SetCursorPosition(x, y int, visible bool)
 
-	// Selection returns the current text selection state, or nil if no
-	// selection is active.
+	// Selection returns the current text selection, or nil when none is active.
 	Selection() *Selection
 
-	// StartSelection begins a new text selection anchored at (x, y) within
-	// the given widget. Any previous selection is discarded.
+	// StartSelection replaces the current selection with one anchored at the
+	// absolute terminal coordinates (x, y). r identifies its initiating renderable.
 	StartSelection(r Renderable, x, y int)
 
-	// UpdateSelection extends or moves the active selection to (x, y).
-	// Pass SelectionUpdateOption{FinishDragging: true} on the final call
-	// (e.g. mouse-up) to mark the drag as complete.
+	// UpdateSelection moves the active selection focus to the absolute terminal
+	// coordinates (x, y). r identifies the updating renderable, and the first
+	// option can finish the drag.
 	UpdateSelection(r Renderable, x, y int, opts ...SelectionUpdateOption)
 
-	// ClearSelection discards the active text selection, if any.
+	// ClearSelection discards the active text selection.
 	ClearSelection()
 
-	// RequestLive increments the live-render reference count. While the
-	// count is non-zero, the renderer runs at full frame rate regardless
-	// of dirty state. Use this for animations or streaming content.
+	// RequestLive acquires a continuous-rendering reference.
 	RequestLive()
 
-	// DropLive decrements the live-render reference count. When it reaches
-	// zero, the renderer returns to dirty-only rendering.
+	// DropLive releases a continuous-rendering reference.
 	DropLive()
 }
 
-// ---------------------------------------------------------------------------
-// NoopContext
-// ---------------------------------------------------------------------------
-
-// NoopContext is a no-op implementation of Context.
-// Embed it in test mocks to satisfy the interface with minimal boilerplate.
+// NoopContext implements Context without side effects. Test contexts can embed
+// it and override only the methods they observe.
 type NoopContext struct{}
 
 var _ Context = NoopContext{}
@@ -96,6 +73,5 @@ func (NoopContext) ClearSelection()                                             
 func (NoopContext) RequestLive()                                                   {}
 func (NoopContext) DropLive()                                                      {}
 
-// noopContext is the package-level sentinel used by BaseRenderable when no
-// renderer is attached.
+// noopContext keeps detached BaseRenderable contexts non-nil.
 var noopContext Context = NoopContext{}

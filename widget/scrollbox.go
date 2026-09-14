@@ -8,34 +8,30 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// compile-time check: ScrollBox must satisfy Renderable.
+// Verify that ScrollBox implements render.Renderable.
 var _ render.Renderable = (*ScrollBox)(nil)
 
-// ScrollAnchor identifies a scroll position relative to a child element.
-// Instead of storing an absolute pixel offset, it tracks which child is at
-// the viewport top and the pixel distance into that child. This keeps the
-// viewport stable when content above the visible area changes size (e.g.
-// during streaming or dynamic content insertion).
+// ScrollAnchor records the viewport top relative to one child.
+// This relative position remains stable when earlier children change size.
 type ScrollAnchor struct {
-	ChildIndex int  // index of the child at the viewport top
-	Offset     int  // pixels from the top of that child to the viewport top
-	Valid      bool // false when no anchor has been computed yet
+	ChildIndex int  // Index of the child intersecting the viewport top.
+	Offset     int  // Cells from the child's top to the viewport top.
+	Valid      bool // Whether ChildIndex and Offset contain a computed anchor.
 }
 
-// AutoScrollEdge identifies which edge the scroll should stick to.
+// AutoScrollEdge identifies the viewport edge followed as dimensions change.
 type AutoScrollEdge int
 
 const (
 	AutoScrollNone   AutoScrollEdge = iota
-	AutoScrollTop                   // stick to top edge (scrollY = 0)
-	AutoScrollBottom                // stick to bottom edge (scrollY = max)
-	AutoScrollLeft                  // stick to left edge (scrollX = 0)
-	AutoScrollRight                 // stick to right edge (scrollX = max)
+	AutoScrollTop                   // Keeps scrollY at zero.
+	AutoScrollBottom                // Keeps scrollY at its maximum.
+	AutoScrollLeft                  // Keeps scrollX at zero.
+	AutoScrollRight                 // Keeps scrollX at its maximum.
 )
 
-// ScrollBox is a scrollable container. Place a ScrollBar widget as a
-// sibling for a visual scrollbar indicator.
-// It embeds Box for border/background support and adds scrolling behavior.
+// ScrollBox is a Box that clips and translates child content for scrolling.
+// Place a separate ScrollBar beside it when a visible scroll indicator is needed.
 type ScrollBox struct {
 	*Box
 
@@ -44,48 +40,44 @@ type ScrollBox struct {
 	contentHeight int
 	contentWidth  int
 
-	// Auto-scroll state.
+	// Auto-scroll follows one edge until the user moves away from it.
 	autoScroll   AutoScrollEdge
 	userScrolled bool
 
-	// Anchor-based scroll position tracking.
-	anchorScroll bool         // when true, track scroll position as (child + offset)
-	anchor       ScrollAnchor // last computed anchor
+	// Anchor-based scrolling preserves a child-relative viewport position.
+	anchorScroll bool
+	anchor       ScrollAnchor
 
-	// Sticky positioning.
-	stickyGap int // pixels between consecutive sticky children (default 0)
-
+	// stickyGap separates consecutive sticky children in cells.
+	stickyGap int
 }
 
 // ScrollBoxOption configures a ScrollBox during construction.
 type ScrollBoxOption func(*ScrollBox)
 
-// NewScrollBox creates a ScrollBox with optional configuration.
+// NewScrollBox returns a clipping, scrollable Box with optional configuration.
 func NewScrollBox(opts ...ScrollBoxOption) *ScrollBox {
 	sb := &ScrollBox{
 		Box:        NewBox(BoxWithOverflow(layout.OverflowHidden)),
 		autoScroll: AutoScrollNone,
 	}
 
-	// Set overflow: scroll on the layout node for scissor clipping
+	// OverflowScroll enables clipping and translated child rendering.
 	sb.LayoutNode().Overflow = layout.OverflowScroll
 
 	for _, opt := range opts {
 		opt(sb)
 	}
 
-	// Re-apply border padding after ScrollBox opts (which may set a
-	// border via ScrollBoxWithBorderConfig after NewBox already ran).
+	// Options can add a border after NewBox computed its initial padding.
 	sb.applyBorderPadding()
 
-	// If an auto-scroll edge is configured, apply the initial position.
+	// Initialize the configured sticky edge before content is measured.
 	if sb.autoScroll != AutoScrollNone {
 		sb.applyAutoScroll(sb.autoScroll)
 	}
 
-	// Set up mouse scroll handler.
-	// Only stop propagation if the scroll actually moved; when at a
-	// boundary let the event bubble to an enclosing scroll container.
+	// Let scroll events bubble at an edge so an enclosing container can move.
 	sb.OnMouseScrollHandler = func(e *input.MouseEvent) {
 		if e.Scroll != nil {
 			oldY := sb.scrollY
@@ -106,8 +98,7 @@ func (sb *ScrollBox) ScrollY() int { return sb.scrollY }
 // ScrollX returns the horizontal scroll offset.
 func (sb *ScrollBox) ScrollX() int { return sb.scrollX }
 
-// SetScrollY sets the vertical scroll offset.
-// Marks userScrolled unless we end up at the auto-scroll edge.
+// SetScrollY sets a clamped vertical offset and updates auto-scroll state.
 func (sb *ScrollBox) SetScrollY(y int) {
 	sb.scrollY = sb.clampScrollY(y)
 	if !sb.isAtAutoScrollEdge() && sb.maxScrollY() > 0 {
@@ -121,7 +112,7 @@ func (sb *ScrollBox) SetScrollY(y int) {
 	sb.RequestRender()
 }
 
-// SetScrollX sets the horizontal scroll offset.
+// SetScrollX sets a clamped horizontal offset and updates auto-scroll state.
 func (sb *ScrollBox) SetScrollX(x int) {
 	sb.scrollX = sb.clampScrollX(x)
 	if !sb.isAtAutoScrollEdge() && sb.maxScrollX() > 0 {
@@ -152,7 +143,7 @@ func (sb *ScrollBox) ScrollToRight() {
 	sb.SetScrollX(sb.maxScrollX())
 }
 
-// ScrollBy scrolls by delta in both axes.
+// ScrollBy adds deltaX and deltaY to the current offsets.
 func (sb *ScrollBox) ScrollBy(deltaX, deltaY int) {
 	if deltaY != 0 {
 		sb.SetScrollY(sb.scrollY + deltaY)
@@ -162,28 +153,28 @@ func (sb *ScrollBox) ScrollBy(deltaX, deltaY int) {
 	}
 }
 
-// ScrollTo scrolls to an absolute position.
+// ScrollTo sets absolute horizontal and vertical offsets.
 func (sb *ScrollBox) ScrollTo(x, y int) {
 	sb.SetScrollY(y)
 	sb.SetScrollX(x)
 }
 
-// IsAtBottom returns true if scrolled to the bottom.
+// IsAtBottom reports whether the vertical offset is at its maximum.
 func (sb *ScrollBox) IsAtBottom() bool {
 	return sb.scrollY >= sb.maxScrollY()
 }
 
-// IsAtTop returns true if scrolled to the top.
+// IsAtTop reports whether the vertical offset is zero.
 func (sb *ScrollBox) IsAtTop() bool {
 	return sb.scrollY <= 0
 }
 
-// IsAtLeft returns true if scrolled to the left edge.
+// IsAtLeft reports whether the horizontal offset is zero.
 func (sb *ScrollBox) IsAtLeft() bool {
 	return sb.scrollX <= 0
 }
 
-// IsAtRight returns true if scrolled to the right edge.
+// IsAtRight reports whether the horizontal offset is at its maximum.
 func (sb *ScrollBox) IsAtRight() bool {
 	return sb.scrollX >= sb.maxScrollX()
 }
@@ -191,13 +182,13 @@ func (sb *ScrollBox) IsAtRight() bool {
 // AutoScroll returns the configured auto-scroll edge.
 func (sb *ScrollBox) AutoScroll() AutoScrollEdge { return sb.autoScroll }
 
-// SetAutoScroll sets the auto-scroll edge. Use AutoScrollNone to disable.
+// SetAutoScroll selects the edge followed as content changes; AutoScrollNone disables it.
 func (sb *ScrollBox) SetAutoScroll(edge AutoScrollEdge) {
 	sb.autoScroll = edge
 	sb.updateAutoScrollState()
 }
 
-// UserScrolled returns true if the user has scrolled away from the auto-scroll edge.
+// UserScrolled reports whether scrolling has moved away from the configured auto-scroll edge.
 func (sb *ScrollBox) UserScrolled() bool { return sb.userScrolled }
 
 // ContentHeight returns the total content height.
@@ -216,7 +207,7 @@ func (sb *ScrollBox) ViewportWidth() int {
 	return sb.Box.InnerRect().Width
 }
 
-// SetContentHeight sets the total content height for scrollbar calculations.
+// SetContentHeight sets the child-content height used for scrolling and edge following.
 func (sb *ScrollBox) SetContentHeight(h int) {
 	sb.contentHeight = h
 	sb.recalculateAutoScroll()
@@ -224,7 +215,7 @@ func (sb *ScrollBox) SetContentHeight(h int) {
 	sb.RequestRender()
 }
 
-// SetContentWidth sets the total content width.
+// SetContentWidth sets the child-content width used for scrolling and edge following.
 func (sb *ScrollBox) SetContentWidth(w int) {
 	sb.contentWidth = w
 	sb.recalculateAutoScroll()
@@ -232,26 +223,17 @@ func (sb *ScrollBox) SetContentWidth(w int) {
 	sb.RequestRender()
 }
 
-// RenderSelf draws the scrollbox background and style.
-// Scrollbars are rendered by child ScrollBar widgets.
+// RenderSelf draws the embedded Box; a separate ScrollBar renders any indicator.
 func (sb *ScrollBox) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 	sb.Box.RenderSelf(buf, deltaTime)
 }
 
-// OnPostLayout recalculates content dimensions from children after the
-// layout engine has resolved all Computed positions and sizes. This runs
-// in the post-layout phase of the render pipeline, so Computed values are
-// fresh — unlike OnUpdate which runs before CalculateLayout and would see
-// stale zeros for newly-added children, causing a one-frame lag in
-// contentHeight that led to broken auto-scroll (sudden jump to bottom
-// on first user scroll).
+// OnPostLayout recalculates content dimensions from final child layout rectangles.
+// It runs after layout because newly added children do not have valid computed
+// positions during the earlier update phase.
 //
-// We use Computed values rather than the rendered positions (child.Y()/X())
-// which include scroll translation. Using rendered positions causes a
-// 1-frame oscillation: the stale translated positions from the previous
-// frame combined with the current scrollY inflate contentHeight by 1,
-// which temporarily raises maxScrollY and produces a visible bounce at the
-// scroll edge.
+// Computed positions exclude scroll translation. Measuring rendered positions
+// would feed the previous frame's translation back into content dimensions.
 func (sb *ScrollBox) OnPostLayout(deltaTime float64) {
 	sbComputed := sb.LayoutNode().Computed
 	maxHeight := 0
@@ -275,39 +257,30 @@ func (sb *ScrollBox) OnPostLayout(deltaTime float64) {
 		sb.contentWidth = maxWidth
 	}
 
-	// Re-run auto-scroll every frame. Content-size changes above already
-	// call recalculateAutoScroll via SetContentHeight, but the viewport
-	// (inner size) can also change without a content-size delta — for
-	// example when a sibling below the ScrollBox is hidden and the
-	// flex-grow share expands, or when padding/border toggles. Running
-	// unconditionally here keeps scrollY pinned to the configured edge
-	// in all of those cases. The call is a no-op when autoScroll is
-	// None or the user has scrolled away from the edge.
+	// Reapply edge following even when only the viewport changed, such as after
+	// sibling visibility, padding, or border changes.
 	sb.recalculateAutoScroll()
 
-	// Keep the anchor fresh after layout settles so the next content-size
-	// change can restore from up-to-date child positions.
+	// Save the settled child-relative position for the next content-size change.
 	if sb.anchorScroll && sb.userScrolled {
 		sb.updateAnchor()
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Keyboard Navigation
-// ---------------------------------------------------------------------------
+// Keyboard navigation.
 
 // HandleKeyPress processes keyboard input for scroll navigation.
 //
-// Bindings:
+// The default bindings are:
 //
-//	up / k       — scroll up 1/5 viewport
-//	down / j     — scroll down 1/5 viewport
-//	left / h     — scroll left 1/5 viewport
-//	right / l    — scroll right 1/5 viewport
-//	pageup       — scroll up 1/2 viewport
-//	pagedown     — scroll down 1/2 viewport
-//	home         — scroll to top-left
-//	end          — scroll to bottom-right
+//	up / k       scroll up one fifth of the viewport
+//	down / j     scroll down one fifth of the viewport
+//	left / h     scroll left one fifth of the viewport
+//	right / l    scroll right one fifth of the viewport
+//	pageup       scroll up half of the viewport
+//	pagedown     scroll down half of the viewport
+//	home         scroll to the top-left
+//	end          scroll to the bottom-right
 func (sb *ScrollBox) HandleKeyPress(e *input.KeyEvent) bool {
 	if e.Type == input.KeyRelease {
 		return false
@@ -318,36 +291,33 @@ func (sb *ScrollBox) HandleKeyPress(e *input.KeyEvent) bool {
 	handled := true
 
 	switch {
-	// Vertical: up
+	// Vertical movement uses one fifth of the viewport.
 	case e.Matches(input.KeyUp) || e.Matches("k"):
 		sb.SetScrollY(sb.scrollY - maxInt(1, vpH/5))
 
-	// Vertical: down
 	case e.Matches(input.KeyDown) || e.Matches("j"):
 		sb.SetScrollY(sb.scrollY + maxInt(1, vpH/5))
 
-	// Horizontal: left
+	// Horizontal movement uses one fifth of the viewport.
 	case e.Matches(input.KeyLeft) || e.Matches("h"):
 		sb.SetScrollX(sb.scrollX - maxInt(1, vpW/5))
 
-	// Horizontal: right
 	case e.Matches(input.KeyRight) || e.Matches("l"):
 		sb.SetScrollX(sb.scrollX + maxInt(1, vpW/5))
 
-	// Page up
+	// Page movement uses half of the viewport.
 	case e.Matches(input.KeyPageUp):
 		sb.SetScrollY(sb.scrollY - maxInt(1, vpH/2))
 
-	// Page down
 	case e.Matches(input.KeyPageDown):
 		sb.SetScrollY(sb.scrollY + maxInt(1, vpH/2))
 
-	// Home — scroll to origin
+	// Home moves to the origin on both axes.
 	case e.Matches(input.KeyHome):
 		sb.SetScrollY(0)
 		sb.SetScrollX(0)
 
-	// End — scroll to bottom-right
+	// End moves to the maximum offset on both axes.
 	case e.Matches(input.KeyEnd):
 		sb.SetScrollY(sb.maxScrollY())
 		sb.SetScrollX(sb.maxScrollX())
@@ -357,21 +327,15 @@ func (sb *ScrollBox) HandleKeyPress(e *input.KeyEvent) bool {
 	}
 
 	if handled {
-		// Note: SetScrollY/SetScrollX already set userScrolled when away
-		// from the auto-scroll edge. We must not override that here — doing so
-		// would prevent auto-scroll from re-engaging when the user presses
-		// End or PageDown back to the bottom.
+		// The setters clear userScrolled when navigation returns to the followed edge.
 		e.StopPropagation()
 	}
 	return handled
 }
 
-// ---------------------------------------------------------------------------
-// Internal — auto-scroll
-// ---------------------------------------------------------------------------
+// Auto-scroll state.
 
-// updateAutoScrollState clears userScrolled when the user scrolls back to the
-// configured auto-scroll edge, allowing auto-scroll to re-engage.
+// updateAutoScrollState re-enables edge following after returning to its edge.
 func (sb *ScrollBox) updateAutoScrollState() {
 	if sb.autoScroll == AutoScrollNone {
 		return
@@ -381,9 +345,7 @@ func (sb *ScrollBox) updateAutoScrollState() {
 	}
 }
 
-// applyAutoScroll forces the scroll position to the given edge.
-// Sets scrollY/scrollX directly (not via SetScrollY) to avoid
-// triggering userScrolled or anchor updates.
+// applyAutoScroll moves directly to edge without marking a user scroll or changing the anchor.
 func (sb *ScrollBox) applyAutoScroll(edge AutoScrollEdge) {
 	switch edge {
 	case AutoScrollTop:
@@ -398,8 +360,7 @@ func (sb *ScrollBox) applyAutoScroll(edge AutoScrollEdge) {
 	sb.updateChildTranslation()
 }
 
-// isAtAutoScrollEdge returns true if the current scroll position matches
-// the configured autoScroll edge.
+// isAtAutoScrollEdge reports whether the selected auto-scroll edge is visible.
 func (sb *ScrollBox) isAtAutoScrollEdge() bool {
 	if sb.autoScroll == AutoScrollNone {
 		return false
@@ -417,22 +378,19 @@ func (sb *ScrollBox) isAtAutoScrollEdge() bool {
 	return false
 }
 
-// recalculateAutoScroll recalculates auto-scroll state.
-// Called when content dimensions change.
+// recalculateAutoScroll reapplies edge or anchor positioning after dimensions change.
 func (sb *ScrollBox) recalculateAutoScroll() {
 	if sb.autoScroll == AutoScrollNone {
 		return
 	}
 
-	// Primary path: user hasn't scrolled away → snap to the configured edge.
+	// Continue following the configured edge until the user scrolls away.
 	if !sb.userScrolled {
 		sb.applyAutoScroll(sb.autoScroll)
 		return
 	}
 
-	// Anchor-based scroll: when the user has scrolled away from the auto-scroll
-	// edge and content dimensions change, restore scrollY from the anchor
-	// so the viewport stays on the same child item.
+	// Away from the edge, restore the saved child-relative vertical position.
 	if sb.anchorScroll && sb.userScrolled && sb.anchor.Valid {
 		newY := sb.scrollYFromAnchor()
 		sb.scrollY = sb.clampScrollY(newY)
@@ -441,22 +399,17 @@ func (sb *ScrollBox) recalculateAutoScroll() {
 		return
 	}
 
-	// No anchor — just keep current scrollY (already clamped by SetContentHeight).
+	// Without an anchor, retain the already clamped absolute offset.
 	sb.updateChildTranslation()
 }
 
-// ---------------------------------------------------------------------------
-// Internal — anchor-based scroll
-// ---------------------------------------------------------------------------
+// Anchor-based scrolling.
 
-// Anchor returns the current scroll anchor. The anchor is only meaningful
-// when anchorScroll is enabled and the returned anchor has Valid == true.
+// Anchor returns the current child-relative scroll anchor.
+// Its coordinates are meaningful only when Valid is true.
 func (sb *ScrollBox) Anchor() ScrollAnchor { return sb.anchor }
 
-// updateAnchor recomputes the scroll anchor from the current scrollY and
-// children's layout positions. It finds the first child whose bottom edge
-// extends below the scroll offset and records the child index plus the
-// pixel distance from that child's top to the viewport top.
+// updateAnchor records the first child intersecting the viewport top and its offset.
 func (sb *ScrollBox) updateAnchor() {
 	children := sb.Children()
 	if len(children) == 0 {
@@ -478,7 +431,7 @@ func (sb *ScrollBox) updateAnchor() {
 			return
 		}
 	}
-	// Past the end — anchor to last child.
+	// If the offset is past all children, retain a position relative to the last child.
 	last := children[len(children)-1]
 	lc := last.LayoutNode().Computed
 	sb.anchor = ScrollAnchor{
@@ -488,8 +441,7 @@ func (sb *ScrollBox) updateAnchor() {
 	}
 }
 
-// scrollYFromAnchor converts the saved anchor back to an absolute scrollY
-// using the children's current layout positions.
+// scrollYFromAnchor resolves the saved child-relative anchor after layout changes.
 func (sb *ScrollBox) scrollYFromAnchor() int {
 	if !sb.anchor.Valid {
 		return sb.scrollY
@@ -509,9 +461,7 @@ func (sb *ScrollBox) scrollYFromAnchor() int {
 	return childTop + sb.anchor.Offset
 }
 
-// ---------------------------------------------------------------------------
-// Internal — scroll mechanics
-// ---------------------------------------------------------------------------
+// Scroll mechanics.
 
 func (sb *ScrollBox) handleScroll(deltaX, deltaY int, ctrl bool) {
 	mult := 1
@@ -524,11 +474,7 @@ func (sb *ScrollBox) handleScroll(deltaX, deltaY int, ctrl bool) {
 	if deltaX != 0 {
 		sb.SetScrollX(sb.scrollX + deltaX*mult)
 	}
-	// Note: SetScrollY/SetScrollX already set userScrolled when the
-	// resulting position is away from the auto-scroll edge. We must NOT
-	// unconditionally set userScrolled here — doing so would prevent
-	// auto-scroll from re-engaging when the user scrolls back to the
-	// auto-scroll edge (e.g. scrolling back to the bottom).
+	// The setters update userScrolled in both directions, including re-engagement.
 }
 
 func (sb *ScrollBox) clampScrollY(y int) int {
@@ -577,10 +523,8 @@ func (sb *ScrollBox) updateChildTranslation() {
 	sb.computeStickyOffsets()
 }
 
-// computeStickyOffsets sets per-child stickyOffsetX/Y on children with a
-// Sticky position. Each direction pins the child at the corresponding
-// viewport edge and is section-scoped: the next sticky child with the
-// same direction pushes the current one away.
+// computeStickyOffsets pins sticky children to viewport edges.
+// The next sticky child on the same edge pushes the current child away.
 func (sb *ScrollBox) computeStickyOffsets() {
 	children := sb.Children()
 	if len(children) == 0 {
@@ -591,8 +535,8 @@ func (sb *ScrollBox) computeStickyOffsets() {
 
 	type stickyInfo struct {
 		index int
-		pos   int // position on the sticky axis relative to ScrollBox
-		size  int // size on the sticky axis
+		pos   int // Position on the sticky axis relative to ScrollBox.
+		size  int // Size on the sticky axis.
 	}
 
 	var top, bottom, left, right []stickyInfo
@@ -618,8 +562,7 @@ func (sb *ScrollBox) computeStickyOffsets() {
 	vpH := sb.ViewportHeight()
 	vpW := sb.ViewportWidth()
 
-	// StickyTop: pin at viewport top when child scrolls above it.
-	// Offset is positive (pushes child down).
+	// Top offsets are positive and push children down to the viewport edge.
 	for si, s := range top {
 		raw := sb.scrollY - s.pos
 		if raw < 0 {
@@ -639,15 +582,14 @@ func (sb *ScrollBox) computeStickyOffsets() {
 		children[s.index].SetStickyOffsetX(0)
 	}
 
-	// StickyBottom: pin at viewport bottom when child scrolls below it.
-	// Offset is negative (pulls child up).
+	// Bottom offsets are negative and pull children up to the viewport edge.
 	for si, s := range bottom {
 		raw := (sb.scrollY + vpH) - (s.pos + s.size)
 		if raw > 0 {
-			raw = 0 // child is above viewport bottom — no pinning
+			raw = 0 // The child is already above the viewport bottom.
 		}
-		// Section limit: previous sticky-bottom child pushes this one down.
-		limit := -(s.pos) // can't go above content top
+		// A previous bottom-sticky child limits upward movement.
+		limit := -(s.pos) // Do not move above the content origin.
 		if si > 0 {
 			prev := bottom[si-1]
 			limit = -(s.pos - prev.pos - prev.size - sb.stickyGap)
@@ -662,8 +604,7 @@ func (sb *ScrollBox) computeStickyOffsets() {
 		children[s.index].SetStickyOffsetX(0)
 	}
 
-	// StickyLeft: pin at viewport left when child scrolls past it.
-	// Same as StickyTop but on the X axis.
+	// Left offsets follow the same positive-direction rule as top offsets.
 	for si, s := range left {
 		raw := sb.scrollX - s.pos
 		if raw < 0 {
@@ -683,8 +624,7 @@ func (sb *ScrollBox) computeStickyOffsets() {
 		children[s.index].SetStickyOffsetY(0)
 	}
 
-	// StickyRight: pin at viewport right when child scrolls past it.
-	// Same as StickyBottom but on the X axis.
+	// Right offsets follow the same negative-direction rule as bottom offsets.
 	for si, s := range right {
 		raw := (sb.scrollX + vpW) - (s.pos + s.size)
 		if raw > 0 {
@@ -706,10 +646,10 @@ func (sb *ScrollBox) computeStickyOffsets() {
 	}
 }
 
-// StickyGap returns the gap in pixels between consecutive sticky children.
+// StickyGap returns the gap in cells between consecutive sticky children.
 func (sb *ScrollBox) StickyGap() int { return sb.stickyGap }
 
-// SetStickyGap sets the gap in pixels between consecutive sticky children.
+// SetStickyGap sets the gap in cells between consecutive sticky children.
 func (sb *ScrollBox) SetStickyGap(gap int) {
 	sb.stickyGap = gap
 	sb.computeStickyOffsets()
@@ -722,30 +662,24 @@ func maxInt(a, b int) int {
 	return b
 }
 
-// --- ScrollBox Options ---
+// ScrollBox options.
 
-// ScrollBoxWithAutoScroll sets the edge the scroll follows when content
-// changes. Use AutoScrollNone to disable, AutoScrollBottom to follow
-// the bottom (default for chat-style scrolling), etc.
+// ScrollBoxWithAutoScroll sets the edge followed when content or viewport size changes.
+// AutoScrollNone disables edge following.
 func ScrollBoxWithAutoScroll(edge AutoScrollEdge) ScrollBoxOption {
 	return func(sb *ScrollBox) {
 		sb.autoScroll = edge
 	}
 }
 
-// ScrollBoxWithAnchorScroll enables anchor-based scroll positioning.
-// When enabled, the scroll position is tracked as (child index + pixel
-// offset) rather than a bare absolute pixel value. This keeps the viewport
-// stable when content above the visible area changes size — for example
-// during streaming or when earlier messages reflow. The anchor is only
-// used when the user has scrolled away from the auto-scroll edge;
-// auto-scroll behaviour is unaffected.
+// ScrollBoxWithAnchorScroll controls child-relative vertical positioning.
+// When enabled, content changes above the viewport do not move the visible child.
+// Edge following still takes precedence until the user scrolls away.
 func ScrollBoxWithAnchorScroll(v bool) ScrollBoxOption {
 	return func(sb *ScrollBox) { sb.anchorScroll = v }
 }
 
-// ScrollBoxWithStickyGap sets the gap in pixels between consecutive
-// sticky children when they push each other away.
+// ScrollBoxWithStickyGap sets the gap in cells between consecutive sticky children.
 func ScrollBoxWithStickyGap(gap int) ScrollBoxOption {
 	return func(sb *ScrollBox) { sb.stickyGap = gap }
 }
@@ -796,16 +730,15 @@ func ScrollBoxWithFlexGrow(v int) ScrollBoxOption {
 	return func(sb *ScrollBox) { sb.LayoutNode().FlexGrow = v }
 }
 
-// ScrollBoxWithFocusable makes the scrollbox focusable for keyboard navigation.
+// ScrollBoxWithFocusable controls whether the scrollbox can receive keyboard navigation.
 func ScrollBoxWithFocusable(v bool) ScrollBoxOption {
 	return func(sb *ScrollBox) { sb.SetFocusable(v) }
 }
 
-// ScrollBoxWithChildren adds child renderables to a ScrollBox during
-// construction, enabling declarative tree building:
+// ScrollBoxWithChildren adds non-nil child renderables during construction.
 //
 //	widget.NewScrollBox(
-//	    widget.ScrollBoxWithAutoScroll(true),
+//	    widget.ScrollBoxWithAutoScroll(widget.AutoScrollBottom),
 //	    widget.ScrollBoxWithChildren(
 //	        widget.NewText("Line 1"),
 //	        widget.NewText("Line 2"),

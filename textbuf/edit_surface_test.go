@@ -23,7 +23,7 @@ func TestEditBufferView_BasicSetup(t *testing.T) {
 func TestEditBufferView_Viewport(t *testing.T) {
 	tb := NewTextBuffer()
 	eb := NewEditBuffer(tb)
-	// Create 20 lines
+	// Build content taller than the viewport.
 	var text strings.Builder
 	for i := range 20 {
 		if i > 0 {
@@ -55,7 +55,7 @@ func TestEditBufferView_CursorScroll(t *testing.T) {
 
 	ev := NewEditSurface(eb, 80, 5)
 
-	// Move cursor to line 19 -- should scroll viewport
+	// Moving to the final line scrolls the viewport.
 	eb.SetCursor(19, 0)
 	vp := ev.Viewport()
 	if vp == nil {
@@ -65,7 +65,7 @@ func TestEditBufferView_CursorScroll(t *testing.T) {
 		t.Error("viewport should have scrolled when cursor moved to end")
 	}
 
-	// The cursor line should be visible
+	// The resulting viewport contains the cursor line.
 	vlines := ev.VirtualLines()
 	found := false
 	for _, vl := range vlines {
@@ -106,7 +106,7 @@ func TestEditBufferView_DrawableView(t *testing.T) {
 
 	ev := NewEditSurface(eb, 80, 24)
 
-	// Test that EditSurface satisfies Surface
+	// EditSurface implements Surface.
 	var dv Surface = ev
 	vlines := dv.VirtualLines()
 	if len(vlines) != 1 {
@@ -139,15 +139,11 @@ func TestEditBufferView_WrapMode(t *testing.T) {
 	ev.SetWrapMode(WrapChar)
 
 	vlines := ev.VirtualLines()
-	// 10 chars at width 4: "abcd", "efgh", "ij" = 3 virtual lines
+	// Ten columns wrap into rows of four, four, and two columns.
 	if len(vlines) != 3 {
 		t.Fatalf("expected 3 virtual lines with wrap, got %d", len(vlines))
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Tests for new EditSurface methods
-// ---------------------------------------------------------------------------
 
 func TestEditBufferView_SetCursorByOffset(t *testing.T) {
 	tb := NewTextBuffer()
@@ -156,28 +152,28 @@ func TestEditBufferView_SetCursorByOffset(t *testing.T) {
 
 	ev := NewEditSurface(eb, 80, 24)
 
-	// Offset 0 = (0,0)
+	// Offset zero maps to the document start.
 	ev.SetCursorByOffset(0)
 	r, c := ev.Cursor()
 	if r != 0 || c != 0 {
 		t.Errorf("expected (0,0), got (%d,%d)", r, c)
 	}
 
-	// Offset 3 = (0,3) - "hel|lo"
+	// Offset three maps after "hel".
 	ev.SetCursorByOffset(3)
 	r, c = ev.Cursor()
 	if r != 0 || c != 3 {
 		t.Errorf("expected (0,3), got (%d,%d)", r, c)
 	}
 
-	// Offset 6 = (1,0) - after "hello\n"
+	// Offset six maps after "hello\n".
 	ev.SetCursorByOffset(6)
 	r, c = ev.Cursor()
 	if r != 1 || c != 0 {
 		t.Errorf("expected (1,0), got (%d,%d)", r, c)
 	}
 
-	// Offset 9 = (1,3) - "wor|ld"
+	// Offset nine maps after "wor" on the second line.
 	ev.SetCursorByOffset(9)
 	r, c = ev.Cursor()
 	if r != 1 || c != 3 {
@@ -194,11 +190,11 @@ func TestEditBufferView_GetNextWordBoundary(t *testing.T) {
 	ev := NewEditSurface(eb, 80, 24)
 
 	vc := ev.NextWordBoundary()
-	// From start of "hello", should jump to start of "world"
+	// The next boundary skips "hello" and its following space.
 	if vc.LogicalRow != 0 || vc.LogicalCol != 6 {
 		t.Errorf("expected word boundary at (0,6), got (%d,%d)", vc.LogicalRow, vc.LogicalCol)
 	}
-	// Should also have valid visual coords
+	// The result includes corresponding visual coordinates.
 	if vc.VisualRow != 0 {
 		t.Errorf("expected visual row 0, got %d", vc.VisualRow)
 	}
@@ -213,7 +209,7 @@ func TestEditBufferView_GetPrevWordBoundary(t *testing.T) {
 	ev := NewEditSurface(eb, 80, 24)
 
 	vc := ev.PrevWordBoundary()
-	// From middle of "world", should jump to start of "world"
+	// The previous boundary from within "world" is its start.
 	if vc.LogicalRow != 0 || vc.LogicalCol != 6 {
 		t.Errorf("expected word boundary at (0,6), got (%d,%d)", vc.LogicalRow, vc.LogicalCol)
 	}
@@ -228,7 +224,7 @@ func TestEditBufferView_GetPrevWordBoundary_LineStart(t *testing.T) {
 	ev := NewEditSurface(eb, 80, 24)
 
 	vc := ev.PrevWordBoundary()
-	// From start of line 1, should go to end of line 0
+	// The previous boundary at line start is the prior line end.
 	if vc.LogicalRow != 0 {
 		t.Errorf("expected row 0, got %d", vc.LogicalRow)
 	}
@@ -264,13 +260,13 @@ func TestEditBufferView_GetVisualSOL(t *testing.T) {
 
 	ev := NewEditSurface(eb, 4, 24)
 	ev.SetWrapMode(WrapChar)
-	// Virtual lines: "abcd", "efgh", "ij"
+	// Width four produces virtual lines "abcd", "efgh", and "ij".
 
-	// Cursor at col 6 (in "efgh" wrapped line, col offset 4)
+	// Column six lies in the second wrapped line.
 	eb.SetCursor(0, 6)
 
 	vc := ev.VisualSOL()
-	// Visual SOL of second wrapped line should be col 4
+	// That wrapped line starts at logical column four.
 	if vc.LogicalCol != 4 {
 		t.Errorf("expected visual SOL col 4, got %d", vc.LogicalCol)
 	}
@@ -286,30 +282,29 @@ func TestEditBufferView_GetVisualEOL(t *testing.T) {
 
 	ev := NewEditSurface(eb, 4, 24)
 	ev.SetWrapMode(WrapChar)
-	// Virtual lines: "abcd", "efgh", "ij"
+	// Width four produces virtual lines "abcd", "efgh", and "ij".
 
-	// Cursor at col 5 (in "efgh" wrapped line)
+	// Column five lies in the second wrapped line.
 	eb.SetCursor(0, 5)
 
 	vc := ev.VisualEOL()
-	// Visual EOL of second wrapped line should be col 7 (width-1 to stay
-	// on the current visual line).
+	// Its final cursor position is column seven, before the next wrap boundary.
 	if vc.LogicalCol != 7 {
 		t.Errorf("expected visual EOL col 7, got %d", vc.LogicalCol)
 	}
-	// Must stay on the same visual row (row 1)
+	// The result remains on visual row one.
 	if vc.VisualRow != 1 {
 		t.Errorf("expected visual row 1, got %d", vc.VisualRow)
 	}
 
-	// Cursor on last virtual line ("ij") should return actual end of line
+	// The final virtual line owns the logical line-end position.
 	eb.SetCursor(0, 8)
 	vc = ev.VisualEOL()
 	if vc.LogicalCol != 10 {
 		t.Errorf("expected visual EOL col 10 for last vline, got %d", vc.LogicalCol)
 	}
 
-	// Cursor on first virtual line ("abcd") — also a continuation
+	// The first continued virtual line ends before its wrap boundary.
 	eb.SetCursor(0, 2)
 	vc = ev.VisualEOL()
 	if vc.LogicalCol != 3 {
@@ -354,7 +349,7 @@ func TestEditBufferView_DeleteSelectedText(t *testing.T) {
 
 	ev := NewEditSurface(eb, 80, 24)
 
-	// Select "lo wo" (offsets 3-8)
+	// Select "lo wo" at offsets [3,8).
 	bg := style.ColorFromInts(0, 0, 255, 255)
 	ev.SetSelection(&TextSelection{Start: 3, End: 8, BgColor: &bg})
 
@@ -365,7 +360,7 @@ func TestEditBufferView_DeleteSelectedText(t *testing.T) {
 		t.Errorf("expected 'helrld', got %q", got)
 	}
 
-	// Selection should be cleared
+	// Deletion clears the selection.
 	if ev.Selection() != nil {
 		t.Error("expected selection to be cleared after delete")
 	}
@@ -378,7 +373,7 @@ func TestEditBufferView_DeleteSelectedText_NoSelection(t *testing.T) {
 
 	ev := NewEditSurface(eb, 80, 24)
 
-	// Should be a no-op
+	// Deletion without a selection is a no-op.
 	ev.DeleteSelectedText()
 	if ev.Text() != "hello" {
 		t.Errorf("expected text unchanged, got %q", ev.Text())
@@ -394,7 +389,7 @@ func TestEditBufferView_SetLocalSelection(t *testing.T) {
 
 	bg := style.ColorFromInts(0, 0, 255, 255)
 
-	// Select with updateCursor=true, followCursor=false
+	// Create a selection that moves the cursor without scrolling it.
 	ok := ev.SetLocalSelection(2, 0, 7, 0, &bg, nil, true, false)
 	if !ok {
 		t.Fatal("expected SetLocalSelection to return true")
@@ -405,7 +400,7 @@ func TestEditBufferView_SetLocalSelection(t *testing.T) {
 		t.Fatal("expected selection to be set")
 	}
 
-	// Cursor should have moved to focus position (7,0)
+	// The cursor moves to the focus offset.
 	r, c := ev.Cursor()
 	if r != 0 || c != 7 {
 		t.Errorf("expected cursor at (0,7), got (%d,%d)", r, c)
@@ -420,13 +415,13 @@ func TestEditBufferView_SetLocalSelection_NoCursorUpdate(t *testing.T) {
 
 	ev := NewEditSurface(eb, 80, 24)
 
-	// Select without moving cursor
+	// Create another selection without cursor movement.
 	ok := ev.SetLocalSelection(2, 0, 7, 0, nil, nil, false, false)
 	if !ok {
 		t.Fatal("expected SetLocalSelection to return true")
 	}
 
-	// Cursor should NOT have moved
+	// The cursor remains at its prior position.
 	r, c := ev.Cursor()
 	if r != 0 || c != 0 {
 		t.Errorf("expected cursor to stay at (0,0), got (%d,%d)", r, c)
@@ -489,7 +484,7 @@ func TestEditBufferView_GetSelectedText(t *testing.T) {
 
 	ev := NewEditSurface(eb, 80, 24)
 
-	// No selection
+	// A new edit surface has no selection.
 	if ev.SelectedText() != "" {
 		t.Error("expected empty string with no selection")
 	}
@@ -511,7 +506,7 @@ func TestEditBufferView_GetLogicalLineInfo(t *testing.T) {
 	ev.SetViewportSize(3, 20)
 
 	info := ev.LogicalLineInfo()
-	// Should still be 3 logical lines regardless of wrapping
+	// Wrapping does not change the three logical lines.
 	if len(info.Widths) != 3 {
 		t.Fatalf("expected 3 logical lines, got %d", len(info.Widths))
 	}
@@ -551,7 +546,7 @@ func TestEditBufferView_SetPlaceholderSpans(t *testing.T) {
 		t.Errorf("span 1 mismatch: %+v", got[1])
 	}
 
-	// Setting span placeholder should clear plain text
+	// A styled placeholder clears the plain placeholder.
 	plainText, _ := ev.PlaceholderText()
 	if plainText != "" {
 		t.Errorf("expected plain placeholder to be cleared, got %q", plainText)
@@ -575,7 +570,7 @@ func TestEditBufferView_PlaceholderText(t *testing.T) {
 		t.Errorf("expected gray color, got %+v", fg)
 	}
 
-	// Setting plain text should clear span placeholder
+	// A plain placeholder clears the styled placeholder.
 	if ev.PlaceholderSpans() != nil {
 		t.Error("expected placeholder spans to be nil after setting plain text")
 	}
@@ -591,7 +586,7 @@ func TestEditBufferView_SetTabIndicator(t *testing.T) {
 	if ev.tabIndicator != '→' {
 		t.Errorf("expected tab indicator '→', got %c", ev.tabIndicator)
 	}
-	// Should also set on the underlying surface
+	// The underlying surface receives the same indicator.
 	if ev.surface.tabIndicator != '→' {
 		t.Error("expected underlying surface tab indicator to be set")
 	}
@@ -608,7 +603,7 @@ func TestEditBufferView_SetTabIndicatorColor(t *testing.T) {
 	if ev.tabIndicatorColor == nil || *ev.tabIndicatorColor != c {
 		t.Errorf("expected tab indicator color %v", c)
 	}
-	// Should also set on the underlying surface
+	// The underlying surface receives the same color.
 	if ev.surface.tabIndicatorColor == nil || *ev.surface.tabIndicatorColor != c {
 		t.Error("expected underlying surface tab indicator color to be set")
 	}
@@ -628,15 +623,15 @@ func TestEditBufferView_SetViewport_MoveCursor(t *testing.T) {
 
 	ev := NewEditSurface(eb, 80, 5)
 
-	// Set cursor to end
+	// Move the cursor to the final line.
 	eb.SetCursor(19, 0)
 
-	// SetViewport with moveCursor=true
+	// Replace the viewport and request cursor following.
 	ev.SetViewport(&Viewport{X: 0, Y: 0, Width: 80, Height: 5}, true)
-	// After ensureCursorVisible, viewport should have scrolled
+	// Cursor following adjusts the vertical offset.
 	vp := ev.Viewport()
 	if vp.Y == 0 {
-		// Cursor is at line 19, viewport height 5 — should scroll
+		// A five-row viewport must scroll to expose line 19.
 		t.Error("expected viewport to scroll to make cursor visible")
 	}
 }
@@ -649,7 +644,7 @@ func TestEditBufferView_GetVirtualLineCount(t *testing.T) {
 	ev := NewEditSurface(eb, 3, 20)
 	ev.SetWrapMode(WrapChar)
 
-	// "abcdef" → 2 vlines, "xy" → 1 vline = 3 total
+	// The first line wraps twice and the second remains one row.
 	if ev.VirtualLineCount() != 3 {
 		t.Errorf("expected 3, got %d", ev.VirtualLineCount())
 	}
@@ -686,23 +681,23 @@ func TestEditBufferView_MoveUpDownVisual(t *testing.T) {
 
 	ev := NewEditSurface(eb, 4, 24)
 	ev.SetWrapMode(WrapChar)
-	// Virtual lines: "abcd" (0-3), "efgh" (4-7)
+	// Width four divides the line into columns 0-3 and 4-7.
 
-	// Start at (0,2)
+	// Start at logical column two on the first visual line.
 	eb.SetCursor(0, 2)
 	vc := ev.VisualCursor()
 	if vc.VisualRow != 0 {
 		t.Errorf("expected visual row 0, got %d", vc.VisualRow)
 	}
 
-	// Move down: should go to second virtual line, same column
+	// Moving down preserves visual column two.
 	ev.MoveDownVisual()
 	vc = ev.VisualCursor()
 	if vc.VisualRow != 1 {
 		t.Errorf("expected visual row 1 after move down, got %d", vc.VisualRow)
 	}
 
-	// Move up: should go back
+	// Moving up returns to the original visual position.
 	ev.MoveUpVisual()
 	vc = ev.VisualCursor()
 	if vc.VisualRow != 0 {

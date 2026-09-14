@@ -9,10 +9,8 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// disagreeingTerm is a terminal whose advance for some runes differs from the
-// width fluid assigned them, the way iTerm advances four columns for
-// composed hangul jamo and one for a VS16 emoji.
-// It models deferred auto-wrap, scrolling, and the controls used by inline output.
+// disagreeingTerm models a terminal whose grapheme widths differ from the
+// buffer's widths. It also models deferred wrapping and inline cursor controls.
 type disagreeingTerm struct {
 	w, h     int
 	grid     [][]rune
@@ -148,8 +146,7 @@ func firstRune(s string) (rune, int) {
 	return 0, 1
 }
 
-// jamoTerm advances a column for each conjoining jamo, so the cluster costs
-// four columns where fluid budgeted two.
+// jamoTerm advances four columns for a cluster recorded as two columns.
 func jamoTerm(r rune) int {
 	switch r {
 	case 0x1161, 0x11A8:
@@ -160,12 +157,8 @@ func jamoTerm(r rune) int {
 	return 1
 }
 
-// TestReanchor_DriftBoundedToOneGlyph is the regression for the resize
-// symptom: FullFlush wrote a row contiguously with no absolute positioning
-// after the row start, so a terminal that disagreed about one cluster shifted
-// everything after it. DiffAndFlush only avoided this by accident, because
-// skipping unchanged cells forced a CUP; during a scroll, where every cell
-// changes, it drifted too.
+// TestReanchor_DriftBoundedToOneGlyph verifies that a width disagreement does
+// not shift cells following the mismatched cluster.
 func TestReanchor_DriftBoundedToOneGlyph(t *testing.T) {
 	const W = 30
 	const tail = "|END"
@@ -178,7 +171,7 @@ func TestReanchor_DriftBoundedToOneGlyph(t *testing.T) {
 		return b
 	}
 
-	// Where the buffer says the tail sits, which is where it must appear.
+	// The tail must begin at the column recorded by the buffer.
 	want := columnOf(bufferText(build(), W), tail)
 	if want < 0 {
 		t.Fatal("tail missing from buffer")
@@ -207,15 +200,14 @@ func TestReanchor_DriftBoundedToOneGlyph(t *testing.T) {
 	})
 }
 
-// TestReanchor_NarrowEmojiTerminal covers the opposite drift direction: a
-// terminal that renders an emoji sequence in one column where fluid
-// budgeted two.
+// TestReanchor_NarrowEmojiTerminal verifies re-anchoring when the terminal uses
+// fewer columns than the buffer.
 func TestReanchor_NarrowEmojiTerminal(t *testing.T) {
 	const W = 30
 	const tail = "|END"
 	narrow := func(r rune) int {
 		if r == 0x2764 {
-			return 1 // rendered as text presentation despite the VS16
+			return 1 // Model a one-column text presentation despite VS16.
 		}
 		if r == 0xFE0F {
 			return 0
@@ -238,8 +230,8 @@ func TestReanchor_NarrowEmojiTerminal(t *testing.T) {
 	}
 }
 
-// TestReanchor_NoCostForPlainText keeps the fix from taxing ordinary output:
-// ASCII cells are certain, so no re-anchor sequences may be emitted.
+// TestReanchor_NoCostForPlainText verifies that single-column ASCII output adds
+// no re-anchoring sequences.
 func TestReanchor_NoCostForPlainText(t *testing.T) {
 	b := buffer.New(20, 1)
 	b.Clear(style.ColorTransparent)
@@ -256,8 +248,8 @@ func TestReanchor_NoCostForPlainText(t *testing.T) {
 	}
 }
 
-// columnOf returns the column where sub starts, counting runes rather than
-// bytes: one grid cell is one rune, and these rows contain multi-byte runes.
+// columnOf returns sub's rune index because this terminal model stores one rune
+// per cell.
 func columnOf(row, sub string) int {
 	r := []rune(row)
 	t := []rune(sub)
@@ -269,8 +261,8 @@ func columnOf(row, sub string) int {
 	return -1
 }
 
-// bufferText renders a row the way the buffer intends it, ignoring terminal
-// disagreement, to establish where content ought to land.
+// bufferText returns the row implied by buffer widths, independent of terminal
+// width behavior.
 func bufferText(b *buffer.Buffer, w int) string {
 	var sb strings.Builder
 	for x := range w {
@@ -284,7 +276,7 @@ func bufferText(b *buffer.Buffer, w int) string {
 		}
 		sb.WriteRune(ch)
 		for range max(int(c.Width)-1, 0) {
-			sb.WriteRune(' ') // wide cell occupies its continuation column
+			sb.WriteRune(' ') // Represent the continuation column explicitly.
 		}
 	}
 	return sb.String()
@@ -330,7 +322,7 @@ func checkRightEdgeFlush(t *testing.T, mode string, row int) {
 	r.width, r.height = w, h+1
 	width, height := w, h
 	if strings.HasPrefix(mode, "inline") {
-		width, height = w-1, h+1 // inline reserves a column and needs a trailing row
+		width, height = w-1, h+1 // Inline output reserves one column and one trailing row.
 	}
 	term := newDisagreeingTerm(w, height, jamoTerm)
 	prev, next := rightEdgeBuffer(width, h, -1), rightEdgeBuffer(width, h, row)

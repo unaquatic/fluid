@@ -44,14 +44,14 @@ func TestCreateTextAttributes_All(t *testing.T) {
 	if attr != want {
 		t.Errorf("got %d, want %d", attr, want)
 	}
-	// Should be exactly 0xFF
+	// Enabling every decoration sets all eight low bits.
 	if attr != AttributeBaseMask {
 		t.Errorf("all attributes should equal AttributeBaseMask (%d), got %d", AttributeBaseMask, attr)
 	}
 }
 
 func TestGetBaseAttributes(t *testing.T) {
-	// Put some junk in the upper bits
+	// Upper link-ID bits do not affect the extracted decorations.
 	attr := AttrBold | AttrItalic | (42 << AttributeBaseBits)
 	base := GetBaseAttributes(attr)
 	want := AttrBold | AttrItalic
@@ -65,13 +65,13 @@ func TestAttributesWithLink(t *testing.T) {
 	linkID := uint32(12345)
 	packed := AttributesWithLink(base, linkID)
 
-	// Base bits should be preserved
+	// Packing a link preserves the decoration bits.
 	gotBase := GetBaseAttributes(packed)
 	if gotBase != base {
 		t.Errorf("base attrs: got %d, want %d", gotBase, base)
 	}
 
-	// Link ID should be extractable
+	// The link ID round-trips through the upper bits.
 	gotLink := GetLinkID(packed)
 	if gotLink != linkID {
 		t.Errorf("link ID: got %d, want %d", gotLink, linkID)
@@ -95,7 +95,7 @@ func TestAttributesWithLink_ZeroLinkID(t *testing.T) {
 
 func TestAttributesWithLink_MaxLinkID(t *testing.T) {
 	base := AttrBold
-	// Max 24-bit link ID
+	// The largest 24-bit link ID fits without changing the decorations.
 	maxLinkID := uint32((1 << 24) - 1)
 	packed := AttributesWithLink(base, maxLinkID)
 
@@ -137,7 +137,7 @@ func TestHasAttribute_None(t *testing.T) {
 }
 
 func TestLinkIDRoundtrip(t *testing.T) {
-	// Test multiple link IDs roundtrip correctly
+	// Representative link IDs round-trip without affecting decorations.
 	testIDs := []uint32{0, 1, 100, 1000, 65535, (1 << 24) - 1}
 	bases := []uint32{AttrNone, AttrBold, AttrBold | AttrItalic, AttributeBaseMask}
 
@@ -158,7 +158,7 @@ func TestLinkIDRoundtrip(t *testing.T) {
 }
 
 func TestBitmaskConstants(t *testing.T) {
-	// Verify each constant is a unique power of two
+	// Every decoration flag occupies one distinct bit.
 	attrs := []uint32{AttrBold, AttrDim, AttrItalic, AttrUnderline, AttrBlink, AttrInverse, AttrHidden, AttrStrikethrough}
 	for i, a := range attrs {
 		expected := uint32(1 << i)

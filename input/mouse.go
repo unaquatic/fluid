@@ -2,11 +2,7 @@ package input
 
 import "fmt"
 
-// ---------------------------------------------------------------------------
-// MouseEventType
-// ---------------------------------------------------------------------------
-
-// MouseEventType enumerates the 9 mouse event subtypes.
+// MouseEventType identifies a mouse event subtype.
 type MouseEventType int
 
 const (
@@ -21,7 +17,7 @@ const (
 	MouseScroll
 )
 
-// String returns the human-readable name of a mouse event type.
+// String returns the mouse event type's name.
 func (t MouseEventType) String() string {
 	switch t {
 	case MouseDown:
@@ -47,11 +43,7 @@ func (t MouseEventType) String() string {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// MouseButton
-// ---------------------------------------------------------------------------
-
-// MouseButton identifies which mouse button was involved.
+// MouseButton identifies a mouse button or scroll wheel direction.
 type MouseButton int
 
 const (
@@ -63,60 +55,47 @@ const (
 	WheelDown    MouseButton = 5
 )
 
-// ---------------------------------------------------------------------------
-// ScrollInfo
-// ---------------------------------------------------------------------------
-
-// ScrollInfo carries scroll delta information.
+// ScrollInfo contains horizontal and vertical scroll deltas.
 type ScrollInfo struct {
-	DeltaX int // Horizontal scroll delta
-	DeltaY int // Vertical scroll delta (-1 = up, 1 = down)
+	DeltaX int // The horizontal scroll delta.
+	DeltaY int // The vertical scroll delta; negative is up and positive is down.
 }
 
-// ---------------------------------------------------------------------------
-// MouseModifiers
-// ---------------------------------------------------------------------------
-
-// MouseModifiers tracks which modifier keys were held during a mouse event.
+// MouseModifiers reports the modifier keys held during a mouse event.
 type MouseModifiers struct {
 	Shift bool
 	Alt   bool
 	Ctrl  bool
 }
 
-// ---------------------------------------------------------------------------
-// MouseEvent
-// ---------------------------------------------------------------------------
-
-// MouseEvent represents a mouse input event.
+// MouseEvent describes one mouse input event.
 type MouseEvent struct {
 	Type       MouseEventType
 	Button     MouseButton
-	X, Y       int // Absolute terminal coordinates
+	X, Y       int // Zero-based terminal coordinates.
 	Modifiers  MouseModifiers
-	Scroll     *ScrollInfo // Non-nil only for MouseScroll events
+	Scroll     *ScrollInfo // Non-nil for MouseScroll events.
 	IsDragging bool
 
-	// Source and target are set by the renderer during dispatch.
-	// These use interface{} here to avoid circular imports;
-	// the render package provides typed accessors.
-	Source any // Renderable that initiated the event
-	Target any // Renderable under the cursor (from hit grid)
+	// The renderer sets Source and Target during dispatch. They use any to avoid
+	// an import cycle; the render package provides typed accessors.
+	Source any // The renderable that initiated the event.
+	Target any // The renderable under the cursor.
 
 	propagationStopped bool
 	defaultPrevented   bool
 }
 
-// StopPropagation stops the event from bubbling.
+// StopPropagation prevents the event from reaching later propagation targets.
 func (e *MouseEvent) StopPropagation() { e.propagationStopped = true }
 
-// PreventDefault prevents default handling.
+// PreventDefault prevents the event's default behavior.
 func (e *MouseEvent) PreventDefault() { e.defaultPrevented = true }
 
-// PropagationStopped returns true if propagation was stopped.
+// PropagationStopped reports whether StopPropagation was called.
 func (e *MouseEvent) PropagationStopped() bool { return e.propagationStopped }
 
-// DefaultPrevented returns true if default was prevented.
+// DefaultPrevented reports whether PreventDefault was called.
 func (e *MouseEvent) DefaultPrevented() bool { return e.defaultPrevented }
 
 // String returns a human-readable description of the mouse event.

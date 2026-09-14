@@ -2,30 +2,23 @@ package terminal
 
 import "sync"
 
-// LinkRegistry maps numeric link IDs to URLs for OSC 8 hyperlink support.
-// Link IDs are packed into the upper 24 bits of a cell's uint32 attribute
-// word via AttributesWithLink. The renderer looks up URLs from this registry
-// when flushing cells that carry a link ID, emitting the appropriate OSC 8
-// escape sequences.
-//
-// The registry is safe for concurrent use.
+// LinkRegistry assigns numeric IDs to URLs used by OSC 8 hyperlinks. Its methods
+// are safe for concurrent use.
 type LinkRegistry struct {
 	mu    sync.RWMutex
-	urls  []string          // index 0 is reserved (linkID 0 = "no link")
-	dedup map[string]uint32 // url → linkID (optional dedup)
+	urls  []string          // Index zero is reserved to mean no link.
+	dedup map[string]uint32 // URL to existing link ID.
 }
 
-// NewLinkRegistry creates a new empty LinkRegistry.
+// NewLinkRegistry returns an empty link registry.
 func NewLinkRegistry() *LinkRegistry {
 	return &LinkRegistry{
-		urls:  []string{""}, // slot 0 reserved
+		urls:  []string{""}, // Reserve ID zero.
 		dedup: make(map[string]uint32),
 	}
 }
 
-// Alloc allocates a link ID for the given URL. If the same URL was previously
-// allocated, the existing ID is returned (deduplication).
-// Returns the link ID (>= 1).
+// Alloc returns a positive ID for url, reusing its existing ID when present.
 func (lr *LinkRegistry) Alloc(url string) uint32 {
 	lr.mu.Lock()
 	defer lr.mu.Unlock()
@@ -40,7 +33,8 @@ func (lr *LinkRegistry) Alloc(url string) uint32 {
 	return id
 }
 
-// URL returns the URL for the given link ID, or "" if invalid.
+// URL returns the URL identified by linkID, or an empty string for an invalid
+// or reserved ID.
 func (lr *LinkRegistry) URL(linkID uint32) string {
 	lr.mu.RLock()
 	defer lr.mu.RUnlock()
@@ -51,7 +45,7 @@ func (lr *LinkRegistry) URL(linkID uint32) string {
 	return lr.urls[linkID]
 }
 
-// Count returns the number of allocated links (excluding the reserved slot 0).
+// Count returns the number of allocated URLs.
 func (lr *LinkRegistry) Count() int {
 	lr.mu.RLock()
 	defer lr.mu.RUnlock()

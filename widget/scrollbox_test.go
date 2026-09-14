@@ -11,12 +11,9 @@ import (
 	"github.com/unaquatic/fluid/testutil"
 )
 
-// ---------------------------------------------------------------------------
-// helpers
-// ---------------------------------------------------------------------------
+// ScrollBox test helpers.
 
-// newTestScrollBox creates a scrollbox with a given viewport and content size.
-// It uses SetContentHeight/SetContentWidth so that auto-scroll logic runs.
+// newTestScrollBox returns a laid-out ScrollBox with explicit content dimensions.
 func newTestScrollBox(vpW, vpH, contentW, contentH int, opts ...ScrollBoxOption) *ScrollBox {
 	sb := NewScrollBox(opts...)
 	testutil.SetupWidget(sb, vpW, vpH)
@@ -30,9 +27,7 @@ func pressKey(sb *ScrollBox, name string) bool {
 	return sb.HandleKeyPress(e)
 }
 
-// ---------------------------------------------------------------------------
-// Original tests (preserved)
-// ---------------------------------------------------------------------------
+// Core scrolling behavior.
 
 func TestNewScrollBox_Defaults(t *testing.T) {
 	sb := NewScrollBox()
@@ -58,13 +53,13 @@ func TestScrollBox_SetScroll(t *testing.T) {
 		t.Errorf("expected scrollY 5, got %d", sb.ScrollY())
 	}
 
-	// Clamp to max
+	// Offsets beyond the content clamp to the maximum.
 	sb.SetScrollY(100)
 	if sb.ScrollY() > 20 {
 		t.Errorf("expected scrollY clamped, got %d", sb.ScrollY())
 	}
 
-	// Clamp to min
+	// Negative offsets clamp to zero.
 	sb.SetScrollY(-5)
 	if sb.ScrollY() != 0 {
 		t.Errorf("expected scrollY 0, got %d", sb.ScrollY())
@@ -104,7 +99,7 @@ func TestScrollBox_AutoScroll(t *testing.T) {
 		t.Error("expected at bottom")
 	}
 
-	// Increase content height - should stay at bottom
+	// Content growth keeps a followed bottom edge visible.
 	sb.SetContentHeight(20)
 	if !sb.IsAtBottom() {
 		t.Error("expected auto-scroll to keep at bottom")
@@ -118,7 +113,7 @@ func TestScrollBox_Render(t *testing.T) {
 	testutil.SetupWidget(sb, 20, 10)
 
 	buf := buffer.New(20, 10)
-	// Should not panic
+	// An empty ScrollBox must render safely.
 	sb.RenderSelf(buf, 0)
 }
 
@@ -135,9 +130,7 @@ func TestScrollBox_Options(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Edge helper tests
-// ---------------------------------------------------------------------------
+// Edge queries.
 
 func TestScrollBox_IsAtEdges(t *testing.T) {
 	sb := newTestScrollBox(20, 10, 40, 30)
@@ -190,44 +183,42 @@ func TestScrollBox_ScrollTo(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// 4-directional auto-scroll
-// ---------------------------------------------------------------------------
+// Auto-scroll in each direction.
 
 func TestScrollBox_AutoScroll_Bottom(t *testing.T) {
-	// Default AutoScroll(true) implies AutoScrollBottom for backward compat.
+	// Start with content that fits at the followed bottom edge.
 	sb := newTestScrollBox(20, 10, 20, 10, ScrollBoxWithAutoScroll(AutoScrollBottom))
 
-	// Initially at bottom (content fits viewport, maxScrollY = 0).
+	// Fitting content has a zero maximum offset and is therefore at the bottom.
 	if !sb.IsAtBottom() {
 		t.Error("expected at bottom initially")
 	}
 
-	// Growing content should keep it at bottom.
+	// Growing content moves the offset to the new bottom.
 	sb.SetContentHeight(30)
 	if !sb.IsAtBottom() {
 		t.Errorf("expected auto-scroll bottom, scrollY=%d maxScrollY=%d", sb.ScrollY(), sb.maxScrollY())
 	}
 
-	// Manually scroll away from bottom.
+	// A manual offset away from the bottom suspends edge following.
 	sb.SetScrollY(5)
 	if sb.IsAtBottom() {
 		t.Error("should not be at bottom after manual scroll up")
 	}
 
-	// Growing content again should NOT snap to bottom because user scrolled away.
+	// Later growth retains the manual viewport.
 	sb.SetContentHeight(40)
 	if sb.IsAtBottom() {
 		t.Error("should not re-engage auto-scroll after manual scroll away")
 	}
 
-	// Scroll back to bottom — userScrolled should clear.
+	// Returning to the bottom re-enables edge following.
 	sb.ScrollToBottom()
 	if sb.UserScrolled() {
 		t.Error("expected userScrolled to clear when returning to auto-scroll edge")
 	}
 
-	// Growing again should stick.
+	// Subsequent growth follows the bottom again.
 	sb.SetContentHeight(50)
 	if !sb.IsAtBottom() {
 		t.Error("expected auto-scroll to re-engage after scrolling back to bottom")
@@ -241,20 +232,20 @@ func TestScrollBox_AutoScroll_Top(t *testing.T) {
 		t.Error("expected at top with AutoScrollTop")
 	}
 
-	// Content change should keep it at top.
+	// Content growth does not move a followed top edge.
 	sb.SetContentHeight(50)
 	if !sb.IsAtTop() {
 		t.Error("expected auto-scroll top to hold")
 	}
 
-	// Manual scroll away.
+	// Manual movement suspends top-edge following.
 	sb.SetScrollY(10)
 	sb.SetContentHeight(60)
 	if sb.ScrollY() == 0 {
 		t.Error("should not snap to top after manual scroll")
 	}
 
-	// Scroll back to top.
+	// Returning to the top re-enables edge following.
 	sb.ScrollToTop()
 	if sb.UserScrolled() {
 		t.Error("expected userScrolled to clear at top")
@@ -329,14 +320,12 @@ func TestScrollBox_AutoScrollOption_DefaultsToBottom(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Keyboard navigation
-// ---------------------------------------------------------------------------
+// Keyboard navigation.
 
 func TestScrollBox_KeyNav_UpDown(t *testing.T) {
 	sb := newTestScrollBox(20, 10, 20, 50)
 
-	// Scroll down
+	// Down advances the vertical offset.
 	if !pressKey(sb, input.KeyDown) {
 		t.Error("expected down key handled")
 	}
@@ -346,7 +335,7 @@ func TestScrollBox_KeyNav_UpDown(t *testing.T) {
 
 	yAfterDown := sb.ScrollY()
 
-	// Scroll up
+	// Up reduces the vertical offset.
 	pressKey(sb, input.KeyUp)
 	if sb.ScrollY() >= yAfterDown {
 		t.Errorf("expected scrollY < %d after up, got %d", yAfterDown, sb.ScrollY())
@@ -416,7 +405,7 @@ func TestScrollBox_KeyNav_PageUpDown(t *testing.T) {
 func TestScrollBox_KeyNav_HomeEnd(t *testing.T) {
 	sb := newTestScrollBox(20, 10, 50, 100)
 
-	// Move somewhere in the middle.
+	// Start from nonzero offsets on both axes.
 	sb.SetScrollY(30)
 	sb.SetScrollX(10)
 
@@ -438,7 +427,7 @@ func TestScrollBox_KeyNav_HomeEnd(t *testing.T) {
 }
 
 func TestScrollBox_KeyNav_NoContentNoScroll(t *testing.T) {
-	// Viewport larger than content — nothing to scroll.
+	// Fitting content cannot move in response to navigation.
 	sb := newTestScrollBox(20, 10, 20, 10)
 
 	pressKey(sb, input.KeyDown)
@@ -466,7 +455,7 @@ func TestScrollBox_KeyNav_UnhandledKey(t *testing.T) {
 func TestScrollBox_KeyNav_SetsManualScroll(t *testing.T) {
 	sb := newTestScrollBox(20, 10, 20, 50, ScrollBoxWithAutoScroll(AutoScrollBottom))
 
-	// Initially no manual scroll.
+	// Edge-following state starts engaged.
 	if sb.UserScrolled() {
 		t.Error("expected no manual scroll initially")
 	}
@@ -505,9 +494,7 @@ func TestScrollBox_ViewportDimensions(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// ScrollBoxWithChildren tests
-// ---------------------------------------------------------------------------
+// ScrollBoxWithChildren behavior.
 
 func TestScrollBox_WithChildren_AddsChildren(t *testing.T) {
 	txt1 := NewText("line 1")
@@ -561,12 +548,9 @@ func TestScrollBox_WithChildren_WithOtherOptions(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Anchor-based scroll tests
-// ---------------------------------------------------------------------------
+// Anchor-based scrolling.
 
-// newAnchorScrollBox creates a column scrollbox with fixed-height children,
-// runs layout, and sets content height. Returns the scrollbox.
+// newAnchorScrollBox returns a laid-out column ScrollBox with fixed-height children.
 func newAnchorScrollBox(vpW, vpH int, childHeights ...int) *ScrollBox {
 	var children []Box_ChildEntry
 	for i, h := range childHeights {
@@ -586,7 +570,7 @@ func newAnchorScrollBox(vpW, vpH int, childHeights ...int) *ScrollBox {
 		sb.Add(c.child)
 	}
 
-	// Run layout so children get Computed positions.
+	// Anchors require final child positions from layout.
 	ln := sb.LayoutNode()
 	ln.Width = layout.Points(vpW)
 	ln.Height = layout.Points(vpH)
@@ -596,7 +580,7 @@ func newAnchorScrollBox(vpW, vpH int, childHeights ...int) *ScrollBox {
 		child.UpdateFromLayout()
 	}
 
-	// Compute total content height.
+	// Content height is the sum of fixed child heights.
 	total := 0
 	for _, h := range childHeights {
 		total += h
@@ -605,7 +589,7 @@ func newAnchorScrollBox(vpW, vpH int, childHeights ...int) *ScrollBox {
 	return sb
 }
 
-// Box_ChildEntry is a local helper to pass children around.
+// Box_ChildEntry stores a Text child while building an anchored ScrollBox.
 type Box_ChildEntry struct {
 	child *Text
 }
@@ -618,10 +602,10 @@ func TestScrollBox_AnchorScroll_Option(t *testing.T) {
 }
 
 func TestScrollBox_AnchorScroll_ComputesAnchor(t *testing.T) {
-	// 3 children: 10px, 20px, 30px = 60px total in a 15px viewport.
+	// Three children total 60 cells in a 15-cell viewport.
 	sb := newAnchorScrollBox(20, 15, 10, 20, 30)
 
-	// Scroll to y=15 → child[1] starts at y=10, so offset = 5.
+	// At y=15, child 1 starts at y=10 and has an anchor offset of 5.
 	sb.SetScrollY(15)
 
 	anchor := sb.Anchor()
@@ -639,7 +623,7 @@ func TestScrollBox_AnchorScroll_ComputesAnchor(t *testing.T) {
 func TestScrollBox_AnchorScroll_AnchorAtFirstChild(t *testing.T) {
 	sb := newAnchorScrollBox(20, 15, 10, 20, 30)
 
-	// Scroll to y=3 → still in child[0], offset = 3.
+	// At y=3, child 0 intersects the viewport top at offset 3.
 	sb.SetScrollY(3)
 
 	anchor := sb.Anchor()
@@ -657,7 +641,7 @@ func TestScrollBox_AnchorScroll_AnchorAtFirstChild(t *testing.T) {
 func TestScrollBox_AnchorScroll_AnchorAtLastChild(t *testing.T) {
 	sb := newAnchorScrollBox(20, 15, 10, 20, 30)
 
-	// Scroll to y=35 → child[2] starts at y=30, offset = 5.
+	// At y=35, child 2 starts at y=30 and has an anchor offset of 5.
 	sb.SetScrollY(35)
 
 	anchor := sb.Anchor()
@@ -673,22 +657,18 @@ func TestScrollBox_AnchorScroll_AnchorAtLastChild(t *testing.T) {
 }
 
 func TestScrollBox_AnchorScroll_RestoresOnContentGrowth(t *testing.T) {
-	// Viewport 15px, children: 10, 20, 30 = 60px total.
+	// Use a 15-cell viewport over children with heights 10, 20, and 30.
 	sb := newAnchorScrollBox(20, 15, 10, 20, 30)
 
-	// Scroll to y=15 → anchored to child[1] at offset 5.
+	// Anchor five cells into child 1.
 	sb.SetScrollY(15)
 	if sb.ScrollY() != 15 {
 		t.Fatalf("expected scrollY=15, got %d", sb.ScrollY())
 	}
 
-	// Simulate child[0] growing by 10px. In real usage the layout engine
-	// would reposition child[1] from y=10 to y=20. We simulate by
-	// manually updating the child's Computed.Y via layout recomputation.
-	//
-	// To do this properly we resize the first child and re-run layout.
+	// Grow child 0 by ten cells and recompute all child positions.
 	children := sb.Children()
-	children[0].LayoutNode().Height = layout.Points(20) // was 10, now 20
+	children[0].LayoutNode().Height = layout.Points(20) // Increase from 10 to 20.
 	children[0].LayoutNode().MarkDirty()
 
 	ln := sb.LayoutNode()
@@ -698,26 +678,26 @@ func TestScrollBox_AnchorScroll_RestoresOnContentGrowth(t *testing.T) {
 		child.UpdateFromLayout()
 	}
 
-	// Trigger content height recalculation (70 = 20+20+30).
+	// Recalculate against the new total height of 70.
 	sb.SetContentHeight(70)
 
-	// scrollY should follow: child[1] now at y=20 + offset 5 = 25.
+	// Child 1 now starts at 20, so the saved offset resolves to y=25.
 	if sb.ScrollY() != 25 {
 		t.Errorf("expected scrollY=25 after anchor restore, got %d", sb.ScrollY())
 	}
 }
 
 func TestScrollBox_AnchorScroll_DoesNotAffectAutoScrollBottom(t *testing.T) {
-	// When at auto-scroll bottom, anchor should not interfere.
+	// Edge following takes precedence over a saved anchor.
 	sb := newAnchorScrollBox(20, 15, 10, 20, 30)
 
-	// maxScrollY = 60 - 15 = 45. Auto-scroll bottom → scrollY = 45.
+	// The initial maximum offset is 45.
 	if !sb.IsAtBottom() {
 		t.Fatal("expected at bottom with auto-scroll")
 	}
 
-	// Add more content — should stay at bottom.
-	sb.SetContentHeight(80) // maxScrollY = 80 - 15 = 65
+	// Content growth moves to the new maximum offset of 65.
+	sb.SetContentHeight(80)
 	if !sb.IsAtBottom() {
 		t.Errorf("expected auto-scroll bottom to hold, scrollY=%d", sb.ScrollY())
 	}
@@ -730,7 +710,7 @@ func TestScrollBox_AnchorScroll_NoChildren(t *testing.T) {
 	testutil.SetupWidget(sb, 20, 15)
 	sb.SetContentHeight(0)
 
-	// Should not panic when updating anchor with no children.
+	// An empty child list cannot produce a valid anchor.
 	sb.SetScrollY(0)
 	anchor := sb.Anchor()
 	if anchor.Valid {
@@ -741,18 +721,18 @@ func TestScrollBox_AnchorScroll_NoChildren(t *testing.T) {
 func TestScrollBox_AnchorScroll_ChildRemoved(t *testing.T) {
 	sb := newAnchorScrollBox(20, 15, 10, 20, 30)
 
-	// Anchor to child[2].
+	// Start with an anchor in the final child.
 	sb.SetScrollY(35)
 	anchor := sb.Anchor()
 	if anchor.ChildIndex != 2 {
 		t.Fatalf("expected anchor child 2, got %d", anchor.ChildIndex)
 	}
 
-	// Remove the last child. Anchor index is now out of bounds.
+	// Removing that child leaves the saved index out of range.
 	lastChild := sb.Children()[2]
 	sb.Remove(lastChild.ID())
 
-	// scrollYFromAnchor should clamp to the new last child.
+	// Anchor resolution falls back to the new final child.
 	newY := sb.scrollYFromAnchor()
 	if newY < 0 {
 		t.Errorf("expected non-negative scrollY from anchor, got %d", newY)
@@ -760,15 +740,15 @@ func TestScrollBox_AnchorScroll_ChildRemoved(t *testing.T) {
 }
 
 func TestScrollBox_AnchorScroll_WithOnPostLayout(t *testing.T) {
-	// Simulates the full OnPostLayout flow: content grows, anchor restores.
+	// Exercise anchor restoration through the post-layout hook.
 	sb := newAnchorScrollBox(20, 15, 10, 20, 30)
 
-	// Scroll up manually, anchoring to child[1].
+	// Anchor five cells into child 1.
 	sb.SetScrollY(15)
 
-	// Grow child[0] and re-layout.
+	// Grow child 0 and recompute positions.
 	children := sb.Children()
-	children[0].LayoutNode().Height = layout.Points(25) // was 10
+	children[0].LayoutNode().Height = layout.Points(25) // Increase from 10 to 25.
 	children[0].LayoutNode().MarkDirty()
 
 	ln := sb.LayoutNode()
@@ -778,34 +758,31 @@ func TestScrollBox_AnchorScroll_WithOnPostLayout(t *testing.T) {
 		child.UpdateFromLayout()
 	}
 
-	// Invoke OnPostLayout which should detect content height change
-	// and restore from anchor.
+	// OnPostLayout detects the new content height and restores the anchor.
 	sb.OnPostLayout(0)
 
-	// child[1] moved from y=10 to y=25. Expected scrollY = 25 + 5 = 30.
+	// Child 1 moved to y=25, so the saved offset resolves to y=30.
 	if sb.ScrollY() != 30 {
 		t.Errorf("expected scrollY=30 after OnPostLayout anchor restore, got %d", sb.ScrollY())
 	}
 }
 
 func TestScrollBox_AnchorScroll_ScrollBackToBottomReengagesAutoScroll(t *testing.T) {
-	// Scenario: user scrolls up (breaks auto-scroll), then scrolls back to
-	// bottom. When new content arrives, auto-scroll should re-engage
-	// and snap to the new bottom — the anchor must not prevent this.
+	// Returning to the followed bottom must disable anchor restoration.
 	sb := newAnchorScrollBox(20, 15, 10, 20, 30)
-	// maxScrollY = 60 - 15 = 45. Starts at auto-scroll bottom.
+	// The ScrollBox starts at its maximum offset of 45.
 
 	if !sb.IsAtBottom() {
 		t.Fatal("expected at bottom initially")
 	}
 
-	// Scroll up — breaks auto-scroll.
+	// Moving upward suspends bottom-edge following.
 	sb.SetScrollY(15)
 	if !sb.UserScrolled() {
 		t.Fatal("expected userScrolled after scrolling up")
 	}
 
-	// Scroll back to bottom.
+	// Returning to the bottom clears the manual-scroll state.
 	sb.ScrollToBottom()
 	if sb.UserScrolled() {
 		t.Errorf("expected userScrolled cleared after scrolling back to bottom")
@@ -814,8 +791,8 @@ func TestScrollBox_AnchorScroll_ScrollBackToBottomReengagesAutoScroll(t *testing
 		t.Fatal("expected at bottom after ScrollToBottom")
 	}
 
-	// New content arrives — auto-scroll should snap to the new bottom.
-	sb.SetContentHeight(80) // maxScrollY = 80 - 15 = 65
+	// New content follows the bottom to its new maximum offset.
+	sb.SetContentHeight(80)
 	if !sb.IsAtBottom() {
 		t.Errorf("expected auto-scroll bottom to re-engage, scrollY=%d maxScrollY=%d",
 			sb.ScrollY(), sb.ContentHeight()-sb.ViewportHeight())
@@ -823,13 +800,12 @@ func TestScrollBox_AnchorScroll_ScrollBackToBottomReengagesAutoScroll(t *testing
 }
 
 func TestScrollBox_AnchorScroll_HandleScrollBackToBottomReengagesAutoScroll(t *testing.T) {
-	// Same scenario but using handleScroll (mouse wheel) instead of
-	// ScrollToBottom, which is the real-world code path.
+	// Exercise re-engagement through mouse-wheel handling.
 	sb := newAnchorScrollBox(20, 15, 10, 20, 30)
-	// maxScrollY = 60 - 15 = 45.
+	// The initial maximum offset is 45.
 
-	// Scroll up via handleScroll (simulates mouse wheel up).
-	sb.handleScroll(0, -30, false) // scrollY = 45 - 30 = 15
+	// A 30-row upward delta moves from 45 to 15.
+	sb.handleScroll(0, -30, false)
 	if sb.ScrollY() != 15 {
 		t.Fatalf("expected scrollY=15 after scroll up, got %d", sb.ScrollY())
 	}
@@ -837,8 +813,8 @@ func TestScrollBox_AnchorScroll_HandleScrollBackToBottomReengagesAutoScroll(t *t
 		t.Fatal("expected userScrolled after mouse scroll up")
 	}
 
-	// Scroll back to bottom via handleScroll (simulates mouse wheel down).
-	sb.handleScroll(0, 100, false) // clamped to maxScrollY = 45
+	// A large downward delta clamps to the bottom.
+	sb.handleScroll(0, 100, false)
 	if !sb.IsAtBottom() {
 		t.Fatalf("expected at bottom after mouse scroll down, scrollY=%d", sb.ScrollY())
 	}
@@ -846,8 +822,8 @@ func TestScrollBox_AnchorScroll_HandleScrollBackToBottomReengagesAutoScroll(t *t
 		t.Errorf("expected userScrolled cleared after scrolling back to bottom via handleScroll")
 	}
 
-	// New content arrives — auto-scroll should snap to the new bottom.
-	sb.SetContentHeight(80) // maxScrollY = 80 - 15 = 65
+	// Content growth now follows the bottom again.
+	sb.SetContentHeight(80)
 	if !sb.IsAtBottom() {
 		t.Errorf("expected auto-scroll bottom after content growth, scrollY=%d maxScrollY=%d",
 			sb.ScrollY(), sb.ContentHeight()-sb.ViewportHeight())
@@ -855,16 +831,16 @@ func TestScrollBox_AnchorScroll_HandleScrollBackToBottomReengagesAutoScroll(t *t
 }
 
 func TestScrollBox_AnchorScroll_KeyNavBackToBottomReengagesAutoScroll(t *testing.T) {
-	// Same scenario using HandleKeyPress (keyboard End key).
+	// Exercise re-engagement through keyboard handling.
 	sb := newAnchorScrollBox(20, 15, 10, 20, 30)
 
-	// Scroll up via keyboard.
+	// PageUp suspends bottom-edge following.
 	pressKey(sb, input.KeyPageUp)
 	if !sb.UserScrolled() {
 		t.Fatal("expected userScrolled after PageUp")
 	}
 
-	// Press End to go to bottom.
+	// End returns to the followed edge.
 	pressKey(sb, input.KeyEnd)
 	if !sb.IsAtBottom() {
 		t.Fatal("expected at bottom after End key")
@@ -873,7 +849,7 @@ func TestScrollBox_AnchorScroll_KeyNavBackToBottomReengagesAutoScroll(t *testing
 		t.Errorf("expected userScrolled cleared after End key to bottom")
 	}
 
-	// New content arrives — auto-scroll should snap to the new bottom.
+	// Content growth follows the bottom again.
 	sb.SetContentHeight(80)
 	if !sb.IsAtBottom() {
 		t.Errorf("expected auto-scroll bottom after content growth via key nav, scrollY=%d",
@@ -881,13 +857,9 @@ func TestScrollBox_AnchorScroll_KeyNavBackToBottomReengagesAutoScroll(t *testing
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Sticky position tests
-// ---------------------------------------------------------------------------
+// Sticky positioning.
 
-// newStickyScrollBox creates a column scrollbox with children of given heights,
-// where specific children are marked StickyTop. stickyIndices lists child
-// indices to mark sticky. Returns the scrollbox after layout + content height.
+// newStickyScrollBox returns a laid-out column whose indexed children stick to the top.
 func newStickyScrollBox(vpW, vpH int, childHeights []int, stickyIndices []int) *ScrollBox {
 	stickySet := map[int]bool{}
 	for _, i := range stickyIndices {
@@ -927,8 +899,7 @@ func newStickyScrollBox(vpW, vpH int, childHeights []int, stickyIndices []int) *
 }
 
 func TestScrollBox_Sticky_NoOffset_WhenNotScrolledPast(t *testing.T) {
-	// Viewport 20px. Children: 10, 30, 10 = 50px. Child[0] is sticky.
-	// At scrollY=0, child[0] is at the top — no offset needed.
+	// Child 0 already touches the viewport top at scrollY zero.
 	sb := newStickyScrollBox(20, 20, []int{10, 30, 10}, []int{0})
 
 	sb.SetScrollY(0)
@@ -939,8 +910,7 @@ func TestScrollBox_Sticky_NoOffset_WhenNotScrolledPast(t *testing.T) {
 }
 
 func TestScrollBox_Sticky_PinsAtTop(t *testing.T) {
-	// Viewport 20px. Children: 10, 30, 10. Child[0] is sticky.
-	// Scroll to 5 — child[0] (at y=0) would be at viewport y=-5, pin at 0.
+	// At scrollY five, child 0 needs a positive five-cell offset to remain visible.
 	sb := newStickyScrollBox(20, 20, []int{10, 30, 10}, []int{0})
 
 	sb.SetScrollY(5)
@@ -951,9 +921,7 @@ func TestScrollBox_Sticky_PinsAtTop(t *testing.T) {
 }
 
 func TestScrollBox_Sticky_SectionScoped_PushedByNext(t *testing.T) {
-	// Children: 10, 30, 10, 20, 10. Child[0] and child[2] are sticky.
-	// maxOffset for child[0] = 40 - 0 - 10 = 30 (no gap by default).
-	// At scrollY=35, rawOffset=35 but clamped to 30.
+	// Child 2 starts at 40, limiting child 0's sticky offset to 30.
 	sb := newStickyScrollBox(20, 20, []int{10, 30, 10, 20, 10}, []int{0, 2})
 
 	sb.SetScrollY(35)
@@ -964,26 +932,26 @@ func TestScrollBox_Sticky_SectionScoped_PushedByNext(t *testing.T) {
 		t.Errorf("expected child[0] stickyOffsetY=30, got %d", child0.StickyOffsetY())
 	}
 
-	// child[2] at y=40: rawOffset = 35-40 = -5 → clamped to 0
+	// Child 2 has not yet crossed the viewport top, so its offset remains zero.
 	if child2.StickyOffsetY() != 0 {
 		t.Errorf("expected child[2] stickyOffsetY=0 (not yet scrolled past), got %d", child2.StickyOffsetY())
 	}
 }
 
 func TestScrollBox_Sticky_SecondTakesOver(t *testing.T) {
-	// Same layout. Scroll far enough that child[2] pins.
+	// Scroll far enough for the second sticky section to take over.
 	sb := newStickyScrollBox(20, 20, []int{10, 30, 10, 20, 10}, []int{0, 2})
 
 	sb.SetScrollY(50)
 	child0 := sb.Children()[0]
 	child2 := sb.Children()[2]
 
-	// child[0]: maxOffset = 30, rawOffset = 50 → clamped to 30
+	// Child 0 remains clamped at its section limit of 30.
 	if child0.StickyOffsetY() != 30 {
 		t.Errorf("expected child[0] stickyOffsetY=30, got %d", child0.StickyOffsetY())
 	}
 
-	// child[2] at y=40: rawOffset = 50-40 = 10
+	// Child 2 sticks with a ten-cell offset.
 	if child2.StickyOffsetY() != 10 {
 		t.Errorf("expected child[2] stickyOffsetY=10, got %d", child2.StickyOffsetY())
 	}
@@ -993,7 +961,7 @@ func TestScrollBox_Sticky_NonStickyChildrenHaveZeroOffset(t *testing.T) {
 	sb := newStickyScrollBox(20, 20, []int{10, 30, 10}, []int{0})
 
 	sb.SetScrollY(15)
-	// child[1] is not sticky — should have 0 offset
+	// Non-sticky child 1 must retain zero offset.
 	child1 := sb.Children()[1]
 	if child1.StickyOffsetY() != 0 {
 		t.Errorf("expected non-sticky child stickyOffsetY=0, got %d", child1.StickyOffsetY())
@@ -1001,7 +969,7 @@ func TestScrollBox_Sticky_NonStickyChildrenHaveZeroOffset(t *testing.T) {
 }
 
 func TestScrollBox_Sticky_NoStickyChildren(t *testing.T) {
-	// No sticky children — should not panic.
+	// A container without sticky children leaves every offset at zero.
 	sb := newStickyScrollBox(20, 20, []int{10, 30, 10}, nil)
 	sb.SetScrollY(15)
 	for i, child := range sb.Children() {
@@ -1012,10 +980,7 @@ func TestScrollBox_Sticky_NoStickyChildren(t *testing.T) {
 }
 
 func TestScrollBox_StickyBottom_PinsAtBottom(t *testing.T) {
-	// Viewport 20px. Children: 10, 30, 10 = 50. Child[2] is sticky-bottom.
-	// Child[2] at y=40, height=10. At scrollY=0, viewport bottom=20.
-	// Child[2] bottom (50) > viewport bottom (20) → pin at bottom.
-	// raw = (0+20) - (40+10) = -30. Offset = -30.
+	// Child 2 ends at 50 while the viewport ends at 20, requiring offset -30.
 	sb := newStickyScrollBox(20, 20, []int{10, 30, 10}, nil)
 	sb.Children()[2].LayoutNode().Sticky = layout.StickyBottom
 	sb.SetScrollY(0)
@@ -1028,11 +993,11 @@ func TestScrollBox_StickyBottom_PinsAtBottom(t *testing.T) {
 }
 
 func TestScrollBox_StickyBottom_NoOffset_WhenVisible(t *testing.T) {
-	// Scroll far enough that child[2] is fully in the viewport.
+	// A fully visible bottom-sticky child needs no offset.
 	sb := newStickyScrollBox(20, 20, []int{10, 30, 10}, nil)
 	sb.Children()[2].LayoutNode().Sticky = layout.StickyBottom
 	sb.SetContentHeight(50)
-	sb.SetScrollY(30) // viewport 30..50, child[2] at 40..50 → fully visible
+	sb.SetScrollY(30) // Viewport 30..50 contains child 2 at 40..50.
 
 	child := sb.Children()[2]
 	if child.StickyOffsetY() != 0 {
@@ -1041,8 +1006,7 @@ func TestScrollBox_StickyBottom_NoOffset_WhenVisible(t *testing.T) {
 }
 
 func TestScrollBox_StickyLeft_PinsAtLeft(t *testing.T) {
-	// Horizontal scroll. Row layout, 20px viewport width.
-	// Children widths: 10, 30, 10 = 50. Child[0] is sticky-left.
+	// Child 0 sticks to the left in a horizontally scrolling row.
 	sb := NewScrollBox(
 		ScrollBoxWithFlexDirection(layout.DirectionRow),
 	)
@@ -1071,10 +1035,7 @@ func TestScrollBox_StickyLeft_PinsAtLeft(t *testing.T) {
 }
 
 func TestScrollBox_StickyRight_PinsAtRight(t *testing.T) {
-	// Child[2] is sticky-right at x=40, width=10.
-	// Viewport width=20. At scrollX=0, viewport right=20.
-	// Child right (50) > viewport right (20) → pin.
-	// raw = (0+20) - (40+10) = -30.
+	// Child 2 ends at 50 while the viewport ends at 20, requiring offset -30.
 	sb := NewScrollBox(
 		ScrollBoxWithFlexDirection(layout.DirectionRow),
 	)
@@ -1117,8 +1078,7 @@ func TestScrollBox_StickyGap_Option(t *testing.T) {
 }
 
 func TestScrollBox_StickyGap_PushAway(t *testing.T) {
-	// Children: 10, 30, 10, 20, 10. Child[0] and child[2] sticky.
-	// With gap=2: maxOffset for child[0] = 40 - 0 - 10 - 2 = 28.
+	// A two-cell gap reduces child 0's section limit from 30 to 28.
 	sb := newStickyScrollBox(20, 20, []int{10, 30, 10, 20, 10}, []int{0, 2})
 	sb.SetStickyGap(2)
 
@@ -1131,14 +1091,14 @@ func TestScrollBox_StickyGap_PushAway(t *testing.T) {
 }
 
 func TestScrollBox_StickyGap_ZeroNoGap(t *testing.T) {
-	// With gap=0, the two sticky children touch.
+	// A zero gap lets consecutive sticky children touch.
 	sb := newStickyScrollBox(20, 20, []int{10, 30, 10, 20, 10}, []int{0, 2})
 	sb.SetStickyGap(0)
 
 	sb.SetScrollY(35)
 	child0 := sb.Children()[0]
 
-	// maxOffset = 40 - 0 - 10 - 0 = 30
+	// Child 0's section limit remains 30.
 	if child0.StickyOffsetY() != 30 {
 		t.Errorf("expected child[0] stickyOffsetY=30 (gap=0), got %d", child0.StickyOffsetY())
 	}

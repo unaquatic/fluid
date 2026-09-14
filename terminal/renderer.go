@@ -18,61 +18,52 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// ---------------------------------------------------------------------------
-// Renderer
-// ---------------------------------------------------------------------------
-
-// Renderer is the top-level terminal renderer. It owns the render loop,
-// terminal setup/teardown, input parsing, focus management, mouse dispatch,
-// text selection, and the widget tree rooted at a RootRenderable. Create
-// one with NewRenderer, attach widgets via Root().Add(), then call Start()
-// or Auto() to begin rendering.
+// Renderer owns terminal modes, event dispatch, frame rendering, and the scene
+// graph rooted at RootRenderable.
 type Renderer struct {
 	root    *RootRenderable
 	hitGrid *HitGrid
 	backend *Backend
 	config  Config
 
-	currentBuffer *buffer.Buffer // currently displayed frame
-	nextBuffer    *buffer.Buffer // being drawn into
+	currentBuffer *buffer.Buffer // The frame represented on screen.
+	nextBuffer    *buffer.Buffer // The frame currently being built.
 
 	width, height int
 
 	controlState ControlState
 	destroyed    bool
 
-	// Input
+	// Input state.
 	parser        *input.Parser
 	eventBus      *input.EventBus
-	inputHandlers []func(sequence string) bool // pre-processors
+	inputHandlers []func(sequence string) bool // Raw-sequence preprocessors.
 
-	// Focus
+	// Focus and hover state.
 	focused     render.Renderable
-	lastHovered render.Renderable // for over/out tracking
+	lastHovered render.Renderable // The target of the previous mouse event.
 
-	// Drag tracking
+	// Drag state.
 	dragSource render.Renderable
 	dragButton input.MouseButton
 	dragging   bool
 
-	// Event loop. pendingWork is unbuffered: a sender waits until the
-	// loop takes its callback, so producers get back-pressure with no
-	// queue to size or outgrow. wake parks the loop and holds at most
-	// one token, so render requests coalesce. dirty says a frame is owed.
+	// pendingWork provides back pressure for mutations. The one-slot wake channel
+	// coalesces render requests, while dirty records that a frame is owed.
 	pendingWork chan func()
 	wake        chan struct{}
 	stopChan    chan struct{}
 	dirty       atomic.Bool
 
-	// Post-processing
+	// Post-processing callbacks.
 	postProcessFns []func(*buffer.Buffer, float64)
 
-	// Stats
+	// Frame statistics.
 	stats         Stats
 	frameCount    uint64
 	lastFrameTime time.Time
 
-	// Cursor
+	// Cursor and pointer state.
 	cursorX        int
 	cursorY        int
 	cursorVisible  bool
@@ -81,62 +72,51 @@ type Renderer struct {
 	cursorColor    style.Color
 	mousePointer   MousePointerStyle
 
-	// Selection
+	// Text selection.
 	sel *render.Selection
 
-	// Hyperlinks (OSC 8)
+	// OSC 8 hyperlinks.
 	linkRegistry *LinkRegistry
 
-	// Live rendering
-	liveCount int32 // atomic
+	// Live-render references.
+	liveCount int32 // Accessed atomically.
 
-	// Inline mode state
-	lastInlineHeight      int            // erase count for previous frame (N+1: content + trailing)
-	lastInlineLayoutWidth int            // tracks layout width to avoid forced relayout every frame
-	inlineCurrentBuf      *buffer.Buffer // what's currently displayed; enables row-level diff
+	// Inline rendering state.
+	lastInlineHeight      int            // Previous content rows plus its trailing cursor row.
+	lastInlineLayoutWidth int            // The width used for the previous inline layout.
+	inlineCurrentBuf      *buffer.Buffer // The frame represented by current inline output.
 
-	// Debug logger. Non-nil only when Config.DebugLog is set.
-	// Writes to a file in the logs directory; safe to call from the render loop.
+	// Optional diagnostic log.
 	dbg     *log.Logger
 	dbgFile *os.File
 
-	// Done channel — closed when Destroy() completes.
+	// Closed when Destroy completes.
 	done chan struct{}
 
 	mu          sync.Mutex
-	invalidated bool // when true, next frame uses FullFlush instead of DiffAndFlush
+	invalidated bool // Whether the next fullscreen frame requires FullFlush.
 
-	// probedWidths holds the columns measured for Config.WidthProbeSamples
-	// during setup, or nil when the terminal was not measured. probeErr says
-	// why in that case.
+	// Width-probe result from setup.
 	probedWidths []int
 	probeErr     error
 }
 
-// ---------------------------------------------------------------------------
-// Constructor
-// ---------------------------------------------------------------------------
-
-// NewRenderer creates and initializes a new terminal renderer.
-// Call Start() or Auto() to begin rendering.
+// NewRenderer returns an idle renderer using the first supplied configuration.
 func NewRenderer(config ...Config) (*Renderer, error) {
 	cfg := mergeConfig(config)
 
-	// Create backend
 	backend := NewBackend(cfg.Stdin, cfg.Stdout)
 
-	// Query terminal size
+	// Use a conventional viewport when terminal dimensions are unavailable.
 	w, h, err := backend.Size()
 	if err != nil {
-		// Fallback to reasonable defaults
 		w, h = 80, 24
 	}
 
-	// Create double buffers.
+	// Fullscreen rendering compares the next frame with the current frame.
 	currentBuffer := buffer.New(w, h)
 	nextBuffer := buffer.New(w, h)
 
-	// Create components
 	root := NewRootRenderable(w, h)
 	hitGrid := NewHitGrid(w, h)
 	parser := input.NewParser()
@@ -166,7 +146,7 @@ func NewRenderer(config ...Config) (*Renderer, error) {
 		linkRegistry:   NewLinkRegistry(),
 	}
 
-	// Open debug log file if requested.
+	// Failure to open an optional debug log does not prevent renderer creation.
 	if cfg.DebugLog != "" {
 		f, err := os.OpenFile(cfg.DebugLog, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 		if err == nil {
@@ -174,18 +154,15 @@ func NewRenderer(config ...Config) (*Renderer, error) {
 			r.dbg = log.New(f, "", log.Ltime|log.Lmicroseconds)
 			r.dbg.Printf("=== fluid debug log opened  pid=%d ===", os.Getpid())
 		}
-		// If the file can't be opened we silently skip logging so the app still runs.
 	}
 
-	// The Renderer satisfies Context directly — no closure wiring needed.
+	// Widgets communicate with the renderer through the render.Context interface.
 	root.SetContext(r)
 
-	// Configure Kitty keyboard parsing
 	if cfg.UseKittyKeyboard {
 		parser.SetKittyEnabled(true)
 	}
 
-	// Configure Alt ESC-prefix heuristic
 	if cfg.AltSendsEscPrefix {
 		parser.SetAltSendsEscPrefix(true)
 	}
@@ -193,11 +170,7 @@ func NewRenderer(config ...Config) (*Renderer, error) {
 	return r, nil
 }
 
-// ---------------------------------------------------------------------------
-// Properties
-// ---------------------------------------------------------------------------
-
-// Root returns the component tree root.
+// Root returns the scene graph root.
 func (r *Renderer) Root() *RootRenderable { return r.root }
 
 // Width returns the current terminal width in cells.
@@ -214,14 +187,14 @@ func (r *Renderer) Height() int {
 	return r.height
 }
 
-// IsRunning returns whether the render loop is active.
+// IsRunning reports whether the renderer is in an active auto or explicit state.
 func (r *Renderer) IsRunning() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.controlState == StateAutoStarted || r.controlState == StateExplicitStarted
 }
 
-// IsDestroyed returns whether the renderer has been destroyed.
+// IsDestroyed reports whether Destroy was called.
 func (r *Renderer) IsDestroyed() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -235,30 +208,29 @@ func (r *Renderer) ControlState() ControlState {
 	return r.controlState
 }
 
-// CurrentBuffer returns the currently displayed buffer.
+// CurrentBuffer returns the fullscreen buffer representing terminal state.
 func (r *Renderer) CurrentBuffer() *buffer.Buffer { return r.currentBuffer }
 
-// NextBuffer returns the buffer being drawn into.
+// NextBuffer returns the frame buffer used for the next draw.
 func (r *Renderer) NextBuffer() *buffer.Buffer { return r.nextBuffer }
 
-// EventBus returns the event bus for external subscriptions.
+// EventBus returns the renderer's terminal event bus.
 func (r *Renderer) EventBus() *input.EventBus { return r.eventBus }
 
-// LinkRegistry returns the hyperlink registry for OSC 8 link allocation.
+// LinkRegistry returns the OSC 8 hyperlink registry.
 func (r *Renderer) LinkRegistry() *LinkRegistry { return r.linkRegistry }
 
-// FocusedRenderable returns the currently focused renderable.
+// FocusedRenderable returns the current keyboard-focus target.
 func (r *Renderer) FocusedRenderable() render.Renderable {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.focused
 }
 
-// Done returns a channel that is closed when Destroy completes.
-// Use this to detect shutdown in select statements.
+// Done returns a channel closed when Destroy completes.
 func (r *Renderer) Done() <-chan struct{} { return r.done }
 
-// Backend returns the underlying terminal backend for advanced use.
+// Backend returns the renderer's terminal backend.
 func (r *Renderer) Backend() *Backend { return r.backend }
 
 // ColorMode returns the terminal's color capability.
@@ -267,11 +239,8 @@ func (r *Renderer) ColorMode() style.ColorMode { return r.backend.ColorMode() }
 // SetColorMode overrides the auto-detected color mode.
 func (r *Renderer) SetColorMode(m style.ColorMode) { r.backend.SetColorMode(m) }
 
-// ---------------------------------------------------------------------------
-// Lifecycle
-// ---------------------------------------------------------------------------
-
-// Start sets up the terminal and starts a continuous render loop.
+// Start sets up terminal modes and starts explicit rendering. In explicit mode,
+// every event-loop wake renders a frame regardless of dirty state.
 func (r *Renderer) Start() error {
 	r.mu.Lock()
 	if r.controlState != StateIdle && r.controlState != StateExplicitStopped {
@@ -295,7 +264,7 @@ func (r *Renderer) Start() error {
 	return nil
 }
 
-// Auto sets up the terminal and renders on demand when dirty.
+// Auto sets up terminal modes and renders when RequestRender marks a frame due.
 func (r *Renderer) Auto() error {
 	r.mu.Lock()
 	if r.controlState != StateIdle && r.controlState != StateExplicitStopped {
@@ -319,14 +288,8 @@ func (r *Renderer) Auto() error {
 	return nil
 }
 
-// Run starts the renderer in auto (render-on-dirty) mode and blocks until
-// the context is cancelled, a SIGINT/SIGTERM is received, or Destroy is
-// called externally (e.g. via ExitOnCtrlC). It always calls Destroy before
-// returning.
-//
-// This is the recommended way to run a fluid application:
-//
-//	return r.Run(ctx)
+// Run starts auto mode and waits for context cancellation, SIGINT, SIGTERM, or
+// external destruction.
 func (r *Renderer) Run(ctx context.Context) error {
 	if err := r.Auto(); err != nil {
 		return err
@@ -334,8 +297,8 @@ func (r *Renderer) Run(ctx context.Context) error {
 	return r.Wait(ctx)
 }
 
-// RunContinuous starts the renderer in continuous (every-tick) mode and
-// blocks until shutdown. See Run for details.
+// RunContinuous starts explicit mode and waits for shutdown. Explicit mode
+// renders on every event-loop wake.
 func (r *Renderer) RunContinuous(ctx context.Context) error {
 	if err := r.Start(); err != nil {
 		return err
@@ -343,15 +306,8 @@ func (r *Renderer) RunContinuous(ctx context.Context) error {
 	return r.Wait(ctx)
 }
 
-// Wait blocks until the context is cancelled, a SIGINT/SIGTERM is received,
-// or Destroy is called externally. It always calls Destroy (idempotent)
-// before returning.
-//
-// Use Wait when you need to perform work between Start/Auto and blocking:
-//
-//	r.Start()
-//	r.FocusRenderable(myWidget)
-//	return r.Wait(ctx)
+// Wait blocks until context cancellation, SIGINT, SIGTERM, or external
+// destruction. It destroys a still-running renderer before returning.
 func (r *Renderer) Wait(ctx context.Context) error {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
@@ -361,14 +317,14 @@ func (r *Renderer) Wait(ctx context.Context) error {
 	case <-ctx.Done():
 	case <-sig:
 	case <-r.done:
-		return nil // already destroyed
+		return nil // Destroy already completed.
 	}
 
 	r.Destroy()
 	return ctx.Err()
 }
 
-// Pause pauses the render loop.
+// Pause changes an active renderer to StateExplicitPaused.
 func (r *Renderer) Pause() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -378,7 +334,7 @@ func (r *Renderer) Pause() {
 	}
 }
 
-// Resume resumes from pause.
+// Resume changes StateExplicitPaused to StateExplicitStarted.
 func (r *Renderer) Resume() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -388,7 +344,7 @@ func (r *Renderer) Resume() {
 	}
 }
 
-// Suspend suspends: restores terminal, disables mouse, pauses loop.
+// Suspend restores terminal modes and enters StateExplicitSuspended.
 func (r *Renderer) Suspend() {
 	r.mu.Lock()
 	prevState := r.controlState
@@ -397,7 +353,7 @@ func (r *Renderer) Suspend() {
 
 	_ = prevState
 
-	// Restore terminal state
+	// Restore each mode that setup may have enabled.
 	r.backend.ShowCursor()
 	if r.backend.mouseEnabled {
 		r.backend.DisableMouse()
@@ -413,7 +369,7 @@ func (r *Renderer) Suspend() {
 	}
 }
 
-// Stop stops the event loop.
+// Stop marks the event loop stopped and sends its stop signal.
 func (r *Renderer) Stop() {
 	r.mu.Lock()
 	if r.controlState == StateExplicitStopped || r.controlState == StateIdle {
@@ -423,14 +379,15 @@ func (r *Renderer) Stop() {
 	r.controlState = StateExplicitStopped
 	r.mu.Unlock()
 
-	// Signal the event loop to stop
+	// Do not block if a stop signal is already pending.
 	select {
 	case r.stopChan <- struct{}{}:
 	default:
 	}
 }
 
-// Destroy performs full cleanup: stop, restore terminal, destroy tree.
+// Destroy idempotently stops rendering, restores terminal modes, destroys the
+// scene, clears subscriptions, and closes Done.
 func (r *Renderer) Destroy() {
 	r.mu.Lock()
 	if r.destroyed {
@@ -440,33 +397,26 @@ func (r *Renderer) Destroy() {
 	r.destroyed = true
 	r.mu.Unlock()
 
-	// Stop the render loop
 	r.Stop()
 
-	// In inline mode, move cursor past the rendered content so the
-	// shell prompt appears on a clean line below.
+	// Leave a clean line below inline output for subsequent terminal output.
 	if r.config.InlineMode && r.lastInlineHeight > 0 {
 		r.backend.WriteOut([]byte("\r\n"))
 	}
 
-	// Restore terminal
 	_ = r.backend.Restore()
 
-	// Destroy the component tree
 	r.root.DestroyRecursively()
 
-	// Clear event bus
 	r.eventBus.Clear()
 
-	// Signal waiters that shutdown is complete.
 	close(r.done)
 
-	// Call OnDestroy callback
 	if r.config.OnDestroy != nil {
 		r.config.OnDestroy()
 	}
 
-	// Flush and close debug log.
+	// Record the final frame count before closing diagnostics.
 	if r.dbg != nil {
 		r.dbg.Printf("=== fluid debug log closed  frames=%d ===", atomic.LoadUint64(&r.frameCount))
 		r.dbgFile.Close()
@@ -475,18 +425,15 @@ func (r *Renderer) Destroy() {
 	}
 }
 
-// RequestRender signals that a render frame is needed. Every tree
-// mutation calls it, so it must stay cheap and must not consume work
-// queue space: it raises a flag and pokes the event loop, and any number
-// of requests collapse into the one frame that clears the flag.
+// RequestRender marks one frame due and wakes the event loop. Repeated requests
+// coalesce until the loop clears the dirty flag.
 func (r *Renderer) RequestRender() {
 	r.dirty.Store(true)
 	r.signal()
 }
 
-// signal wakes the event loop. A queue that already holds a token skips
-// the send: the loop has not consumed it yet, so it is guaranteed to
-// come back around and observe whatever the caller just recorded.
+// signal performs a nonblocking wake. An existing token already guarantees
+// another event-loop iteration.
 func (r *Renderer) signal() {
 	select {
 	case r.wake <- struct{}{}:
@@ -494,21 +441,17 @@ func (r *Renderer) signal() {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Context interface methods
-// ---------------------------------------------------------------------------
-
-// AddToHitGrid registers a renderable area in the hit grid.
+// AddToHitGrid registers a clipped renderable area in the hit grid.
 func (r *Renderer) AddToHitGrid(x, y, w, h int, id uint64) {
 	r.hitGrid.AddClipped(x, y, w, h, id)
 }
 
-// PushHitGridScissorRect pushes a scissor rect onto the hit grid.
+// PushHitGridScissorRect restricts subsequent hit-grid registrations.
 func (r *Renderer) PushHitGridScissorRect(x, y, w, h int) {
 	r.hitGrid.PushScissorRect(x, y, w, h)
 }
 
-// PopHitGridScissorRect pops the current hit grid scissor rect.
+// PopHitGridScissorRect restores the preceding hit-grid clipping region.
 func (r *Renderer) PopHitGridScissorRect() {
 	r.hitGrid.PopScissorRect()
 }
@@ -519,7 +462,7 @@ func (r *Renderer) ClearHitGrid() {
 	r.hitGrid.ClearScissorRects()
 }
 
-// Selection returns the active selection, or nil.
+// Selection returns the active text selection, or nil when inactive.
 func (r *Renderer) Selection() *render.Selection {
 	if r.sel.IsActive() {
 		return r.sel
@@ -527,12 +470,13 @@ func (r *Renderer) Selection() *render.Selection {
 	return nil
 }
 
-// StartSelection initiates a selection from the given coordinates.
+// StartSelection begins a selection at absolute terminal coordinates (x, y).
 func (r *Renderer) StartSelection(_ render.Renderable, x, y int) {
 	r.sel.Start(x, y)
 }
 
-// UpdateSelection updates the focus point of the active selection.
+// UpdateSelection moves the active focus to absolute terminal coordinates
+// (x, y) and applies each option.
 func (r *Renderer) UpdateSelection(_ render.Renderable, x, y int, opts ...render.SelectionUpdateOption) {
 	r.sel.Update(x, y)
 	for _, opt := range opts {
@@ -548,31 +492,22 @@ func (r *Renderer) ClearSelection() {
 	r.sel.Clear()
 }
 
-// RequestLive increments the live rendering reference count and
-// triggers a render so the event loop wakes up.
+// RequestLive increments the live-render reference count and requests a frame.
 func (r *Renderer) RequestLive() {
 	atomic.AddInt32(&r.liveCount, 1)
 	r.RequestRender()
 }
 
-// DropLive decrements the live rendering reference count.
+// DropLive decrements the live-render reference count.
 func (r *Renderer) DropLive() {
 	atomic.AddInt32(&r.liveCount, -1)
 }
 
-// ---------------------------------------------------------------------------
-// Event Loop
-// ---------------------------------------------------------------------------
-
-// Enqueue schedules a function to run on the event loop goroutine.
-// This is the safe way to mutate the widget tree from any goroutine.
-// The function will execute before the next render frame.
+// Enqueue sends fn to the event-loop goroutine before its next frame.
 //
-// Enqueue blocks while the loop is behind, so callers get back-pressure
-// instead of unbounded queue growth, and it never discards the callback.
-// It must therefore not be called from the event loop goroutine itself:
-// that goroutine is the only drain, so it would wait on itself. Code
-// already running on the loop mutates the tree directly instead.
+// Enqueue blocks until the loop receives fn or the renderer is destroyed. Do
+// not call it from the event-loop goroutine, because that goroutine is the only
+// receiver.
 func (r *Renderer) Enqueue(fn func()) {
 	select {
 	case r.pendingWork <- fn:
@@ -580,12 +515,11 @@ func (r *Renderer) Enqueue(fn func()) {
 	}
 }
 
-// eventLoop runs the unified event + render loop as a goroutine.
-// All tree mutations (input dispatch, enqueued callbacks, resizes) and
-// rendering happen on this single goroutine, eliminating data races.
+// eventLoop serializes enqueued mutations, input dispatch, resize processing,
+// and rendering.
 func (r *Renderer) eventLoop() {
 	for {
-		// Park until work arrives or a frame is owed.
+		// Wait for mutation work, a render wake, or shutdown.
 		select {
 		case fn := <-r.pendingWork:
 			fn()
@@ -594,10 +528,9 @@ func (r *Renderer) eventLoop() {
 			return
 		}
 
-		// Batch every pending mutation before rendering.
+		// Apply all immediately available mutations before rendering.
 		r.drainWork()
 
-		// Check lifecycle state.
 		r.mu.Lock()
 		state := r.controlState
 		r.mu.Unlock()
@@ -609,21 +542,19 @@ func (r *Renderer) eventLoop() {
 			return
 		}
 
-		// In explicit/continuous mode, always render.
+		// Explicit mode renders after every wake, even without a dirty scene.
 		if state == StateExplicitStarted {
 			r.dirty.Store(true)
 		}
 
-		// Clear before drawing, so a mutation made during the frame
-		// re-arms the flag and earns a frame of its own.
+		// Clear before drawing so a request made during the frame remains pending.
 		if r.dirty.Swap(false) {
 			r.renderFrame()
 		}
 	}
 }
 
-// drainWork runs every queued callback, including any scheduled while
-// draining, and returns once the queue is empty.
+// drainWork runs queued callbacks until no callback is immediately available.
 func (r *Renderer) drainWork() {
 	for {
 		select {
@@ -635,11 +566,8 @@ func (r *Renderer) drainWork() {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Resize (processed on the event loop)
-// ---------------------------------------------------------------------------
-
-// processResize applies a terminal resize. Must be called from the event loop.
+// processResize applies new terminal dimensions and emits EventResize. During
+// normal operation it runs on the event-loop goroutine.
 func (r *Renderer) processResize(w, h int) {
 	r.mu.Lock()
 	r.width = w
@@ -651,22 +579,18 @@ func (r *Renderer) processResize(w, h int) {
 	}
 
 	if r.config.InlineMode {
-		// In inline mode, only width matters. Height is content-driven
-		// and computed each frame.
+		// Inline layout uses terminal width and content-derived height.
 		r.invalidated = true
 		r.hitGrid.Resize(w, h)
 		r.root.LayoutNode().Width = layout.Points(w)
 		r.root.LayoutNode().MarkDirty()
-		// Force clearTerminal on the next render — but only if we've
-		// already rendered or ClearScreenOnStart is set. Without a
-		// previous render, triggering clearTerminal would nuke the
-		// user's previous terminal output.
+		// Force an overflow-style clear only after output exists or when explicitly
+		// requested for startup.
 		if r.lastInlineHeight > 0 || r.config.ClearScreenOnStart {
 			r.lastInlineHeight = h + 1
 		}
 	} else {
-		// Fullscreen mode: resize both buffers and mark invalidated
-		// so the next frame uses FullFlush instead of DiffAndFlush.
+		// Fullscreen resize invalidates both frame buffers for a complete repaint.
 		r.currentBuffer.Resize(w, h)
 		r.nextBuffer.Resize(w, h)
 		r.nextBuffer.Clear(r.config.BackgroundColor)
@@ -676,7 +600,7 @@ func (r *Renderer) processResize(w, h int) {
 		r.root.Resize(w, h)
 	}
 
-	// Emit resize event.
+	// Publish the applied dimensions after renderer state is current.
 	r.eventBus.Emit(input.TerminalEvent{
 		Type: input.EventResize,
 		Resize: &input.ResizeEvent{
@@ -686,18 +610,10 @@ func (r *Renderer) processResize(w, h int) {
 	})
 }
 
-// ---------------------------------------------------------------------------
-// Render Frame
-// ---------------------------------------------------------------------------
-
-// renderFrame executes a single frame render.
+// renderFrame renders and flushes one inline or fullscreen frame.
 //
-//  1. Render the component tree into nextBuffer
-//  2. DiffAndFlush: diff next vs current, write changes to terminal,
-//     copy changed cells next → current (so current always reflects terminal)
-//  3. Clear nextBuffer for the next frame
-//
-// No buffer swap. currentBuffer accumulates the terminal state.
+// Fullscreen rendering draws into nextBuffer, flushes it, copies it into
+// currentBuffer, and clears nextBuffer. The buffers are not swapped.
 func (r *Renderer) renderFrame() {
 	if r.config.InlineMode {
 		r.renderInlineFrame()
@@ -712,7 +628,7 @@ func (r *Renderer) renderFrame() {
 	bgColor := r.config.BackgroundColor
 	r.mu.Unlock()
 
-	// Render the component tree into nextBuffer
+	// Draw the scene into the next fullscreen frame.
 	r.root.Render(r.nextBuffer, deltaTime)
 
 	if r.dbg != nil && r.invalidated {
@@ -720,7 +636,7 @@ func (r *Renderer) renderFrame() {
 		r.dbg.Printf("[frame] #%d  buf=%dx%d", fc, r.nextBuffer.Width(), r.nextBuffer.Height())
 	}
 
-	// Run post-process functions
+	// Post-processing modifies the complete frame before flushing.
 	r.mu.Lock()
 	fns := make([]func(*buffer.Buffer, float64), len(r.postProcessFns))
 	copy(fns, r.postProcessFns)
@@ -730,14 +646,10 @@ func (r *Renderer) renderFrame() {
 		fn(r.nextBuffer, deltaTime)
 	}
 
-	// Flush to terminal. After a resize (or first frame), use FullFlush to
-	// repaint everything; otherwise diff for efficiency.
+	// The first frame and resized frames require a complete repaint.
 	tFlush0 := time.Now()
 	if r.invalidated {
-		// Clear the screen before a full repaint. Some terminal emulators
-		// don't properly clear/resize the alternate screen buffer on
-		// SIGWINCH, leaving stale content that corrupts the display.
-		// An explicit clear ensures a clean slate.
+		// Clear stale alternate-screen cells before a complete repaint.
 		if !r.config.InlineMode {
 			r.backend.Clear()
 		}
@@ -747,16 +659,15 @@ func (r *Renderer) renderFrame() {
 		r.DiffAndFlush(r.currentBuffer, r.nextBuffer)
 	}
 
-	// Populate frame-level stats
+	// Record flush and total frame durations.
 	r.root.LastFrameStats.Flush = time.Since(tFlush0)
 	r.root.LastFrameStats.Total = time.Since(frameStart)
 
-	// Sync currentBuffer to match what the terminal now shows, then
-	// clear nextBuffer for the next frame.
+	// Preserve terminal state for the next diff, then prepare the draw buffer.
 	r.currentBuffer.CopyFrom(r.nextBuffer)
 	r.nextBuffer.Clear(bgColor)
 
-	// Handle cursor position after render
+	// Apply hardware cursor state after cell output.
 	r.mu.Lock()
 	cursorX := r.cursorX
 	cursorY := r.cursorY
@@ -769,10 +680,9 @@ func (r *Renderer) renderFrame() {
 		r.backend.HideCursor()
 	}
 
-	// Increment frame counter.
 	atomic.AddUint64(&r.frameCount, 1)
 
-	// Update stats
+	// Aggregate frame duration only when configured.
 	if r.config.GatherStats {
 		renderTime := time.Since(frameStart).Seconds()
 		r.mu.Lock()
@@ -781,27 +691,18 @@ func (r *Renderer) renderFrame() {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Input & Focus
-// ---------------------------------------------------------------------------
-
-// FocusRenderable sets keyboard focus to the given renderable.
+// FocusRenderable makes renderable the keyboard dispatch target and blurs the
+// previous target. It also invokes Focus when the new target is focusable.
 //
-// The caller may pass any Renderable — including the embedded *BaseRenderable
-// that Focus() passes via ctx.FocusRenderable(b). We resolve to the correct
-// outer widget type via LookupRenderable(num), which returns whatever was
-// registered in Add() (the outer widget, e.g. *widget.Input).
-//
-// Num() equality (not pointer equality) prevents infinite recursion when
-// Focus() -> ctx.FocusRenderable(embeddedBase) re-enters this method.
+// An embedded BaseRenderable is resolved to its registered outer widget.
+// Numeric ID equality prevents the reentrant Focus call from transferring focus
+// again.
 func (r *Renderer) FocusRenderable(renderable render.Renderable) {
 	if renderable == nil {
 		return
 	}
 
-	// Resolve to the correct outer widget type from the global registry.
-	// Add() re-registers each child with its outer type, so this returns
-	// e.g. *widget.Input instead of the embedded *BaseRenderable.
+	// Resolve embedded values before storing or invoking widget methods.
 	actual := render.LookupRenderable(renderable.Num())
 	if actual == nil {
 		actual = renderable
@@ -816,20 +717,16 @@ func (r *Renderer) FocusRenderable(renderable render.Renderable) {
 	r.focused = actual
 	r.mu.Unlock()
 
-	// Blur the previous focused renderable
+	// Blur the previous target after publishing the new target under the lock.
 	if prev != nil && !prev.IsDestroyed() {
 		prev.Blur()
 	}
 
-	// Call Focus() which sets the internal focused flag on the embedded
-	// BaseRenderable. Focus() will call ctx.FocusRenderable(b) with the
-	// embedded *BaseRenderable, but the Num() guard above catches the
-	// re-entrant call and prevents infinite recursion.
+	// Focus updates the widget's internal state and reenters this method; the
+	// numeric-ID guard handles that call.
 	if actual != nil && !actual.IsDestroyed() && actual.Focusable() {
 		actual.Focus()
-		// Re-assert r.focused to the resolved outer type. Focus() may have
-		// triggered ctx.FocusRenderable with the embedded *BaseRenderable,
-		// which the Num() guard caught, but be defensive.
+		// Retain the resolved outer widget after the reentrant call.
 		r.mu.Lock()
 		r.focused = actual
 		r.mu.Unlock()
@@ -838,32 +735,30 @@ func (r *Renderer) FocusRenderable(renderable render.Renderable) {
 	r.RequestRender()
 }
 
-// AddInputHandler adds an input pre-processor.
-// Handlers are called in order; if one returns true, processing stops.
+// AddInputHandler appends a raw-input preprocessor. A preprocessor returning
+// true prevents later input handling.
 func (r *Renderer) AddInputHandler(handler func(string) bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.inputHandlers = append(r.inputHandlers, handler)
 }
 
-// PrependInputHandler adds an input pre-processor at the front.
+// PrependInputHandler inserts a raw-input preprocessor before existing handlers.
 func (r *Renderer) PrependInputHandler(handler func(string) bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.inputHandlers = append([]func(string) bool{handler}, r.inputHandlers...)
 }
 
-// RemoveInputHandler removes the first matching input pre-processor.
+// RemoveInputHandler currently does nothing because Go function values cannot
+// be compared for identity.
 func (r *Renderer) RemoveInputHandler(handler func(string) bool) {
-	// Note: function comparison in Go is limited; this uses address comparison.
-	// In practice, callers should keep a reference to the handler they added.
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	// We can't reliably compare function pointers in Go, so this is a no-op
-	// placeholder. Callers should manage their own handler lifecycle.
 }
 
-// SetCursorPosition sets the cursor position and visibility.
+// SetCursorPosition records zero-based hardware cursor coordinates and
+// visibility for the next frame.
 func (r *Renderer) SetCursorPosition(x, y int, visible bool) {
 	r.mu.Lock()
 	r.cursorX = x
@@ -872,7 +767,7 @@ func (r *Renderer) SetCursorPosition(x, y int, visible bool) {
 	r.mu.Unlock()
 }
 
-// SetCursorStyle sets the cursor style.
+// SetCursorStyle records and immediately writes the cursor shape.
 func (r *Renderer) SetCursorStyle(cursorStyle string) {
 	r.mu.Lock()
 	r.cursorStyle = cursorStyle
@@ -881,7 +776,7 @@ func (r *Renderer) SetCursorStyle(cursorStyle string) {
 	r.backend.SetCursorStyle(cursorStyle)
 }
 
-// SetCursorColor sets the cursor color via OSC 12.
+// SetCursorColor records color and writes its RGB channels using OSC 12.
 func (r *Renderer) SetCursorColor(color style.Color) {
 	r.mu.Lock()
 	r.cursorColor = color
@@ -890,7 +785,7 @@ func (r *Renderer) SetCursorColor(color style.Color) {
 	r.backend.SetCursorColor(color.R, color.G, color.B)
 }
 
-// CursorState returns the full cursor state.
+// CursorState returns a snapshot of the configured cursor state.
 func (r *Renderer) CursorState() CursorState {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -905,8 +800,7 @@ func (r *Renderer) CursorState() CursorState {
 	}
 }
 
-// SetCursorStyleOptions sets cursor style, blinking, color, and mouse pointer
-// in one call. Only non-nil fields are applied.
+// SetCursorStyleOptions applies each non-nil cursor or pointer option.
 func (r *Renderer) SetCursorStyleOptions(options CursorStyleOptions) {
 	if options.Style != nil {
 		r.mu.Lock()
@@ -931,7 +825,7 @@ func (r *Renderer) SetCursorStyleOptions(options CursorStyleOptions) {
 	}
 }
 
-// SetMousePointer sets the mouse pointer style via OSC 22.
+// SetMousePointer records and writes pointerStyle using OSC 22.
 func (r *Renderer) SetMousePointer(pointerStyle MousePointerStyle) {
 	r.mu.Lock()
 	r.mousePointer = pointerStyle
@@ -940,11 +834,8 @@ func (r *Renderer) SetMousePointer(pointerStyle MousePointerStyle) {
 	r.backend.SetMousePointer(pointerStyle)
 }
 
-// ---------------------------------------------------------------------------
-// Rendering configuration
-// ---------------------------------------------------------------------------
-
-// SetBackgroundColor sets the renderer background color.
+// SetBackgroundColor resolves ci, sets the frame background, and requests a
+// repaint.
 func (r *Renderer) SetBackgroundColor(ci style.ColorInput) {
 	c := style.ParseColor(ci)
 	r.mu.Lock()
@@ -958,17 +849,17 @@ func (r *Renderer) SetTitle(title string) {
 	r.backend.SetTitle(title)
 }
 
-// AddPostProcessFn adds a post-process function.
+// AddPostProcessFn appends a callback run after scene rendering and before
+// flushing.
 func (r *Renderer) AddPostProcessFn(fn func(*buffer.Buffer, float64)) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.postProcessFns = append(r.postProcessFns, fn)
 }
 
-// RemovePostProcessFn is a placeholder for removing post-process functions.
-// In Go, function comparison is limited; callers should manage their own lifecycle.
+// RemovePostProcessFn currently does nothing because Go function values cannot
+// be compared for identity.
 func (r *Renderer) RemovePostProcessFn(fn func(*buffer.Buffer, float64)) {
-	// Placeholder: cannot reliably compare function values in Go
 }
 
 // ClearPostProcessFns removes all post-process functions.
@@ -978,68 +869,54 @@ func (r *Renderer) ClearPostProcessFns() {
 	r.postProcessFns = nil
 }
 
-// ---------------------------------------------------------------------------
-// Stats
-// ---------------------------------------------------------------------------
-
-// Stats returns current rendering statistics.
+// Stats returns a snapshot of aggregate rendering statistics.
 func (r *Renderer) Stats() Stats {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.stats
 }
 
-// ResetStats resets frame timing stats.
+// ResetStats clears aggregate frame timings and counts.
 func (r *Renderer) ResetStats() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.stats.reset()
 }
 
-// SetGatherStats enables or disables stats gathering.
+// SetGatherStats controls aggregate frame-duration collection.
 func (r *Renderer) SetGatherStats(enabled bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.config.GatherStats = enabled
 }
 
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
-// setup performs terminal initialization common to Start() and Auto().
+// setup initializes terminal modes, optional protocols and probing, and current
+// terminal dimensions.
 func (r *Renderer) setup() error {
 	if err := r.backend.Setup(r.config.Fullscreen); err != nil {
 		return err
 	}
 
-	// Enable mouse if configured
 	if r.config.UseMouse {
 		r.backend.EnableMouse(r.config.EnableMouseMovement)
 	}
 
-	// Enable Kitty keyboard if configured
 	if r.config.UseKittyKeyboard {
 		r.backend.EnableKittyKeyboard(r.config.KittyKeyboardFlags)
 	}
 
 	if r.config.InlineMode {
-		// In inline mode: don't clear screen, hide hardware cursor.
-		// The cursor is drawn visually (inverted cell) in the buffer.
-		// The terminal is in raw mode (for input) but content goes
-		// into the normal scrollback buffer.
+		// Inline mode retains normal scrollback and draws a visual cursor in cells.
 		r.backend.HideCursor()
 	} else {
-		// Fullscreen mode: clear screen.
+		// Non-inline rendering begins from a cleared screen.
 		r.backend.Clear()
 	}
 
-	// Measure the terminal before the input loop starts — that is the only
-	// window where nothing else is reading stdin, so the cursor position
-	// reports cannot be swallowed by the key parser.
+	// Probe before inputLoop starts so cursor reports have a single reader.
 	r.probeWidths()
 
-	// Re-query size after setup (render loop not started yet, safe to call directly)
+	// Apply dimensions after terminal modes and probing are configured.
 	if w, h, err := r.backend.Size(); err == nil {
 		r.processResize(w, h)
 	}
@@ -1047,9 +924,7 @@ func (r *Renderer) setup() error {
 	return nil
 }
 
-// probeWidths measures the configured samples, recording the result for
-// ProbedWidths. A terminal that does not answer leaves the built-in width
-// tables in place; that is a normal outcome, not an error worth surfacing.
+// probeWidths records measurements or the reason measurement was unavailable.
 func (r *Renderer) probeWidths() {
 	if r.config.WidthProbe != WidthProbeAuto || len(r.config.WidthProbeSamples) == 0 {
 		return
@@ -1069,10 +944,8 @@ func (r *Renderer) probeWidths() {
 	}
 }
 
-// ProbedWidths returns the column widths measured for
-// Config.WidthProbeSamples, in the same order. err explains why measurement
-// did not happen: probing disabled, unsupported, or the terminal staying
-// silent. Both being nil means probing was never requested.
+// ProbedWidths returns measured columns in sample order. A non-nil error
+// explains a failed requested probe; two nil results mean no probe was requested.
 func (r *Renderer) ProbedWidths() (widths []int, err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

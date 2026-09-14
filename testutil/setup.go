@@ -5,19 +5,15 @@ import (
 	"github.com/unaquatic/fluid/layout"
 )
 
-// ---------------------------------------------------------------------------
-// Widget setup helpers
-// ---------------------------------------------------------------------------
-
-// Renderable is the minimal interface a widget must satisfy for SetupWidget.
-// All fluid widgets (Text, Box, Input, etc.) satisfy this via BaseRenderable.
+// Renderable provides the layout operations required by the setup helpers.
+// Widgets embedding render.BaseRenderable satisfy this interface.
 type Renderable interface {
 	LayoutNode() *layout.LayoutNode
 	UpdateFromLayout()
 }
 
-// SetupWidget computes layout and updates positions on a widget in one call.
-// This encapsulates the 3-step boilerplate:
+// SetupWidget gives w an exact size, computes its layout, and applies the result.
+// It is equivalent to:
 //
 //	widget.LayoutNode().Width = layout.Points(w)
 //	widget.LayoutNode().Height = layout.Points(h)
@@ -31,11 +27,10 @@ func SetupWidget(w Renderable, width, height int) {
 	w.UpdateFromLayout()
 }
 
-// SetupWidgetTree computes layout on a root widget and calls UpdateFromLayout
-// on the root and all provided children. Use this when you have a parent (Box)
-// containing child widgets that all need their positions resolved.
+// SetupWidgetTree gives root an exact size, computes the linked layout tree,
+// and applies computed rectangles to root and each explicitly provided child.
 //
-// The root's LayoutNode must already have children linked (via Add/AddChild).
+// The caller must link child layout nodes to root before calling SetupWidgetTree.
 func SetupWidgetTree(root Renderable, width, height int, children ...Renderable) {
 	ln := root.LayoutNode()
 	ln.Width = layout.Points(width)
@@ -47,17 +42,12 @@ func SetupWidgetTree(root Renderable, width, height int, children ...Renderable)
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Render helpers
-// ---------------------------------------------------------------------------
-
-// SelfRenderer is a widget that can render itself to a buffer.
+// SelfRenderer draws its own cells without traversing child renderables.
 type SelfRenderer interface {
 	RenderSelf(buf *buffer.Buffer, deltaTime float64)
 }
 
-// RenderWidget sets up a widget and renders it to a fresh buffer in one call.
-// Returns the buffer for assertion.
+// RenderWidget lays out w at an exact size and draws it into a new buffer.
 func RenderWidget(w interface {
 	Renderable
 	SelfRenderer

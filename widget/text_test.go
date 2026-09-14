@@ -9,9 +9,7 @@ import (
 	"github.com/unaquatic/fluid/testutil"
 )
 
-// ---------------------------------------------------------------------------
-// Helper: set up a text widget with layout computed
-// ---------------------------------------------------------------------------
+// Text test helpers.
 
 func setupText(content string, w, h int, opts ...TextOption) *Text {
 	txt := NewText(content, opts...)
@@ -25,9 +23,7 @@ func setupStyledText(content style.StyledText, w, h int, opts ...TextOption) *Te
 	return txt
 }
 
-// ---------------------------------------------------------------------------
-// Original tests (preserved)
-// ---------------------------------------------------------------------------
+// Core Text behavior.
 
 func TestNewText_String(t *testing.T) {
 	txt := NewText("Hello, World!")
@@ -143,9 +139,7 @@ func TestText_Options(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Multi-chunk styled text rendering (was broken, now fixed)
-// ---------------------------------------------------------------------------
+// Multi-chunk styled rendering.
 
 func TestText_MultiChunkRendering(t *testing.T) {
 	st := style.NewStyledText(
@@ -158,7 +152,7 @@ func TestText_MultiChunkRendering(t *testing.T) {
 	buf := buffer.New(20, 1)
 	txt.RenderSelf(buf, 0)
 
-	// Verify "red" is rendered with red fg
+	// The first chunk uses red.
 	cell0 := buf.Cell(0, 0)
 	if cell0.Char != 'r' {
 		t.Errorf("expected 'r' at (0,0), got %c", cell0.Char)
@@ -167,7 +161,7 @@ func TestText_MultiChunkRendering(t *testing.T) {
 		t.Errorf("expected Red fg for 'r', got %v", cell0.Fg)
 	}
 
-	// Verify "blue" is rendered with blue fg
+	// The second chunk uses blue.
 	cell4 := buf.Cell(4, 0)
 	if cell4.Char != 'b' {
 		t.Errorf("expected 'b' at (4,0), got %c", cell4.Char)
@@ -260,9 +254,7 @@ func TestText_AttributesMerge(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Truncation
-// ---------------------------------------------------------------------------
+// Truncation.
 
 func TestText_Truncate(t *testing.T) {
 	txt := setupText("Hello World", 6, 1, TextWithTruncate(true))
@@ -310,9 +302,7 @@ func TestText_TruncateMultiChunk(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Scroll
-// ---------------------------------------------------------------------------
+// Scrolling.
 
 func TestText_ScrollY(t *testing.T) {
 	txt := setupText("line1\nline2\nline3\nline4", 10, 2)
@@ -372,9 +362,7 @@ func TestText_ScrollWidth(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Intrinsic Measurement
-// ---------------------------------------------------------------------------
+// Intrinsic measurement.
 
 func TestText_MeasureIntrinsic_NoWrap(t *testing.T) {
 	txt := NewText("Hello World")
@@ -413,13 +401,10 @@ func TestText_MeasureIntrinsic_Wrapped(t *testing.T) {
 	if m.LineCount < 2 {
 		t.Errorf("expected height>=2, got %d", m.LineCount)
 	}
-	// MaxWidth reports the widest source line (before wrapping), not the
-	// wrapped width. The layout engine handles the width constraint.
+	// MaxWidth describes source width; the layout engine applies the constraint.
 }
 
-// ---------------------------------------------------------------------------
-// Setters
-// ---------------------------------------------------------------------------
+// Configuration setters.
 
 func TestText_Setters(t *testing.T) {
 	txt := NewText("test")
@@ -450,9 +435,7 @@ func TestText_Setters(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// TextNode integration with Text widget
-// ---------------------------------------------------------------------------
+// TextNode integration.
 
 func TestText_WithTextNodes(t *testing.T) {
 	txt := NewText("")

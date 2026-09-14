@@ -7,8 +7,8 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// CharFill is a widget that fills its area with a single character.
-// With Width=1, it acts as a vertical line; with Height=1, a horizontal line.
+// CharFill fills its layout area with one character and style.
+// A one-column CharFill forms a vertical line; a one-row CharFill forms a horizontal line.
 type CharFill struct {
 	*render.BaseRenderable
 	char rune
@@ -19,7 +19,7 @@ type CharFill struct {
 // CharFillOption configures a CharFill during construction.
 type CharFillOption func(*CharFill)
 
-// NewCharFill creates a CharFill with the given character and colors.
+// NewCharFill returns a CharFill that uses char, fg, and bg for every cell.
 func NewCharFill(char rune, fg, bg style.Color, opts ...CharFillOption) *CharFill {
 	c := &CharFill{
 		BaseRenderable: render.NewBaseRenderable(),
@@ -33,7 +33,7 @@ func NewCharFill(char rune, fg, bg style.Color, opts ...CharFillOption) *CharFil
 	return c
 }
 
-// NewVLine creates a 1-column vertical line widget.
+// NewVLine returns a one-column vertical line that does not shrink.
 func NewVLine(char rune, fg, bg style.Color) *CharFill {
 	return NewCharFill(char, fg, bg,
 		CharFillWithWidth(layout.Points(1)),
@@ -41,7 +41,7 @@ func NewVLine(char rune, fg, bg style.Color) *CharFill {
 	)
 }
 
-// NewHLine creates a 1-row horizontal line widget with flex-grow.
+// NewHLine returns a one-row horizontal line that grows along its flex axis.
 func NewHLine(char rune, fg, bg style.Color) *CharFill {
 	return NewCharFill(char, fg, bg,
 		CharFillWithHeight(layout.Points(1)),
@@ -49,7 +49,7 @@ func NewHLine(char rune, fg, bg style.Color) *CharFill {
 	)
 }
 
-// NewCharCell creates a fixed 1x1 cell widget that won't shrink.
+// NewCharCell returns a fixed one-cell widget that does not shrink.
 func NewCharCell(char rune, fg, bg style.Color) *CharFill {
 	return NewCharFill(char, fg, bg,
 		CharFillWithWidth(layout.Points(1)),
@@ -58,7 +58,7 @@ func NewCharCell(char rune, fg, bg style.Color) *CharFill {
 	)
 }
 
-// RenderSelf fills every cell in the widget's area with the character.
+// RenderSelf fills the widget's layout area with its configured character and colors.
 func (c *CharFill) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 	x := c.X()
 	y := c.Y()
@@ -71,9 +71,7 @@ func (c *CharFill) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// CharFill Options
-// ---------------------------------------------------------------------------
+// CharFill options.
 
 // CharFillWithWidth sets the width.
 func CharFillWithWidth(s layout.Scalar) CharFillOption {
@@ -85,12 +83,12 @@ func CharFillWithHeight(s layout.Scalar) CharFillOption {
 	return func(c *CharFill) { c.LayoutNode().Height = s }
 }
 
-// CharFillWithFlexGrow sets flex grow.
+// CharFillWithFlexGrow sets the flex-grow factor.
 func CharFillWithFlexGrow(v int) CharFillOption {
 	return func(c *CharFill) { c.LayoutNode().FlexGrow = v }
 }
 
-// CharFillWithFlexShrink sets flex shrink.
+// CharFillWithFlexShrink sets the flex-shrink factor.
 func CharFillWithFlexShrink(v int) CharFillOption {
 	return func(c *CharFill) { c.LayoutNode().FlexShrink = v }
 }

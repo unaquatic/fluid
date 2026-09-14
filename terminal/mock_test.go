@@ -4,7 +4,7 @@ import (
 	"github.com/unaquatic/fluid/render"
 )
 
-// mockContext is a minimal render.Context for tests in this package.
+// mockContext records hit-grid operations needed by terminal tests.
 type mockContext struct {
 	render.NoopContext
 	hitGrid *HitGrid

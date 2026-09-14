@@ -7,7 +7,7 @@ import (
 )
 
 func TestEventInterface(t *testing.T) {
-	// Compile-time check that all event types implement Event.
+	// Each concrete input event supports the Event propagation controls.
 	var e Event
 
 	e = &KeyEvent{}
@@ -99,7 +99,7 @@ func TestEventBus_Off(t *testing.T) {
 
 func TestEventBus_OffZeroID(t *testing.T) {
 	bus := NewEventBus()
-	// Off with zero ID should be a safe no-op.
+	// Zero does not identify a subscription and is a safe no-op.
 	bus.Off(0)
 }
 
@@ -107,7 +107,7 @@ func TestEventBus_OffIdempotent(t *testing.T) {
 	bus := NewEventBus()
 	id := bus.On(EventKeyboard, func(ev TerminalEvent) {})
 	bus.Off(id)
-	// Second Off with same ID should be a safe no-op.
+	// Removing the same subscription again is a safe no-op.
 	bus.Off(id)
 }
 
@@ -145,7 +145,7 @@ func TestEventBus_Clear(t *testing.T) {
 
 func TestEventBus_EmitNoHandlers(t *testing.T) {
 	bus := NewEventBus()
-	// Should not panic
+	// Emitting without subscribers is a safe no-op.
 	bus.Emit(TerminalEvent{Type: EventKeyboard, Key: &KeyEvent{Name: "a"}})
 }
 
@@ -156,7 +156,7 @@ func TestEventBus_GoroutineSafety(t *testing.T) {
 	handler := func(ev TerminalEvent) { count.Add(1) }
 
 	var wg sync.WaitGroup
-	// Concurrent subscriptions
+	// Register handlers concurrently before dispatch begins.
 	for range 10 {
 		wg.Go(func() {
 			_ = bus.On(EventKeyboard, handler)
@@ -164,7 +164,7 @@ func TestEventBus_GoroutineSafety(t *testing.T) {
 	}
 	wg.Wait()
 
-	// Concurrent emissions
+	// Dispatch events concurrently to the completed subscription set.
 	for range 100 {
 		wg.Go(func() {
 			bus.Emit(TerminalEvent{Type: EventKeyboard, Key: &KeyEvent{Name: "a"}})
@@ -172,7 +172,7 @@ func TestEventBus_GoroutineSafety(t *testing.T) {
 	}
 	wg.Wait()
 
-	// We just verify no race/panic occurred; exact count depends on timing
+	// The assertion confirms dispatch occurred; the race detector checks synchronization.
 	if count.Load() == 0 {
 		t.Error("expected some handler calls")
 	}
@@ -183,7 +183,7 @@ func TestEventBus_GoroutineSafetyWithOff(t *testing.T) {
 	var count atomic.Int64
 
 	var wg sync.WaitGroup
-	// Concurrent subscribe + unsubscribe + emit
+	// Modify subscriptions while callbacks execute on other goroutines.
 	for range 50 {
 		wg.Go(func() {
 			id := bus.On(EventKeyboard, func(ev TerminalEvent) { count.Add(1) })
@@ -193,7 +193,7 @@ func TestEventBus_GoroutineSafetyWithOff(t *testing.T) {
 	}
 	wg.Wait()
 
-	// Verify no race/panic occurred
+	// The assertion confirms dispatch occurred; the race detector checks synchronization.
 	if count.Load() == 0 {
 		t.Error("expected some handler calls")
 	}

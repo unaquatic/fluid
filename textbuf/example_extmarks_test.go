@@ -8,8 +8,7 @@ import (
 	"github.com/unaquatic/fluid/textbuf"
 )
 
-// newExtmarksSetup is a helper that creates an EditBuffer, EditSurface, and
-// ExtmarksController wired together with the given initial text.
+// newExtmarksSetup returns connected editing, surface, and extmark components.
 func newExtmarksSetup(text string) (*textbuf.EditBuffer, *textbuf.EditSurface, *textbuf.ExtmarksController) {
 	tb := textbuf.NewTextBuffer()
 	eb := textbuf.NewEditBuffer(tb)
@@ -19,18 +18,17 @@ func newExtmarksSetup(text string) (*textbuf.EditBuffer, *textbuf.EditSurface, *
 	return eb, ev, ec
 }
 
-// ExampleExtmarksController_createAndGet demonstrates creating extmarks and
-// retrieving them by ID. Extmarks track arbitrary ranges in the buffer.
+// ExampleExtmarksController_createAndGet demonstrates creation and ID lookup.
 func ExampleExtmarksController_createAndGet() {
 	_, _, ec := newExtmarksSetup("Hello World")
 	defer ec.Destroy()
 
-	// Create an extmark spanning "Hello" [0,5)
+	// Track "Hello" at [0,5).
 	id := ec.Create(textbuf.ExtmarkOptions{Start: 0, End: 5})
 	em := ec.Get(id)
 	fmt.Printf("extmark %d: [%d,%d)\n", em.ID, em.Start, em.End)
 
-	// Create another spanning "World" [6,11)
+	// Track "World" at [6,11).
 	id2 := ec.Create(textbuf.ExtmarkOptions{Start: 6, End: 11})
 	em2 := ec.Get(id2)
 	fmt.Printf("extmark %d: [%d,%d)\n", em2.ID, em2.Start, em2.End)
@@ -43,32 +41,32 @@ func ExampleExtmarksController_createAndGet() {
 	// total: 2
 }
 
-// ExampleExtmarksController_virtual demonstrates virtual extmarks whose
-// ranges cause the cursor to skip over them during navigation.
+// ExampleExtmarksController_virtual demonstrates cursor movement across a
+// virtual range.
 func ExampleExtmarksController_virtual() {
 	eb, ev, ec := newExtmarksSetup("abc[GHOST]xyz")
 	defer ec.Destroy()
 
-	// Mark "[GHOST]" at offsets [3,10) as virtual
+	// Mark "[GHOST]" at [3,10) as virtual.
 	ec.Create(textbuf.ExtmarkOptions{
 		Start:   3,
 		End:     10,
 		Virtual: true,
 	})
 
-	// Place cursor just before the virtual range (offset 2 = 'c')
+	// Start one column before the virtual range.
 	eb.SetCursorByOffset(2)
 	fmt.Printf("cursor start:       offset %d\n", ev.VisualCursor().Offset)
 
-	// First right: lands at the boundary (offset 3, right before '[')
+	// The first right movement reaches the range start.
 	eb.MoveCursorRight()
 	fmt.Printf("cursor at boundary: offset %d\n", ev.VisualCursor().Offset)
 
-	// Second right: from boundary, skips the entire virtual range
+	// The second right movement skips to the range end.
 	eb.MoveCursorRight()
 	fmt.Printf("cursor after skip:  offset %d\n", ev.VisualCursor().Offset)
 
-	// Moving left: skips back to the start boundary
+	// Moving left skips back to the range start.
 	eb.MoveCursorLeft()
 	fmt.Printf("cursor after left:  offset %d\n", ev.VisualCursor().Offset)
 
@@ -79,40 +77,40 @@ func ExampleExtmarksController_virtual() {
 	// cursor after left:  offset 3
 }
 
-// ExampleExtmarksController_insertShiftsExtmarks shows that when text is
-// inserted before an extmark, the extmark's positions shift accordingly.
+// ExampleExtmarksController_insertShiftsExtmarks demonstrates endpoint movement
+// after insertion before a range.
 func ExampleExtmarksController_insertShiftsExtmarks() {
 	eb, ev, ec := newExtmarksSetup("Hello World")
 	defer ec.Destroy()
 
-	// Mark "World" at [6,11)
+	// Track "World" at [6,11).
 	id := ec.Create(textbuf.ExtmarkOptions{Start: 6, End: 11})
 
-	// Move cursor to the beginning and insert ">> "
+	// Insert three columns at the document start.
 	eb.SetCursorByOffset(0)
 	eb.InsertText(">> ")
 
-	// The extmark shifts right by 3 characters
+	// Both endpoints shift right by three.
 	em := ec.Get(id)
 	fmt.Printf("after insert: [%d,%d)\n", em.Start, em.End)
 	fmt.Printf("text: %q\n", eb.Text())
-	_ = ev // used for cursor tracking
+	_ = ev // Keep the connected surface alive for cursor notifications.
 
 	// Output:
 	// after insert: [9,14)
 	// text: ">> Hello World"
 }
 
-// ExampleExtmarksController_deleteAdjusts shows extmarks adjusting when
-// text is deleted — shifting, shrinking, or being removed as appropriate.
+// ExampleExtmarksController_deleteAdjusts demonstrates endpoint movement after
+// deletion before a range.
 func ExampleExtmarksController_deleteAdjusts() {
 	eb, _, ec := newExtmarksSetup("Hello World")
 	defer ec.Destroy()
 
-	// Mark "World" at [6,11)
+	// Track "World" at [6,11).
 	id := ec.Create(textbuf.ExtmarkOptions{Start: 6, End: 11})
 
-	// Delete "Hello " (6 chars from offset 0)
+	// Delete the six-offset prefix "Hello ".
 	pos0 := eb.OffsetToPosition(0)
 	pos6 := eb.OffsetToPosition(6)
 	eb.DeleteRange(pos0.Row, pos0.Col, pos6.Row, pos6.Col)
@@ -126,27 +124,26 @@ func ExampleExtmarksController_deleteAdjusts() {
 	// text: "World"
 }
 
-// ExampleExtmarksController_typeRegistry demonstrates the type registry
-// for categorising extmarks by name.
+// ExampleExtmarksController_typeRegistry demonstrates named extmark categories.
 func ExampleExtmarksController_typeRegistry() {
 	_, _, ec := newExtmarksSetup("Some code here")
 	defer ec.Destroy()
 
-	// Register named types
+	// Register category names.
 	diagID := ec.RegisterType("diagnostic")
 	compID := ec.RegisterType("completion")
 
-	// Creating extmarks with type IDs
+	// Assign categories while creating extmarks.
 	ec.Create(textbuf.ExtmarkOptions{Start: 0, End: 4, TypeID: diagID})
 	ec.Create(textbuf.ExtmarkOptions{Start: 5, End: 9, TypeID: compID})
 	ec.Create(textbuf.ExtmarkOptions{Start: 10, End: 14, TypeID: diagID})
 
-	// Query by type
+	// Query extmarks by category ID.
 	diags := ec.AllForTypeID(diagID)
 	fmt.Printf("diagnostics: %d\n", len(diags))
 	fmt.Printf("completions: %d\n", len(ec.AllForTypeID(compID)))
 
-	// Look up type name
+	// Resolve a category ID back to its name.
 	fmt.Printf("type %d = %q\n", diagID, ec.TypeName(diagID))
 
 	// Output:
@@ -155,8 +152,8 @@ func ExampleExtmarksController_typeRegistry() {
 	// type 1 = "diagnostic"
 }
 
-// ExampleExtmarksController_metadata demonstrates storing and retrieving
-// arbitrary metadata on extmarks, separate from the extmark's Data field.
+// ExampleExtmarksController_metadata demonstrates inline Data and separately
+// indexed Metadata.
 func ExampleExtmarksController_metadata() {
 	_, _, ec := newExtmarksSetup("function main()")
 	defer ec.Destroy()
@@ -164,7 +161,7 @@ func ExampleExtmarksController_metadata() {
 	id := ec.Create(textbuf.ExtmarkOptions{
 		Start:    0,
 		End:      8,
-		Data:     "function-keyword", // inline data
+		Data:     "function-keyword", // Data stored on the Extmark.
 		Metadata: map[string]string{"scope": "global", "lang": "go"},
 	})
 
@@ -179,8 +176,8 @@ func ExampleExtmarksController_metadata() {
 	// scope: global
 }
 
-// ExampleExtmarksController_highlighting shows that extmarks with Fg/Bg
-// colors automatically create TextBuffer highlights.
+// ExampleExtmarksController_highlighting demonstrates highlights derived from
+// styled extmarks.
 func ExampleExtmarksController_highlighting() {
 	eb, _, ec := newExtmarksSetup("error on this line")
 	defer ec.Destroy()
@@ -195,7 +192,7 @@ func ExampleExtmarksController_highlighting() {
 	tb := eb.TextBuffer()
 	fmt.Printf("highlights: %d\n", tb.HighlightCount())
 
-	// Deleting the extmark removes the highlight
+	// Clearing extmarks removes their highlights.
 	ec.Clear()
 	fmt.Printf("after clear: %d\n", tb.HighlightCount())
 
@@ -204,26 +201,26 @@ func ExampleExtmarksController_highlighting() {
 	// after clear: 0
 }
 
-// ExampleExtmarksController_undoRedo demonstrates that extmark positions
-// are restored when the user undoes and redoes edits.
+// ExampleExtmarksController_undoRedo demonstrates synchronized text and extmark
+// history.
 func ExampleExtmarksController_undoRedo() {
 	eb, _, ec := newExtmarksSetup("Hello World")
 	defer ec.Destroy()
 
 	id := ec.Create(textbuf.ExtmarkOptions{Start: 6, End: 11})
 
-	// Insert text, which shifts the extmark
+	// Insertion shifts the tracked range.
 	eb.SetCursorByOffset(0)
 	eb.InsertText(">> ")
 	em := ec.Get(id)
 	fmt.Printf("after insert: [%d,%d)\n", em.Start, em.End)
 
-	// Undo reverts both text and extmark positions
+	// Undo restores both text and extmark positions.
 	eb.Undo()
 	em = ec.Get(id)
 	fmt.Printf("after undo:   [%d,%d)\n", em.Start, em.End)
 
-	// Redo re-applies
+	// Redo reapplies both histories.
 	eb.Redo()
 	em = ec.Get(id)
 	fmt.Printf("after redo:   [%d,%d)\n", em.Start, em.End)
@@ -234,24 +231,23 @@ func ExampleExtmarksController_undoRedo() {
 	// after redo:   [9,14)
 }
 
-// ExampleExtmarksController_getAtOffset shows querying which extmarks
-// contain a specific buffer offset.
+// ExampleExtmarksController_getAtOffset demonstrates half-open range queries.
 func ExampleExtmarksController_getAtOffset() {
 	_, _, ec := newExtmarksSetup("aaaBBBccc")
 	defer ec.Destroy()
 
-	ec.Create(textbuf.ExtmarkOptions{Start: 0, End: 3}) // "aaa"
-	ec.Create(textbuf.ExtmarkOptions{Start: 3, End: 6}) // "BBB"
-	ec.Create(textbuf.ExtmarkOptions{Start: 6, End: 9}) // "ccc"
+	ec.Create(textbuf.ExtmarkOptions{Start: 0, End: 3}) // Track "aaa".
+	ec.Create(textbuf.ExtmarkOptions{Start: 3, End: 6}) // Track "BBB".
+	ec.Create(textbuf.ExtmarkOptions{Start: 6, End: 9}) // Track "ccc".
 
-	// Offset 4 is inside "BBB" [3,6)
+	// Offset four belongs to [3,6).
 	at4 := ec.AtOffset(4)
 	fmt.Printf("at offset 4: %d extmark(s)\n", len(at4))
 	if len(at4) > 0 {
 		fmt.Printf("  range: [%d,%d)\n", at4[0].Start, at4[0].End)
 	}
 
-	// Offset 6 is inside "ccc" [6,9)
+	// Offset six belongs to [6,9), not the preceding range.
 	at6 := ec.AtOffset(6)
 	fmt.Printf("at offset 6: %d extmark(s)\n", len(at6))
 
@@ -261,9 +257,8 @@ func ExampleExtmarksController_getAtOffset() {
 	// at offset 6: 1 extmark(s)
 }
 
-// ExampleExtmarksController_backspaceDeletesVirtual demonstrates that
-// pressing backspace at the end of a virtual extmark deletes the entire
-// virtual range atomically (useful for ghost text / inline completions).
+// ExampleExtmarksController_backspaceDeletesVirtual demonstrates atomic
+// backspace deletion at a virtual range boundary.
 func ExampleExtmarksController_backspaceDeletesVirtual() {
 	eb, ev, ec := newExtmarksSetup("ab[GHOST]cd")
 	defer ec.Destroy()
@@ -274,11 +269,11 @@ func ExampleExtmarksController_backspaceDeletesVirtual() {
 		Virtual: true,
 	})
 
-	// Place cursor at the end of the virtual range
+	// Place the cursor at the range end.
 	eb.SetCursorByOffset(9)
 	fmt.Printf("cursor: offset %d\n", ev.VisualCursor().Offset)
 
-	// Backspace deletes the entire "[GHOST]" virtual extmark
+	// Backspace removes the complete virtual range.
 	eb.DeleteCharBackward()
 
 	em := ec.Get(id)
@@ -291,8 +286,8 @@ func ExampleExtmarksController_backspaceDeletesVirtual() {
 	// text: "abcd"
 }
 
-// ExampleExtmarksController_destroy shows that destroying the controller
-// removes all overrides, returning the EditBuffer to normal behavior.
+// ExampleExtmarksController_destroy demonstrates restoration of default editing
+// after controller destruction.
 func ExampleExtmarksController_destroy() {
 	eb, _, ec := newExtmarksSetup("Hello")
 	defer ec.Destroy()
@@ -304,10 +299,10 @@ func ExampleExtmarksController_destroy() {
 
 	ec.Destroy()
 
-	// After destroy, Get returns nil and cursor moves normally
+	// A destroyed controller exposes no virtual ranges.
 	fmt.Printf("virtual after destroy: %v\n", ec.Virtual())
 
-	// EditBuffer still works normally
+	// The EditBuffer continues with its default methods.
 	eb.SetCursorByOffset(0)
 	eb.InsertChar('!')
 	fmt.Printf("text: %q\n", eb.Text())
@@ -318,16 +313,16 @@ func ExampleExtmarksController_destroy() {
 	// text: "!Hello"
 }
 
-// ExampleExtmarksController_multipleInsideRange demonstrates that inserting
-// text inside an extmark expands the extmark's end position.
+// ExampleExtmarksController_multipleInsideRange demonstrates insertion within a
+// tracked range.
 func ExampleExtmarksController_multipleInsideRange() {
 	eb, _, ec := newExtmarksSetup("[]")
 	defer ec.Destroy()
 
-	// Mark the brackets [0,2)
+	// Track the brackets at [0,2).
 	id := ec.Create(textbuf.ExtmarkOptions{Start: 0, End: 2})
 
-	// Insert inside the range
+	// Insert three columns inside the range.
 	eb.SetCursorByOffset(1)
 	eb.InsertText("abc")
 
@@ -340,17 +335,17 @@ func ExampleExtmarksController_multipleInsideRange() {
 	// text: "[abc]"
 }
 
-// ExampleExtmarksController_deletionRemovesContained shows that deleting
-// a range that fully contains an extmark removes that extmark entirely.
+// ExampleExtmarksController_deletionRemovesContained demonstrates removal of a
+// fully deleted extmark.
 func ExampleExtmarksController_deletionRemovesContained() {
 	eb, _, ec := newExtmarksSetup("aaaBBBccc")
 	defer ec.Destroy()
 
-	ec.Create(textbuf.ExtmarkOptions{Start: 0, End: 3})        // "aaa"
-	idB := ec.Create(textbuf.ExtmarkOptions{Start: 3, End: 6}) // "BBB"
-	ec.Create(textbuf.ExtmarkOptions{Start: 6, End: 9})        // "ccc"
+	ec.Create(textbuf.ExtmarkOptions{Start: 0, End: 3})        // Track "aaa".
+	idB := ec.Create(textbuf.ExtmarkOptions{Start: 3, End: 6}) // Track "BBB".
+	ec.Create(textbuf.ExtmarkOptions{Start: 6, End: 9})        // Track "ccc".
 
-	// Delete "BBB" — extmark for "BBB" is entirely contained, so it's removed
+	// Delete exactly the range tracked for "BBB".
 	posStart := eb.OffsetToPosition(3)
 	posEnd := eb.OffsetToPosition(6)
 	eb.DeleteRange(posStart.Row, posStart.Col, posEnd.Row, posEnd.Col)

@@ -9,22 +9,20 @@ import (
 	"time"
 )
 
-// WidthProbe selects how the renderer establishes terminal cell widths.
+// WidthProbe controls whether startup measures terminal cell widths.
 type WidthProbe uint8
 
 const (
-	// WidthProbeOff keeps the built-in Unicode width tables. This is the
-	// default: a library should not hold a conversation with the terminal
-	// unless it is asked to.
+	// WidthProbeOff uses the built-in Unicode width tables without querying the
+	// terminal.
 	WidthProbeOff WidthProbe = iota
 
-	// WidthProbeAuto measures Config.WidthProbeSamples at startup and reports
-	// the result via Renderer.ProbedWidths. Measuring cannot change behaviour
-	// on a terminal that already agrees with the built-in tables.
+	// WidthProbeAuto measures Config.WidthProbeSamples during setup and stores
+	// the results for Renderer.ProbedWidths.
 	WidthProbeAuto
 )
 
-// String implements fmt.Stringer.
+// String returns p's name.
 func (p WidthProbe) String() string {
 	switch p {
 	case WidthProbeOff:
@@ -39,37 +37,30 @@ func (p WidthProbe) String() string {
 func (p WidthProbe) Valid() bool { return p <= WidthProbeAuto }
 
 const (
-	// probeTimeout bounds the wait for cursor position reports. A terminal
-	// that does not implement DSR must cost a moment at startup, never a hang.
+	// probeTimeout bounds the complete cursor-report exchange.
 	probeTimeout = 250 * time.Millisecond
 
-	// probeDrainQuiet bounds how long a failed probe waits for late replies
-	// before concluding the terminal has stopped talking.
+	// probeDrainQuiet is the quiet interval that ends cleanup after a failed probe.
 	probeDrainQuiet = 50 * time.Millisecond
 )
 
-// ErrProbeUnsupported reports that terminal measurement was not possible, so
-// the built-in width tables should be kept.
+// ErrProbeUnsupported indicates that terminal width measurement is unavailable.
 var ErrProbeUnsupported = errors.New("terminal: width probe unsupported")
 
-// ErrProbeTimeout reports that the terminal did not answer the cursor position
-// request in time, which is how a terminal without DSR support presents.
+// ErrProbeTimeout indicates that the terminal did not answer before the probe
+// deadline.
 var ErrProbeTimeout = errors.New("terminal: width probe timed out")
 
-// ProbeWidths measures how many columns the terminal advances for each sample.
+// ProbeWidths returns the number of terminal columns occupied by each sample.
 //
-// Every sample is written at the start of a cleared line followed by a Device
-// Status Report (CSI 6n); the terminal replies with a cursor position report
-// giving the column it ended on. All samples go out in a single write because
-// terminals process input sequentially and queue their replies, making this
-// one round-trip rather than one per sample.
+// ProbeWidths writes each sample at column zero followed by a Device Status
+// Report request. It sends all requests in one write and derives widths from
+// the returned cursor columns.
 //
-// Call this only while nothing else reads stdin — during startup, before the
-// input loop begins. Bytes that are not cursor position reports are discarded,
-// so a keystroke landing mid-probe is swallowed rather than misparsed.
+// Call ProbeWidths before the input loop starts. It discards bytes that are not
+// cursor position reports, including input received during the probe.
 //
-// A non-nil error means the terminal did not answer and the caller must keep
-// the built-in width tables.
+// A non-nil error leaves callers responsible for retaining built-in widths.
 func (t *Backend) ProbeWidths(samples []string) ([]int, error) {
 	if len(samples) == 0 {
 		return nil, nil
@@ -85,18 +76,15 @@ func (t *Backend) ProbeWidths(samples []string) ([]int, error) {
 
 	widths, err := readProbeReplies(f, len(samples), time.Now().Add(probeTimeout))
 	if err != nil {
-		// Replies still in flight when we gave up would be read by the input
-		// loop instead. A cursor position report is CSI row ; col R, and the
-		// key parser resolves CSI 1 ; n R to a modified F3 — so abandoning
-		// them mid-probe injects keystrokes the user never typed.
+		// Drain late cursor reports before the key parser starts consuming input.
 		drainInput(f, probeDrainQuiet)
 		return nil, err
 	}
 	return widths, nil
 }
 
-// drainInput discards whatever the terminal is still sending, stopping once it
-// has been quiet for quiet or the overall budget is spent.
+// drainInput discards pending terminal input until the quiet interval or total
+// probe deadline expires.
 func drainInput(f *os.File, quiet time.Duration) {
 	fd := int(f.Fd())
 	overall := time.Now().Add(probeTimeout)
@@ -113,8 +101,8 @@ func drainInput(f *os.File, quiet time.Duration) {
 	}
 }
 
-// writeProbes emits every sample followed by a cursor position request, each
-// on a freshly cleared line so the samples never accumulate on screen.
+// writeProbes writes each sample from column zero on a cleared line, requests
+// its cursor position, and clears the line afterward.
 func (t *Backend) writeProbes(samples []string) error {
 	var out bytes.Buffer
 	for _, s := range samples {
@@ -127,9 +115,8 @@ func (t *Backend) writeProbes(samples []string) error {
 	return err
 }
 
-// readProbeReplies collects want cursor position reports and converts each
-// one-based column into the width the sample occupied. Reads only once poll
-// reports data, so a silent terminal ends at the deadline instead of blocking.
+// readProbeReplies collects want cursor position reports before deadline and
+// converts their one-based columns to sample widths.
 func readProbeReplies(f *os.File, want int, deadline time.Time) ([]int, error) {
 	fd := int(f.Fd())
 	widths := make([]int, 0, want)
@@ -159,9 +146,8 @@ func readProbeReplies(f *os.File, want int, deadline time.Time) ([]int, error) {
 	return widths, nil
 }
 
-// parseCPR extracts the columns from cursor position reports (CSI row;col R)
-// in buf. Anything that is not a report is discarded; rest holds a trailing
-// partial report awaiting more bytes.
+// parseCPR extracts columns from CSI row;column R reports. It discards unrelated
+// input and returns an incomplete trailing report in rest.
 func parseCPR(buf []byte) (cols []int, rest []byte) {
 	for {
 		i := bytes.Index(buf, []byte("\x1b["))
@@ -176,7 +162,7 @@ func parseCPR(buf []byte) (cols []int, rest []byte) {
 			j++
 		}
 		if j >= len(buf) {
-			return cols, bytes.Clone(buf[i:]) // report split across reads
+			return cols, bytes.Clone(buf[i:]) // Preserve a report split across reads.
 		}
 		if buf[j] != 'R' {
 			buf = buf[j+1:]
@@ -189,7 +175,7 @@ func parseCPR(buf []byte) (cols []int, rest []byte) {
 	}
 }
 
-// cprColumn pulls the column out of a "row;col" parameter list.
+// cprColumn returns the positive column from a row;column parameter list.
 func cprColumn(params []byte) (int, bool) {
 	k := bytes.IndexByte(params, ';')
 	if k < 0 {

@@ -9,8 +9,6 @@ func assertEqual(t *testing.T, got, want int) {
 	}
 }
 
-// --- Scalar Constructor Tests ---
-
 func TestPoints(t *testing.T) {
 	s := Points(10)
 	if s.Value != 10 || s.Unit != UnitPoints {
@@ -38,8 +36,6 @@ func TestUndefined(t *testing.T) {
 		t.Errorf("Undefined().Unit = %d, want UnitUndefined", s.Unit)
 	}
 }
-
-// --- Scalar Method Tests ---
 
 func TestScalar_IsUndefined(t *testing.T) {
 	if !Undefined().IsUndefined() {
@@ -102,8 +98,6 @@ func TestScalar_Resolve_Undefined(t *testing.T) {
 	}
 }
 
-// --- FlexDirection Tests ---
-
 func TestFlexDirection_IsRow(t *testing.T) {
 	if !DirectionRow.IsRow() {
 		t.Error("DirectionRow should be row")
@@ -142,8 +136,6 @@ func TestFlexDirection_IsReverse(t *testing.T) {
 		t.Error("DirectionColumn should not be reverse")
 	}
 }
-
-// --- ComputedLayout Tests ---
 
 func TestComputedLayout_IntValues(t *testing.T) {
 	c := ComputedLayout{X: 2, Y: 3, Width: 10, Height: 20}

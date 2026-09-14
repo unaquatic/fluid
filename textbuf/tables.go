@@ -5,15 +5,11 @@ import (
 	"unicode"
 )
 
-// ---------------------------------------------------------------------------
-// Range-table helpers
-// ---------------------------------------------------------------------------
-
-// urange is an inclusive [lo, hi] codepoint range.
+// urange is an inclusive code-point interval.
 type urange = [2]rune
 
-// inRange returns true if r falls within any range in the sorted table.
-// Uses binary search for O(log n) lookup.
+// inRange reports whether r belongs to any interval in a table sorted by upper
+// bound.
 func inRange(r rune, table []urange) bool {
 	i := sort.Search(len(table), func(i int) bool {
 		return table[i][1] >= r
@@ -21,28 +17,21 @@ func inRange(r rune, table []urange) bool {
 	return i < len(table) && table[i][0] <= r
 }
 
-// ---------------------------------------------------------------------------
-// Zero-width detection
-// ---------------------------------------------------------------------------
-
-// isZeroWidth returns true if r is a zero-width character.
-// Combines stdlib Mn/Me category checks with additional zero-width ranges
-// not covered by those categories (format characters, tags, etc.).
+// isZeroWidth reports whether r is a combining mark or belongs to an additional
+// zero-width format range.
 func isZeroWidth(r rune) bool {
-	// Standard combining marks (Nonspacing_Mark + Enclosing_Mark)
+	// Mn and Me contain standard nonspacing and enclosing marks.
 	if unicode.Is(unicode.Mn, r) || unicode.Is(unicode.Me, r) {
 		return true
 	}
-	// Additional zero-width characters not in Mn/Me
+	// Additional format characters are listed separately.
 	return inRange(r, zeroWidthExtra)
 }
 
-// zeroWidthExtra contains zero-width characters that are NOT in the
-// Mn (Nonspacing_Mark) or Me (Enclosing_Mark) general categories.
-// These are format characters, bidi controls, tags, and Hangul jamo
-// that combine with leading consonants in terminal display.
+// zeroWidthExtra contains zero-width format characters, controls, tags, and
+// trailing Hangul jamo outside the Mn and Me categories.
 //
-// The table MUST be sorted by the first element of each range.
+// Intervals are sorted by their first code point.
 var zeroWidthExtra = []urange{
 	{0x1160, 0x11FF}, // Hangul Jungseong + Jongseong (V+T jamo)
 	{0x200B, 0x200F}, // ZWSP, ZWNJ, ZWJ, LRM, RLM
@@ -57,25 +46,19 @@ var zeroWidthExtra = []urange{
 	{0xE0100, 0xE01EF}, // Variation Selectors Supplement
 }
 
-// ---------------------------------------------------------------------------
-// East Asian Wide / Fullwidth detection
-// ---------------------------------------------------------------------------
-
-// isWide returns true if r has East Asian Width W (Wide) or F (Fullwidth).
-// These characters occupy two terminal columns.
+// isWide reports whether r has East Asian Width W or F.
 func isWide(r rune) bool {
 	return inRange(r, wideRanges)
 }
 
-// wideRanges contains all codepoint ranges with East Asian Width = Wide (W)
-// or Fullwidth (F). Based on Unicode 16.0 EastAsianWidth.txt.
+// wideRanges contains Unicode 16.0 East Asian Width W and F intervals.
 //
-// The table MUST be sorted by the first element of each range.
+// Intervals are sorted by their first code point.
 var wideRanges = []urange{
-	// --- Hangul Jamo (Leading consonants) ---
+	// Hangul leading consonant jamo.
 	{0x1100, 0x115F},
 
-	// --- Miscellaneous Symbols (wide emoji) ---
+	// Wide miscellaneous symbols and emoji.
 	{0x231A, 0x231B},
 	{0x2329, 0x232A},
 	{0x23E9, 0x23F3},
@@ -112,71 +95,71 @@ var wideRanges = []urange{
 	{0x2B50, 0x2B50},
 	{0x2B55, 0x2B55},
 
-	// --- CJK Radicals Supplement ---
+	// CJK Radicals Supplement.
 	{0x2E80, 0x2E99},
 	{0x2E9B, 0x2EF3},
 
-	// --- Kangxi Radicals ---
+	// Kangxi Radicals.
 	{0x2F00, 0x2FD5},
 
-	// --- Ideographic Description Characters + CJK Symbols and Punctuation ---
+	// Ideographic description characters, symbols, and punctuation.
 	{0x2FF0, 0x303E},
 
-	// --- Hiragana ---
+	// Hiragana and related kana.
 	{0x3041, 0x3096},
 	{0x3099, 0x30FF},
 
-	// --- Bopomofo ---
+	// Bopomofo.
 	{0x3105, 0x312F},
 
-	// --- Hangul Compatibility Jamo ---
+	// Hangul Compatibility Jamo.
 	{0x3131, 0x318E},
 
-	// --- Kanbun + CJK Strokes ---
+	// Kanbun and CJK Strokes.
 	{0x3190, 0x31E3},
 
-	// --- Katakana Phonetic Extensions ---
+	// Katakana Phonetic Extensions.
 	{0x31F0, 0x321E},
 
-	// --- Enclosed CJK Letters and Months ---
+	// Enclosed CJK Letters and Months.
 	{0x3220, 0x3247},
 
-	// --- CJK through Extension A ---
+	// CJK ranges through Unified Ideographs Extension A.
 	{0x3250, 0x4DBF},
 
-	// --- CJK Unified Ideographs ---
+	// CJK Unified Ideographs and Yi.
 	{0x4E00, 0xA48C},
 
-	// --- Yi Radicals ---
+	// Yi Radicals.
 	{0xA490, 0xA4C6},
 
-	// --- Hangul Jamo Extended-A ---
+	// Hangul Jamo Extended-A.
 	{0xA960, 0xA97C},
 
-	// --- Hangul Syllables ---
+	// Hangul Syllables.
 	{0xAC00, 0xD7A3},
 
-	// --- CJK Compatibility Ideographs ---
+	// CJK Compatibility Ideographs.
 	{0xF900, 0xFAFF},
 
-	// --- Vertical Forms ---
+	// Vertical Forms.
 	{0xFE10, 0xFE19},
 
-	// --- CJK Compatibility Forms ---
+	// CJK Compatibility Forms.
 	{0xFE30, 0xFE6B},
 
-	// --- Fullwidth Latin + Signs ---
+	// Fullwidth Latin characters and signs.
 	{0xFF01, 0xFF60},
 	{0xFFE0, 0xFFE6},
 
-	// --- Ideographic Symbols / Tangut / Khitan / Nushu ---
+	// Ideographic symbols, Tangut, Khitan, and Nushu.
 	{0x16FE0, 0x16FE4},
 	{0x16FF0, 0x16FF1},
 	{0x17000, 0x187F7},
 	{0x18800, 0x18CD5},
 	{0x18D00, 0x18D08},
 
-	// --- Kana Extended / Supplement ---
+	// Kana extensions and supplements.
 	{0x1AFF0, 0x1AFF3},
 	{0x1AFF5, 0x1AFFB},
 	{0x1AFFD, 0x1AFFE},
@@ -187,20 +170,20 @@ var wideRanges = []urange{
 	{0x1B164, 0x1B167},
 	{0x1B170, 0x1B2FB},
 
-	// --- Mahjong + Playing Cards (individual wide) ---
+	// Individual wide Mahjong and playing-card symbols.
 	{0x1F004, 0x1F004},
 	{0x1F0CF, 0x1F0CF},
 	{0x1F18E, 0x1F18E},
 	{0x1F191, 0x1F19A},
 
-	// --- Enclosed Ideographic Supplement ---
+	// Enclosed Ideographic Supplement.
 	{0x1F200, 0x1F202},
 	{0x1F210, 0x1F23B},
 	{0x1F240, 0x1F248},
 	{0x1F250, 0x1F251},
 	{0x1F260, 0x1F265},
 
-	// --- Miscellaneous Symbols and Pictographs ---
+	// Miscellaneous Symbols and Pictographs.
 	{0x1F300, 0x1F320},
 	{0x1F32D, 0x1F335},
 	{0x1F337, 0x1F37C},
@@ -220,7 +203,7 @@ var wideRanges = []urange{
 	{0x1F5A4, 0x1F5A4},
 	{0x1F5FB, 0x1F64F},
 
-	// --- Transport and Map Symbols ---
+	// Transport and Map Symbols.
 	{0x1F680, 0x1F6C5},
 	{0x1F6CC, 0x1F6CC},
 	{0x1F6D0, 0x1F6D2},
@@ -229,16 +212,16 @@ var wideRanges = []urange{
 	{0x1F6EB, 0x1F6EC},
 	{0x1F6F4, 0x1F6FC},
 
-	// --- Geometric Shapes Extended ---
+	// Geometric Shapes Extended.
 	{0x1F7E0, 0x1F7EB},
 	{0x1F7F0, 0x1F7F0},
 
-	// --- Supplemental Symbols and Pictographs ---
+	// Supplemental Symbols and Pictographs.
 	{0x1F90C, 0x1F93A},
 	{0x1F93C, 0x1F945},
 	{0x1F947, 0x1F9FF},
 
-	// --- Symbols and Pictographs Extended-A ---
+	// Symbols and Pictographs Extended-A.
 	{0x1FA70, 0x1FA7C},
 	{0x1FA80, 0x1FA88},
 	{0x1FA90, 0x1FABD},
@@ -247,30 +230,24 @@ var wideRanges = []urange{
 	{0x1FAE0, 0x1FAE8},
 	{0x1FAF0, 0x1FAF8},
 
-	// --- CJK Unified Ideographs Extensions B–I (SIP + TIP) ---
+	// CJK Unified Ideographs Extensions B through I.
 	{0x20000, 0x2FFFD},
 	{0x30000, 0x3FFFD},
 }
 
-// ---------------------------------------------------------------------------
-// Extended_Pictographic property
-// ---------------------------------------------------------------------------
-
-// isExtendedPictographic returns true if r has the Extended_Pictographic
-// property (used for UAX #29 GB11 rule and emoji width calculation).
+// isExtendedPictographic reports whether r has the Extended_Pictographic
+// property used by GB11 and emoji width calculation.
 func isExtendedPictographic(r rune) bool {
-	// Fast reject for the vast majority of characters.
+	// No earlier code point has the property.
 	if r < 0x00A9 {
 		return false
 	}
 	return inRange(r, extPictRanges)
 }
 
-// extPictRanges contains codepoint ranges with Extended_Pictographic=Yes.
-// Based on Unicode 16.0 emoji-data.txt.
+// extPictRanges contains Unicode 16.0 Extended_Pictographic intervals.
 //
-// Note: Ranges are consolidated where possible for compactness. The table
-// includes some codepoints that are reserved/unassigned but marked EP.
+// Consolidated intervals include reserved code points assigned the property.
 var extPictRanges = []urange{
 	{0x00A9, 0x00A9}, // ©
 	{0x00AE, 0x00AE}, // ®
@@ -323,16 +300,16 @@ var extPictRanges = []urange{
 	{0x3297, 0x3297},
 	{0x3299, 0x3299},
 
-	// --- Mahjong Tiles ---
+	// Mahjong Tiles.
 	{0x1F000, 0x1F02C},
-	// --- Domino + Playing Cards ---
+	// Domino Tiles and Playing Cards.
 	{0x1F030, 0x1F093},
 	{0x1F0A0, 0x1F0AE},
 	{0x1F0B1, 0x1F0BF},
 	{0x1F0C1, 0x1F0CF},
 	{0x1F0D1, 0x1F0F5},
 
-	// --- Enclosed Alphanumeric/Ideographic Supplement ---
+	// Enclosed Alphanumeric and Ideographic Supplement.
 	{0x1F10D, 0x1F10F},
 	{0x1F12F, 0x1F12F},
 	{0x1F16C, 0x1F171},
@@ -347,48 +324,43 @@ var extPictRanges = []urange{
 	{0x1F250, 0x1F251},
 	{0x1F260, 0x1F265},
 
-	// --- Miscellaneous Symbols and Pictographs + Emoticons ---
+	// Miscellaneous Symbols, Pictographs, and Emoticons.
 	{0x1F300, 0x1F579},
 	{0x1F57B, 0x1F5A3},
 	{0x1F5A5, 0x1F64F},
 
-	// --- Transport + Map ---
+	// Transport and Map Symbols.
 	{0x1F680, 0x1F6FF},
 
-	// --- Alchemical / Geometric Extended ---
+	// Alchemical Symbols and extended geometric shapes.
 	{0x1F774, 0x1F77F},
 	{0x1F7D5, 0x1F7FF},
 
-	// --- Supplemental Symbols ---
+	// Supplemental Symbols.
 	{0x1F80C, 0x1F80F},
 	{0x1F848, 0x1F84F},
 	{0x1F85A, 0x1F85F},
 	{0x1F888, 0x1F88F},
 	{0x1F8AE, 0x1F8FF},
 
-	// --- Supplemental Symbols and Pictographs ---
+	// Supplemental Symbols and Pictographs.
 	{0x1F900, 0x1F9FF},
 
-	// --- Symbols and Pictographs Extended-A ---
+	// Symbols and Pictographs Extended-A.
 	{0x1FA00, 0x1FA53},
 	{0x1FA60, 0x1FA6D},
 	{0x1FA70, 0x1FAFF},
 
-	// --- Symbols Extended-B ---
+	// Symbols Extended-B.
 	{0x1FC00, 0x1FFFD},
 }
 
-// ---------------------------------------------------------------------------
-// GCB = Prepend characters
-// ---------------------------------------------------------------------------
-
-// isPrepend returns true if r has Grapheme_Cluster_Break=Prepend.
+// isPrepend reports whether r has Grapheme_Cluster_Break=Prepend.
 func isPrepend(r rune) bool {
 	return inRange(r, prependRanges)
 }
 
-// prependRanges lists characters with GCB=Prepend.
-// Based on Unicode 16.0 GraphemeBreakProperty.txt.
+// prependRanges contains Unicode 16.0 Grapheme_Cluster_Break=Prepend intervals.
 var prependRanges = []urange{
 	{0x0600, 0x0605},
 	{0x06DD, 0x06DD},
@@ -407,27 +379,20 @@ var prependRanges = []urange{
 	{0x11F02, 0x11F02},
 }
 
-// ---------------------------------------------------------------------------
-// GCB = Extend (supplementary to unicode.Mn / unicode.Me)
-// ---------------------------------------------------------------------------
-
-// isGCBExtend returns true if r has Grapheme_Cluster_Break=Extend.
-// This is broader than just Mn+Me: it includes emoji modifiers, ZWNJ,
-// halfwidth katakana marks, tag characters, etc.
+// isGCBExtend reports whether r has Grapheme_Cluster_Break=Extend. This includes
+// Mn, Me, and additional format and modifier characters.
 func isGCBExtend(r rune) bool {
-	// Standard combining marks cover the bulk of Extend.
+	// Standard combining marks cover most Extend characters.
 	if unicode.Is(unicode.Mn, r) || unicode.Is(unicode.Me, r) {
 		return true
 	}
-	// Additional Extend characters not in Mn/Me.
+	// The remaining Extend characters are table-driven.
 	return inRange(r, gcbExtendExtra)
 }
 
-// gcbExtendExtra contains GCB=Extend codepoints NOT covered by Mn or Me.
-// Includes ZWNJ, emoji modifiers, halfwidth katakana marks, tags, and
-// various Mc characters that Unicode assigns Extend rather than SpacingMark.
+// gcbExtendExtra contains Unicode 16.0 Extend characters outside Mn and Me.
 //
-// The table MUST be sorted by the first element of each range.
+// Intervals are sorted by their first code point.
 var gcbExtendExtra = []urange{
 	{0x0E31, 0x0E31},   // Thai Character Mai Han Akat
 	{0x0E34, 0x0E3A},   // Thai vowel signs
@@ -450,27 +415,21 @@ var gcbExtendExtra = []urange{
 	{0xE0100, 0xE01EF}, // Variation Selectors Supplement
 }
 
-// ---------------------------------------------------------------------------
-// GCB = SpacingMark
-// ---------------------------------------------------------------------------
-
-// isGCBSpacingMark returns true if r has GCB=SpacingMark.
-// This is roughly General_Category=Mc minus characters that are assigned
-// other GCB values (Extend, etc.).
+// isGCBSpacingMark reports whether r has Grapheme_Cluster_Break=SpacingMark.
 func isGCBSpacingMark(r rune) bool {
-	// Most Mc characters are SpacingMark.
+	// Most Mc characters are spacing marks.
 	if unicode.Is(unicode.Mc, r) {
-		// Exclude Mc characters that are GCB=Extend rather than SpacingMark.
+		// Extend takes precedence for Mc characters assigned both categories.
 		if isGCBExtend(r) {
 			return false
 		}
 		return true
 	}
-	// A handful of non-Mc characters are also SpacingMark.
+	// A small table covers spacing marks outside Mc.
 	return inRange(r, spacingMarkExtra)
 }
 
-// spacingMarkExtra contains non-Mc characters with GCB=SpacingMark.
+// spacingMarkExtra contains spacing marks outside the Mc category.
 var spacingMarkExtra = []urange{
 	{0x0E33, 0x0E33}, // Thai Sara Am
 	{0x0EB3, 0x0EB3}, // Lao Vowel Sign Am

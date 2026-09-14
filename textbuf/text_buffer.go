@@ -8,16 +8,12 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// ---------------------------------------------------------------------------
-// Line
-// ---------------------------------------------------------------------------
-
 // Line is one logical line stored as a sequence of spans.
 type Line struct {
 	Spans []Span
 }
 
-// Text returns the concatenated plain text of the line.
+// Text returns the concatenated text of all spans in sl.
 func (sl *Line) Text() string {
 	if len(sl.Spans) == 1 {
 		return sl.Spans[0].Text
@@ -29,8 +25,7 @@ func (sl *Line) Text() string {
 	return sb.String()
 }
 
-// Width returns the display width of the line using grapheme-cluster-aware
-// width calculation.
+// Width returns sl's grapheme-aware terminal width.
 func (sl *Line) Width() int {
 	w := 0
 	for _, sp := range sl.Spans {
@@ -39,38 +34,34 @@ func (sl *Line) Width() int {
 	return w
 }
 
-// ---------------------------------------------------------------------------
-// TextBuffer
-// ---------------------------------------------------------------------------
-
-// TextBuffer is a styled text content store. It stores text as a list of
-// logical lines, each composed of spans.
+// TextBuffer stores styled spans grouped into logical lines.
 type TextBuffer struct {
 	lines      []Line
 	defaultFg  style.Color
 	defaultBg  style.Color
 	defaultAt  uint32
 	tabWidth   int
-	expandTabs bool   // when true, replace \t with spaces on input
-	epoch      uint64 // incremented on every content change
+	expandTabs bool   // Whether supported setters replace tabs with spaces.
+	epoch      uint64 // Incremented after content or tab-width changes.
 
-	// Highlight support (per-line highlights)
+	// Per-line highlights.
 	highlights map[int][]Highlight
 
-	// Syntax highlighting
+	// Optional syntax-style registry.
 	syntaxStyle *style.SyntaxStyle
 }
 
-// Highlight describes a colored range on a single line.
+// Highlight describes a half-open display-column range on one logical line.
 type Highlight struct {
-	Start, End int // column offsets within the line
+	Start, End int // Inclusive start and exclusive end columns.
 	Fg         *style.Color
 	Bg         *style.Color
 	Attributes uint32
-	Ref        int // user-provided reference for removal
+	Ref        int // Caller-defined identifier used for removal.
 }
 
-// NewTextBuffer creates a new empty TextBuffer.
+// NewTextBuffer returns an empty one-line buffer with white foreground,
+// transparent background, and a tab width of four.
 func NewTextBuffer() *TextBuffer {
 	return &TextBuffer{
 		lines:     []Line{{Spans: []Span{{Text: ""}}}},
@@ -80,53 +71,45 @@ func NewTextBuffer() *TextBuffer {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Length / Size
-// ---------------------------------------------------------------------------
-
-// Length returns the total character (rune) count of the buffer.
+// Length returns the total rune count, including one rune for each newline.
 func (tb *TextBuffer) Length() int {
 	total := 0
 	for i, line := range tb.lines {
 		if i > 0 {
-			total++ // newline
+			total++ // Count the logical-line separator.
 		}
 		total += utf8.RuneCountInString(line.Text())
 	}
 	return total
 }
 
-// DisplayWidthLength returns the total display-width length of the buffer,
-// counting each character by its terminal display width and each newline as 1.
-// This is the same coordinate space used by EditBuffer.PositionToOffset.
+// DisplayWidthLength returns the sum of line display widths plus one column for
+// each newline. EditBuffer offsets use this coordinate space.
 func (tb *TextBuffer) DisplayWidthLength() int {
 	total := 0
 	for i, line := range tb.lines {
 		if i > 0 {
-			total++ // newline
+			total++ // Count the logical-line separator.
 		}
 		total += line.Width()
 	}
 	return total
 }
 
-// ByteSize returns the total byte size of the buffer content.
+// ByteSize returns the UTF-8 byte count, including newline separators.
 func (tb *TextBuffer) ByteSize() int {
 	total := 0
 	for i, line := range tb.lines {
 		if i > 0 {
-			total++ // newline byte
+			total++ // Count the newline byte.
 		}
 		total += len(line.Text())
 	}
 	return total
 }
 
-// ---------------------------------------------------------------------------
-// Content methods
-// ---------------------------------------------------------------------------
-
-// Reset clears all content, highlights, and resets defaults to initial state.
+// Reset clears content and highlights and restores default colors, attributes,
+// and tab width. It preserves ExpandTabs and SyntaxStyle settings.
 func (tb *TextBuffer) Reset() {
 	tb.lines = []Line{{Spans: []Span{{Text: ""}}}}
 	tb.defaultFg = style.ColorWhite
@@ -137,8 +120,8 @@ func (tb *TextBuffer) Reset() {
 	tb.epoch++
 }
 
-// LoadFile reads the file at the given path and replaces the buffer content.
-// Returns true on success, false on error.
+// LoadFile replaces buffer content with path and reports whether the read
+// succeeded.
 func (tb *TextBuffer) LoadFile(path string) bool {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -148,14 +131,15 @@ func (tb *TextBuffer) LoadFile(path string) bool {
 	return true
 }
 
-// ResetDefaults resets the default fg, bg, and attributes to their initial values.
+// ResetDefaults restores white foreground, transparent background, and no
+// attributes.
 func (tb *TextBuffer) ResetDefaults() {
 	tb.defaultFg = style.ColorWhite
 	tb.defaultBg = style.ColorTransparent
 	tb.defaultAt = 0
 }
 
-// SetText replaces the entire content with plain text using default colors.
+// SetText replaces all content with text using the default colors.
 func (tb *TextBuffer) SetText(text string) {
 	text = tb.sanitizeText(text)
 	rawLines := strings.Split(text, "\n")
@@ -173,8 +157,8 @@ func (tb *TextBuffer) SetText(text string) {
 	tb.highlights = nil
 }
 
-// SetSpans replaces the entire content with the given spans.
-// Newlines within span text cause line breaks.
+// SetSpans replaces all content with spans, splitting embedded newlines into
+// logical lines and applying the default foreground to zero-color spans.
 func (tb *TextBuffer) SetSpans(spans []Span) {
 	tb.lines = nil
 	current := Line{}
@@ -203,21 +187,22 @@ func (tb *TextBuffer) SetSpans(spans []Span) {
 	tb.highlights = nil
 }
 
-// Append appends plain text to the end of the buffer.
+// Append adds text to the end of the buffer, splitting newlines into logical
+// lines. It does not apply tab expansion.
 func (tb *TextBuffer) Append(text string) {
 	parts := strings.Split(text, "\n")
 	if len(tb.lines) == 0 {
 		tb.lines = []Line{{Spans: []Span{{Text: ""}}}}
 	}
 
-	// Append first part to last line
+	// Extend the final span with text before the first newline.
 	last := &tb.lines[len(tb.lines)-1]
 	if len(last.Spans) == 0 {
 		last.Spans = append(last.Spans, Span{Fg: tb.defaultFg, Bg: tb.defaultBg})
 	}
 	last.Spans[len(last.Spans)-1].Text += parts[0]
 
-	// Remaining parts become new lines
+	// Each remaining part starts a new default-styled line.
 	for _, part := range parts[1:] {
 		tb.lines = append(tb.lines, Line{
 			Spans: []Span{{
@@ -237,14 +222,11 @@ func (tb *TextBuffer) Clear() {
 	tb.highlights = nil
 }
 
-// ---------------------------------------------------------------------------
-// Accessors
-// ---------------------------------------------------------------------------
-
 // LineCount returns the number of logical lines.
 func (tb *TextBuffer) LineCount() int { return len(tb.lines) }
 
-// LineAt returns the Line at the given row, or an empty line if out of range.
+// LineAt returns the line value at row, or a default empty line outside the
+// buffer. Its Spans slice shares underlying storage with the buffer.
 func (tb *TextBuffer) LineAt(row int) Line {
 	if row < 0 || row >= len(tb.lines) {
 		return Line{Spans: []Span{{Text: ""}}}
@@ -252,8 +234,8 @@ func (tb *TextBuffer) LineAt(row int) Line {
 	return tb.lines[row]
 }
 
-// LineWidthAt returns the display width of the line at row,
-// accounting for the buffer's tab width setting.
+// LineWidthAt returns the grapheme-aware display width of the stored line at
+// row, or zero outside the buffer.
 func (tb *TextBuffer) LineWidthAt(row int) int {
 	if row < 0 || row >= len(tb.lines) {
 		return 0
@@ -261,7 +243,8 @@ func (tb *TextBuffer) LineWidthAt(row int) int {
 	return tb.lines[row].Width()
 }
 
-// LineTextAt returns the plain text of the line at row.
+// LineTextAt returns the unstyled text at row, or an empty string outside the
+// buffer.
 func (tb *TextBuffer) LineTextAt(row int) string {
 	if row < 0 || row >= len(tb.lines) {
 		return ""
@@ -281,7 +264,7 @@ func (tb *TextBuffer) PlainText() string {
 	return sb.String()
 }
 
-// Epoch returns the content epoch (incremented on every mutation).
+// Epoch returns the content and tab-width revision.
 func (tb *TextBuffer) Epoch() uint64 { return tb.epoch }
 
 // DefaultFg returns the default foreground color.
@@ -305,8 +288,7 @@ func (tb *TextBuffer) SetDefaultAttributes(attrs uint32) { tb.defaultAt = attrs 
 // TabWidth returns the tab stop width.
 func (tb *TextBuffer) TabWidth() int { return tb.tabWidth }
 
-// SetTabWidth sets the tab stop width. Bumps the epoch so that all
-// attached views recompute virtual lines with the new width.
+// SetTabWidth stores w and increments Epoch when it changes.
 func (tb *TextBuffer) SetTabWidth(w int) {
 	if tb.tabWidth == w {
 		return
@@ -318,22 +300,20 @@ func (tb *TextBuffer) SetTabWidth(w int) {
 // ExpandTabs returns whether tab characters are expanded to spaces on input.
 func (tb *TextBuffer) ExpandTabs() bool { return tb.expandTabs }
 
-// SetExpandTabs enables or disables automatic tab-to-spaces expansion.
-// When enabled, all content entering the buffer via SetText, SetLines,
-// InsertLine, etc. has \t replaced with tabWidth spaces.
+// SetExpandTabs controls tab replacement in SetText, SetSpans, and SetLines.
 func (tb *TextBuffer) SetExpandTabs(v bool) { tb.expandTabs = v }
 
-// SyntaxStyle returns the attached SyntaxStyle registry, or nil.
+// SyntaxStyle returns the attached syntax-style registry, or nil.
 func (tb *TextBuffer) SyntaxStyle() *style.SyntaxStyle { return tb.syntaxStyle }
 
-// SetSyntaxStyle attaches a SyntaxStyle registry for token coloring.
-// Pass nil to detach.
+// SetSyntaxStyle attaches ss for token coloring; nil detaches it.
 func (tb *TextBuffer) SetSyntaxStyle(ss *style.SyntaxStyle) { tb.syntaxStyle = ss }
 
-// Lines returns the internal lines slice (for direct access by views).
+// Lines returns the underlying line slice without copying it.
 func (tb *TextBuffer) Lines() []Line { return tb.lines }
 
-// SetLines replaces the internal lines (used by EditBuffer).
+// SetLines replaces content with lines and retains the supplied slice. It
+// sanitizes a copied set of spans when tab expansion is enabled.
 func (tb *TextBuffer) SetLines(lines []Line) {
 	if tb.expandTabs {
 		for i := range lines {
@@ -344,11 +324,7 @@ func (tb *TextBuffer) SetLines(lines []Line) {
 	tb.epoch++
 }
 
-// ---------------------------------------------------------------------------
-// Highlight support
-// ---------------------------------------------------------------------------
-
-// AddHighlight adds a highlight to the given line.
+// AddHighlight appends hl to lineIdx.
 func (tb *TextBuffer) AddHighlight(lineIdx int, hl Highlight) {
 	if tb.highlights == nil {
 		tb.highlights = make(map[int][]Highlight)
@@ -356,7 +332,7 @@ func (tb *TextBuffer) AddHighlight(lineIdx int, hl Highlight) {
 	tb.highlights[lineIdx] = append(tb.highlights[lineIdx], hl)
 }
 
-// RemoveHighlightsByRef removes all highlights with the given ref.
+// RemoveHighlightsByRef removes every highlight whose Ref equals ref.
 func (tb *TextBuffer) RemoveHighlightsByRef(ref int) {
 	for lineIdx, hls := range tb.highlights {
 		filtered := hls[:0]
@@ -373,7 +349,7 @@ func (tb *TextBuffer) RemoveHighlightsByRef(ref int) {
 	}
 }
 
-// ClearLineHighlights removes all highlights on the given line.
+// ClearLineHighlights removes all highlights on lineIdx.
 func (tb *TextBuffer) ClearLineHighlights(lineIdx int) {
 	delete(tb.highlights, lineIdx)
 }
@@ -383,7 +359,7 @@ func (tb *TextBuffer) ClearAllHighlights() {
 	tb.highlights = nil
 }
 
-// LineHighlights returns the highlights for a specific line.
+// LineHighlights returns the underlying highlight slice for lineIdx.
 func (tb *TextBuffer) LineHighlights(lineIdx int) []Highlight {
 	if tb.highlights == nil {
 		return nil
@@ -391,12 +367,8 @@ func (tb *TextBuffer) LineHighlights(lineIdx int) []Highlight {
 	return tb.highlights[lineIdx]
 }
 
-// ---------------------------------------------------------------------------
-// Text range access
-// ---------------------------------------------------------------------------
-
-// TextRange returns text between start and end character offsets.
-// Offsets are in display-width units across the whole buffer.
+// TextRange returns text in the half-open global display-width range [start,
+// end). Newline separators each occupy one offset.
 func (tb *TextBuffer) TextRange(start, end int) string {
 	if start >= end {
 		return ""
@@ -417,7 +389,7 @@ func (tb *TextBuffer) TextRange(start, end int) string {
 			cluster, rest, cw := NextGraphemeCluster(remaining)
 			remaining = rest
 			if cw == 0 {
-				// Zero-width cluster — include if in range, don't advance.
+				// Include a zero-width cluster at the current offset without advancing.
 				if pos >= start && pos < end {
 					sb.WriteString(cluster)
 				}
@@ -435,8 +407,8 @@ func (tb *TextBuffer) TextRange(start, end int) string {
 	return sb.String()
 }
 
-// TextRangeByCoords returns text between (startRow, startCol) and (endRow, endCol).
-// Coordinates are in display-width columns.
+// TextRangeByCoords returns text in the half-open range between two logical
+// row and display-column positions.
 func (tb *TextBuffer) TextRangeByCoords(startRow, startCol, endRow, endCol int) string {
 	if startRow > endRow || (startRow == endRow && startCol >= endCol) {
 		return ""
@@ -463,7 +435,7 @@ func (tb *TextBuffer) TextRangeByCoords(startRow, startCol, endRow, endCol int) 
 			ec = endCol
 		}
 
-		// Walk grapheme clusters, collecting those in [sc, ec).
+		// Include clusters whose starting column lies in [sc, ec).
 		w := 0
 		remaining := lineText
 		for len(remaining) > 0 {
@@ -486,13 +458,8 @@ func (tb *TextBuffer) TextRangeByCoords(startRow, startCol, endRow, endCol int) 
 	return sb.String()
 }
 
-// ---------------------------------------------------------------------------
-// Highlight by char range
-// ---------------------------------------------------------------------------
-
-// AddHighlightByCharRange adds a highlight using global character offset range.
-// The highlight's Start and End fields are treated as global display-width offsets;
-// the method resolves them to per-line highlights.
+// AddHighlightByCharRange converts hl's global display-width range into
+// per-line highlights.
 func (tb *TextBuffer) AddHighlightByCharRange(hl Highlight) {
 	if hl.Start >= hl.End {
 		return
@@ -509,7 +476,7 @@ func (tb *TextBuffer) AddHighlightByCharRange(hl Highlight) {
 		lineW := tb.lines[lineIdx].Width()
 		lineEnd := pos + lineW
 
-		// Check if this line overlaps [hl.Start, hl.End)
+		// Skip logical lines outside the requested half-open range.
 		if pos >= hl.End {
 			break
 		}
@@ -518,7 +485,7 @@ func (tb *TextBuffer) AddHighlightByCharRange(hl Highlight) {
 			continue
 		}
 
-		// Compute overlap within this line
+		// Convert the overlap to line-local columns.
 		localStart := 0
 		if hl.Start > pos {
 			localStart = hl.Start - pos
@@ -548,11 +515,7 @@ func (tb *TextBuffer) HighlightCount() int {
 	return total
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-// sanitizeText applies input transformations (e.g. tab expansion) to a string.
+// sanitizeText applies configured tab expansion to s.
 func (tb *TextBuffer) sanitizeText(s string) string {
 	if !tb.expandTabs || !strings.ContainsRune(s, '\t') {
 		return s
@@ -564,7 +527,7 @@ func (tb *TextBuffer) sanitizeText(s string) string {
 	return strings.ReplaceAll(s, "\t", strings.Repeat(" ", tw))
 }
 
-// sanitizeLine applies input transformations to all spans of a Line.
+// sanitizeLine copies line and sanitizes each span.
 func (tb *TextBuffer) sanitizeLine(line Line) Line {
 	if !tb.expandTabs {
 		return line

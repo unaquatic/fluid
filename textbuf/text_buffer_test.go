@@ -165,7 +165,7 @@ func TestTextBuffer_Highlights(t *testing.T) {
 func TestTextBuffer_GetTextRange(t *testing.T) {
 	tb := NewTextBuffer()
 	tb.SetText("hello\nworld")
-	// "hello" = cols 0-4, "\n" = col 5, "world" = cols 6-10
+	// "hello" occupies offsets 0-4, the newline 5, and "world" 6-10.
 
 	got := tb.TextRange(0, 5)
 	if got != "hello" {
@@ -189,7 +189,7 @@ func TestTextBuffer_Defaults(t *testing.T) {
 func TestTextBuffer_Length(t *testing.T) {
 	tb := NewTextBuffer()
 	tb.SetText("hello\nworld")
-	// 5 + 1(newline) + 5 = 11 runes
+	// Two five-rune lines and their newline total 11 runes.
 	if tb.Length() != 11 {
 		t.Errorf("expected Length()=11, got %d", tb.Length())
 	}
@@ -263,7 +263,7 @@ func TestTextBuffer_ResetDefaults(t *testing.T) {
 
 func TestTextBuffer_LoadFile(t *testing.T) {
 	tb := NewTextBuffer()
-	// Non-existent file should return false
+	// A missing file reports failure without replacing content.
 	if tb.LoadFile("/tmp/nonexistent_fluid_test_file_xyz") {
 		t.Error("LoadFile should return false for non-existent file")
 	}
@@ -283,7 +283,7 @@ func TestTextBuffer_GetTextRangeByCoords(t *testing.T) {
 		t.Errorf("expected %q, got %q", "ll", got)
 	}
 
-	// Cross-line
+	// Extract a range spanning a newline.
 	got = tb.TextRangeByCoords(0, 3, 1, 3)
 	if got != "lo\nwor" {
 		t.Errorf("expected %q, got %q", "lo\nwor", got)
@@ -293,11 +293,11 @@ func TestTextBuffer_GetTextRangeByCoords(t *testing.T) {
 func TestTextBuffer_AddHighlightByCharRange(t *testing.T) {
 	tb := NewTextBuffer()
 	tb.SetText("hello\nworld")
-	// "hello" = offsets 0-4, "\n" = 5, "world" = 6-10
+	// "hello" occupies offsets 0-4, the newline 5, and "world" 6-10.
 
 	tb.AddHighlightByCharRange(Highlight{Start: 3, End: 8, Ref: 42})
 
-	// Should create highlights on both lines
+	// A cross-line global range creates one highlight on each line.
 	h0 := tb.LineHighlights(0)
 	if len(h0) != 1 {
 		t.Fatalf("expected 1 highlight on line 0, got %d", len(h0))
@@ -333,12 +333,12 @@ func TestTextBuffer_HighlightCount(t *testing.T) {
 func TestTextBuffer_SyntaxStyle(t *testing.T) {
 	tb := NewTextBuffer()
 
-	// Initially nil
+	// New buffers have no syntax registry.
 	if tb.SyntaxStyle() != nil {
 		t.Error("expected nil SyntaxStyle initially")
 	}
 
-	// Attach a SyntaxStyle
+	// Attach a syntax registry.
 	ss := style.NewSyntaxStyle()
 	red := style.ColorRed
 	ss.Register("keyword", &red, nil, style.AttrBold)
@@ -356,7 +356,7 @@ func TestTextBuffer_SyntaxStyle(t *testing.T) {
 		t.Errorf("expected 'keyword' ID=1, got %d", got.ResolveByName("keyword"))
 	}
 
-	// Detach
+	// A nil registry detaches it.
 	tb.SetSyntaxStyle(nil)
 	if tb.SyntaxStyle() != nil {
 		t.Error("expected nil after detaching SyntaxStyle")

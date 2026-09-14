@@ -7,9 +7,7 @@ import (
 
 const epsilon = 1e-9
 
-// ---------------------------------------------------------------------------
-// Boundary tests: f(0) ≈ 0, f(1) ≈ 1
-// ---------------------------------------------------------------------------
+// Endpoint behavior.
 
 func TestEasingBoundaries(t *testing.T) {
 	names := []EasingName{
@@ -38,12 +36,10 @@ func TestEasingBoundaries(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Monotonicity tests for well-behaved functions
-// (Excludes bounce, elastic, and back which overshoot)
-// ---------------------------------------------------------------------------
+// Monotonic easing behavior.
 
 func TestEasingMonotonicity(t *testing.T) {
+	// Bounce, elastic, and back curves are intentionally non-monotonic.
 	monotonic := []EasingName{
 		Linear, InQuad, OutQuad, InOutQuad,
 		InCubic, OutCubic, InOutCubic,
@@ -69,9 +65,7 @@ func TestEasingMonotonicity(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Specific midpoint values
-// ---------------------------------------------------------------------------
+// Representative values.
 
 func TestEasingMidpoints(t *testing.T) {
 	tests := []struct {
@@ -103,9 +97,7 @@ func TestEasingMidpoints(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Linear identity
-// ---------------------------------------------------------------------------
+// Linear identity.
 
 func TestLinearIdentity(t *testing.T) {
 	fn := GetEasingFunc(Linear)
@@ -118,9 +110,7 @@ func TestLinearIdentity(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Bounce / Elastic / Back: overshoot is allowed, but boundaries hold
-// ---------------------------------------------------------------------------
+// Non-monotonic easing behavior.
 
 func TestOutBounceNonNegative(t *testing.T) {
 	fn := GetEasingFunc(OutBounce)
@@ -138,10 +128,10 @@ func TestInBounceNonNegative(t *testing.T) {
 	for i := 0; i <= 100; i++ {
 		tt := float64(i) / 100.0
 		got := fn(tt)
-		// InBounce can overshoot but should end at 1
+		// Sample the complete curve before checking its endpoints below.
 		_ = got
 	}
-	// Just test boundaries
+	// InBounce still begins at zero and ends at one.
 	if v := fn(0); math.Abs(v) > 0.01 {
 		t.Errorf("inBounce(0) = %f, want ≈ 0", v)
 	}
@@ -152,7 +142,7 @@ func TestInBounceNonNegative(t *testing.T) {
 
 func TestOutElasticOscillates(t *testing.T) {
 	fn := GetEasingFunc(OutElastic)
-	// OutElastic should oscillate around 1.0 before settling
+	// OutElastic must exceed one during its settling oscillation.
 	hasAbove := false
 	for i := 1; i < 50; i++ {
 		tt := float64(i) / 100.0
@@ -168,7 +158,7 @@ func TestOutElasticOscillates(t *testing.T) {
 
 func TestInBackOvershoots(t *testing.T) {
 	fn := GetEasingFunc(InBack)
-	// InBack goes negative near the start
+	// InBack must move below zero near its start.
 	hasNegative := false
 	for i := 1; i < 50; i++ {
 		tt := float64(i) / 100.0
@@ -184,7 +174,7 @@ func TestInBackOvershoots(t *testing.T) {
 
 func TestOutBackOvershoots(t *testing.T) {
 	fn := GetEasingFunc(OutBack)
-	// OutBack goes above 1 before settling
+	// OutBack must exceed one before settling.
 	hasAbove := false
 	for i := 50; i < 100; i++ {
 		tt := float64(i) / 100.0
@@ -198,34 +188,26 @@ func TestOutBackOvershoots(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// GetEasingFunc fallback
-// ---------------------------------------------------------------------------
+// Easing lookup fallback.
 
 func TestGetEasingFuncFallback(t *testing.T) {
 	fn := GetEasingFunc("nonexistent")
-	// Should fall back to linear
+	// Unknown names select the linear identity function.
 	if v := fn(0.5); math.Abs(v-0.5) > epsilon {
 		t.Errorf("fallback(0.5) = %f, want 0.5 (linear fallback)", v)
 	}
 }
 
-// ---------------------------------------------------------------------------
-// InOutExpo symmetry
-// ---------------------------------------------------------------------------
+// Symmetric in-out curves.
 
 func TestInOutExpoSymmetry(t *testing.T) {
 	fn := GetEasingFunc(InOutExpo)
-	// InOutExpo should be symmetric around (0.5, 0.5)
+	// A symmetric in-out curve crosses the center point.
 	got := fn(0.5)
 	if math.Abs(got-0.5) > 0.01 {
 		t.Errorf("inOutExpo(0.5) = %f, want ≈ 0.5", got)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// InOutCirc symmetry
-// ---------------------------------------------------------------------------
 
 func TestInOutCircSymmetry(t *testing.T) {
 	fn := GetEasingFunc(InOutCirc)
@@ -234,10 +216,6 @@ func TestInOutCircSymmetry(t *testing.T) {
 		t.Errorf("inOutCirc(0.5) = %f, want ≈ 0.5", got)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// InOutBack symmetry
-// ---------------------------------------------------------------------------
 
 func TestInOutBackSymmetry(t *testing.T) {
 	fn := GetEasingFunc(InOutBack)

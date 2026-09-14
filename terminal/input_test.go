@@ -13,10 +13,7 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// ---------------------------------------------------------------------------
-// Helper: create a renderer for input testing (no real terminal)
-// ---------------------------------------------------------------------------
-
+// newInputTestRenderer returns a renderer with in-memory terminal streams.
 func newInputTestRenderer() *Renderer {
 	var outBuf bytes.Buffer
 	w, h := 40, 20
@@ -50,10 +47,6 @@ func newInputTestRenderer() *Renderer {
 
 	return r
 }
-
-// ---------------------------------------------------------------------------
-// dispatchKeyEvent tests
-// ---------------------------------------------------------------------------
 
 func TestDispatchKeyEvent_EmitsOnBus(t *testing.T) {
 	r := newInputTestRenderer()
@@ -115,7 +108,7 @@ func TestDispatchKeyEvent_InputHandlerStops(t *testing.T) {
 	})
 
 	r.AddInputHandler(func(seq string) bool {
-		return true // consume all input
+		return true // Consume all raw input.
 	})
 
 	r.dispatchEvent(input.TerminalEvent{
@@ -133,7 +126,7 @@ func TestDispatchKeyEvent_InputHandlerStops(t *testing.T) {
 	}
 }
 
-// keyPressEvent builds a keyboard TerminalEvent for dispatch tests.
+// keyPressEvent returns a raw key-press terminal event.
 func keyPressEvent(name string) input.TerminalEvent {
 	return input.TerminalEvent{
 		Type: input.EventKeyboard,
@@ -185,8 +178,7 @@ func TestDispatchKeyEvent_ConsumedStopsBubbling(t *testing.T) {
 	}
 }
 
-// stopPropRenderable stops propagation without consuming the event,
-// exercising the PropagationStopped branch of the focus-chain walk.
+// stopPropRenderable stops propagation while reporting the event as unhandled.
 type stopPropRenderable struct {
 	*render.BaseRenderable
 }
@@ -351,10 +343,6 @@ func TestPrependInputHandler(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// dispatchMouseEvent tests
-// ---------------------------------------------------------------------------
-
 func TestDispatchMouseEvent_HitTest(t *testing.T) {
 	r := newInputTestRenderer()
 
@@ -362,7 +350,7 @@ func TestDispatchMouseEvent_HitTest(t *testing.T) {
 	child.SetBounds(5, 5, 10, 10)
 	r.root.Add(child)
 
-	// Register in hit grid
+	// Register the expected mouse target.
 	r.hitGrid.Add(5, 5, 10, 10, child.Num())
 
 	var clicked bool
@@ -442,7 +430,7 @@ func TestDispatchMouseEvent_OverOut(t *testing.T) {
 		mu.Unlock()
 	}
 
-	// Move into A
+	// Enter target A.
 	r.dispatchEvent(input.TerminalEvent{
 		Type: input.EventMouse,
 		Mouse: &input.MouseEvent{
@@ -458,7 +446,7 @@ func TestDispatchMouseEvent_OverOut(t *testing.T) {
 	}
 	mu.Unlock()
 
-	// Move into B (should trigger Out on A, Over on B)
+	// Moving to B sends MouseOut to A before MouseOver to B.
 	r.dispatchEvent(input.TerminalEvent{
 		Type: input.EventMouse,
 		Mouse: &input.MouseEvent{
@@ -502,10 +490,6 @@ func TestDispatchMouseEvent_EmitsOnBus(t *testing.T) {
 		t.Error("expected mouse event to be emitted on EventBus")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// dispatchPasteEvent tests
-// ---------------------------------------------------------------------------
 
 func TestDispatchPasteEvent_DeliveredToFocused(t *testing.T) {
 	r := newInputTestRenderer()
@@ -552,10 +536,6 @@ func TestDispatchPasteEvent_EmitsOnBus(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// handleResize test
-// ---------------------------------------------------------------------------
-
 func TestHandleResize(t *testing.T) {
 	r := newInputTestRenderer()
 
@@ -567,7 +547,7 @@ func TestHandleResize(t *testing.T) {
 		}
 	})
 
-	// Call processResize directly — tests don't run an event loop.
+	// Invoke processResize directly because this test has no event loop.
 	r.processResize(60, 30)
 
 	if r.width != 60 || r.height != 30 {
@@ -584,13 +564,9 @@ func TestHandleResize(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Drag tracking tests
-// ---------------------------------------------------------------------------
-
 func TestDispatchMouseEvent_DragAndDrop(t *testing.T) {
 	r := newInputTestRenderer()
-	_ = style.ColorBlack // suppress unused import
+	_ = style.ColorBlack
 
 	source := render.NewBaseRenderable(render.WithID("drag-source"))
 	source.SetBounds(0, 0, 5, 5)
@@ -613,7 +589,7 @@ func TestDispatchMouseEvent_DragAndDrop(t *testing.T) {
 		gotDrop = true
 	}
 
-	// Mouse down on source
+	// Mouse down records the drag source.
 	r.dispatchEvent(input.TerminalEvent{
 		Type: input.EventMouse,
 		Mouse: &input.MouseEvent{
@@ -624,7 +600,7 @@ func TestDispatchMouseEvent_DragAndDrop(t *testing.T) {
 		},
 	})
 
-	// Drag (motion with button held)
+	// Motion with the button held starts dragging.
 	r.dispatchEvent(input.TerminalEvent{
 		Type: input.EventMouse,
 		Mouse: &input.MouseEvent{
@@ -636,7 +612,7 @@ func TestDispatchMouseEvent_DragAndDrop(t *testing.T) {
 		},
 	})
 
-	// Mouse up on target
+	// Mouse up sends drag-end to the source and drop to the target.
 	r.dispatchEvent(input.TerminalEvent{
 		Type: input.EventMouse,
 		Mouse: &input.MouseEvent{

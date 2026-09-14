@@ -9,12 +9,8 @@ import (
 	"github.com/unaquatic/fluid/render"
 )
 
-// ---------------------------------------------------------------------------
-// Input Loop
-// ---------------------------------------------------------------------------
-
-// inputLoop reads raw input from the terminal and enqueues dispatch
-// closures onto the event loop. Runs as a background goroutine.
+// inputLoop reads terminal bytes in a background goroutine and enqueues parsed
+// events for dispatch on the event-loop goroutine.
 func (r *Renderer) inputLoop() {
 	buf := make([]byte, 4096)
 	for {
@@ -32,16 +28,10 @@ func (r *Renderer) inputLoop() {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Event Dispatch
-// ---------------------------------------------------------------------------
-
-// dispatchEvent routes a terminal event through the unified dispatch
-// pipeline. All event types follow the same contract: emit on the
-// EventBus first (handlers may observe, or veto further handling via
-// PreventDefault), then run framework default actions, then dispatch to
-// the target widget. Synthetic hover events (MouseOver/MouseOut) are
-// bookkeeping and exempt from the veto.
+// dispatchEvent routes keyboard, mouse, and paste events. Each original event
+// reaches EventBus before framework defaults or target dispatch, allowing bus
+// handlers to call PreventDefault. Synthetic hover events are dispatched
+// separately.
 func (r *Renderer) dispatchEvent(evt input.TerminalEvent) {
 	switch evt.Type {
 	case input.EventKeyboard:
@@ -53,13 +43,14 @@ func (r *Renderer) dispatchEvent(evt input.TerminalEvent) {
 	}
 }
 
-// dispatchKeyEvent handles keyboard event routing.
+// dispatchKeyEvent runs raw-input preprocessors, bus handlers, default actions,
+// and focused-widget propagation in order.
 func (r *Renderer) dispatchKeyEvent(evt input.TerminalEvent) {
 	if evt.Key == nil {
 		return
 	}
 
-	// Run input pre-processors in order. If any returns true, stop.
+	// A preprocessor returning true consumes the raw sequence.
 	r.mu.Lock()
 	handlers := make([]func(string) bool, len(r.inputHandlers))
 	copy(handlers, r.inputHandlers)
@@ -71,23 +62,19 @@ func (r *Renderer) dispatchKeyEvent(evt input.TerminalEvent) {
 		}
 	}
 
-	// Emit on EventBus — handlers may veto default actions and target
-	// dispatch via PreventDefault.
+	// Bus handlers can prevent framework and widget handling.
 	r.eventBus.Emit(evt)
 	if evt.Key.DefaultPrevented() {
 		return
 	}
 
-	// Ctrl+C exit — a default action, so bus handlers can override it.
-	// Destroy closes the Done channel, unblocking Wait/Run.
+	// Unprevented Control-C is a configurable framework shutdown action.
 	if r.config.ExitOnCtrlC && evt.Key.Ctrl && evt.Key.Name == "c" {
 		r.Destroy()
 		return
 	}
 
-	// Dispatch along the focus chain: the focused renderable first, then
-	// its ancestors, until a handler consumes the event or stops its
-	// propagation.
+	// Visit the focused renderable and then its ancestors until handled.
 
 	r.mu.Lock()
 	target := r.focused
@@ -101,10 +88,8 @@ func (r *Renderer) dispatchKeyEvent(evt input.TerminalEvent) {
 	}
 }
 
-// outerRenderable resolves a parent link — which points at an embedded
-// *render.BaseRenderable — to the outer widget registered under the same
-// num, so overridden methods dispatch correctly. Mirrors the resolution
-// done by FocusRenderable.
+// outerRenderable replaces an embedded BaseRenderable parent link with the
+// concrete widget registered under the same numeric ID.
 func outerRenderable(p render.Renderable) render.Renderable {
 	if p == nil {
 		return nil
@@ -115,8 +100,8 @@ func outerRenderable(p render.Renderable) render.Renderable {
 	return p
 }
 
-// dispatchMouseEvent handles mouse event routing with hit testing,
-// over/out tracking, drag detection, and auto-focus.
+// dispatchMouseEvent performs hit testing, hover transitions, bus dispatch,
+// drag tracking, automatic focus, and target dispatch.
 func (r *Renderer) dispatchMouseEvent(evt input.TerminalEvent) {
 	if evt.Mouse == nil {
 		return
@@ -125,7 +110,7 @@ func (r *Renderer) dispatchMouseEvent(evt input.TerminalEvent) {
 	me := evt.Mouse
 	x, y := me.X, me.Y
 
-	// Hit test: look up renderable at cursor position
+	// Resolve the topmost renderable at the pointer coordinates.
 	r.mu.Lock()
 	var target render.Renderable
 	if r.hitGrid != nil {
@@ -138,13 +123,13 @@ func (r *Renderer) dispatchMouseEvent(evt input.TerminalEvent) {
 
 	me.Target = target
 
-	// Over/Out tracking
+	// Compare the current target with the target from the previous mouse event.
 	r.mu.Lock()
 	lastHovered := r.lastHovered
 	r.mu.Unlock()
 
 	if target != lastHovered {
-		// Mouse out on old target
+		// Notify the previous target before publishing its MouseOut event.
 		if lastHovered != nil && !lastHovered.IsDestroyed() {
 			outEvent := &input.MouseEvent{
 				Type:      input.MouseOut,
@@ -156,14 +141,13 @@ func (r *Renderer) dispatchMouseEvent(evt input.TerminalEvent) {
 			}
 			lastHovered.ProcessMouseEvent(outEvent)
 
-			// Emit MouseOut on bus
 			r.eventBus.Emit(input.TerminalEvent{
 				Type:  input.EventMouse,
 				Mouse: outEvent,
 			})
 		}
 
-		// Mouse over on new target
+		// Notify the new target before publishing its MouseOver event.
 		if target != nil && !target.IsDestroyed() {
 			overEvent := &input.MouseEvent{
 				Type:      input.MouseOver,
@@ -175,7 +159,6 @@ func (r *Renderer) dispatchMouseEvent(evt input.TerminalEvent) {
 			}
 			target.ProcessMouseEvent(overEvent)
 
-			// Emit MouseOver on bus
 			r.eventBus.Emit(input.TerminalEvent{
 				Type:  input.EventMouse,
 				Mouse: overEvent,
@@ -187,16 +170,14 @@ func (r *Renderer) dispatchMouseEvent(evt input.TerminalEvent) {
 		r.mu.Unlock()
 	}
 
-	// Emit on EventBus — handlers may veto drag tracking, auto-focus,
-	// and target dispatch via PreventDefault. The synthetic hover events
-	// above are exempt.
+	// Bus handlers can prevent drag tracking, focus changes, and target dispatch.
 	r.eventBus.Emit(evt)
 	if me.DefaultPrevented() {
 		r.RequestRender()
 		return
 	}
 
-	// Drag tracking
+	// Preserve the press target as the drag source until button release.
 	switch me.Type {
 	case input.MouseDown:
 		r.mu.Lock()
@@ -224,7 +205,7 @@ func (r *Renderer) dispatchMouseEvent(evt input.TerminalEvent) {
 		r.mu.Unlock()
 
 		if wasDragging {
-			// Emit MouseDragEnd on the source
+			// Send MouseDragEnd to the original press target.
 			if dragSrc != nil && !dragSrc.IsDestroyed() {
 				dragEndEvent := &input.MouseEvent{
 					Type:      input.MouseDragEnd,
@@ -242,7 +223,7 @@ func (r *Renderer) dispatchMouseEvent(evt input.TerminalEvent) {
 				})
 			}
 
-			// Emit MouseDrop on the target
+			// Send MouseDrop to a distinct release target.
 			if target != nil && !target.IsDestroyed() && target != dragSrc {
 				dropEvent := &input.MouseEvent{
 					Type:      input.MouseDrop,
@@ -262,36 +243,35 @@ func (r *Renderer) dispatchMouseEvent(evt input.TerminalEvent) {
 		}
 	}
 
-	// Auto-focus on MouseDown
+	// Mouse down can transfer focus to a focusable target.
 	if me.Type == input.MouseDown && r.config.AutoFocus && target != nil {
 		if target.Focusable() {
 			r.FocusRenderable(target)
 		}
 	}
 
-	// Dispatch to target renderable
+	// Deliver the original event after framework state is updated.
 	if target != nil && !target.IsDestroyed() {
 		target.ProcessMouseEvent(me)
 	}
 
-	// Request render for mouse activity
+	// Mouse activity can change hover, drag, focus, or widget state.
 	r.RequestRender()
 }
 
-// dispatchPasteEvent handles paste event routing.
+// dispatchPasteEvent publishes a paste and then delivers unprevented content to
+// the focused renderable.
 func (r *Renderer) dispatchPasteEvent(evt input.TerminalEvent) {
 	if evt.Paste == nil {
 		return
 	}
 
-	// Emit on EventBus — handlers may veto target dispatch via
-	// PreventDefault.
+	// Bus handlers can prevent focused-widget delivery.
 	r.eventBus.Emit(evt)
 	if evt.Paste.DefaultPrevented() {
 		return
 	}
 
-	// Dispatch to focused renderable
 	r.mu.Lock()
 	focused := r.focused
 	r.mu.Unlock()
@@ -301,12 +281,8 @@ func (r *Renderer) dispatchPasteEvent(evt input.TerminalEvent) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// SIGWINCH Handling
-// ---------------------------------------------------------------------------
-
-// watchResize listens for terminal resize signals.
-// Runs as a goroutine.
+// watchResize receives SIGWINCH in a background goroutine and enqueues changed
+// terminal dimensions on the event loop.
 func (r *Renderer) watchResize() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGWINCH)
@@ -331,6 +307,5 @@ func (r *Renderer) watchResize() {
 		}
 	}
 
-	// Request render so the loop wakes up to process the resize.
 	r.RequestRender()
 }

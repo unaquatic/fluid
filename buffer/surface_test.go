@@ -16,7 +16,6 @@ func TestDrawTextBufferView_Basic(t *testing.T) {
 	buf := New(10, 3)
 	buf.DrawTextSurface(surface, 0, 0)
 
-	// Check that "hello" was drawn at row 0
 	text := ""
 	for x := range 5 {
 		c := buf.Cell(x, 0)
@@ -35,14 +34,12 @@ func TestDrawTextBufferView_MultiLine(t *testing.T) {
 	buf := New(10, 3)
 	buf.DrawTextSurface(surface, 0, 0)
 
-	// Check line 0
 	for x, expected := range "abc" {
 		c := buf.Cell(x, 0)
 		if c.Char != expected {
 			t.Errorf("cell (%d,0): expected %q, got %q", x, string(expected), string(c.Char))
 		}
 	}
-	// Check line 1
 	for x, expected := range "def" {
 		c := buf.Cell(x, 1)
 		if c.Char != expected {
@@ -68,7 +65,7 @@ func TestDrawTextBufferView_Offset(t *testing.T) {
 		t.Errorf("expected 'i' at (4,2), got %q", string(c.Char))
 	}
 
-	// Origin should still be empty
+	// Drawing at an offset leaves the origin unchanged.
 	c = buf.Cell(0, 0)
 	if c.Char != ' ' {
 		t.Errorf("expected space at (0,0), got %q", string(c.Char))
@@ -110,25 +107,22 @@ func TestDrawTextBufferView_Selection(t *testing.T) {
 	buf := New(10, 3)
 	buf.DrawTextSurface(surface, 0, 0)
 
-	// Cell 0 ('h') should NOT have selection bg
+	// Selection [1,4) highlights only the middle three cells.
 	c0 := buf.Cell(0, 0)
 	if c0.Bg == selBg {
 		t.Error("cell 0 should not have selection bg")
 	}
 
-	// Cell 1 ('e') SHOULD have selection bg
 	c1 := buf.Cell(1, 0)
 	if c1.Bg != selBg {
 		t.Errorf("cell 1 should have selection bg, got %+v", c1.Bg)
 	}
 
-	// Cell 3 ('l') SHOULD have selection bg
 	c3 := buf.Cell(3, 0)
 	if c3.Bg != selBg {
 		t.Errorf("cell 3 should have selection bg, got %+v", c3.Bg)
 	}
 
-	// Cell 4 ('o') should NOT have selection bg
 	c4 := buf.Cell(4, 0)
 	if c4.Bg == selBg {
 		t.Error("cell 4 should not have selection bg")
@@ -145,7 +139,6 @@ func TestDrawEditBufferView_Basic(t *testing.T) {
 	buf := New(20, 5)
 	buf.DrawEditSurface(ev, 0, 0)
 
-	// Check that "test line" was drawn
 	text := ""
 	for x := range 9 {
 		c := buf.Cell(x, 0)
@@ -166,14 +159,14 @@ func TestDrawEditBufferView_WithViewport(t *testing.T) {
 		}
 		text.WriteString(string(rune('a' + i)))
 	}
-	eb.SetText(text.String()) // "a\nb\nc\n..."
+	eb.SetText(text.String()) // One letter per line, from "a" through "j".
 
 	ev := textbuf.NewEditSurface(eb, 80, 3)
 
 	buf := New(10, 3)
 	buf.DrawEditSurface(ev, 0, 0)
 
-	// First 3 lines should be visible
+	// The three-row viewport exposes the first three lines.
 	c0 := buf.Cell(0, 0)
 	if c0.Char != 'a' {
 		t.Errorf("expected 'a' at (0,0), got %q", string(c0.Char))
@@ -186,13 +179,12 @@ func TestDrawEditBufferView_WithViewport(t *testing.T) {
 
 func TestDrawTextBufferView_Clipping(t *testing.T) {
 	tb := textbuf.NewTextBuffer()
-	tb.SetText("abcdefghij") // 10 chars
+	tb.SetText("abcdefghij") // Ten single-column characters.
 
 	surface := textbuf.NewTextSurface(tb)
-	buf := New(5, 3) // buffer only 5 wide
+	buf := New(5, 3) // Only the first five characters fit.
 	buf.DrawTextSurface(surface, 0, 0)
 
-	// Only first 5 chars should appear
 	for x := range 5 {
 		expected := rune('a' + x)
 		c := buf.Cell(x, 0)
@@ -210,7 +202,7 @@ func TestDrawTextBufferView_Empty(t *testing.T) {
 	buf := New(10, 3)
 	buf.DrawTextSurface(surface, 0, 0)
 
-	// Should not crash, buffer should be untouched
+	// Drawing an empty surface leaves the buffer unchanged.
 	c := buf.Cell(0, 0)
 	if c.Char != ' ' {
 		t.Errorf("expected space at (0,0) for empty buffer, got %q", string(c.Char))
@@ -225,7 +217,7 @@ func TestDrawTextBufferView_NegativeY(t *testing.T) {
 	buf := New(10, 3)
 	buf.DrawTextSurface(surface, 0, -1)
 
-	// Line 0 ("aaa") should be above buffer, so row 0 of buffer = line 1 ("bbb")
+	// A y-offset of -1 places the first line above the buffer and the second at row 0.
 	c := buf.Cell(0, 0)
 	if c.Char != 'b' {
 		t.Errorf("expected 'b' at (0,0), got %q", string(c.Char))

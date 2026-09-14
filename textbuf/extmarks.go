@@ -6,59 +6,48 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// ---------------------------------------------------------------------------
-// Extmark — a tracked range in the buffer
-// ---------------------------------------------------------------------------
-
-// Extmark is a position-tracked range in the edit buffer. Extmark offsets are
-// display-width offsets (including +1 for each newline) — the same coordinate
-// space used by EditBuffer.PositionToOffset / OffsetToPosition.
+// Extmark is a tracked half-open range in global display-width coordinates.
+// Newlines occupy one offset, matching EditBuffer position conversion.
 //
-// Virtual extmarks represent content that is not part of the user's real text
-// (e.g. ghost-text, inline completions). Cursor movement will skip over them.
+// Cursor movement skips a Virtual extmark as one range.
 type Extmark struct {
 	ID         int
-	Start      int  // display-width offset (inclusive)
-	End        int  // display-width offset (exclusive)
-	Virtual    bool // if true, cursor movement skips this range
+	Start      int  // Inclusive global display-width offset.
+	End        int  // Exclusive global display-width offset.
+	Virtual    bool // Whether cursor movement skips the range.
 	Fg         *style.Color
 	Bg         *style.Color
-	Attributes uint32 // text attributes (lower 8 bits) + link ID (upper 24 bits)
+	Attributes uint32 // Decoration bits and an optional packed link ID.
 	Priority   int
-	Data       any // arbitrary user data
-	TypeID     int // category identifier (0 = default)
+	Data       any // Caller-defined data.
+	TypeID     int // Category identifier; zero is the default category.
 }
 
-// ExtmarkOptions are the parameters for creating an Extmark.
+// ExtmarkOptions configures a new Extmark.
 type ExtmarkOptions struct {
 	Start      int
 	End        int
 	Virtual    bool
 	Fg         *style.Color
 	Bg         *style.Color
-	Attributes uint32 // text attributes + link ID (via style.AttributesWithLink)
+	Attributes uint32 // Decoration bits and an optional packed link ID.
 	Priority   int
 	Data       any
 	TypeID     int
-	Metadata   any // stored separately, accessible via Metadata
+	Metadata   any // Data stored separately and returned by Metadata.
 }
 
-// ---------------------------------------------------------------------------
-// ExtmarksController
-// ---------------------------------------------------------------------------
-
-// ExtmarksController manages a set of extmarks that track positions through
-// text edits, and optionally cause the cursor to skip over virtual ranges.
+// ExtmarksController tracks extmark positions through EditBuffer mutations and
+// coordinates their highlights with an EditSurface.
 //
-// It installs override functions on the EditBuffer and EditSurface so that
-// every insert, delete, cursor movement, and undo/redo automatically adjusts
-// extmark positions (via function fields).
+// It intercepts cursor movement, edits, and history operations. Only one active
+// controller can safely own a given EditBuffer and EditSurface.
 type ExtmarksController struct {
 	editBuffer  *EditBuffer
 	editSurface *EditSurface
 
 	extmarks       map[int]Extmark
-	extmarksByType map[int]map[int]struct{} // typeID → set of extmark IDs
+	extmarksByType map[int]map[int]struct{} // Type ID to extmark ID set.
 	metadata       map[int]any
 	nextID         int
 	destroyed      bool
@@ -70,9 +59,8 @@ type ExtmarksController struct {
 	nextTypeID   int
 }
 
-// NewExtmarksController creates an ExtmarksController that intercepts
-// operations on the given EditBuffer and EditSurface. Only one controller
-// should be active per EditBuffer at a time.
+// NewExtmarksController returns a controller and installs its edit and movement
+// interceptors on eb and ev.
 func NewExtmarksController(eb *EditBuffer, ev *EditSurface) *ExtmarksController {
 	ec := &ExtmarksController{
 		editBuffer:     eb,
@@ -90,12 +78,7 @@ func NewExtmarksController(eb *EditBuffer, ev *EditSurface) *ExtmarksController 
 	return ec
 }
 
-// ---------------------------------------------------------------------------
-// Public API — CRUD
-// ---------------------------------------------------------------------------
-
-// Create adds a new extmark and returns its unique ID.
-// Returns -1 if the controller has been destroyed.
+// Create adds an extmark and returns its positive ID, or -1 after destruction.
 func (ec *ExtmarksController) Create(opts ExtmarkOptions) int {
 	if ec.destroyed {
 		return -1
@@ -131,8 +114,7 @@ func (ec *ExtmarksController) Create(opts ExtmarkOptions) int {
 	return id
 }
 
-// Delete removes an extmark by ID. Returns true if it existed.
-// Returns false if the controller has been destroyed.
+// Delete removes id and reports whether it existed in an active controller.
 func (ec *ExtmarksController) Delete(id int) bool {
 	if ec.destroyed {
 		return false
@@ -145,7 +127,8 @@ func (ec *ExtmarksController) Delete(id int) bool {
 	return true
 }
 
-// Get returns the extmark with the given ID, or nil.
+// Get returns a copy of the extmark identified by id, or nil when absent or
+// destroyed.
 func (ec *ExtmarksController) Get(id int) *Extmark {
 	if ec.destroyed {
 		return nil
@@ -157,7 +140,7 @@ func (ec *ExtmarksController) Get(id int) *Extmark {
 	return &em
 }
 
-// All returns all extmarks.
+// All returns all extmarks in unspecified order, or nil after destruction.
 func (ec *ExtmarksController) All() []Extmark {
 	if ec.destroyed {
 		return nil
@@ -169,7 +152,8 @@ func (ec *ExtmarksController) All() []Extmark {
 	return out
 }
 
-// Virtual returns only virtual extmarks.
+// Virtual returns virtual extmarks in unspecified order, or nil after
+// destruction.
 func (ec *ExtmarksController) Virtual() []Extmark {
 	if ec.destroyed {
 		return nil
@@ -183,7 +167,7 @@ func (ec *ExtmarksController) Virtual() []Extmark {
 	return out
 }
 
-// AtOffset returns all extmarks whose range contains offset.
+// AtOffset returns extmarks whose half-open range contains offset.
 func (ec *ExtmarksController) AtOffset(offset int) []Extmark {
 	if ec.destroyed {
 		return nil
@@ -197,7 +181,7 @@ func (ec *ExtmarksController) AtOffset(offset int) []Extmark {
 	return out
 }
 
-// AllForTypeID returns extmarks with the given type ID.
+// AllForTypeID returns extmarks in typeID in unspecified order.
 func (ec *ExtmarksController) AllForTypeID(typeID int) []Extmark {
 	if ec.destroyed {
 		return nil
@@ -215,7 +199,7 @@ func (ec *ExtmarksController) AllForTypeID(typeID int) []Extmark {
 	return out
 }
 
-// Clear removes all extmarks.
+// Clear removes all extmarks and metadata from an active controller.
 func (ec *ExtmarksController) Clear() {
 	if ec.destroyed {
 		return
@@ -226,13 +210,7 @@ func (ec *ExtmarksController) Clear() {
 	ec.updateHighlights()
 }
 
-// ---------------------------------------------------------------------------
-// Public API — Type registry
-// ---------------------------------------------------------------------------
-
-// RegisterType maps a human-readable name to a numeric type ID. Calling with
-// the same name again returns the same ID.
-// Returns -1 if the controller has been destroyed.
+// RegisterType returns a stable positive ID for name, or -1 after destruction.
 func (ec *ExtmarksController) RegisterType(name string) int {
 	if ec.destroyed {
 		return -1
@@ -247,7 +225,7 @@ func (ec *ExtmarksController) RegisterType(name string) int {
 	return id
 }
 
-// TypeID returns the type ID for a name, or -1 if not registered.
+// TypeID returns the ID registered for name, or -1 when absent or destroyed.
 func (ec *ExtmarksController) TypeID(name string) int {
 	if ec.destroyed {
 		return -1
@@ -258,7 +236,7 @@ func (ec *ExtmarksController) TypeID(name string) int {
 	return -1
 }
 
-// TypeName returns the name for a type ID, or "".
+// TypeName returns the name registered for typeID, or an empty string.
 func (ec *ExtmarksController) TypeName(typeID int) string {
 	if ec.destroyed {
 		return ""
@@ -266,7 +244,7 @@ func (ec *ExtmarksController) TypeName(typeID int) string {
 	return ec.typeIDToName[typeID]
 }
 
-// Metadata returns the metadata stored for an extmark, or nil.
+// Metadata returns separately stored metadata for id, or nil.
 func (ec *ExtmarksController) Metadata(id int) any {
 	if ec.destroyed {
 		return nil
@@ -274,12 +252,7 @@ func (ec *ExtmarksController) Metadata(id int) any {
 	return ec.metadata[id]
 }
 
-// ---------------------------------------------------------------------------
-// Destroy
-// ---------------------------------------------------------------------------
-
-// Destroy removes all overrides and releases resources. After this call the
-// controller is inert and the EditBuffer/EditSurface revert to default behavior.
+// Destroy removes installed interceptors and makes the controller inert.
 func (ec *ExtmarksController) Destroy() {
 	if ec.destroyed {
 		return
@@ -288,7 +261,7 @@ func (ec *ExtmarksController) Destroy() {
 	eb := ec.editBuffer
 	ev := ec.editSurface
 
-	// Clear all overrides
+	// Restore default edit and movement behavior.
 	eb.overrideMoveCursorLeft = nil
 	eb.overrideMoveCursorRight = nil
 	eb.overrideSetCursorByOffset = nil
@@ -318,15 +291,11 @@ func (ec *ExtmarksController) Destroy() {
 	ec.destroyed = true
 }
 
-// ---------------------------------------------------------------------------
-// installOverrides — wires all interceptors
-// ---------------------------------------------------------------------------
-
 func (ec *ExtmarksController) installOverrides() {
 	eb := ec.editBuffer
 	ev := ec.editSurface
 
-	// --- Cursor movement ---
+	// Cursor movement skips virtual ranges.
 
 	eb.overrideMoveCursorLeft = func() {
 		if ec.destroyed {
@@ -407,8 +376,7 @@ func (ec *ExtmarksController) installOverrides() {
 		newOffset := ev.VisualCursor().Offset
 
 		if vem := ec.findVirtualContaining(newOffset); vem != nil {
-			// Save desiredCol before the adjustment — SetCursorByOffset
-			// triggers notifyCursor → OnCursorChange which clears it.
+			// Preserve the vertical-navigation column across the corrective move.
 			savedDesiredCol := ev.desiredCol
 			distToStart := newOffset - vem.Start
 			distToEnd := vem.End - newOffset
@@ -432,8 +400,7 @@ func (ec *ExtmarksController) installOverrides() {
 		newOffset := ev.VisualCursor().Offset
 
 		if vem := ec.findVirtualContaining(newOffset); vem != nil {
-			// Save desiredCol before the adjustment — SetCursorByOffset
-			// triggers notifyCursor → OnCursorChange which clears it.
+			// Preserve the vertical-navigation column across the corrective move.
 			savedDesiredCol := ev.desiredCol
 			distToStart := newOffset - vem.Start
 			distToEnd := vem.End - newOffset
@@ -450,7 +417,7 @@ func (ec *ExtmarksController) installOverrides() {
 		}
 	}
 
-	// --- Deletion ---
+	// Deletion records extmark history and adjusts tracked ranges.
 
 	eb.overrideDeleteCharBackward = func() {
 		if ec.destroyed {
@@ -465,15 +432,12 @@ func (ec *ExtmarksController) installOverrides() {
 			return
 		}
 
-		// Save snapshot only after confirming the deletion will happen.
-		// doDeleteCharBackward is a no-op at offset 0 and won't push a
-		// text undo — saving here prevents orphan extmarks snapshots
-		// that desync the two undo stacks.
+		// Save only when text deletion will also create an undo snapshot.
 		ec.saveSnapshot()
 
 		targetOffset := offsetBefore - 1
 		if vem := ec.findVirtualContaining(targetOffset); vem != nil && offsetBefore == vem.End {
-			// Delete the entire virtual extmark
+			// Backspace at a virtual range boundary removes the entire range.
 			startPos := eb.OffsetToPosition(vem.Start)
 			endPos := eb.OffsetToPosition(vem.End)
 			delLen := vem.End - vem.Start
@@ -504,10 +468,7 @@ func (ec *ExtmarksController) installOverrides() {
 			return
 		}
 
-		// Save snapshot only after confirming the deletion will happen.
-		// doDeleteChar is a no-op at end of last line and won't push a
-		// text undo — saving here prevents orphan extmarks snapshots
-		// that desync the two undo stacks.
+		// Save only when text deletion will also create an undo snapshot.
 		ec.saveSnapshot()
 
 		if vem := ec.findVirtualContaining(currentOffset); vem != nil && currentOffset == vem.Start {
@@ -521,8 +482,7 @@ func (ec *ExtmarksController) installOverrides() {
 			return
 		}
 
-		// For forward delete the cursor stays put, so measure the total
-		// display-width change to determine deleted width.
+		// Forward delete keeps the cursor fixed, so compare total widths.
 		widthBefore := eb.tb.DisplayWidthLength()
 		eb.doDeleteChar()
 		widthAfter := eb.tb.DisplayWidthLength()
@@ -556,19 +516,18 @@ func (ec *ExtmarksController) installOverrides() {
 		lineCount := eb.tb.LineCount()
 		lineW := eb.tb.LineWidthAt(row)
 
-		// Compute deletion range in display-width offset space using the
-		// buffer's line metadata instead of scanning the raw text string.
+		// Derive the deleted global range from logical line widths.
 		var deleteOffset, deleteLen int
 		if lineCount <= 1 {
-			// Only line: content is cleared, no newlines involved.
+			// Clearing the sole line removes no newline.
 			deleteOffset = 0
 			deleteLen = lineW
 		} else if row < lineCount-1 {
-			// Not the last line: remove line content + trailing newline.
+			// A nonfinal line owns its trailing newline.
 			deleteOffset = eb.positionToOffset(row, 0)
 			deleteLen = lineW + 1
 		} else {
-			// Last line of multiple: remove preceding newline + line content.
+			// The final line is removed with its preceding newline.
 			deleteOffset = eb.positionToOffset(row, 0) - 1
 			deleteLen = lineW + 1
 		}
@@ -579,7 +538,7 @@ func (ec *ExtmarksController) installOverrides() {
 		}
 	}
 
-	// --- Insertion ---
+	// Insertion shifts ranges at or after the insertion point.
 
 	eb.overrideInsertText = func(text string) {
 		if ec.destroyed {
@@ -646,15 +605,12 @@ func (ec *ExtmarksController) installOverrides() {
 		ec.adjustAfterInsertion(offsetBefore, offsetAfter-offsetBefore)
 	}
 
-	// --- Delete selected text ---
-
 	ev.overrideDeleteSelectedText = func() {
-		// Delegate to doDeleteSelectedText which calls the public DeleteRange,
-		// so overrideDeleteRange handles snapshot + extmark adjustment.
+		// The public DeleteRange interceptor handles history and range adjustment.
 		ev.doDeleteSelectedText()
 	}
 
-	// --- Undo / Redo ---
+	// Undo and redo restore text before rebuilding extmark highlights.
 
 	eb.overrideUndo = func() bool {
 		if ec.destroyed {
@@ -664,7 +620,7 @@ func (ec *ExtmarksController) installOverrides() {
 			return eb.doUndo()
 		}
 
-		// Save current extmark state to redo
+		// Preserve current extmarks for redo.
 		ec.history.PushRedo(ExtmarksSnapshot{
 			extmarks: cloneExtmarks(ec.extmarks),
 			nextID:   ec.nextID,
@@ -672,9 +628,7 @@ func (ec *ExtmarksController) installOverrides() {
 
 		snap := ec.history.Undo()
 
-		// Restore text FIRST so that updateHighlights (called by
-		// restoreSnapshot) maps global extmark offsets to per-line
-		// highlights against the correct line widths.
+		// Restore text first so highlights use the restored line widths.
 		result := eb.doUndo()
 		ec.restoreSnapshot(snap)
 		return result
@@ -688,7 +642,7 @@ func (ec *ExtmarksController) installOverrides() {
 			return eb.doRedo()
 		}
 
-		// Save current extmark state to undo
+		// Preserve current extmarks for undo.
 		ec.history.PushUndo(ExtmarksSnapshot{
 			extmarks: cloneExtmarks(ec.extmarks),
 			nextID:   ec.nextID,
@@ -696,16 +650,12 @@ func (ec *ExtmarksController) installOverrides() {
 
 		snap := ec.history.Redo()
 
-		// Restore text FIRST (see undo comment above).
+		// Restore text first so highlights use the restored line widths.
 		result := eb.doRedo()
 		ec.restoreSnapshot(snap)
 		return result
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
 
 func (ec *ExtmarksController) deleteByID(id int) {
 	em, ok := ec.extmarks[id]
@@ -719,8 +669,8 @@ func (ec *ExtmarksController) deleteByID(id int) {
 	delete(ec.metadata, id)
 }
 
-// findVirtualContaining returns the first virtual extmark whose range
-// [Start, End) contains offset, or nil.
+// findVirtualContaining returns the first virtual extmark containing offset, or
+// nil. Map iteration makes the selected match unspecified when ranges overlap.
 func (ec *ExtmarksController) findVirtualContaining(offset int) *Extmark {
 	for _, em := range ec.extmarks {
 		if em.Virtual && offset >= em.Start && offset < em.End {
@@ -730,8 +680,7 @@ func (ec *ExtmarksController) findVirtualContaining(offset int) *Extmark {
 	return nil
 }
 
-// adjustAfterInsertion shifts extmark offsets after an insertion at insertOffset
-// of the given length.
+// adjustAfterInsertion expands or shifts extmarks for a display-width insertion.
 func (ec *ExtmarksController) adjustAfterInsertion(insertOffset, length int) {
 	for id, em := range ec.extmarks {
 		if em.Start >= insertOffset {
@@ -745,8 +694,8 @@ func (ec *ExtmarksController) adjustAfterInsertion(insertOffset, length int) {
 	ec.updateHighlights()
 }
 
-// AdjustAfterDeletion shifts/removes extmarks after a deletion at deleteOffset
-// of the given length. Exported for advanced use cases.
+// AdjustAfterDeletion adjusts extmarks for a display-width deletion beginning at
+// deleteOffset.
 func (ec *ExtmarksController) AdjustAfterDeletion(deleteOffset, length int) {
 	ec.adjustAfterDeletion(deleteOffset, length)
 }
@@ -756,26 +705,26 @@ func (ec *ExtmarksController) adjustAfterDeletion(deleteOffset, length int) {
 
 	for id, em := range ec.extmarks {
 		if em.End <= deleteOffset {
-			// Entirely before deletion — no change
+			// Ranges before the deletion remain unchanged.
 			continue
 		}
 
 		if em.Start >= deleteOffset+length {
-			// Entirely after deletion — shift back
+			// Ranges after the deletion shift backward.
 			em.Start -= length
 			em.End -= length
 		} else if em.Start >= deleteOffset && em.End <= deleteOffset+length {
-			// Entirely within deletion — remove
+			// Ranges fully deleted are removed.
 			toDelete = append(toDelete, id)
 			continue
 		} else if em.Start < deleteOffset && em.End > deleteOffset+length {
-			// Deletion is inside the extmark — shrink
+			// A deletion contained by the extmark shortens it.
 			em.End -= length
 		} else if em.Start < deleteOffset && em.End > deleteOffset {
-			// Overlaps start of deletion
+			// Preserve the prefix before an overlapping deletion.
 			em.End -= min(em.End, deleteOffset+length) - deleteOffset
 		} else if em.Start < deleteOffset+length && em.End > deleteOffset+length {
-			// Overlaps end of deletion
+			// Move a surviving suffix to the deletion start.
 			em.Start = deleteOffset
 			em.End -= length
 		}
@@ -789,7 +738,7 @@ func (ec *ExtmarksController) adjustAfterDeletion(deleteOffset, length int) {
 	ec.updateHighlights()
 }
 
-// updateHighlights recomputes TextBuffer highlights from extmarks.
+// updateHighlights replaces TextBuffer highlights with styled extmark ranges.
 func (ec *ExtmarksController) updateHighlights() {
 	tb := ec.editBuffer.TextBuffer()
 	tb.ClearAllHighlights()
@@ -820,8 +769,7 @@ func (ec *ExtmarksController) restoreSnapshot(snap *ExtmarksSnapshot) {
 	ec.extmarks = cloneExtmarks(snap.extmarks)
 	ec.nextID = snap.nextID
 
-	// Rebuild the secondary type index from the restored extmarks.
-	// Without this, AllForTypeID returns stale results after undo/redo.
+	// Rebuild the type index from restored primary records.
 	ec.extmarksByType = make(map[int]map[int]struct{})
 	for id, em := range ec.extmarks {
 		if _, ok := ec.extmarksByType[em.TypeID]; !ok {
@@ -833,15 +781,15 @@ func (ec *ExtmarksController) restoreSnapshot(snap *ExtmarksSnapshot) {
 	ec.updateHighlights()
 }
 
-// DisplayWidthOfText returns the display width of text including newlines
-// as +1 each (matching the offset coordinate space).
+// DisplayWidthOfText returns text's display width with each newline counted as
+// one offset.
 func DisplayWidthOfText(text string) int {
 	parts := strings.Split(text, "\n")
 	total := 0
 	for i, part := range parts {
 		total += StringWidth(part)
 		if i < len(parts)-1 {
-			total++ // newline separator
+			total++ // Count the logical-line separator.
 		}
 	}
 	return total

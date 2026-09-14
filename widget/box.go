@@ -7,7 +7,7 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// Box is a container with optional border, background fill, and gap support.
+// Box lays out child renderables with optional borders, background fill, and gaps.
 type Box struct {
 	*render.BaseRenderable
 
@@ -27,7 +27,7 @@ type Box struct {
 // BoxOption configures a Box during construction.
 type BoxOption func(*Box)
 
-// NewBox creates a Box widget with optional configuration.
+// NewBox returns a column-oriented Box with optional configuration.
 func NewBox(opts ...BoxOption) *Box {
 	b := &Box{
 		BaseRenderable:     render.NewBaseRenderable(),
@@ -39,26 +39,23 @@ func NewBox(opts ...BoxOption) *Box {
 		TitleAlignment:     layout.TextAlignLeft,
 	}
 
-	// Default to column layout for box containers
+	// Containers stack children vertically unless an option changes the direction.
 	b.LayoutNode().FlexDirection = layout.DirectionColumn
 
 	for _, opt := range opts {
 		opt(b)
 	}
 
-	// Ensure layout padding accounts for active border sides so the
-	// layout engine positions children inside the border.
+	// Keep children inside every active border side.
 	b.applyBorderPadding()
 
-	// Apply gap to layout node
+	// Resolve the general and axis-specific gap options after all options run.
 	b.applyGap()
 
 	return b
 }
 
-// applyBorderPadding ensures the layout node has at least 1 cell of
-// padding on each side that has an active border so children are
-// always positioned inside the style.
+// applyBorderPadding reserves at least one cell inside each active border side.
 func (b *Box) applyBorderPadding() {
 	sides := style.GetBorderSides(b.Border)
 	ln := b.LayoutNode()
@@ -85,7 +82,7 @@ func (b *Box) applyBorderPadding() {
 	}
 }
 
-// applyGap sets gap values on the layout node.
+// applyGap copies resolved gap options to the layout node.
 func (b *Box) applyGap() {
 	ln := b.LayoutNode()
 	if g, ok := b.Gap.Resolve(0); ok {
@@ -101,7 +98,7 @@ func (b *Box) applyGap() {
 	}
 }
 
-// RenderSelf draws the box background and style.
+// RenderSelf draws the box background, border, and title.
 func (b *Box) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 	w := b.Width()
 	h := b.Height()
@@ -112,11 +109,11 @@ func (b *Box) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 	x := b.X()
 	y := b.Y()
 
-	// Determine if border should be drawn
+	// A partial border is active when any side is enabled.
 	sides := style.GetBorderSides(b.Border)
 	hasBorder := sides.Top || sides.Right || sides.Bottom || sides.Left
 
-	// Fill background
+	// Fill only the content area when a border is present.
 	if b.ShouldFill && !b.BackgroundColor.IsTransparent() {
 		if hasBorder {
 			inner := buffer.InnerRect(x, y, w, h, sides)
@@ -128,7 +125,7 @@ func (b *Box) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 		}
 	}
 
-	// Draw border
+	// Focus color overrides the normal border color when configured.
 	if hasBorder {
 		borderColor := b.BorderColor
 		if b.Focused() && !b.FocusedBorderColor.IsTransparent() {
@@ -146,20 +143,20 @@ func (b *Box) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 				Color:  borderColor,
 			},
 			BackgroundColor: b.BackgroundColor,
-			ShouldFill:      false, // we already filled above
+			ShouldFill:      false, // The content area was filled above.
 			Title:           b.Title,
 			TitleAlignment:  b.TitleAlignment,
 		})
 	}
 }
 
-// InnerRect returns the content area inside the border.
+// InnerRect returns the drawable content area inside active border sides.
 func (b *Box) InnerRect() buffer.Rect {
 	sides := style.GetBorderSides(b.Border)
 	return buffer.InnerRect(b.X(), b.Y(), b.Width(), b.Height(), sides)
 }
 
-// --- Box Options ---
+// Box options.
 
 // BoxWithBackgroundColor sets the background color.
 func BoxWithBackgroundColor(c style.Color) BoxOption {
@@ -190,7 +187,7 @@ func BoxWithBorderColor(c style.Color) BoxOption {
 	}
 }
 
-// BoxWithTitle sets the title text in the top style.
+// BoxWithTitle sets the title drawn in the top border.
 func BoxWithTitle(t string) BoxOption {
 	return func(b *Box) {
 		b.Title = t
@@ -218,40 +215,40 @@ func BoxWithShouldFill(v bool) BoxOption {
 	}
 }
 
-// BoxWithGap sets the gap between children.
+// BoxWithGap sets both row and column gaps between children.
 func BoxWithGap(g layout.Scalar) BoxOption {
 	return func(b *Box) {
 		b.Gap = g
 	}
 }
 
-// BoxWithRowGap sets the row gap.
+// BoxWithRowGap sets the vertical gap between children.
 func BoxWithRowGap(g layout.Scalar) BoxOption {
 	return func(b *Box) {
 		b.RowGap = g
 	}
 }
 
-// BoxWithColumnGap sets the column gap.
+// BoxWithColumnGap sets the horizontal gap between children.
 func BoxWithColumnGap(g layout.Scalar) BoxOption {
 	return func(b *Box) {
 		b.ColumnGap = g
 	}
 }
 
-// --- Render options pass-through ---
+// Box layout options.
 
-// BoxWithID sets the ID.
+// BoxWithID sets the widget ID.
 func BoxWithID(id string) BoxOption {
 	return func(b *Box) { b.SetID(id) }
 }
 
-// BoxWithWidth sets the width.
+// BoxWithWidth sets the widget width.
 func BoxWithWidth(s layout.Scalar) BoxOption {
 	return func(b *Box) { b.LayoutNode().Width = s }
 }
 
-// BoxWithHeight sets the height.
+// BoxWithHeight sets the widget height.
 func BoxWithHeight(s layout.Scalar) BoxOption {
 	return func(b *Box) { b.LayoutNode().Height = s }
 }
@@ -261,12 +258,12 @@ func BoxWithMinHeight(s layout.Scalar) BoxOption {
 	return func(b *Box) { b.LayoutNode().MinHeight = s }
 }
 
-// BoxWithFlexGrow sets flex grow.
+// BoxWithFlexGrow sets the flex-grow factor.
 func BoxWithFlexGrow(v int) BoxOption {
 	return func(b *Box) { b.LayoutNode().FlexGrow = v }
 }
 
-// BoxWithFlexShrink sets flex shrink.
+// BoxWithFlexShrink sets the flex-shrink factor.
 func BoxWithFlexShrink(v int) BoxOption {
 	return func(b *Box) { b.LayoutNode().FlexShrink = v }
 }
@@ -276,22 +273,22 @@ func BoxWithFlexDirection(d layout.FlexDirection) BoxOption {
 	return func(b *Box) { b.LayoutNode().FlexDirection = d }
 }
 
-// BoxWithJustifyContent sets justify content.
+// BoxWithJustifyContent sets how children are distributed along the main axis.
 func BoxWithJustifyContent(j layout.JustifyContent) BoxOption {
 	return func(b *Box) { b.LayoutNode().JustifyContent = j }
 }
 
-// BoxWithAlignItems sets align items.
+// BoxWithAlignItems sets how children align along the cross axis.
 func BoxWithAlignItems(a layout.Align) BoxOption {
 	return func(b *Box) { b.LayoutNode().AlignItems = a }
 }
 
-// BoxWithPadding sets all padding.
+// BoxWithPadding sets padding on all sides.
 func BoxWithPadding(s layout.Scalar) BoxOption {
 	return func(b *Box) { b.LayoutNode().SetPadding(s) }
 }
 
-// BoxWithMargin sets all margins.
+// BoxWithMargin sets the margin on all sides.
 func BoxWithMargin(s layout.Scalar) BoxOption {
 	return func(b *Box) { b.LayoutNode().SetMargin(s) }
 }
@@ -346,8 +343,7 @@ func BoxWithOverflow(o layout.Overflow) BoxOption {
 	return func(b *Box) { b.LayoutNode().Overflow = o }
 }
 
-// Children adds child renderables to a Box during construction,
-// enabling declarative tree building:
+// Children adds non-nil child renderables to a Box during construction.
 //
 //	widget.NewBox(
 //	    widget.BoxWithFlexDirection(layout.DirectionRow),

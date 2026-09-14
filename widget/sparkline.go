@@ -8,8 +8,7 @@ import (
 	"github.com/unaquatic/fluid/symbol"
 )
 
-// sparkBlocks are vertical-fill block characters for sparkline rendering
-// (bottom to top), sourced from symbols.BarNineLevels.
+// sparkBlocks contains the bottom-to-top fill levels used for each cell.
 var sparkBlocks = symbol.BarNineLevels[:]
 
 // Sparkline is a compact line chart using block characters.
@@ -17,7 +16,7 @@ type Sparkline struct {
 	*render.BaseRenderable
 
 	data     []float64
-	maxValue float64 // 0 = auto-scale
+	maxValue float64 // Zero enables scaling from the data range.
 	minValue float64
 
 	fg              style.Color
@@ -27,7 +26,7 @@ type Sparkline struct {
 // SparklineOption configures a Sparkline.
 type SparklineOption func(*Sparkline)
 
-// NewSparkline creates a Sparkline widget.
+// NewSparkline returns a one-row Sparkline for data.
 func NewSparkline(data []float64, opts ...SparklineOption) *Sparkline {
 	s := &Sparkline{
 		BaseRenderable:  render.NewBaseRenderable(),
@@ -45,7 +44,7 @@ func NewSparkline(data []float64, opts ...SparklineOption) *Sparkline {
 	return s
 }
 
-// SetData sets the sparkline data points.
+// SetData replaces the sparkline data points.
 func (s *Sparkline) SetData(data []float64) {
 	s.data = data
 	s.RequestRender()
@@ -54,7 +53,7 @@ func (s *Sparkline) SetData(data []float64) {
 // AddPoint appends a data point.
 func (s *Sparkline) AddPoint(v float64) {
 	s.data = append(s.data, v)
-	// Keep data within width
+	// Retain only points that can be displayed at the current width.
 	if w := s.Width(); w > 0 && len(s.data) > w {
 		s.data = s.data[len(s.data)-w:]
 	}
@@ -72,12 +71,12 @@ func (s *Sparkline) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 	x := s.X()
 	y := s.Y()
 
-	// Fill background
+	// Fill the viewport when an opaque background is configured.
 	if !s.backgroundColor.IsTransparent() {
 		buf.FillRect(x, y, w, h, s.backgroundColor)
 	}
 
-	// Find min/max
+	// Derive both bounds from the data when automatic scaling is enabled.
 	minVal := s.minValue
 	maxVal := s.maxValue
 	if maxVal == 0 {
@@ -98,7 +97,7 @@ func (s *Sparkline) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 		valRange = 1
 	}
 
-	// Draw sparkline (right-aligned if data is shorter than width)
+	// Show the newest visible points, right-aligned when they do not fill the width.
 	dataLen := len(s.data)
 	startIdx := 0
 	if dataLen > w {
@@ -125,7 +124,7 @@ func (s *Sparkline) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 			normalized = 1
 		}
 
-		// For multi-row sparklines, fill from bottom up
+		// Fill each data column from the bottom upward.
 		for row := range h {
 			screenY := y + h - 1 - row
 			cellFraction := normalized*float64(h) - float64(row)
@@ -143,7 +142,7 @@ func (s *Sparkline) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 	}
 }
 
-// --- Sparkline Options ---
+// Sparkline options.
 
 // SparklineWithFg sets the foreground color.
 func SparklineWithFg(c style.Color) SparklineOption {
@@ -155,7 +154,7 @@ func SparklineWithBg(c style.Color) SparklineOption {
 	return func(s *Sparkline) { s.backgroundColor = c }
 }
 
-// SparklineWithMaxValue sets the maximum value for scaling.
+// SparklineWithMaxValue sets the upper scaling bound; zero enables automatic scaling.
 func SparklineWithMaxValue(v float64) SparklineOption {
 	return func(s *Sparkline) { s.maxValue = v }
 }
@@ -175,7 +174,7 @@ func SparklineWithHeight(sc layout.Scalar) SparklineOption {
 	return func(s *Sparkline) { s.LayoutNode().Height = sc }
 }
 
-// SparklineWithFlexGrow sets flex grow.
+// SparklineWithFlexGrow sets the flex-grow factor.
 func SparklineWithFlexGrow(v int) SparklineOption {
 	return func(s *Sparkline) { s.LayoutNode().FlexGrow = v }
 }

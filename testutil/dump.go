@@ -7,8 +7,8 @@ import (
 	"github.com/unaquatic/fluid/buffer"
 )
 
-// DumpBuffer returns a multi-line string representation of the buffer,
-// useful for debug output in test failures.
+// DumpBuffer returns an indexed, row-delimited representation of buf for diagnostics.
+// It displays zero-value cells as spaces.
 func DumpBuffer(buf *buffer.Buffer) string {
 	var sb strings.Builder
 	w := buf.Width()

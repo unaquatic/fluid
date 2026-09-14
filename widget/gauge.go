@@ -10,11 +10,11 @@ import (
 	"github.com/unaquatic/fluid/symbol"
 )
 
-// Gauge is a progress bar with percentage display and optional gradient fill.
+// Gauge displays a value from zero to one as a progress bar.
 type Gauge struct {
 	*render.BaseRenderable
 
-	value     float64 // 0.0 - 1.0
+	value     float64 // Clamped to the range [0, 1] by SetValue.
 	label     string
 	showLabel bool
 
@@ -23,7 +23,7 @@ type Gauge struct {
 	labelColor      style.Color
 	backgroundColor style.Color
 
-	// Gradient: if set, interpolates from fillColor to gradientEnd
+	// A gradient blends from fillColor to gradientEnd across the filled cells.
 	useGradient bool
 	gradientEnd style.Color
 }
@@ -31,7 +31,7 @@ type Gauge struct {
 // GaugeOption configures a Gauge.
 type GaugeOption func(*Gauge)
 
-// NewGauge creates a Gauge widget.
+// NewGauge returns a Gauge with a one-row layout and a percentage label.
 func NewGauge(opts ...GaugeOption) *Gauge {
 	g := &Gauge{
 		BaseRenderable:  render.NewBaseRenderable(),
@@ -51,7 +51,7 @@ func NewGauge(opts ...GaugeOption) *Gauge {
 	return g
 }
 
-// SetValue sets the gauge value (0.0 - 1.0).
+// SetValue sets the gauge value, clamped to the range [0, 1].
 func (g *Gauge) SetValue(v float64) {
 	if v < 0 {
 		v = 0
@@ -100,7 +100,7 @@ func (g *Gauge) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 		}
 	}
 
-	// Draw label
+	// Center the explicit label, or the percentage when no label is set.
 	if g.showLabel {
 		label := g.label
 		if label == "" {
@@ -112,7 +112,7 @@ func (g *Gauge) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 	}
 }
 
-// --- Gauge Options ---
+// Gauge options.
 
 // GaugeWithValue sets the initial value.
 func GaugeWithValue(v float64) GaugeOption {
@@ -124,7 +124,7 @@ func GaugeWithLabel(label string) GaugeOption {
 	return func(g *Gauge) { g.label = label }
 }
 
-// GaugeWithShowLabel enables/disables label display.
+// GaugeWithShowLabel controls whether the gauge displays its label.
 func GaugeWithShowLabel(v bool) GaugeOption {
 	return func(g *Gauge) { g.showLabel = v }
 }
@@ -139,7 +139,7 @@ func GaugeWithEmptyColor(c style.Color) GaugeOption {
 	return func(g *Gauge) { g.emptyColor = c }
 }
 
-// GaugeWithGradient sets a gradient fill.
+// GaugeWithGradient colors the fill with a gradient from start to end.
 func GaugeWithGradient(start, end style.Color) GaugeOption {
 	return func(g *Gauge) {
 		g.fillColor = start
@@ -163,7 +163,7 @@ func GaugeWithHeight(s layout.Scalar) GaugeOption {
 	return func(g *Gauge) { g.LayoutNode().Height = s }
 }
 
-// GaugeWithFlexGrow sets flex grow.
+// GaugeWithFlexGrow sets the flex-grow factor.
 func GaugeWithFlexGrow(v int) GaugeOption {
 	return func(g *Gauge) { g.LayoutNode().FlexGrow = v }
 }

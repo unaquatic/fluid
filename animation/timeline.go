@@ -6,26 +6,17 @@ import (
 	"sync"
 )
 
-// ---------------------------------------------------------------------------
-// AnimationTarget
-// ---------------------------------------------------------------------------
-
-// AnimationTarget is any object whose float64 properties can be animated.
-// Widgets expose animatable properties via this interface.
+// AnimationTarget exposes named floating-point properties that a Timeline can animate.
 type AnimationTarget interface {
 	Property(name string) float64
 	SetProperty(name string, value float64)
 }
 
-// ---------------------------------------------------------------------------
-// Options
-// ---------------------------------------------------------------------------
-
-// TimelineOptions configures a Timeline at construction time.
+// TimelineOptions configures timeline-wide duration, playback, and callbacks.
 type TimelineOptions struct {
-	Duration   float64 // total duration in seconds; default: 0 (auto-calculated)
-	Loop       bool    // loop when complete; default: false
-	Autoplay   bool    // start playing immediately; default: true
+	Duration   float64 // Total seconds; non-positive values use the latest item end.
+	Loop       bool    // Restarts the timeline when its duration elapses.
+	Autoplay   bool    // If true, a configured timeline starts playing immediately.
 	OnComplete func()
 	OnPause    func()
 }
@@ -37,33 +28,32 @@ type LoopConfig struct {
 	count    int
 }
 
-// LoopInfinite returns a LoopConfig that loops forever.
+// LoopInfinite returns a configuration with no iteration limit.
 func LoopInfinite() LoopConfig { return LoopConfig{infinite: true} }
 
-// LoopCount returns a LoopConfig that loops n times.
+// LoopCount limits an animation to n iterations when n is positive.
+// A non-positive value disables looping.
 func LoopCount(n int) LoopConfig { return LoopConfig{count: n} }
 
-// AnimationOptions configures a single animation added to a Timeline.
+// AnimationOptions configures one property animation on a Timeline.
 type AnimationOptions struct {
-	Duration  float64    // seconds
-	Ease      EasingName // default: "linear"
-	Loop      LoopConfig // default: no looping
-	LoopDelay float64    // seconds between loops
-	Alternate bool       // reverse on alternate loops
-	Once      bool       // remove after completion
+	Duration  float64    // Seconds; non-positive values become 0.001.
+	Ease      EasingName // Empty selects Linear.
+	Loop      LoopConfig // Zero runs one iteration.
+	LoopDelay float64    // Seconds between iterations.
+	Alternate bool       // Reverses progress on every second iteration.
+	Once      bool       // Removes the item after its final iteration.
 
 	OnUpdate   func(progress float64)
 	OnComplete func()
 	OnStart    func()
 	OnLoop     func()
 
-	// Target property values (end values).
+	// Properties maps target property names to their final values.
 	Properties map[string]float64
 }
 
-// ---------------------------------------------------------------------------
-// Internal items
-// ---------------------------------------------------------------------------
+// Timeline item state.
 
 type propertyAnimation struct {
 	startValue float64
@@ -93,22 +83,18 @@ type subTimelineItem struct {
 	startTime float64
 }
 
-// ---------------------------------------------------------------------------
-// Timeline
-// ---------------------------------------------------------------------------
-
-// Timeline drives property-based animations and timed callbacks.
+// Timeline coordinates property animations, timed callbacks, and nested timelines.
 type Timeline struct {
 	items        []timelineItem
 	callbacks    []callbackItem
 	subTimelines []subTimelineItem
-	currentTime  float64 // seconds
-	duration     float64 // total duration in seconds (explicit or auto)
-	autoDuration bool    // true if duration was not set explicitly
+	currentTime  float64 // Elapsed playback seconds.
+	duration     float64 // Explicit duration or latest scheduled end time, in seconds.
+	autoDuration bool    // Whether additions recalculate duration.
 	isPlaying    bool
 	isComplete   bool
 	loop         bool
-	synced       bool // if true, driven by parent timeline, not engine
+	synced       bool // Whether a parent Timeline drives updates instead of TimelineEngine.
 
 	onComplete func()
 	onPause    func()
@@ -117,7 +103,8 @@ type Timeline struct {
 	mu             sync.Mutex
 }
 
-// NewTimeline creates a Timeline with the given options.
+// NewTimeline returns a Timeline configured by the first options value.
+// With no options it starts playing; with options it plays only when Autoplay is true.
 func NewTimeline(opts ...TimelineOptions) *Timeline {
 	tl := &Timeline{
 		autoDuration: true,
@@ -133,30 +120,23 @@ func NewTimeline(opts ...TimelineOptions) *Timeline {
 		tl.onComplete = o.OnComplete
 		tl.onPause = o.OnPause
 
-		// Default Autoplay = true (zero-value bool is false, so we check
-		// whether the caller explicitly passed false vs. not setting it).
-		// Convention: if TimelineOptions is provided, Autoplay defaults to
-		// true unless explicitly set to false.
+		// A supplied options value uses its Autoplay field directly.
 		if !o.Autoplay {
-			// Autoplay was explicitly false — start paused.
+			// A false Autoplay value starts the configured timeline paused.
 			tl.isPlaying = false
 		} else {
 			tl.isPlaying = true
 		}
 	} else {
-		// No options: autoplay by default.
+		// The no-options constructor starts immediately.
 		tl.isPlaying = true
 	}
 
 	return tl
 }
 
-// ---------------------------------------------------------------------------
-// Adding animations
-// ---------------------------------------------------------------------------
-
-// Add adds an animation for the given target at an optional start time
-// (default: 0). Returns the Timeline for chaining.
+// Add schedules an animation for target at an optional absolute start time.
+// The default start time is zero. Add returns tl for chaining.
 func (tl *Timeline) Add(target AnimationTarget, opts AnimationOptions, startTime ...float64) *Timeline {
 	tl.mu.Lock()
 	defer tl.mu.Unlock()
@@ -172,10 +152,9 @@ func (tl *Timeline) Add(target AnimationTarget, opts AnimationOptions, startTime
 	return tl
 }
 
-// AddAt adds an animation with a string start time. Supports:
-//   - "+=0.5" — relative offset from current timeline end
-//   - "-=0.2" — relative offset backward from end
-//   - "0.3"   — absolute time in seconds
+// AddAt schedules an animation using a string start time and returns tl.
+// A "+=0.5" or "-=0.2" value is relative to the current timeline end;
+// "0.3" is an absolute time in seconds.
 func (tl *Timeline) AddAt(target AnimationTarget, opts AnimationOptions, startTimeStr string) *Timeline {
 	tl.mu.Lock()
 	defer tl.mu.Unlock()
@@ -187,8 +166,7 @@ func (tl *Timeline) AddAt(target AnimationTarget, opts AnimationOptions, startTi
 	return tl
 }
 
-// Once adds a one-shot animation at the current time. The animation is
-// removed after it completes.
+// Once schedules an animation at the current time and removes it after completion.
 func (tl *Timeline) Once(target AnimationTarget, opts AnimationOptions) *Timeline {
 	tl.mu.Lock()
 	defer tl.mu.Unlock()
@@ -201,7 +179,8 @@ func (tl *Timeline) Once(target AnimationTarget, opts AnimationOptions) *Timelin
 	return tl
 }
 
-// Call schedules a callback at the given time (default: 0).
+// Call schedules callback at an optional absolute time and returns tl.
+// The default time is zero.
 func (tl *Timeline) Call(callback func(), startTime ...float64) *Timeline {
 	tl.mu.Lock()
 	defer tl.mu.Unlock()
@@ -219,8 +198,8 @@ func (tl *Timeline) Call(callback func(), startTime ...float64) *Timeline {
 	return tl
 }
 
-// Sync nests a sub-timeline at the given start time (default: 0).
-// The sub-timeline is driven by this timeline, not the engine.
+// Sync schedules sub at an optional absolute time and returns tl.
+// The parent timeline drives sub instead of TimelineEngine.
 func (tl *Timeline) Sync(sub *Timeline, startTime ...float64) *Timeline {
 	tl.mu.Lock()
 	defer tl.mu.Unlock()
@@ -240,17 +219,16 @@ func (tl *Timeline) Sync(sub *Timeline, startTime ...float64) *Timeline {
 	return tl
 }
 
-// ---------------------------------------------------------------------------
-// Playback control
-// ---------------------------------------------------------------------------
+// Playback control.
 
-// Play starts or resumes playback. Returns the Timeline for chaining.
+// Play starts or resumes playback and returns tl.
+// A completed timeline restarts from time zero.
 func (tl *Timeline) Play() *Timeline {
 	tl.mu.Lock()
 	defer tl.mu.Unlock()
 
 	if tl.isComplete {
-		// Reset if trying to play after completion
+		// Playing a completed timeline starts a fresh pass.
 		tl.resetItemsLocked()
 		tl.currentTime = 0
 		tl.isComplete = false
@@ -260,7 +238,7 @@ func (tl *Timeline) Play() *Timeline {
 	return tl
 }
 
-// Pause pauses playback. Returns the Timeline for chaining.
+// Pause stops time advancement, invokes OnPause, and returns tl.
 func (tl *Timeline) Pause() *Timeline {
 	tl.mu.Lock()
 	defer tl.mu.Unlock()
@@ -273,8 +251,7 @@ func (tl *Timeline) Pause() *Timeline {
 	return tl
 }
 
-// Restart resets the timeline to the beginning and starts playback.
-// Returns the Timeline for chaining.
+// Restart resets all items and callbacks, starts at time zero, and returns tl.
 func (tl *Timeline) Restart() *Timeline {
 	tl.mu.Lock()
 	defer tl.mu.Unlock()
@@ -287,9 +264,7 @@ func (tl *Timeline) Restart() *Timeline {
 	return tl
 }
 
-// ---------------------------------------------------------------------------
-// State queries
-// ---------------------------------------------------------------------------
+// Playback state.
 
 // IsPlaying returns whether the timeline is currently playing.
 func (tl *Timeline) IsPlaying() bool {
@@ -326,23 +301,20 @@ func (tl *Timeline) IsSynced() bool {
 	return tl.synced
 }
 
-// ---------------------------------------------------------------------------
-// State change listeners
-// ---------------------------------------------------------------------------
+// State-change listeners.
 
-// AddStateChangeListener subscribes to state changes (play/pause/complete).
+// AddStateChangeListener adds a callback for play, pause, restart, loop, and completion changes.
 func (tl *Timeline) AddStateChangeListener(listener func(*Timeline)) {
 	tl.mu.Lock()
 	defer tl.mu.Unlock()
 	tl.stateListeners = append(tl.stateListeners, listener)
 }
 
-// RemoveStateChangeListener unsubscribes from state changes.
-// Uses function pointer comparison (caller should keep a reference).
+// RemoveStateChangeListener removes the first listener with the same function pointer.
 func (tl *Timeline) RemoveStateChangeListener(listener func(*Timeline)) {
 	tl.mu.Lock()
 	defer tl.mu.Unlock()
-	// Function comparison in Go is limited; we compare the formatted pointer.
+	// Functions are not directly comparable, so compare their formatted code pointers.
 	target := fmt.Sprintf("%p", listener)
 	for i, l := range tl.stateListeners {
 		if fmt.Sprintf("%p", l) == target {
@@ -352,12 +324,8 @@ func (tl *Timeline) RemoveStateChangeListener(listener func(*Timeline)) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Update (called each frame)
-// ---------------------------------------------------------------------------
-
-// Update advances the timeline by deltaTime seconds.
-// Called by the engine each frame (or by a parent timeline if synced).
+// Update advances a playing timeline by deltaTime seconds.
+// TimelineEngine calls it for root timelines; a parent calls it for synchronized timelines.
 func (tl *Timeline) Update(deltaTime float64) {
 	tl.mu.Lock()
 	defer tl.mu.Unlock()
@@ -368,19 +336,19 @@ func (tl *Timeline) Update(deltaTime float64) {
 
 	tl.currentTime += deltaTime
 
-	// Process animation items
+	// Apply due property animations before callbacks observe this frame.
 	tl.processItems()
 
-	// Process callbacks
+	// Fire callbacks whose scheduled times have elapsed.
 	tl.processCallbacks()
 
-	// Process sub-timelines
+	// Advance nested timelines after their start times.
 	tl.processSubTimelines(deltaTime)
 
-	// Remove completed once-items
+	// Discard completed one-shot items.
 	tl.removeOnceItems()
 
-	// Check overall completion
+	// Complete or restart after the timeline-wide duration elapses.
 	if tl.duration > 0 && tl.currentTime >= tl.duration {
 		if tl.loop {
 			tl.currentTime = 0
@@ -396,19 +364,17 @@ func (tl *Timeline) Update(deltaTime float64) {
 	}
 }
 
-// ResetItems resets all items to their initial state.
+// ResetItems clears item, callback, and nested-timeline progress without changing current time.
 func (tl *Timeline) ResetItems() {
 	tl.mu.Lock()
 	defer tl.mu.Unlock()
 	tl.resetItemsLocked()
 }
 
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
+// Timeline scheduling and update helpers.
 
 func (tl *Timeline) makeItem(target AnimationTarget, opts AnimationOptions, startTime float64) timelineItem {
-	// Build property animation map
+	// Store end values now and capture start values when the item begins.
 	props := make(map[string]*propertyAnimation, len(opts.Properties))
 	for name, endVal := range opts.Properties {
 		props[name] = &propertyAnimation{
@@ -420,7 +386,7 @@ func (tl *Timeline) makeItem(target AnimationTarget, opts AnimationOptions, star
 		opts.Ease = Linear
 	}
 	if opts.Duration <= 0 {
-		opts.Duration = 0.001 // Avoid division by zero; near-instant
+		opts.Duration = 0.001 // Keep progress finite while approximating an instant update.
 	}
 
 	return timelineItem{
@@ -454,7 +420,7 @@ func (tl *Timeline) parseStartTime(s string) float64 {
 	return t
 }
 
-// calculatedEnd returns the latest end time across all items/callbacks/subs.
+// calculatedEnd returns the latest scheduled end across items, callbacks, and sub-timelines.
 func (tl *Timeline) calculatedEnd() float64 {
 	end := 0.0
 	for _, item := range tl.items {
@@ -477,7 +443,7 @@ func (tl *Timeline) calculatedEnd() float64 {
 	return end
 }
 
-// recalcDuration updates the duration if it was auto-calculated.
+// recalcDuration extends an automatically sized timeline to its latest scheduled end.
 func (tl *Timeline) recalcDuration() {
 	if tl.autoDuration {
 		tl.duration = tl.calculatedEnd()
@@ -494,12 +460,12 @@ func (tl *Timeline) processItems() {
 			continue
 		}
 
-		// Initialize start values on first frame
+		// Capture current target values when the item first becomes due.
 		if !item.started {
 			for name, pa := range item.properties {
 				pa.startValue = item.target.Property(name)
 				pa.easingFunc = GetEasingFunc(item.options.Ease)
-				_ = name // iterate
+				_ = name
 			}
 			item.started = true
 			if item.options.OnStart != nil {
@@ -507,20 +473,20 @@ func (tl *Timeline) processItems() {
 			}
 		}
 
-		// Calculate progress
+		// Clamp elapsed progress at completion.
 		elapsed := tl.currentTime - item.startTime
 		rawProgress := elapsed / item.options.Duration
 		if rawProgress > 1.0 {
 			rawProgress = 1.0
 		}
 
-		// Handle alternating loops
+		// Odd alternate iterations run from end to start.
 		effectiveProgress := rawProgress
 		if item.options.Alternate && item.loopCount%2 == 1 {
 			effectiveProgress = 1.0 - rawProgress
 		}
 
-		// Apply easing and update properties
+		// Interpolate every target property with the selected easing function.
 		for _, pa := range item.properties {
 			easedProgress := pa.easingFunc(effectiveProgress)
 			value := pa.startValue + (pa.endValue-pa.startValue)*easedProgress
@@ -528,7 +494,7 @@ func (tl *Timeline) processItems() {
 		}
 
 		if item.options.OnUpdate != nil {
-			// Use the first property's easing for the callback progress
+			// Report eased progress from the first configured property.
 			var progress float64
 			for _, pa := range item.properties {
 				progress = pa.easingFunc(effectiveProgress)
@@ -537,14 +503,14 @@ func (tl *Timeline) processItems() {
 			item.options.OnUpdate(progress)
 		}
 
-		// Handle completion
+		// Either schedule the next iteration or finalize this item.
 		if rawProgress >= 1.0 {
 			if tl.shouldLoop(item) {
 				item.loopCount++
 				if item.options.OnLoop != nil {
 					item.options.OnLoop()
 				}
-				// Reset start time for next loop iteration
+				// LoopDelay begins after the frame that completed this iteration.
 				item.startTime = tl.currentTime + item.options.LoopDelay
 				item.started = false
 			} else {
@@ -557,7 +523,7 @@ func (tl *Timeline) processItems() {
 	}
 }
 
-// findPropertyName returns the map key for a given *propertyAnimation value.
+// findPropertyName returns the property name associated with target.
 func findPropertyName(props map[string]*propertyAnimation, target *propertyAnimation) string {
 	for name, pa := range props {
 		if pa == target {
@@ -598,7 +564,7 @@ func (tl *Timeline) processSubTimelines(deltaTime float64) {
 		if tl.currentTime < sub.startTime {
 			continue
 		}
-		// Drive the sub-timeline with the same deltaTime
+		// Nested timelines receive the parent's complete frame delta.
 		sub.timeline.Update(deltaTime)
 	}
 }
@@ -607,7 +573,7 @@ func (tl *Timeline) removeOnceItems() {
 	n := 0
 	for _, item := range tl.items {
 		if item.once && item.complete {
-			continue // skip completed once-items
+			continue // Omit completed one-shot items during in-place compaction.
 		}
 		tl.items[n] = item
 		n++

@@ -1,221 +1,178 @@
 package style
 
-// Theme is a named palette that widgets and applications share so text,
-// surfaces, accents, and markdown elements stay visually coherent.
+// Theme is a named palette of shared interface, text, markdown, diff, and code
+// roles.
 //
-// Theme is orthogonal to per-widget styling: every widget that supports a
-// theme lets callers substitute individual fields via its regular With...
-// options, and falls back to the widget's own defaults when no theme is
-// provided.
+// Widgets can override individual theme roles through their own styling APIs.
 type Theme struct {
 	Name string
 
-	// --- Core surfaces ---------------------------------------------------
+	// Core surfaces.
 	// Bg is the application's root background.
 	Bg Color
-	// Surface is the message/panel background (sits on top of Bg).
+	// Surface is the panel background above Bg.
 	Surface Color
-	// SurfaceAlt is a secondary surface for nested panels, tables, etc.
+	// SurfaceAlt is a secondary surface for nested regions.
 	SurfaceAlt Color
-	// SurfaceRaised is a lifted surface for floating UI (tooltips,
-	// menus, toasts). Zero → SurfaceAlt.
+	// SurfaceRaised is the floating-interface surface. A transparent value
+	// inherits SurfaceAlt.
 	SurfaceRaised Color
-	// Border is the default border/separator color.
+	// Border is the default border and separator color.
 	Border Color
 	// BorderStrong is the emphasized border color.
 	BorderStrong Color
-	// BorderWeak is the softest divider (between list rows, etc.).
-	// Zero → a blend toward Surface.
+	// BorderWeak is the softest divider. A transparent value derives from Border
+	// blended toward Surface.
 	BorderWeak Color
-	// BorderFocus is the border color for focused inputs and selected
-	// items. Zero → Interactive (or Accent).
+	// BorderFocus is the focused border color. A transparent value inherits the
+	// resolved interactive color.
 	BorderFocus Color
 
-	// --- Text ------------------------------------------------------------
+	// Text roles.
 	// TextStrong is the primary foreground color.
 	TextStrong Color
-	// TextBase is the default body foreground. Zero → TextStrong.
-	// Kept distinct from TextStrong so themes can separate "emphasised
-	// body" from "regular body" — e.g. a slightly lifted TextStrong
-	// for headings and bold spans while TextBase stays neutral for
-	// prose.
+	// TextBase is the body foreground. A transparent value inherits TextStrong.
 	TextBase Color
-	// TextWeak is the secondary (subtle) foreground color.
+	// TextWeak is the secondary foreground color.
 	TextWeak Color
-	// TextMuted is the lowest-contrast foreground color (hints, footers).
+	// TextMuted is the lowest-contrast foreground color.
 	TextMuted Color
-	// TextLink is the foreground for clickable text. Zero → MarkdownLink
-	// (or Interactive / Accent if that's also unset).
+	// TextLink is the clickable-text foreground. A transparent value inherits
+	// MarkdownLink or the resolved interactive color.
 	TextLink Color
 
-	// --- Accent / interactive roles --------------------------------------
-	// Accent is the primary highlight color (headings, emphasis, brand).
+	// Accent and interactive roles.
+	// Accent is the primary highlight color.
 	Accent Color
 	// AccentStrong is a more saturated accent for emphasis.
 	AccentStrong Color
-	// Interactive drives selection, focus rings, active menu items,
-	// clickable elements. Zero → Accent.
+	// Interactive colors selections, focus indicators, and clickable elements. A
+	// transparent value inherits Accent.
 	Interactive Color
-	// InteractiveStrong is the pressed / active state for Interactive.
-	// Zero → AccentStrong (or Interactive).
+	// InteractiveStrong is the pressed or active interactive color. A transparent
+	// value inherits AccentStrong or Interactive.
 	InteractiveStrong Color
 
-	// --- Semantic roles --------------------------------------------------
+	// Semantic roles.
 	Success Color
 	Warning Color
 	Danger  Color
 	Info    Color
 
-	// --- On-color foregrounds --------------------------------------------
-	// OnAccent is the text color to use on top of Accent-filled surfaces
-	// (buttons, badges). Zero → auto-pick black or white via
-	// ChooseOnColor(Accent).
+	// Foregrounds for filled roles.
+	// OnAccent is text drawn on Accent. A transparent value uses ChooseOnColor.
 	OnAccent      Color
-	OnInteractive Color // text on Interactive fills
+	OnInteractive Color // Text drawn on Interactive.
 	OnSuccess     Color
 	OnWarning     Color
 	OnDanger      Color
 	OnInfo        Color
 
-	// --- Selection ------------------------------------------------------
-	// SelectionBg fills selected text ranges, highlighted menu rows,
-	// and the "current" state for focusable widgets. Zero → a low-
-	// alpha blend of Interactive with Surface, which stays readable
-	// over any foreground.
+	// Selection roles.
+	// SelectionBg fills selected text and active rows. A transparent value derives
+	// from Interactive blended toward Surface.
 	SelectionBg Color
-	// SelectionFg is the text color over SelectionBg. Zero →
-	// ChooseOnColor(SelectionBg), which picks black/white via
-	// luminance so callers don't have to think about contrast.
+	// SelectionFg is text drawn on SelectionBg. A transparent value uses
+	// ChooseOnColor.
 	SelectionFg Color
-	// SelectionInactiveBg is the desaturated variant used when the
-	// widget has focus elsewhere (e.g. a menu row that was the most
-	// recently active but isn't currently receiving input). Zero →
-	// SelectionBg darkened toward Bg.
+	// SelectionInactiveBg fills a selection without focus. A transparent value
+	// derives from SelectionBg blended toward Bg.
 	SelectionInactiveBg Color
 
-	// --- Diff surfaces ---------------------------------------------------
-	// DiffAddSurface / DiffRemoveSurface tint full rows in diff views.
-	// Zero → a low-alpha blend of Success/Danger with Bg.
+	// Diff roles.
+	// DiffAddSurface and DiffRemoveSurface tint complete diff rows. Transparent
+	// values derive from Success or Danger blended toward Bg.
 	DiffAddSurface    Color
 	DiffRemoveSurface Color
-	// DiffAddFg / DiffRemoveFg are the foregrounds for diff markers and
-	// intra-line highlights. Zero → Success / Danger.
+	// DiffAddFg and DiffRemoveFg color markers and intra-line highlights.
+	// Transparent values inherit Success and Danger, respectively.
 	DiffAddFg    Color
 	DiffRemoveFg Color
 
-	// --- Markdown roles --------------------------------------------------
-	//
-	// Each role is an Entry so a theme states a span's color and its
-	// weight as one decision. Unset roles inherit as documented below.
-	MarkdownHeading [6]Entry // H1..H6
+	// Markdown roles. Zero entries inherit as described below.
+	MarkdownHeading [6]Entry // Heading levels H1 through H6.
 	// MarkdownText is the body text inside rendered markdown.
-	// Zero → TextBase.
+	// A zero entry inherits TextBase.
 	MarkdownText Entry
-	// MarkdownLink styles a URL; MarkdownLinkText the displayed label
-	// when it differs from the URL.
-	// Zero → TextLink / MarkdownLink.
+	// MarkdownLink styles a URL and MarkdownLinkText styles its displayed label.
+	// Zero entries inherit TextLink and MarkdownLink, respectively.
 	MarkdownLink     Entry
 	MarkdownLinkText Entry
-	// MarkdownCode is the inline-code span inside prose. A set Bg chips
-	// the span against the surrounding text.
-	// Zero → CodeFg on CodeBg.
+	// MarkdownCode styles inline code. A zero entry inherits CodeFg on CodeBg.
 	MarkdownCode Entry
-	// MarkdownEmph and MarkdownStrong style *italic* and **bold** spans.
-	// Zero → TextWeak italic / TextStrong bold.
+	// MarkdownEmph and MarkdownStrong style emphasis and strong spans. Zero
+	// entries inherit italic TextWeak and bold TextStrong.
 	MarkdownEmph   Entry
 	MarkdownStrong Entry
-	// MarkdownBullet styles unordered list markers, MarkdownListEnum the
-	// numbers of an ordered list.
-	// Zero → MarkdownBullet.
+	// MarkdownBullet styles unordered markers and MarkdownListEnum styles ordered
+	// markers. A zero MarkdownListEnum inherits MarkdownBullet.
 	MarkdownBullet   Entry
 	MarkdownListEnum Entry
-	// MarkdownQuote styles blockquote prose, MarkdownQuoteBorder the
-	// gutter glyph drawn beside it.
+	// MarkdownQuote styles blockquote prose and MarkdownQuoteBorder its gutter.
 	MarkdownQuote       Entry
 	MarkdownQuoteBorder Entry
 	MarkdownRule        Entry
-	// MarkdownImage and MarkdownImageText style image URLs and alt text.
-	// Zero → MarkdownLink / MarkdownLinkText.
+	// MarkdownImage and MarkdownImageText style image URLs and alternative text.
+	// Zero entries inherit MarkdownLink and MarkdownLinkText.
 	MarkdownImage     Entry
 	MarkdownImageText Entry
 
-	// --- Code ------------------------------------------------------------
-	// CodeFg / CodeBg are the default monochrome colors for inline code
-	// spans and unlanguaged fenced blocks. CodeBg is also used as the
-	// default background for syntax-highlighted tokens that do not
-	// specify their own.
+	// Code roles.
+	// CodeFg and CodeBg are the default colors for code without token styling.
 	CodeFg Color
 	CodeBg Color
 
-	// Code is the per-token palette used to build a Chroma style for
-	// syntax highlighting. Fields left as the zero Color fall back to
-	// sensible parents (see OrInherit and the Chroma mapping in the
-	// widget package).
+	// Code contains per-token syntax styles. Zero roles inherit from
+	// related roles when converted to a syntax highlighter style.
 	Code CodePalette
 }
 
-// CodePalette holds semantic roles that map onto Chroma's ~80 token
-// types. The fields are the buckets most syntax themes actually paint;
-// unset fields inherit from close parents so a caller can specify just a
-// handful of roles and still produce a coherent theme.
-//
-// Every role carries its attributes alongside its color, so a theme can
-// give any token bold, italic or underline — not just the handful that
-// happen to be wired. Themes like IntelliJ Darcula italicise constants
-// and bold keywords; monochrome themes lean on attributes hard because
-// they have no hue to separate roles with.
+// CodePalette groups semantic syntax roles. Each Entry keeps a role's colors
+// and text attributes together; conversion code resolves unset optional roles
+// from related core roles.
 type CodePalette struct {
-	// Core roles — cover ~95% of everyday code.
-	Keyword     Entry // if, for, func, class, return, import
-	Type        Entry // int, string, MyClass, custom types
-	Function    Entry // function / method names (def + call site)
-	Builtin     Entry // println, len, true, false, nil, this, self
-	Variable    Entry // identifiers that aren't in any role above
-	Constant    Entry // SCREAMING_CASE, None, numeric constants by name
-	String      Entry // string literals, backticks
-	Number      Entry // int / float / hex / binary literals
-	Comment     Entry // // ... /* ... */ # ...
-	Operator    Entry // + - * / = && ||
-	Punctuation Entry // , ; { } ( )
-	Decorator   Entry // @decorator, [Attribute], annotations
-	Error       Entry // tokenization errors, Chroma's Error token
+	// Core roles.
+	Keyword     Entry // Language keywords.
+	Type        Entry // Built-in and user-defined types.
+	Function    Entry // Function and method names.
+	Builtin     Entry // Built-in values and functions.
+	Variable    Entry // Identifiers without a more specific role.
+	Constant    Entry // Named constants.
+	String      Entry // String literals.
+	Number      Entry // Numeric literals.
+	Comment     Entry // Line and block comments.
+	Operator    Entry // Operators.
+	Punctuation Entry // Delimiters and separators.
+	Decorator   Entry // Decorators, attributes, and annotations.
+	Error       Entry // Tokenization errors.
 
-	// Optional extras — zero means "inherit from a parent role".
-	StringEscape Entry // \n, \x1b etc. inside strings    (zero → Number)
-	Regex        Entry // regex literals /foo/            (zero → String)
-	Tag          Entry // HTML/XML element names           (zero → Keyword)
-	Attribute    Entry // HTML attribute names             (zero → Variable)
-	Property     Entry // object/struct property access    (zero → Variable)
-	Primitive    Entry // true/false/null/undefined        (zero → Constant)
-	Object       Entry // class/module identifiers         (zero → Variable)
-	Preproc      Entry // #include, #define                (zero → Comment)
-	DiffAdded    Entry // GenericInserted (+ lines)        (zero → theme Success)
-	DiffRemoved  Entry // GenericDeleted (- lines)         (zero → theme Danger)
+	// Optional roles. A zero entry inherits from the role named in its comment.
+	StringEscape Entry // Inherits Number.
+	Regex        Entry // Inherits String.
+	Tag          Entry // Inherits Keyword.
+	Attribute    Entry // Inherits Variable.
+	Property     Entry // Inherits Variable.
+	Primitive    Entry // Inherits Constant.
+	Object       Entry // Inherits Variable.
+	Preproc      Entry // Inherits Comment.
+	DiffAdded    Entry // Inherits the theme's Success role.
+	DiffRemoved  Entry // Inherits the theme's Danger role.
 }
 
-// Entry describes how one styled role is drawn: a foreground, an
-// optional background, and a mask of text attributes (AttrBold,
-// AttrItalic, AttrUnderline, ...).
+// Entry contains the foreground, background, and attributes for one styled
+// role.
 //
-// Keeping the color and the attributes in one value is deliberate. A
-// role's weight is part of its identity — "strong is orange and bold"
-// is a single decision, and splitting it across a Color field and a
-// parallel attribute field lets one half be wired up while the other
-// is forgotten.
-//
-// The zero Entry means "unset, inherit the parent role". Inheritance is
-// all-or-nothing, so a theme that wants color without any attributes
-// writes Entry{Fg: c} and gets exactly that.
+// A zero Entry is unset and inherits its complete fallback entry.
 type Entry struct {
 	Fg    Color
 	Bg    Color
 	Attrs uint32
 }
 
-// IsZero reports whether e is unset and should inherit.
+// IsZero reports whether e contains no colors or attributes.
 func (e Entry) IsZero() bool { return e == Entry{} }
 
-// Or returns e when it is set, otherwise fallback.
+// Or returns e unless it is zero, in which case Or returns fallback.
 func (e Entry) Or(fallback Entry) Entry {
 	if e.IsZero() {
 		return fallback
@@ -235,8 +192,8 @@ func (e Entry) WithBg(c Color) Entry {
 	return e
 }
 
-// Chunk returns text styled by e. A transparent Fg or Bg is left unset
-// on the chunk so the surrounding widget's own colors show through.
+// Chunk returns text styled by e. Transparent colors remain nil so the chunk
+// inherits its surrounding colors.
 func (e Entry) Chunk(text string) TextChunk {
 	c := TextChunk{Text: text, Attributes: e.Attrs}
 	if e.Fg.A != 0 {
@@ -250,9 +207,8 @@ func (e Entry) Chunk(text string) TextChunk {
 	return c
 }
 
-// Merge layers over on top of e: over's colors win wherever they are
-// set, and the attribute masks union so a code span inside **strong**
-// keeps the code color and gains the bold bit.
+// Merge overlays nontransparent colors from over on e and unions their
+// attribute masks.
 func (e Entry) Merge(over Entry) Entry {
 	e.Attrs |= over.Attrs
 	if over.Fg.A != 0 {
@@ -264,10 +220,7 @@ func (e Entry) Merge(over Entry) Entry {
 	return e
 }
 
-// Apply merges e onto an existing chunk, leaving any color the chunk
-// already carries in place. Used when an inline element nests inside
-// another — a code span inside **strong** keeps the code colors and
-// gains the bold bit.
+// Apply adds e's attributes and fills only colors missing from c.
 func (e Entry) Apply(c TextChunk) TextChunk {
 	c.Attributes |= e.Attrs
 	if c.Fg == nil && e.Fg.A != 0 {
@@ -281,10 +234,7 @@ func (e Entry) Apply(c TextChunk) TextChunk {
 	return c
 }
 
-// OrInherit returns c when it has an opaque alpha; otherwise fallback.
-// Callers use this to express "if the user didn't set this role, use its
-// default parent role" without making inheritance implicit throughout
-// the code.
+// OrInherit returns c when its alpha is nonzero, otherwise fallback.
 func OrInherit(c, fallback Color) Color {
 	if c.A == 0 {
 		return fallback
@@ -292,26 +242,17 @@ func OrInherit(c, fallback Color) Color {
 	return c
 }
 
-// ChooseOnColor picks black or white, whichever has higher BT.709
-// luminance contrast against fill. Used as the default "on-color"
-// foreground when a theme hasn't specified one.
+// ChooseOnColor returns white for a fill below 0.5 BT.709 luma and black for a
+// fill at or above that threshold.
 func ChooseOnColor(fill Color) Color {
-	// Contrast ratio is monotonic in |L₁ - L₂| for these two choices,
-	// so comparing luminances directly is sufficient.
 	if fill.Luminance() < 0.5 {
 		return ColorWhite
 	}
 	return ColorBlack
 }
 
-// --- Resolved accessors ----------------------------------------------------
-//
-// These helpers return the effective color for a role after applying the
-// documented inheritance rules, so widgets can read a single field
-// without replicating the "zero → parent" logic everywhere.
-
-// ResolveInteractive returns the interactive color (selection/focus),
-// falling back to Accent → AccentStrong → TextStrong.
+// ResolveInteractive returns Interactive, falling back through Accent,
+// AccentStrong, and TextStrong.
 func (t *Theme) ResolveInteractive() Color {
 	return OrInherit(t.Interactive, OrInherit(t.Accent, OrInherit(t.AccentStrong, t.TextStrong)))
 }
@@ -321,34 +262,33 @@ func (t *Theme) ResolveInteractiveStrong() Color {
 	return OrInherit(t.InteractiveStrong, OrInherit(t.AccentStrong, t.ResolveInteractive()))
 }
 
-// ResolveTextBase returns the default body text color.
+// ResolveTextBase returns TextBase, falling back to TextStrong.
 func (t *Theme) ResolveTextBase() Color { return OrInherit(t.TextBase, t.TextStrong) }
 
-// ResolveTextLink returns the color for clickable text.
+// ResolveTextLink returns TextLink, falling back through MarkdownLink and the
+// resolved interactive color.
 func (t *Theme) ResolveTextLink() Color {
 	return OrInherit(t.TextLink, OrInherit(t.MarkdownLink.Fg, t.ResolveInteractive()))
 }
 
-// ResolveSurfaceRaised returns the surface for floating UI.
+// ResolveSurfaceRaised returns SurfaceRaised, falling back to SurfaceAlt.
 func (t *Theme) ResolveSurfaceRaised() Color { return OrInherit(t.SurfaceRaised, t.SurfaceAlt) }
 
-// ResolveBorderWeak returns the softest divider color.
+// ResolveBorderWeak returns BorderWeak or a blend from Border toward Surface.
 func (t *Theme) ResolveBorderWeak() Color {
 	if t.BorderWeak.A != 0 {
 		return t.BorderWeak
 	}
-	// Blend Border toward Surface so it reads as a hairline divider.
 	return t.Border.Blend(t.Surface, 0.5)
 }
 
-// ResolveBorderFocus returns the border used for focused inputs.
+// ResolveBorderFocus returns BorderFocus or the resolved interactive color.
 func (t *Theme) ResolveBorderFocus() Color {
 	return OrInherit(t.BorderFocus, t.ResolveInteractive())
 }
 
-// ResolveSelectionBg returns the background color for selected ranges
-// and highlighted menu rows. When unset, blends Interactive toward
-// Surface at 70% so the selection sits legibly over any foreground.
+// ResolveSelectionBg returns SelectionBg or the resolved interactive color
+// blended 70 percent toward Surface.
 func (t *Theme) ResolveSelectionBg() Color {
 	if t.SelectionBg.A != 0 {
 		return t.SelectionBg
@@ -356,14 +296,14 @@ func (t *Theme) ResolveSelectionBg() Color {
 	return t.ResolveInteractive().Blend(t.Surface, 0.7)
 }
 
-// ResolveSelectionFg returns the text color drawn on SelectionBg.
+// ResolveSelectionFg returns SelectionFg or a black-or-white foreground for
+// the resolved selection background.
 func (t *Theme) ResolveSelectionFg() Color {
 	return OrInherit(t.SelectionFg, ChooseOnColor(t.ResolveSelectionBg()))
 }
 
-// ResolveSelectionInactiveBg returns the desaturated selection tint
-// used when focus is elsewhere. Darkens the active selection toward
-// Bg by 40% so it reads as "dimmed but still highlighted".
+// ResolveSelectionInactiveBg returns SelectionInactiveBg or the active
+// selection background blended 40 percent toward Bg.
 func (t *Theme) ResolveSelectionInactiveBg() Color {
 	if t.SelectionInactiveBg.A != 0 {
 		return t.SelectionInactiveBg
@@ -371,32 +311,32 @@ func (t *Theme) ResolveSelectionInactiveBg() Color {
 	return t.ResolveSelectionBg().Blend(t.Bg, 0.4)
 }
 
-// ResolveOnAccent returns the fg for text drawn on Accent surfaces.
+// ResolveOnAccent returns the foreground for text drawn on Accent.
 func (t *Theme) ResolveOnAccent() Color {
 	return OrInherit(t.OnAccent, ChooseOnColor(OrInherit(t.Accent, t.TextStrong)))
 }
 
-// ResolveOnInteractive returns the fg for text drawn on Interactive.
+// ResolveOnInteractive returns the foreground for text drawn on Interactive.
 func (t *Theme) ResolveOnInteractive() Color {
 	return OrInherit(t.OnInteractive, ChooseOnColor(t.ResolveInteractive()))
 }
 
-// ResolveOnSuccess returns the fg for text drawn on Success surfaces.
+// ResolveOnSuccess returns the foreground for text drawn on Success.
 func (t *Theme) ResolveOnSuccess() Color {
 	return OrInherit(t.OnSuccess, ChooseOnColor(t.Success))
 }
 
-// ResolveOnWarning returns the fg for text drawn on Warning surfaces.
+// ResolveOnWarning returns the foreground for text drawn on Warning.
 func (t *Theme) ResolveOnWarning() Color {
 	return OrInherit(t.OnWarning, ChooseOnColor(t.Warning))
 }
 
-// ResolveOnDanger returns the fg for text drawn on Danger surfaces.
+// ResolveOnDanger returns the foreground for text drawn on Danger.
 func (t *Theme) ResolveOnDanger() Color {
 	return OrInherit(t.OnDanger, ChooseOnColor(t.Danger))
 }
 
-// ResolveOnInfo returns the fg for text drawn on Info surfaces.
+// ResolveOnInfo returns the foreground for text drawn on Info.
 func (t *Theme) ResolveOnInfo() Color {
 	return OrInherit(t.OnInfo, ChooseOnColor(t.Info))
 }
@@ -428,8 +368,8 @@ func (t *Theme) ResolveMarkdownText() Entry {
 	return t.MarkdownText.Or(Entry{Fg: t.ResolveTextBase()})
 }
 
-// ResolveMarkdownHeading returns the style for a heading level, 1-6.
-// Headings are bold unless the theme says otherwise.
+// ResolveMarkdownHeading returns the style for heading levels 1 through 6. An
+// invalid or unset level uses bold markdown body text.
 func (t *Theme) ResolveMarkdownHeading(level int) Entry {
 	fallback := Entry{Fg: t.ResolveMarkdownText().Fg, Attrs: AttrBold}
 	if level < 1 || level > len(t.MarkdownHeading) {
@@ -498,27 +438,11 @@ func (t *Theme) ResolveMarkdownImageText() Entry {
 	return t.MarkdownImageText.Or(t.ResolveMarkdownLinkText())
 }
 
-// NeutralCodePalette derives a monochromatic syntax palette from a
-// 12-step neutral ramp. Token differentiation leans on text attributes
-// (bold, italic, underline) rather than hue — each role gets a
-// luminance step from the ramp, and categories that share a color
-// remain distinguishable through bold/italic.
-//
-// The index map is:
-//
-//	Error (Keyword Function)   → ramp[11]  // brightest; carry most weight
-//	Type Constant Decorator   → ramp[10]
-//	Variable Number Builtin   → ramp[9]
-//	Operator Punctuation       → ramp[8]
-//	String                     → ramp[8]  (+ italic for emphasis)
-//	Comment                    → ramp[6]  (+ italic)
-//
-// Use this with any neutral ramp — Dark, Light, Sepia, Solarized-zero-
-// chroma, etc. — to get a reading-friendly code palette that matches
-// the rest of the theme without any taste-driven color choices.
+// NeutralCodePalette derives syntax roles from a 12-step neutral ramp. It uses
+// brighter steps and text attributes for stronger roles instead of assigning
+// distinct hues.
 func NeutralCodePalette(ramp [12]Color) CodePalette {
-	// Without hue to separate roles, attributes are the primary
-	// readability cue — hence the bold/italic on the carrying roles.
+	// Attributes distinguish roles that share a ramp color.
 	return CodePalette{
 		Keyword:     Entry{Fg: ramp[11], Attrs: AttrBold},
 		Type:        Entry{Fg: ramp[10], Attrs: AttrBold},
@@ -539,34 +463,33 @@ func NeutralCodePalette(ramp [12]Color) CodePalette {
 // MonokaiCodePalette returns the classic Monokai syntax coloring.
 func MonokaiCodePalette() CodePalette {
 	return CodePalette{
-		Keyword:  Entry{Fg: ColorFromInts(249, 38, 114, 255)},  // pink
-		Type:     Entry{Fg: ColorFromInts(102, 217, 239, 255)}, // cyan
-		Function: Entry{Fg: ColorFromInts(166, 226, 46, 255)},  // green
-		Builtin:  Entry{Fg: ColorFromInts(102, 217, 239, 255)}, // = Type
-		Variable: Entry{Fg: ColorFromInts(248, 248, 242, 255)}, // default code fg
-		Constant: Entry{Fg: ColorFromInts(174, 129, 255, 255)}, // purple
-		String:   Entry{Fg: ColorFromInts(230, 219, 116, 255)}, // yellow
-		Number:   Entry{Fg: ColorFromInts(174, 129, 255, 255)}, // = Constant
+		Keyword:  Entry{Fg: ColorFromInts(249, 38, 114, 255)},
+		Type:     Entry{Fg: ColorFromInts(102, 217, 239, 255)},
+		Function: Entry{Fg: ColorFromInts(166, 226, 46, 255)},
+		Builtin:  Entry{Fg: ColorFromInts(102, 217, 239, 255)},
+		Variable: Entry{Fg: ColorFromInts(248, 248, 242, 255)},
+		Constant: Entry{Fg: ColorFromInts(174, 129, 255, 255)},
+		String:   Entry{Fg: ColorFromInts(230, 219, 116, 255)},
+		Number:   Entry{Fg: ColorFromInts(174, 129, 255, 255)},
 		Comment: Entry{
-			Fg:    ColorFromInts(117, 113, 94, 255), // comment grey
+			Fg:    ColorFromInts(117, 113, 94, 255),
 			Attrs: AttrItalic,
 		},
-		Operator:    Entry{Fg: ColorFromInts(249, 38, 114, 255)},  // = Keyword
-		Punctuation: Entry{Fg: ColorFromInts(248, 248, 242, 255)}, // default
-		Decorator:   Entry{Fg: ColorFromInts(166, 226, 46, 255)},  // = Function
-		Error:       Entry{Fg: ColorFromInts(255, 85, 85, 255)},   // brightish red
+		Operator:    Entry{Fg: ColorFromInts(249, 38, 114, 255)},
+		Punctuation: Entry{Fg: ColorFromInts(248, 248, 242, 255)},
+		Decorator:   Entry{Fg: ColorFromInts(166, 226, 46, 255)},
+		Error:       Entry{Fg: ColorFromInts(255, 85, 85, 255)},
 	}
 }
 
-// DefaultDark is the built-in dark theme: seed-derived palette with
-// Monokai syntax highlighting. Mutate fields on the returned Theme to
-// taste-tune.
+// DefaultDark returns the built-in seed-derived dark theme with Monokai syntax
+// highlighting.
 func DefaultDark() *Theme {
 	t := ThemeFromSeeds("default-dark", ThemeSeeds{
 		Neutral:     ColorFromInts(20, 20, 20, 255),
 		Ink:         ColorWhite,
-		Primary:     ColorBrightCyan, // heading / brand
-		Interactive: ColorBrightBlue, // links / selection
+		Primary:     ColorBrightCyan, // Headings and accents.
+		Interactive: ColorBrightBlue, // Links, focus, and selection.
 		Success:     ColorBrightGreen,
 		Warning:     ColorBrightYellow,
 		Danger:      ColorBrightRed,

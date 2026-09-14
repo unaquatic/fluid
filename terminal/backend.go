@@ -13,40 +13,38 @@ import (
 	"golang.org/x/term"
 )
 
-// DetectColorMode checks environment variables to determine color support.
+// DetectColorMode infers terminal color support from environment variables.
 func DetectColorMode() style.ColorMode {
-	// COLORTERM=truecolor or COLORTERM=24bit → true color
+	// COLORTERM explicitly advertises true-color support.
 	ct := os.Getenv("COLORTERM")
 	if ct == "truecolor" || ct == "24bit" {
 		return style.ColorTrueColor
 	}
 
-	// Many modern terminals set COLORTERM but some don't.
-	// Check TERM for 256-color indicators.
+	// TERM can explicitly advertise the 256-color palette.
 	term := os.Getenv("TERM")
 	if strings.Contains(term, "256color") {
 		return style.Color256
 	}
 
-	// Common terminals that support true color but may not set COLORTERM:
-	// iTerm, kitty, WezTerm, Alacritty, Windows Terminal, etc.
+	// Some terminal programs support true color without setting COLORTERM.
 	termProgram := os.Getenv("TERM_PROGRAM")
 	switch termProgram {
 	case "iTerm.app", "WezTerm", "Hyper":
 		return style.ColorTrueColor
 	}
 
-	// WT_SESSION is set by Windows Terminal
+	// Windows Terminal sets WT_SESSION.
 	if os.Getenv("WT_SESSION") != "" {
 		return style.ColorTrueColor
 	}
 
-	// KITTY_WINDOW_ID for kitty
+	// Kitty sets KITTY_WINDOW_ID.
 	if os.Getenv("KITTY_WINDOW_ID") != "" {
 		return style.ColorTrueColor
 	}
 
-	// Default: if TERM is set and not "dumb", assume 256
+	// Assume 256 colors for any remaining non-dumb TERM value.
 	if term != "" && term != "dumb" {
 		return style.Color256
 	}
@@ -54,21 +52,13 @@ func DetectColorMode() style.ColorMode {
 	return style.Color16
 }
 
-// ---------------------------------------------------------------------------
-// Backend
-// ---------------------------------------------------------------------------
-
-// Backend provides low-level terminal control: raw mode setup/teardown,
-// alternate screen management, mouse protocol, Kitty keyboard protocol,
-// cursor styling, and escape sequence output. It is a pure Go
-// implementation using golang.org/x/term and ANSI/xterm escape sequences.
-// The Renderer owns a Backend and calls its methods during setup, flush,
-// and teardown.
+// Backend controls terminal modes and writes ANSI and xterm escape sequences.
+// Its output methods are safe for concurrent use.
 type Backend struct {
 	stdin  io.Reader
 	stdout io.Writer
 
-	oldState  *term.State // saved terminal state for restore
+	oldState  *term.State // The terminal state saved before raw mode.
 	colorMode style.ColorMode
 	width     int
 	height    int
@@ -78,14 +68,14 @@ type Backend struct {
 	kittyFlags           uint
 	alternateScreen      bool
 
-	cursorStyle    string // "block", "line", "underline"
+	cursorStyle    string // One of "block", "line", or "underline".
 	cursorBlinking bool
 
-	mu sync.Mutex // protects stdout writes
+	mu sync.Mutex // Protects terminal output writes.
 }
 
-// NewBackend creates a new Backend backed by the given reader and writer.
-// The terminal's color mode is auto-detected from environment variables.
+// NewBackend returns a backend using stdin and stdout. It detects color support
+// from the process environment.
 func NewBackend(stdin io.Reader, stdout io.Writer) *Backend {
 	return &Backend{
 		stdin:     stdin,
@@ -94,7 +84,7 @@ func NewBackend(stdin io.Reader, stdout io.Writer) *Backend {
 	}
 }
 
-// ColorMode returns the terminal's color capability.
+// ColorMode returns the configured terminal color capability.
 func (t *Backend) ColorMode() style.ColorMode {
 	return t.colorMode
 }
@@ -104,14 +94,10 @@ func (t *Backend) SetColorMode(m style.ColorMode) {
 	t.colorMode = m
 }
 
-// ---------------------------------------------------------------------------
-// Setup & Teardown
-// ---------------------------------------------------------------------------
-
-// Setup enters raw mode, optionally enters alternate screen, and enables
-// bracketed paste.
+// Setup enters raw mode when stdin is a terminal, records its size, optionally
+// enters the alternate screen, enables bracketed paste, and hides the cursor.
 func (t *Backend) Setup(useAlternateScreen bool) error {
-	// Enter raw mode on stdin if it's a real terminal
+	// Raw mode is available only for an os.File terminal.
 	if f, ok := t.stdin.(*os.File); ok {
 		oldState, err := term.MakeRaw(int(f.Fd()))
 		if err != nil {
@@ -120,52 +106,43 @@ func (t *Backend) Setup(useAlternateScreen bool) error {
 		t.oldState = oldState
 	}
 
-	// Query size
+	// A failed size query leaves the cached dimensions unchanged.
 	w, h, err := t.Size()
 	if err == nil {
 		t.width = w
 		t.height = h
 	}
 
-	// Alternate screen
 	if useAlternateScreen {
 		t.EnterAlternateScreen()
 	}
 
-	// Enable bracketed paste
 	t.EnableBracketedPaste()
 
-	// Hide cursor during rendering
 	t.HideCursor()
 
 	return nil
 }
 
-// Restore restores the terminal to its original state, leaves alternate screen,
-// and disables mouse tracking.
+// Restore shows the cursor, disables enabled input modes, leaves the alternate
+// screen, and restores the saved terminal state.
 func (t *Backend) Restore() error {
-	// Show cursor
 	t.ShowCursor()
 
-	// Disable bracketed paste
 	t.DisableBracketedPaste()
 
-	// Disable mouse if enabled
 	if t.mouseEnabled {
 		t.DisableMouse()
 	}
 
-	// Disable Kitty keyboard if enabled
 	if t.kittyKeyboardEnabled {
 		t.DisableKittyKeyboard()
 	}
 
-	// Leave alternate screen
 	if t.alternateScreen {
 		t.LeaveAlternateScreen()
 	}
 
-	// Restore terminal state
 	if t.oldState != nil {
 		if f, ok := t.stdin.(*os.File); ok {
 			return term.Restore(int(f.Fd()), t.oldState)
@@ -175,9 +152,9 @@ func (t *Backend) Restore() error {
 	return nil
 }
 
-// Size queries the terminal dimensions via TIOCGWINSZ.
+// Size returns terminal dimensions from stdout or stdin using TIOCGWINSZ.
 func (t *Backend) Size() (width, height int, err error) {
-	// Try stdout first, then stdin
+	// Prefer stdout because it identifies the rendered terminal.
 	if f, ok := t.stdout.(*os.File); ok {
 		ws, err := unix.IoctlGetWinsize(int(f.Fd()), unix.TIOCGWINSZ)
 		if err == nil {
@@ -193,25 +170,21 @@ func (t *Backend) Size() (width, height int, err error) {
 	return 0, 0, errors.New("terminal: unable to get terminal size")
 }
 
-// ---------------------------------------------------------------------------
-// Mouse Control
-// ---------------------------------------------------------------------------
-
-// EnableMouse enables SGR extended mouse mode.
-// If enableMovement is true, also tracks mouse motion.
+// EnableMouse enables button, drag, and SGR mouse reporting. enableMovement
+// also enables motion reporting without a pressed button.
 func (t *Backend) EnableMouse(enableMovement bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	// Button events
+	// Report button presses and releases.
 	t.writeRaw("\x1b[?1000h")
-	// Button + drag
+	// Report motion while a button is pressed.
 	t.writeRaw("\x1b[?1002h")
-	// All motion (if requested)
+	// Optionally report all pointer motion.
 	if enableMovement {
 		t.writeRaw("\x1b[?1003h")
 	}
-	// SGR extended mode
+	// Encode reports with SGR coordinates.
 	t.writeRaw("\x1b[?1006h")
 
 	t.mouseEnabled = true
@@ -226,11 +199,7 @@ func (t *Backend) DisableMouse() {
 	t.mouseEnabled = false
 }
 
-// ---------------------------------------------------------------------------
-// Keyboard Protocol
-// ---------------------------------------------------------------------------
-
-// EnableKittyKeyboard enables the Kitty keyboard protocol with the given flags.
+// EnableKittyKeyboard enables Kitty keyboard reporting with flags.
 func (t *Backend) EnableKittyKeyboard(flags uint) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -250,7 +219,7 @@ func (t *Backend) DisableKittyKeyboard() {
 	t.kittyFlags = 0
 }
 
-// SetKittyKeyboardFlags updates the Kitty keyboard flags without toggling.
+// SetKittyKeyboardFlags writes new Kitty flags without disabling the protocol.
 func (t *Backend) SetKittyKeyboardFlags(flags uint) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -264,11 +233,8 @@ func (t *Backend) KittyKeyboardFlags() uint {
 	return t.kittyFlags
 }
 
-// ---------------------------------------------------------------------------
-// Cursor Control
-// ---------------------------------------------------------------------------
-
-// SetCursorPosition moves the cursor to (x, y) and shows/hides it.
+// SetCursorPosition moves the hardware cursor to zero-based (x, y) and sets its
+// visibility.
 func (t *Backend) SetCursorPosition(x, y int, visible bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -281,8 +247,7 @@ func (t *Backend) SetCursorPosition(x, y int, visible bool) {
 	}
 }
 
-// SetCursorStyle sets the cursor shape: "block", "line", "underline".
-// Respects the current blinking state.
+// SetCursorStyle updates the cursor shape while preserving its blinking state.
 func (t *Backend) SetCursorStyle(cursorStyle string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -291,8 +256,7 @@ func (t *Backend) SetCursorStyle(cursorStyle string) {
 	t.writeCursorShape()
 }
 
-// SetCursorBlinking sets whether the cursor blinks.
-// Respects the current cursor style.
+// SetCursorBlinking updates cursor blinking while preserving its shape.
 func (t *Backend) SetCursorBlinking(blinking bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -311,14 +275,10 @@ func (t *Backend) CursorBlinking() bool {
 	return t.cursorBlinking
 }
 
-// writeCursorShape writes the DECSCUSR escape for the current style+blinking.
-// Caller must hold t.mu.
+// writeCursorShape writes the DECSCUSR sequence for the current shape and blink
+// state. The caller must hold t.mu.
 func (t *Backend) writeCursorShape() {
-	// DECSCUSR values:
-	//   0 = default
-	//   1 = blinking block,   2 = steady block
-	//   3 = blinking underline, 4 = steady underline
-	//   5 = blinking bar,     6 = steady bar
+	// DECSCUSR uses adjacent odd and even values for blinking and steady shapes.
 	var base int
 	switch t.cursorStyle {
 	case "block":
@@ -332,7 +292,7 @@ func (t *Backend) writeCursorShape() {
 	}
 
 	if base != 0 && t.cursorBlinking {
-		base-- // odd = blinking variant
+		base-- // The odd code selects the blinking variant.
 	}
 
 	t.writeRaw(fmt.Sprintf("\x1b[%d q", base))
@@ -354,8 +314,7 @@ func (t *Backend) ResetCursorColor() {
 	t.writeRaw("\x1b]112\x1b\\")
 }
 
-// SetMousePointer sets the mouse pointer shape via OSC 22.
-// Supported styles: "default", "pointer", "text", "crosshair", "move", "not-allowed".
+// SetMousePointer writes pointerStyle using OSC 22 without validating it.
 func (t *Backend) SetMousePointer(pointerStyle string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -379,10 +338,6 @@ func (t *Backend) HideCursor() {
 	t.writeRaw("\x1b[?25l")
 }
 
-// ---------------------------------------------------------------------------
-// Output
-// ---------------------------------------------------------------------------
-
 // SetTitle sets the terminal window title via OSC 2.
 func (t *Backend) SetTitle(title string) {
 	t.mu.Lock()
@@ -399,7 +354,7 @@ func (t *Backend) Clear() {
 	t.writeRaw("\x1b[2J\x1b[H")
 }
 
-// WriteOut writes raw bytes to stdout (mutex-protected).
+// WriteOut writes data to stdout while holding the output lock.
 func (t *Backend) WriteOut(data []byte) (int, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -423,10 +378,6 @@ func (t *Backend) DisableBracketedPaste() {
 	t.writeRaw("\x1b[?2004l")
 }
 
-// ---------------------------------------------------------------------------
-// Alternate Screen
-// ---------------------------------------------------------------------------
-
 // EnterAlternateScreen switches to the alternate screen buffer.
 func (t *Backend) EnterAlternateScreen() {
 	t.mu.Lock()
@@ -445,12 +396,8 @@ func (t *Backend) LeaveAlternateScreen() {
 	t.alternateScreen = false
 }
 
-// ---------------------------------------------------------------------------
-// Internal
-// ---------------------------------------------------------------------------
-
-// writeRaw writes a raw string to stdout without locking.
-// Caller must hold t.mu.
+// writeRaw writes s to stdout and discards any write error. The caller must hold
+// t.mu.
 func (t *Backend) writeRaw(s string) {
 	_, _ = io.WriteString(t.stdout, s)
 }

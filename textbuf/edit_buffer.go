@@ -7,36 +7,25 @@ import (
 	"unicode/utf8"
 )
 
-// ---------------------------------------------------------------------------
-// CursorPosition
-// ---------------------------------------------------------------------------
-
-// CursorPosition represents a cursor location in a document.
+// CursorPosition identifies one location in logical and global display-width
+// coordinates.
 type CursorPosition struct {
-	Row    int // logical line index
-	Col    int // display-column offset within the line
-	Offset int // global display-width offset from buffer start
+	Row    int // Logical line index.
+	Col    int // Display-column offset within the line.
+	Offset int // Global display-width offset from the buffer start.
 }
 
-// ---------------------------------------------------------------------------
-// editSnapshot captures state for undo/redo.
-// ---------------------------------------------------------------------------
-
+// editSnapshot captures text and cursor state for undo or redo.
 type editSnapshot struct {
 	lines     []Line
 	cursorRow int
 	cursorCol int
 }
 
-// ---------------------------------------------------------------------------
-// EditBuffer
-// ---------------------------------------------------------------------------
-
-// editBufferIDCounter is an atomic counter for assigning unique IDs.
+// editBufferIDCounter is accessed atomically when assigning IDs.
 var editBufferIDCounter uint64
 
-// EditBuffer wraps a TextBuffer and adds cursor management, incremental
-// editing, and undo/redo.
+// EditBuffer adds cursor movement, text editing, and history to a TextBuffer.
 type EditBuffer struct {
 	id        uint64
 	tb        *TextBuffer
@@ -47,12 +36,10 @@ type EditBuffer struct {
 	redoStack []editSnapshot
 	maxUndo   int
 
-	// OnCursorChange is called whenever the cursor moves.
+	// OnCursorChange runs after a cursor movement notification.
 	OnCursorChange func(row, col int)
 
-	// Override function fields — set by ExtmarksController (same package).
-	// When non-nil the public method delegates to the override; when nil
-	// the default implementation runs.
+	// ExtmarksController installs these interceptors to track edits.
 	overrideMoveCursorLeft     func()
 	overrideMoveCursorRight    func()
 	overrideSetCursorByOffset  func(offset int)
@@ -70,7 +57,7 @@ type EditBuffer struct {
 	overrideRedo               func() bool
 }
 
-// NewEditBuffer creates an EditBuffer backed by the given TextBuffer.
+// NewEditBuffer returns an edit buffer backed by tb with a 100-entry undo limit.
 func NewEditBuffer(tb *TextBuffer) *EditBuffer {
 	return &EditBuffer{
 		id:      atomic.AddUint64(&editBufferIDCounter, 1),
@@ -79,23 +66,19 @@ func NewEditBuffer(tb *TextBuffer) *EditBuffer {
 	}
 }
 
-// ID returns the buffer's unique numeric identifier.
+// ID returns the process-unique edit-buffer identifier.
 func (eb *EditBuffer) ID() uint64 { return eb.id }
 
 // TextBuffer returns the underlying TextBuffer.
 func (eb *EditBuffer) TextBuffer() *TextBuffer { return eb.tb }
 
-// ---------------------------------------------------------------------------
-// Cursor
-// ---------------------------------------------------------------------------
-
-// CursorRow returns the current cursor row.
+// CursorRow returns the current logical row.
 func (eb *EditBuffer) CursorRow() int { return eb.cursorRow }
 
-// CursorCol returns the current cursor column.
+// CursorCol returns the current display column.
 func (eb *EditBuffer) CursorCol() int { return eb.cursorCol }
 
-// CursorPosition returns the cursor as a CursorPosition.
+// CursorPosition returns the cursor in logical and global coordinates.
 func (eb *EditBuffer) CursorPosition() CursorPosition {
 	return CursorPosition{
 		Row:    eb.cursorRow,
@@ -104,7 +87,7 @@ func (eb *EditBuffer) CursorPosition() CursorPosition {
 	}
 }
 
-// SetCursor moves the cursor to (row, col), clamping to valid range.
+// SetCursor moves to a logical row and display column, clamped to the buffer.
 func (eb *EditBuffer) SetCursor(row, col int) {
 	row = clampInt(row, 0, eb.tb.LineCount()-1)
 	lineW := eb.tb.LineWidthAt(row)
@@ -116,7 +99,7 @@ func (eb *EditBuffer) SetCursor(row, col int) {
 	}
 }
 
-// SetCursorByOffset sets the cursor by global offset.
+// SetCursorByOffset moves to a global display-width offset.
 func (eb *EditBuffer) SetCursorByOffset(offset int) {
 	if eb.overrideSetCursorByOffset != nil {
 		eb.overrideSetCursorByOffset(offset)
@@ -130,7 +113,8 @@ func (eb *EditBuffer) doSetCursorByOffset(offset int) {
 	eb.SetCursor(row, col)
 }
 
-// MoveCursorLeft moves cursor left by one character.
+// MoveCursorLeft moves left by one grapheme cluster or across the preceding
+// newline.
 func (eb *EditBuffer) MoveCursorLeft() {
 	if eb.overrideMoveCursorLeft != nil {
 		eb.overrideMoveCursorLeft()
@@ -149,7 +133,8 @@ func (eb *EditBuffer) doMoveCursorLeft() {
 	eb.notifyCursor()
 }
 
-// MoveCursorRight moves cursor right by one character.
+// MoveCursorRight moves right by one grapheme cluster or across the following
+// newline.
 func (eb *EditBuffer) MoveCursorRight() {
 	if eb.overrideMoveCursorRight != nil {
 		eb.overrideMoveCursorRight()
@@ -169,7 +154,7 @@ func (eb *EditBuffer) doMoveCursorRight() {
 	eb.notifyCursor()
 }
 
-// MoveCursorUp moves cursor up one line, preserving column when possible.
+// MoveCursorUp moves up one logical line and clamps the display column.
 func (eb *EditBuffer) MoveCursorUp() {
 	if eb.cursorRow > 0 {
 		eb.cursorRow--
@@ -181,7 +166,7 @@ func (eb *EditBuffer) MoveCursorUp() {
 	eb.notifyCursor()
 }
 
-// MoveCursorDown moves cursor down one line, preserving column when possible.
+// MoveCursorDown moves down one logical line and clamps the display column.
 func (eb *EditBuffer) MoveCursorDown() {
 	if eb.cursorRow < eb.tb.LineCount()-1 {
 		eb.cursorRow++
@@ -193,16 +178,12 @@ func (eb *EditBuffer) MoveCursorDown() {
 	eb.notifyCursor()
 }
 
-// GotoLine moves cursor to the start of the given line.
+// GotoLine moves to the start of line, clamped to the buffer.
 func (eb *EditBuffer) GotoLine(line int) {
 	eb.SetCursor(line, 0)
 }
 
-// ---------------------------------------------------------------------------
-// Text editing
-// ---------------------------------------------------------------------------
-
-// SetText replaces all text and resets cursor/history.
+// SetText replaces all text, moves the cursor to the start, and clears history.
 func (eb *EditBuffer) SetText(text string) {
 	if eb.overrideSetText != nil {
 		eb.overrideSetText(text)
@@ -220,8 +201,8 @@ func (eb *EditBuffer) doSetText(text string) {
 	eb.notifyCursor()
 }
 
-// ReplaceText replaces all text while preserving undo history.
-// The cursor is moved to (0, 0).
+// ReplaceText replaces all text as an undoable edit and moves the cursor to the
+// start.
 func (eb *EditBuffer) ReplaceText(text string) {
 	if eb.overrideReplaceText != nil {
 		eb.overrideReplaceText(text)
@@ -239,12 +220,12 @@ func (eb *EditBuffer) doReplaceText(text string) {
 	eb.notifyCursor()
 }
 
-// Text returns the full text content.
+// Text returns the complete unstyled content.
 func (eb *EditBuffer) Text() string {
 	return eb.tb.PlainText()
 }
 
-// InsertChar inserts a single character at the cursor position.
+// InsertChar inserts ch at the cursor.
 func (eb *EditBuffer) InsertChar(ch rune) {
 	if eb.overrideInsertChar != nil {
 		eb.overrideInsertChar(ch)
@@ -259,7 +240,7 @@ func (eb *EditBuffer) doInsertChar(ch rune) {
 	eb.redoStack = nil
 }
 
-// InsertText inserts a string at the cursor position.
+// InsertText inserts text at the cursor.
 func (eb *EditBuffer) InsertText(text string) {
 	if eb.overrideInsertText != nil {
 		eb.overrideInsertText(text)
@@ -274,7 +255,8 @@ func (eb *EditBuffer) doInsertText(text string) {
 	eb.redoStack = nil
 }
 
-// DeleteChar deletes the character at the cursor (forward delete).
+// DeleteChar removes the grapheme cluster at the cursor. At end of line, it
+// joins the following line.
 func (eb *EditBuffer) DeleteChar() {
 	if eb.overrideDeleteChar != nil {
 		eb.overrideDeleteChar()
@@ -286,7 +268,7 @@ func (eb *EditBuffer) DeleteChar() {
 func (eb *EditBuffer) doDeleteChar() {
 	lineW := eb.tb.LineWidthAt(eb.cursorRow)
 	if eb.cursorCol >= lineW {
-		// At end of line: merge with next line
+		// Forward delete at end of line removes the following newline.
 		if eb.cursorRow < eb.tb.LineCount()-1 {
 			eb.saveUndo()
 			eb.mergeLineForward()
@@ -299,7 +281,8 @@ func (eb *EditBuffer) doDeleteChar() {
 	eb.redoStack = nil
 }
 
-// DeleteCharBackward deletes the character before the cursor (backspace).
+// DeleteCharBackward removes the preceding grapheme cluster. At start of line,
+// it joins the line to its predecessor.
 func (eb *EditBuffer) DeleteCharBackward() {
 	if eb.overrideDeleteCharBackward != nil {
 		eb.overrideDeleteCharBackward()
@@ -317,7 +300,7 @@ func (eb *EditBuffer) doDeleteCharBackward() {
 		eb.deleteAtCursor(count)
 		eb.redoStack = nil
 	} else if eb.cursorRow > 0 {
-		// Merge with previous line
+		// Backspace at start of line removes the preceding newline.
 		eb.saveUndo()
 		prevRow := eb.cursorRow - 1
 		prevLineW := eb.tb.LineWidthAt(prevRow)
@@ -328,7 +311,7 @@ func (eb *EditBuffer) doDeleteCharBackward() {
 	}
 }
 
-// NewLine inserts a newline at the cursor position.
+// NewLine splits the current logical line at the cursor.
 func (eb *EditBuffer) NewLine() {
 	if eb.overrideNewLine != nil {
 		eb.overrideNewLine()
@@ -343,7 +326,7 @@ func (eb *EditBuffer) doNewLine() {
 	eb.redoStack = nil
 }
 
-// DeleteLine deletes the current line.
+// DeleteLine removes the current logical line or clears the sole remaining line.
 func (eb *EditBuffer) DeleteLine() {
 	if eb.overrideDeleteLine != nil {
 		eb.overrideDeleteLine()
@@ -380,7 +363,7 @@ func (eb *EditBuffer) doDeleteLine() {
 	eb.redoStack = nil
 }
 
-// Clear clears all content (undoable).
+// Clear removes all content as an undoable edit.
 func (eb *EditBuffer) Clear() {
 	if eb.overrideClear != nil {
 		eb.overrideClear()
@@ -397,7 +380,8 @@ func (eb *EditBuffer) doClear() {
 	eb.redoStack = nil
 }
 
-// DeleteRange deletes text from (startRow, startCol) to (endRow, endCol).
+// DeleteRange removes the half-open range between two logical row and
+// display-column positions.
 func (eb *EditBuffer) DeleteRange(startRow, startCol, endRow, endCol int) {
 	if eb.overrideDeleteRange != nil {
 		eb.overrideDeleteRange(startRow, startCol, endRow, endCol)
@@ -414,11 +398,8 @@ func (eb *EditBuffer) doDeleteRange(startRow, startCol, endRow, endCol int) {
 	eb.redoStack = nil
 }
 
-// ---------------------------------------------------------------------------
-// Undo / Redo
-// ---------------------------------------------------------------------------
-
-// Undo reverts the last edit operation.
+// Undo restores the previous text and cursor snapshot and reports whether one
+// existed.
 func (eb *EditBuffer) Undo() bool {
 	if eb.overrideUndo != nil {
 		return eb.overrideUndo()
@@ -430,7 +411,7 @@ func (eb *EditBuffer) doUndo() bool {
 	if len(eb.undoStack) == 0 {
 		return false
 	}
-	// Save current state to redo
+	// Preserve the current state for Redo.
 	eb.redoStack = append(eb.redoStack, eb.snapshot())
 
 	last := eb.undoStack[len(eb.undoStack)-1]
@@ -439,7 +420,7 @@ func (eb *EditBuffer) doUndo() bool {
 	return true
 }
 
-// Redo reapplies the last undone edit.
+// Redo restores the newest redo snapshot and reports whether one existed.
 func (eb *EditBuffer) Redo() bool {
 	if eb.overrideRedo != nil {
 		return eb.overrideRedo()
@@ -459,25 +440,25 @@ func (eb *EditBuffer) doRedo() bool {
 	return true
 }
 
-// CanUndo returns whether undo is available.
+// CanUndo reports whether an undo snapshot is available.
 func (eb *EditBuffer) CanUndo() bool { return len(eb.undoStack) > 0 }
 
-// CanRedo returns whether redo is available.
+// CanRedo reports whether a redo snapshot is available.
 func (eb *EditBuffer) CanRedo() bool { return len(eb.redoStack) > 0 }
 
-// ClearHistory clears the undo/redo stacks.
+// ClearHistory removes all undo and redo snapshots.
 func (eb *EditBuffer) ClearHistory() {
 	eb.undoStack = nil
 	eb.redoStack = nil
 }
 
-// SetMaxUndo sets the maximum number of undo entries retained.
+// SetMaxUndo sets the undo capacity to at least one and immediately discards
+// excess oldest entries.
 func (eb *EditBuffer) SetMaxUndo(n int) {
 	if n < 1 {
 		n = 1
 	}
 	eb.maxUndo = n
-	// Trim if needed
 	if len(eb.undoStack) > eb.maxUndo {
 		eb.undoStack = eb.undoStack[len(eb.undoStack)-eb.maxUndo:]
 	}
@@ -486,22 +467,18 @@ func (eb *EditBuffer) SetMaxUndo(n int) {
 // LineCount returns the number of logical lines.
 func (eb *EditBuffer) LineCount() int { return eb.tb.LineCount() }
 
-// ---------------------------------------------------------------------------
-// Word boundary navigation
-// ---------------------------------------------------------------------------
-
-// NextWordBoundary returns the cursor position at the next word boundary.
+// NextWordBoundary skips the current non-space run and following whitespace.
 func (eb *EditBuffer) NextWordBoundary() CursorPosition {
 	row, col := eb.cursorRow, eb.cursorCol
 	lineText := eb.tb.LineTextAt(row)
 	runes := []rune(lineText)
 	runeIdx := colToRuneIndex(runes, col)
 
-	// Skip current word (non-space)
+	// Advance through the current non-space run.
 	for runeIdx < len(runes) && !unicode.IsSpace(runes[runeIdx]) {
 		runeIdx++
 	}
-	// Skip spaces
+	// Advance through whitespace to the next run.
 	for runeIdx < len(runes) && unicode.IsSpace(runes[runeIdx]) {
 		runeIdx++
 	}
@@ -514,7 +491,7 @@ func (eb *EditBuffer) NextWordBoundary() CursorPosition {
 	return CursorPosition{Row: row, Col: newCol, Offset: eb.positionToOffset(row, newCol)}
 }
 
-// PrevWordBoundary returns the cursor position at the previous word boundary.
+// PrevWordBoundary returns the start of the preceding non-space run.
 func (eb *EditBuffer) PrevWordBoundary() CursorPosition {
 	row, col := eb.cursorRow, eb.cursorCol
 	lineText := eb.tb.LineTextAt(row)
@@ -530,11 +507,11 @@ func (eb *EditBuffer) PrevWordBoundary() CursorPosition {
 	}
 
 	runeIdx--
-	// Skip spaces
+	// Move left through preceding whitespace.
 	for runeIdx > 0 && unicode.IsSpace(runes[runeIdx]) {
 		runeIdx--
 	}
-	// Skip current word
+	// Continue to the start of the preceding non-space run.
 	for runeIdx > 0 && !unicode.IsSpace(runes[runeIdx-1]) {
 		runeIdx--
 	}
@@ -543,20 +520,16 @@ func (eb *EditBuffer) PrevWordBoundary() CursorPosition {
 	return CursorPosition{Row: row, Col: newCol, Offset: eb.positionToOffset(row, newCol)}
 }
 
-// EOL returns the cursor position at end of current line.
+// EOL returns the end of the current logical line.
 func (eb *EditBuffer) EOL() CursorPosition {
 	lineW := eb.tb.LineWidthAt(eb.cursorRow)
 	return CursorPosition{Row: eb.cursorRow, Col: lineW, Offset: eb.positionToOffset(eb.cursorRow, lineW)}
 }
 
-// ---------------------------------------------------------------------------
-// Offset conversion
-// ---------------------------------------------------------------------------
-
 func (eb *EditBuffer) positionToOffset(row, col int) int {
 	offset := 0
 	for i := 0; i < row && i < eb.tb.LineCount(); i++ {
-		offset += eb.tb.LineWidthAt(i) + 1 // +1 for newline
+		offset += eb.tb.LineWidthAt(i) + 1 // Each newline occupies one offset.
 	}
 	offset += col
 	return offset
@@ -569,41 +542,42 @@ func (eb *EditBuffer) offsetToPosition(offset int) (int, int) {
 		if pos+lineW >= offset {
 			return i, offset - pos
 		}
-		pos += lineW + 1 // +1 for newline
+		pos += lineW + 1 // Each newline occupies one offset.
 	}
-	// Past end
+	// Clamp offsets beyond the content to the final line end.
 	lastRow := max(eb.tb.LineCount()-1, 0)
 	return lastRow, eb.tb.LineWidthAt(lastRow)
 }
 
-// TextRange returns text between start and end offsets.
+// TextRange returns the half-open global display-width range [startOffset,
+// endOffset).
 func (eb *EditBuffer) TextRange(startOffset, endOffset int) string {
 	return eb.tb.TextRange(startOffset, endOffset)
 }
 
-// LineStartOffset returns the global offset of the start of a line.
+// LineStartOffset returns the global display-width offset at the start of row.
 func (eb *EditBuffer) LineStartOffset(row int) int {
 	return eb.positionToOffset(row, 0)
 }
 
-// OffsetToPosition converts a global offset to (row, col).
+// OffsetToPosition converts a global display-width offset to a logical position.
 func (eb *EditBuffer) OffsetToPosition(offset int) CursorPosition {
 	row, col := eb.offsetToPosition(offset)
 	return CursorPosition{Row: row, Col: col, Offset: offset}
 }
 
-// PositionToOffset converts (row, col) to a global offset.
+// PositionToOffset converts a logical position to a global display-width offset.
 func (eb *EditBuffer) PositionToOffset(row, col int) int {
 	return eb.positionToOffset(row, col)
 }
 
-// TextRangeByCoords returns text between (startRow, startCol) and (endRow, endCol).
+// TextRangeByCoords returns a half-open logical coordinate range.
 func (eb *EditBuffer) TextRangeByCoords(startRow, startCol, endRow, endCol int) string {
 	return eb.tb.TextRangeByCoords(startRow, startCol, endRow, endCol)
 }
 
-// SetCursorByByteOffset sets the cursor by line and byte offset within that line.
-// The byte offset is converted to a display column.
+// SetCursorByByteOffset converts byteOffset within line to a display column and
+// moves the cursor there.
 func (eb *EditBuffer) SetCursorByByteOffset(line, byteOffset int) {
 	line = clampInt(line, 0, eb.tb.LineCount()-1)
 	lineText := eb.tb.LineTextAt(line)
@@ -612,10 +586,6 @@ func (eb *EditBuffer) SetCursorByByteOffset(line, byteOffset int) {
 	col := StringWidth(lineText[:end])
 	eb.SetCursor(line, col)
 }
-
-// ---------------------------------------------------------------------------
-// Internal editing helpers
-// ---------------------------------------------------------------------------
 
 func (eb *EditBuffer) insertAtCursor(text string) {
 	lines := eb.tb.Lines()
@@ -630,7 +600,7 @@ func (eb *EditBuffer) insertAtCursor(text string) {
 	after := lineText[byteOff:]
 	combined := before + text + after
 
-	// Preserve the style of the first span (simplified)
+	// New content inherits the first span's style, or buffer defaults.
 	fg := eb.tb.defaultFg
 	bg := eb.tb.defaultBg
 	var attrs uint32
@@ -651,7 +621,7 @@ func (eb *EditBuffer) insertAtCursor(text string) {
 	newLines = append(newLines, lines[eb.cursorRow+1:]...)
 	eb.tb.SetLines(newLines)
 
-	// Move cursor to end of inserted text
+	// Move the cursor after the inserted text.
 	insertedLines := strings.Split(text, "\n")
 	if len(insertedLines) == 1 {
 		eb.cursorCol += StringWidth(text)
@@ -666,10 +636,10 @@ func (eb *EditBuffer) deleteAtCursor(count int) {
 	lines := eb.tb.Lines()
 	lineText := lines[eb.cursorRow].Text()
 
-	// Walk grapheme clusters to find byte offset of cursor position
+	// Convert the cursor column to the start byte of its cluster.
 	startByte := colToByteOffset(lineText, eb.cursorCol)
 
-	// Advance 'count' display columns in grapheme clusters
+	// Extend the deletion through at least count display columns.
 	deleted := 0
 	endByte := startByte
 	remaining := lineText[startByte:]
@@ -785,10 +755,6 @@ func (eb *EditBuffer) deleteRange(startRow, startCol, endRow, endCol int) {
 	eb.tb.SetLines(newLines)
 }
 
-// ---------------------------------------------------------------------------
-// Undo helpers
-// ---------------------------------------------------------------------------
-
 func (eb *EditBuffer) saveUndo() {
 	snap := eb.snapshot()
 	eb.undoStack = append(eb.undoStack, snap)
@@ -825,12 +791,7 @@ func (eb *EditBuffer) notifyCursor() {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Column / grapheme cluster helpers
-// ---------------------------------------------------------------------------
-
-// prevCol returns the display column at the start of the grapheme cluster
-// before `col` on the given line.
+// prevCol returns the start column of the cluster preceding col on row.
 func (eb *EditBuffer) prevCol(row, col int) int {
 	lineText := eb.tb.LineTextAt(row)
 	w := 0
@@ -848,8 +809,7 @@ func (eb *EditBuffer) prevCol(row, col int) int {
 	return w
 }
 
-// nextCol returns the display column at the start of the grapheme cluster
-// after `col` on the given line.
+// nextCol returns the end column of the cluster beginning at col.
 func (eb *EditBuffer) nextCol(row, col int) int {
 	lineText := eb.tb.LineTextAt(row)
 	w := 0
@@ -866,8 +826,7 @@ func (eb *EditBuffer) nextCol(row, col int) int {
 	return w
 }
 
-// colToByteOffset converts a display column to a byte offset within s
-// using grapheme-cluster-aware iteration.
+// colToByteOffset returns the byte offset at or following display column col.
 func colToByteOffset(s string, col int) int {
 	w := 0
 	pos := 0
@@ -882,13 +841,12 @@ func colToByteOffset(s string, col int) int {
 	return len(s)
 }
 
-// colToRuneIndex converts a display column to a rune index.
-// Uses grapheme clusters for the column walk but returns a rune index
-// for compatibility with code that still works with []rune.
+// colToRuneIndex maps a display column to an index in runes using grapheme
+// boundaries.
 func colToRuneIndex(runes []rune, col int) int {
 	s := string(runes)
 	byteOff := colToByteOffset(s, col)
-	// Count runes up to byteOff
+	// Count rune starts preceding byteOff.
 	n := 0
 	for i := range s {
 		if i >= byteOff {
@@ -899,10 +857,10 @@ func colToRuneIndex(runes []rune, col int) int {
 	return n
 }
 
-// runeIndexToCol converts a rune index to a display column.
+// runeIndexToCol maps an index in runes to a display column.
 func runeIndexToCol(runes []rune, idx int) int {
 	s := string(runes)
-	// Find byte offset of rune idx
+	// Convert the rune index back to a UTF-8 byte offset.
 	byteOff := 0
 	for i := 0; i < idx && byteOff < len(s); {
 		_, size := utf8.DecodeRuneInString(s[byteOff:])
@@ -912,7 +870,7 @@ func runeIndexToCol(runes []rune, idx int) int {
 	return StringWidth(s[:byteOff])
 }
 
-// clampInt clamps v to [lo, hi].
+// clampInt restricts v to the inclusive range [lo, hi].
 func clampInt(v, lo, hi int) int {
 	if v < lo {
 		return lo

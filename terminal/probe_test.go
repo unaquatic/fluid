@@ -33,14 +33,13 @@ func TestParseCPR(t *testing.T) {
 			in:   "",
 		},
 		{
-			// A keystroke arriving mid-probe must be dropped, not misread.
+			// Discard ordinary input received during probing.
 			name:     "keystrokes discarded",
 			in:       "q\x1b[1;3Rabc\x1b[1;5R",
 			wantCols: []int{3, 5},
 		},
 		{
-			// Other CSI replies (a mouse event, a device attribute) must not
-			// be mistaken for a position report.
+			// Do not interpret unrelated CSI input as a cursor position report.
 			name:     "other csi ignored",
 			in:       "\x1b[?62;c\x1b[1;4R",
 			wantCols: []int{4},
@@ -70,8 +69,8 @@ func TestParseCPR(t *testing.T) {
 	}
 }
 
-// TestParseCPR_SplitAcrossReads covers a report arriving in two chunks, which
-// is how a slow terminal or a full read buffer delivers it.
+// TestParseCPR_SplitAcrossReads verifies that a partial trailing report is
+// retained for the next read.
 func TestParseCPR_SplitAcrossReads(t *testing.T) {
 	const reports = "q\x1b[1;12R\x1b[24;132R"
 	for split := range len(reports) + 1 {
@@ -126,8 +125,8 @@ func TestWidthProbeValid(t *testing.T) {
 	}
 }
 
-// TestProbeWidths_NonTerminalStdin verifies the probe declines rather than
-// blocking when stdin cannot be measured, so startup always proceeds.
+// TestProbeWidths_NonTerminalStdin verifies that probing rejects a nonterminal
+// reader without blocking.
 func TestProbeWidths_NonTerminalStdin(t *testing.T) {
 	r, _ := newTestRenderer(10, 1)
 	if _, err := r.backend.ProbeWidths([]string{"A"}); err == nil {

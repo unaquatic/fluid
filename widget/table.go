@@ -8,16 +8,16 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// TableColumn defines a column in the table.
+// TableColumn describes the name and sizing policy for one table column.
 type TableColumn struct {
 	Name      string
-	Width     int // fixed width (0 = auto)
+	Width     int // Fixed width; zero divides available width evenly.
 	MinWidth  int
 	MaxWidth  int
-	Alignment int // 0=left, 1=center, 2=right
+	Alignment int // Zero is left, one is center, and two is right.
 }
 
-// Table is a scrollable, selectable table with headers and row selection.
+// Table is a keyboard-navigable table with an optional header and striped rows.
 type Table struct {
 	*render.BaseRenderable
 
@@ -40,13 +40,14 @@ type Table struct {
 	stripedRows   bool
 	wrapSelection bool
 
+	// OnRowSelected is called when the user activates the selected row.
 	OnRowSelected func(index int, row []string)
 }
 
 // TableOption configures a Table.
 type TableOption func(*Table)
 
-// NewTable creates a Table widget.
+// NewTable returns a focusable Table containing columns and rows.
 func NewTable(columns []TableColumn, rows [][]string, opts ...TableOption) *Table {
 	t := &Table{
 		BaseRenderable: render.NewBaseRenderable(render.WithFocusable(true)),
@@ -82,7 +83,7 @@ func (t *Table) SetRows(rows [][]string) {
 	t.RequestRender()
 }
 
-// SelectedRow returns the selected row index.
+// SelectedRow returns the zero-based index of the selected row.
 func (t *Table) SelectedRow() int { return t.selectedRow }
 
 // RenderSelf draws the table.
@@ -96,12 +97,12 @@ func (t *Table) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 	x := t.X()
 	y := t.Y()
 
-	// Calculate column widths
+	// Resolve fixed and automatic widths for this viewport.
 	colWidths := t.calculateColumnWidths(w)
 
 	drawY := y
 
-	// Draw header
+	// The header, when enabled, consumes the first visible row.
 	if t.showHeader && drawY < y+h {
 		cx := x
 		if !t.headerBg.IsTransparent() {
@@ -113,12 +114,12 @@ func (t *Table) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 			}
 			name := truncateToWidth(col.Name, colWidths[i])
 			buf.DrawText(name, cx, drawY, t.headerFg)
-			cx += colWidths[i] + 1 // +1 for separator
+			cx += colWidths[i] + 1 // Reserve one column between fields.
 		}
 		drawY++
 	}
 
-	// Draw rows
+	// Render rows from the scroll offset until the viewport is full.
 	for rowIdx := t.scrollOffset; rowIdx < len(t.rows) && drawY < y+h; rowIdx++ {
 		row := t.rows[rowIdx]
 		isSelected := rowIdx == t.selectedRow
@@ -146,7 +147,7 @@ func (t *Table) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 	}
 }
 
-// HandleKeyPress processes keyboard input.
+// HandleKeyPress moves or activates the selected row for a supported key event.
 func (t *Table) HandleKeyPress(e *input.KeyEvent) bool {
 	if e.Type == input.KeyRelease || len(t.rows) == 0 {
 		return false
@@ -223,14 +224,14 @@ func (t *Table) ensureRowVisible() {
 	}
 }
 
-// --- Table Options ---
+// Table options.
 
-// TableWithShowHeader enables/disables header display.
+// TableWithShowHeader controls whether the column header is displayed.
 func TableWithShowHeader(v bool) TableOption {
 	return func(t *Table) { t.showHeader = v }
 }
 
-// TableWithStripedRows enables/disables striped row backgrounds.
+// TableWithStripedRows controls whether alternate rows use a different background.
 func TableWithStripedRows(v bool) TableOption {
 	return func(t *Table) { t.stripedRows = v }
 }
@@ -240,7 +241,7 @@ func TableWithSelectedBg(c style.Color) TableOption {
 	return func(t *Table) { t.selectedBg = c }
 }
 
-// TableWithOnRowSelected sets the row selection callback.
+// TableWithOnRowSelected sets the callback invoked when the user activates a row.
 func TableWithOnRowSelected(fn func(int, []string)) TableOption {
 	return func(t *Table) { t.OnRowSelected = fn }
 }
@@ -260,7 +261,7 @@ func TableWithHeight(s layout.Scalar) TableOption {
 	return func(t *Table) { t.LayoutNode().Height = s }
 }
 
-// TableWithFlexGrow sets flex grow.
+// TableWithFlexGrow sets the flex-grow factor.
 func TableWithFlexGrow(v int) TableOption {
 	return func(t *Table) { t.LayoutNode().FlexGrow = v }
 }

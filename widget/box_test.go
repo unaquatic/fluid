@@ -74,13 +74,13 @@ func TestBox_RenderSelf_FillBackground(t *testing.T) {
 		BoxWithBackgroundColor(style.ColorRed),
 		BoxWithShouldFill(true),
 	)
-	// Simulate layout
+	// RenderSelf needs a computed layout rectangle.
 	testutil.SetupWidget(b, 5, 3)
 
 	buf := buffer.New(5, 3)
 	b.RenderSelf(buf, 0)
 
-	// Check that all cells have red background
+	// An unbordered fill covers the complete rectangle.
 	for y := range 3 {
 		for x := range 5 {
 			cell := buf.Cell(x, y)
@@ -102,7 +102,7 @@ func TestBox_RenderSelf_WithBorder(t *testing.T) {
 	buf := buffer.New(5, 3)
 	b.RenderSelf(buf, 0)
 
-	// Check corners
+	// Verify each corner character.
 	topLeft := buf.Cell(0, 0)
 	if topLeft.Char != '┌' {
 		t.Errorf("expected '┌' at (0,0), got %c", topLeft.Char)
@@ -137,13 +137,11 @@ func TestBox_InnerRect(t *testing.T) {
 func TestBox_ZeroSize(t *testing.T) {
 	b := NewBox()
 	buf := buffer.New(0, 0)
-	// Should not panic
+	// A zero-sized box must render safely.
 	b.RenderSelf(buf, 0)
 }
 
-// ---------------------------------------------------------------------------
-// Children option tests
-// ---------------------------------------------------------------------------
+// Children option behavior.
 
 func TestBox_Children_AddsChildren(t *testing.T) {
 	txt1 := NewText("hello")

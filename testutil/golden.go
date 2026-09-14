@@ -12,21 +12,18 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// updateGolden is set by `go test -update` to regenerate golden files.
+// updateGolden controls whether assertions replace their golden files.
 var updateGolden = flag.Bool("update", false, "update golden test files")
 
-// ---------------------------------------------------------------------------
-// Buffer serialisation formats
-// ---------------------------------------------------------------------------
+// Buffer serialization.
 
-// GoldenText converts a buffer to a deterministic plain-text representation
-// suitable for golden file comparison. Each row is pipe-delimited to make
-// trailing spaces visible. The format is:
+// GoldenText returns a deterministic character-grid representation of buf.
+// Vertical delimiters make trailing spaces visible:
 //
 //	|Hello     |
 //	|World     |
 //
-// This captures the exact character grid without style information.
+// Zero-value cells become spaces. The output does not include cell styles.
 func GoldenText(buf *buffer.Buffer) string {
 	var sb strings.Builder
 	w := buf.Width()
@@ -46,16 +43,19 @@ func GoldenText(buf *buffer.Buffer) string {
 	return sb.String()
 }
 
-// GoldenStyled converts a buffer to a styled text representation that encodes
-// character, foreground color, and attributes. Each cell is encoded as:
+// GoldenStyled returns a deterministic representation of characters,
+// foreground colors, and selected text attributes. Its cell format is:
 //
-//	char[attrs] where attrs are single-letter flags: B=bold, I=italic, U=underline,
-//	D=dim, S=strikethrough. Foreground color changes are marked inline as {#RRGGBB}.
+//	char[attrs]
 //
-// Example row: {#ff0000}H[B]e[B]l[B]l[B]o[B]
+// Attribute flags are B for bold, D for dim, I for italic, U for underline,
+// and S for strikethrough. A {#RRGGBB} tag marks each foreground-color change;
+// {-} marks transparency. For example:
 //
-// This format captures style information for regression testing while remaining
-// human-readable.
+//	|{#ff0000}H[B]e[B]l[B]l[B]o[B]|
+//
+// Only the five listed attributes have flags. Background colors and link IDs
+// are not encoded.
 func GoldenStyled(buf *buffer.Buffer) string {
 	var sb strings.Builder
 	w := buf.Width()
@@ -66,7 +66,7 @@ func GoldenStyled(buf *buffer.Buffer) string {
 		for x := range w {
 			cell := buf.Cell(x, y)
 
-			// Emit fg color tag when it changes
+			// Emit a foreground tag only when the color changes within this row.
 			fg := colorHex(cell.Fg)
 			if fg != lastFg {
 				sb.WriteString("{")
@@ -75,14 +75,14 @@ func GoldenStyled(buf *buffer.Buffer) string {
 				lastFg = fg
 			}
 
-			// Emit character
+			// Represent an unset character as one visible space.
 			if cell.Char == 0 {
 				sb.WriteRune(' ')
 			} else {
 				sb.WriteRune(cell.Char)
 			}
 
-			// Emit attribute flags
+			// Append stable single-letter flags for base text attributes.
 			attrs := cell.Attributes & style.AttributeBaseMask
 			if attrs != 0 {
 				sb.WriteByte('[')
@@ -109,8 +109,7 @@ func GoldenStyled(buf *buffer.Buffer) string {
 	return sb.String()
 }
 
-// colorHex returns a hex color string like "#ff0000" for a Color value,
-// or "-" for transparent/zero alpha.
+// colorHex returns an RGB hex string for c, or "-" when c is transparent.
 func colorHex(c style.Color) string {
 	if c.A == 0 {
 		return "-"
@@ -118,36 +117,32 @@ func colorHex(c style.Color) string {
 	return fmt.Sprintf("#%02x%02x%02x", c.R, c.G, c.B)
 }
 
-// ---------------------------------------------------------------------------
-// Single-snapshot assertions
-// ---------------------------------------------------------------------------
+// Golden-file assertions.
 
-// AssertGolden compares the buffer's plain-text rendering against a golden file
-// named "<name>.golden" in the testdata/ directory relative to the test file.
+// AssertGolden compares GoldenText for buf with testdata/<name>.golden.
 //
-// If the -update flag is set, the golden file is written/updated instead.
-// If the golden file does not exist and -update is not set, the test fails
-// and prints the actual output so you can review and create it.
+// The -update test flag creates or replaces the file. Without that flag,
+// a missing or different file fails the test and prints the actual output.
 func AssertGolden(t *testing.T, name string, buf *buffer.Buffer) {
 	t.Helper()
 	assertGoldenContent(t, name+".golden", GoldenText(buf))
 }
 
-// AssertGoldenStyled is like AssertGolden but uses the styled format that
-// encodes fg color and text attributes.
+// AssertGoldenStyled compares GoldenStyled for buf with
+// testdata/<name>.styled.golden.
 func AssertGoldenStyled(t *testing.T, name string, buf *buffer.Buffer) {
 	t.Helper()
 	assertGoldenContent(t, name+".styled.golden", GoldenStyled(buf))
 }
 
-// assertGoldenContent is the shared implementation for golden file comparison.
+// assertGoldenContent updates or compares one file in the package's testdata directory.
 func assertGoldenContent(t *testing.T, filename, actual string) {
 	t.Helper()
 
 	goldenPath := filepath.Join("testdata", filename)
 
 	if *updateGolden {
-		// Create testdata/ directory if it doesn't exist
+		// Update mode creates the package's testdata directory on demand.
 		if err := os.MkdirAll("testdata", 0o755); err != nil {
 			t.Fatalf("failed to create testdata dir: %v", err)
 		}
@@ -178,12 +173,8 @@ func assertGoldenContent(t *testing.T, filename, actual string) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Multi-step sequence assertions
-// ---------------------------------------------------------------------------
-
-// GoldenSequence captures multiple named buffer snapshots into a single
-// golden file. Each step is labeled with a header line like:
+// GoldenSequence collects named snapshots for one state-transition golden file.
+// String labels each snapshot with a header:
 //
 //	=== step: initial ===
 //	|Hello     |
@@ -192,7 +183,7 @@ func assertGoldenContent(t *testing.T, filename, actual string) {
 //	|World     |
 //	|          |
 //
-// This enables testing state transitions: render → mutate → render again.
+// A sequence can capture output before and after any number of state changes.
 type GoldenSequence struct {
 	steps []goldenStep
 }
@@ -202,24 +193,24 @@ type goldenStep struct {
 	content string
 }
 
-// NewGoldenSequence creates an empty sequence builder.
+// NewGoldenSequence returns an empty snapshot sequence.
 func NewGoldenSequence() *GoldenSequence {
 	return &GoldenSequence{}
 }
 
-// Add captures a plain-text buffer snapshot with the given step name.
+// Add appends a GoldenText snapshot named name and returns gs.
 func (gs *GoldenSequence) Add(name string, buf *buffer.Buffer) *GoldenSequence {
 	gs.steps = append(gs.steps, goldenStep{name: name, content: GoldenText(buf)})
 	return gs
 }
 
-// AddStyled captures a styled buffer snapshot with the given step name.
+// AddStyled appends a GoldenStyled snapshot named name and returns gs.
 func (gs *GoldenSequence) AddStyled(name string, buf *buffer.Buffer) *GoldenSequence {
 	gs.steps = append(gs.steps, goldenStep{name: name, content: GoldenStyled(buf)})
 	return gs
 }
 
-// String serializes all steps into a single string for golden file comparison.
+// String serializes the named snapshots in insertion order.
 func (gs *GoldenSequence) String() string {
 	var sb strings.Builder
 	for _, step := range gs.steps {
@@ -229,18 +220,14 @@ func (gs *GoldenSequence) String() string {
 	return sb.String()
 }
 
-// AssertGoldenSequence compares a multi-step sequence against a golden file.
-// Use -update to regenerate.
+// AssertGoldenSequence compares seq with testdata/<name>.seq.golden.
+// The -update test flag creates or replaces the file.
 func AssertGoldenSequence(t *testing.T, name string, seq *GoldenSequence) {
 	t.Helper()
 	assertGoldenContent(t, name+".seq.golden", seq.String())
 }
 
-// ---------------------------------------------------------------------------
-// Diff helper
-// ---------------------------------------------------------------------------
-
-// lineDiff produces a simple line-by-line diff between two strings.
+// lineDiff returns each differing line from expected and actual.
 func lineDiff(expected, actual string) string {
 	expLines := strings.Split(expected, "\n")
 	actLines := strings.Split(actual, "\n")

@@ -52,21 +52,21 @@ func TestSyntaxStyle_RegisterOverwrite(t *testing.T) {
 	fg1 := ColorRed
 	id1 := ss.Register("keyword", &fg1, nil, AttrBold)
 
-	// Re-register same name with different style
+	// Re-register the same name with a different style.
 	fg2 := ColorBlue
 	id2 := ss.Register("keyword", &fg2, nil, AttrItalic)
 
-	// Should return same ID
+	// Replacement preserves the existing ID.
 	if id1 != id2 {
 		t.Errorf("expected same ID on overwrite, got %d vs %d", id1, id2)
 	}
 
-	// Count should still be 1
+	// Replacement does not create another registry entry.
 	if ss.StyleCount() != 1 {
 		t.Errorf("expected 1 style after overwrite, got %d", ss.StyleCount())
 	}
 
-	// Style should be updated
+	// The existing entry contains the replacement style.
 	s := ss.Style(id1)
 	if s == nil {
 		t.Fatal("expected style, got nil")
@@ -126,15 +126,15 @@ func TestSyntaxStyle_GetStyle(t *testing.T) {
 func TestSyntaxStyle_GetStyle_Invalid(t *testing.T) {
 	ss := NewSyntaxStyle()
 
-	// ID 0 is reserved
+	// ID zero is reserved for no style.
 	if ss.Style(0) != nil {
 		t.Error("expected nil for ID 0")
 	}
-	// Negative ID
+	// Negative IDs are invalid.
 	if ss.Style(-1) != nil {
 		t.Error("expected nil for ID -1")
 	}
-	// Out of range
+	// IDs beyond the registry are invalid.
 	if ss.Style(99) != nil {
 		t.Error("expected nil for ID 99")
 	}

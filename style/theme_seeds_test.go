@@ -2,16 +2,14 @@ package style
 
 import "testing"
 
-// TestThemeFromSeeds_FillsEveryRole guards the basic contract: passing
-// only the documented seeds must produce a Theme with every advertised
-// color field populated. Ramp-derived fields count as "populated" when
-// they have opaque alpha.
+// TestThemeFromSeeds_FillsEveryRole verifies that the seed constructor
+// populates every advertised role with an opaque color.
 func TestThemeFromSeeds_FillsEveryRole(t *testing.T) {
 	th := ThemeFromSeeds("test", ThemeSeeds{
 		Neutral:     ColorFromInts(15, 15, 20, 255),
 		Ink:         ColorWhite,
-		Primary:     ColorFromInts(157, 124, 216, 255), // purple
-		Interactive: ColorFromInts(250, 178, 131, 255), // peach
+		Primary:     ColorFromInts(157, 124, 216, 255), // Purple.
+		Interactive: ColorFromInts(250, 178, 131, 255), // Peach.
 		Success:     ColorFromInts(127, 216, 143, 255),
 		Warning:     ColorFromInts(245, 167, 66, 255),
 		Danger:      ColorFromInts(224, 108, 117, 255),
@@ -91,33 +89,29 @@ func TestThemeFromSeeds_FillsEveryRole(t *testing.T) {
 	}
 }
 
-// TestThemeFromSeeds_InteractiveFallsBackToPrimary verifies the
-// documented default: a caller who only sets Primary and leaves
-// Interactive zero gets Interactive = Primary.
+// TestThemeFromSeeds_InteractiveFallsBackToPrimary verifies that a transparent
+// Interactive seed inherits Primary.
 func TestThemeFromSeeds_InteractiveFallsBackToPrimary(t *testing.T) {
 	primary := ColorFromInts(200, 100, 80, 255)
 	th := ThemeFromSeeds("fb", ThemeSeeds{
 		Neutral: ColorFromInts(20, 20, 20, 255),
 		Primary: primary,
-		// Interactive intentionally zero.
+		// Leave Interactive transparent to request its fallback.
 		Success: ColorBrightGreen,
 		Warning: ColorBrightYellow,
 		Danger:  ColorBrightRed,
 		Info:    ColorBrightCyan,
 	}, true)
 
-	// Accent and Interactive both derive from the same ramp (step 10)
-	// when Interactive defaults to Primary, so they must be equal.
+	// Both roles use step ten of the same ramp after fallback.
 	if !th.Accent.Equals(th.Interactive) {
 		t.Errorf("when Interactive falls back to Primary, Accent should equal Interactive; got %v vs %v",
 			th.Accent, th.Interactive)
 	}
 }
 
-// TestThemeFromSeeds_DarkBgIsDarker guards perceptual direction: in a
-// dark theme, Bg must be darker than TextStrong. Reversed themes
-// produce unreadable output and this is the cheapest check for
-// "someone inverted a ramp".
+// TestThemeFromSeeds_DarkBgIsDarker verifies the dark ramp's perceptual
+// direction.
 func TestThemeFromSeeds_DarkBgIsDarker(t *testing.T) {
 	th := ThemeFromSeeds("t", ThemeSeeds{
 		Neutral:     ColorFromInts(20, 20, 20, 255),
@@ -135,8 +129,8 @@ func TestThemeFromSeeds_DarkBgIsDarker(t *testing.T) {
 	}
 }
 
-// TestThemeFromSeeds_LightBgIsLighter is the light-theme mirror of the
-// above, guarding that the dark flag actually flips the ramp.
+// TestThemeFromSeeds_LightBgIsLighter verifies that a light ramp reverses the
+// dark ramp's perceptual direction.
 func TestThemeFromSeeds_LightBgIsLighter(t *testing.T) {
 	th := ThemeFromSeeds("t", ThemeSeeds{
 		Neutral:     ColorFromInts(240, 240, 240, 255),
@@ -155,14 +149,10 @@ func TestThemeFromSeeds_LightBgIsLighter(t *testing.T) {
 	}
 }
 
-// TestNeutralCodePalette_DerivedFromRamp pins the mapping between ramp
-// indices and token roles so changes to the helper's contract require
-// updating this table rather than only the implementation. If the
-// mapping shifts, downstream mono themes visibly change — which is a
-// signal that should reach code review.
+// TestNeutralCodePalette_DerivedFromRamp pins each syntax role to its documented
+// neutral-ramp index.
 func TestNeutralCodePalette_DerivedFromRamp(t *testing.T) {
-	// Build a ramp whose entries are trivially distinguishable so we
-	// can assert which index each role draws from. (ramp[i] has R=i.)
+	// Encode each ramp index in its red channel for direct comparison.
 	var ramp [12]Color
 	for i := range ramp {
 		ramp[i] = Color{R: uint8(i), G: uint8(i), B: uint8(i), A: 255}
@@ -195,9 +185,7 @@ func TestNeutralCodePalette_DerivedFromRamp(t *testing.T) {
 		}
 	}
 
-	// Attribute masks: the monochrome palette must compensate for the
-	// missing hue differentiation with bold/italic/underline. Guard
-	// every mask so a future tweak can't silently strip them.
+	// Decorations distinguish monochrome roles that share similar colors.
 	if p.Keyword.Attrs&AttrBold == 0 {
 		t.Error("Keyword should include AttrBold")
 	}
@@ -215,11 +203,8 @@ func TestNeutralCodePalette_DerivedFromRamp(t *testing.T) {
 	}
 }
 
-// TestThemeFromSeeds_CodePaletteIsNeutralRamp pins the constructor
-// contract: the default Code palette must be derived from the same
-// neutral ramp ThemeFromSeeds uses for surfaces and borders, so a
-// seeds-only theme stays visually coherent without a caller having
-// to install a code palette themselves.
+// TestThemeFromSeeds_CodePaletteIsNeutralRamp verifies that surfaces and the
+// default syntax palette use the same neutral ramp.
 func TestThemeFromSeeds_CodePaletteIsNeutralRamp(t *testing.T) {
 	seeds := ThemeSeeds{
 		Neutral:     Color{R: 20, G: 20, B: 20, A: 255},
@@ -249,28 +234,23 @@ func TestThemeFromSeeds_CodePaletteIsNeutralRamp(t *testing.T) {
 	}
 }
 
-// TestDefaultDark_SeedDerivedInvariants guards structural properties
-// that must hold regardless of how the ramps evolve, now that every
-// DefaultDark field comes from the seed generator.
+// TestDefaultDark_SeedDerivedInvariants verifies relationships required of the
+// generated default theme.
 func TestDefaultDark_SeedDerivedInvariants(t *testing.T) {
 	th := DefaultDark()
 
-	// CodeBg must match Surface so code blocks don't show a visible
-	// chip against the message background. ThemeFromSeeds wires this
-	// explicitly.
+	// Code blocks share the panel surface instead of drawing a separate chip.
 	if !th.CodeBg.Equals(th.Surface) {
 		t.Errorf("CodeBg should equal Surface; got %v vs %v", th.CodeBg, th.Surface)
 	}
 
-	// Bg must be perceptually darker than TextStrong — the dark theme
-	// is unusable otherwise.
+	// The background is perceptually darker than primary text.
 	if th.Bg.ToOKLCH().L >= th.TextStrong.ToOKLCH().L {
 		t.Errorf("dark theme Bg (L=%.3f) should be darker than TextStrong (L=%.3f)",
 			th.Bg.ToOKLCH().L, th.TextStrong.ToOKLCH().L)
 	}
 
-	// Heading gradient must descend in lightness (H1 = brightest).
-	// This checks the ramp direction hasn't inverted.
+	// Heading lightness descends from H1 through H6.
 	for i := 1; i < len(th.MarkdownHeading); i++ {
 		prev := th.MarkdownHeading[i-1].Fg.ToOKLCH().L
 		cur := th.MarkdownHeading[i].Fg.ToOKLCH().L

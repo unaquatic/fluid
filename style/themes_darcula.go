@@ -3,33 +3,33 @@ package style
 // DarculaSolid returns the Darcula Solid palette.
 func DarculaSolid() *Theme {
 	var (
-		// Canvas
+		// Canvas colors.
 		editorBg   = ColorFromHex("#1c1c1c")
 		popupBg    = ColorFromHex("#252526")
 		caretRowBg = ColorFromHex("#323335")
 
-		// Borders
+		// Border colors.
 		indentGuide    = ColorFromHex("#2c2c2d")
 		selIndentGuide = ColorFromHex("#313132")
 		tearline       = ColorFromHex("#3d3e40")
 		selTearline    = ColorFromHex("#5e6063")
 
-		// Text
+		// Text colors.
 		identifierFg = ColorFromHex("#cfd2d5")
 		consoleFg    = ColorFromHex("#ececec")
 		commentFg    = ColorFromHex("#8a8a8a")
 
-		// Accent / selection
+		// Accent and selection colors.
 		keywordOrange = ColorFromHex("#cc7832")
 		selectionBg   = ColorFromHex("#176081")
 		selectionFg   = identifierFg
 
-		// Semantic
+		// Semantic colors.
 		consoleGreen = ColorFromHex("#5af78d")
 		consoleRed   = ColorFromHex("#ff5b56")
 		consoleGray  = ColorFromHex("#8A8A8A")
 
-		// Diff
+		// Diff colors.
 		diffAddBg    = ColorFromHex("#444d3b")
 		diffRemoveBg = ColorFromHex("#4f2b2b")
 	)
@@ -37,7 +37,7 @@ func DarculaSolid() *Theme {
 	return &Theme{
 		Name: "darcula-solid",
 
-		// Core surfaces
+		// Core surfaces.
 		Bg:            editorBg,
 		Surface:       editorBg,
 		SurfaceAlt:    popupBg,
@@ -47,26 +47,26 @@ func DarculaSolid() *Theme {
 		BorderStrong:  selTearline,
 		BorderFocus:   selectionBg,
 
-		// Text
+		// Text roles.
 		TextStrong: consoleFg,
 		TextBase:   identifierFg,
 		TextWeak:   selIndentGuide,
 		TextMuted:  commentFg,
 		TextLink:   keywordOrange,
 
-		// Accent / interactive
+		// Accent and interactive roles.
 		Accent:            keywordOrange,
 		AccentStrong:      ColorFromHex("#d18616"),
 		Interactive:       consoleGray,
 		InteractiveStrong: ColorFromHex("#4e94ce"),
 
-		// Semantic
+		// Semantic roles.
 		Success: consoleGreen,
 		Warning: ColorFromHex("#f3f99c"),
 		Danger:  consoleRed,
 		Info:    consoleGray,
 
-		// On-color foregrounds
+		// Foregrounds placed on filled roles.
 		OnAccent:      ColorWhite,
 		OnInteractive: ColorWhite,
 		OnSuccess:     ColorWhite,
@@ -74,18 +74,18 @@ func DarculaSolid() *Theme {
 		OnDanger:      ColorWhite,
 		OnInfo:        ColorWhite,
 
-		// Selection
+		// Selection roles.
 		SelectionBg:         selectionBg,
 		SelectionFg:         selectionFg,
 		SelectionInactiveBg: ColorFromHex("#313234"),
 
-		// Diff
+		// Diff roles.
 		DiffAddSurface:    diffAddBg,
 		DiffRemoveSurface: diffRemoveBg,
 		DiffAddFg:         consoleGreen,
 		DiffRemoveFg:      consoleRed,
 
-		// Markdown
+		// Markdown roles.
 		MarkdownHeading: [6]Entry{
 			{Fg: keywordOrange, Attrs: AttrBold},
 			{Fg: ColorFromHex("#d18616"), Attrs: AttrBold},
@@ -108,7 +108,7 @@ func DarculaSolid() *Theme {
 		MarkdownImage:       Entry{Fg: keywordOrange, Attrs: AttrUnderline},
 		MarkdownImageText:   Entry{Fg: ColorFromHex("#4e94ce"), Attrs: AttrUnderline},
 
-		// Code
+		// Code roles.
 		CodeFg: identifierFg,
 		CodeBg: editorBg,
 

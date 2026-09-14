@@ -7,15 +7,9 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// TestStreamMarkdown_RuleNoPhantomRow guards against a regression where
-// thematic breaks (`---`) inside StreamMarkdown content produced a ghost
-// blank row in layout. StreamMarkdown puts each parsed block into its
-// own Markdown child; a rule emits zero rendered lines, but the
-// Markdown widget's MeasureFunc previously floored the reported height
-// to 1, which made every rule allocate a phantom row. After the fix
-// the sum of child measure heights matches the standalone Markdown
-// line count for the same source, so a previous response containing
-// "\n\n---\n\n" no longer leaves blank rows above the debug footer.
+// TestStreamMarkdown_RuleNoPhantomRow verifies that a zero-height thematic-break
+// child does not add a row. Streamed child heights must sum to the same height
+// as a standalone Markdown widget for the same source.
 func TestStreamMarkdown_RuleNoPhantomRow(t *testing.T) {
 	const src = "before\n\n---\n\nafter"
 
