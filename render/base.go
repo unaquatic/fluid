@@ -200,7 +200,8 @@ type BaseRenderable struct {
 	// Resolved geometry copied from layout traversal.
 	x, y, width, height   int
 	prevWidth, prevHeight int         // The dimensions used to detect resize callbacks.
-	paintRect             buffer.Rect // The region covered by the most recent paint.
+	paintRect             buffer.Rect // The region the most recent paint covered, plus any a detached child left behind.
+	subtreeRect           buffer.Rect // The region enclosing this renderable and every descendant.
 
 	// Configuration and state.
 	visible    bool
@@ -369,6 +370,12 @@ func (b *BaseRenderable) Remove(id string) {
 
 			child.SetParent(nil)
 			b.children = append(b.children[:i], b.children[i+1:]...)
+
+			// A detached subtree is beyond the reach of scene traversal, so it
+			// can no longer report the region it covered. Painting b clears the
+			// debt again.
+			b.paintRect = b.paintRect.Union(child.SubtreeRect())
+
 			b.dirty = true
 			b.ctx.RequestRender()
 			return
@@ -457,16 +464,28 @@ func (b *BaseRenderable) Rect() buffer.Rect {
 	return buffer.Rect{X: b.x, Y: b.y, Width: b.width, Height: b.height}
 }
 
+// SubtreeRect returns the region enclosing b and every descendant, which bounds
+// everywhere the subtree can paint. Scene traversal resolves it, so it is only
+// current for a subtree that traversal reached.
+func (b *BaseRenderable) SubtreeRect() buffer.Rect { return b.subtreeRect }
+
+// SetSubtreeRect records the region enclosing b and every descendant.
+func (b *BaseRenderable) SetSubtreeRect(rect buffer.Rect) { b.subtreeRect = rect }
+
 // Damage returns the region b must repaint, or an empty rectangle when b is
 // unchanged. A renderable that moved or resized damages both the region it
 // occupied and the region it now occupies.
 //
-// A hidden or destroyed renderable damages only the region it last painted,
-// which is the region left behind.
+// A hidden or destroyed renderable damages everything its subtree covered.
+// Scene traversal stops at it, so a descendant a translation placed outside b
+// never gets to report the region it left behind.
+//
+// Destroy detaches from the parent, which puts a destroyed renderable beyond
+// the reach of traversal entirely. Remove hands its region to the parent.
 func (b *BaseRenderable) Damage() buffer.Rect {
 	switch {
 	case b.destroyed, !b.visible:
-		return b.paintRect
+		return b.paintRect.Union(b.subtreeRect)
 	case b.dirty:
 		return b.paintRect.Union(b.Rect())
 	default:
@@ -480,6 +499,7 @@ func (b *BaseRenderable) Damage() buffer.Rect {
 func (b *BaseRenderable) ClearDamage() {
 	if b.destroyed || !b.visible {
 		b.paintRect = buffer.Rect{}
+		b.subtreeRect = buffer.Rect{}
 	}
 }
 
