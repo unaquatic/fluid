@@ -117,7 +117,7 @@ func (r *RootRenderable) SyncPositions(deltaTime float64) FrameStats {
 // is what clears it.
 func (r *RootRenderable) TakeDamage() buffer.Rect {
 	var damage buffer.Rect
-	r.collectDamage(r.BaseRenderable, &damage)
+	r.collectDamage(r.BaseRenderable, nil, &damage)
 	return damage
 }
 
@@ -128,17 +128,33 @@ func (r *RootRenderable) ResetDamage() {
 	r.TakeDamage()
 }
 
-func (r *RootRenderable) collectDamage(node render.Renderable, damage *buffer.Rect) {
-	*damage = damage.Union(node.Damage())
+// collectDamage accumulates the damage of node's subtree.
+//
+// A clipping container bounds the damage of everything inside it, because
+// nothing inside can reach a cell the container clips away. Without that bound
+// a node scissored out of view never paints, so its geometry never matches its
+// last paint and it reports damage on every frame forever.
+func (r *RootRenderable) collectDamage(node render.Renderable, scissor *buffer.Rect, damage *buffer.Rect) {
+	nodeDamage := node.Damage()
+	if scissor != nil {
+		nodeDamage = nodeDamage.Intersect(*scissor)
+	}
+	*damage = damage.Union(nodeDamage)
 	node.ClearDamage()
 
-	// A hidden or destroyed subtree contributes only the region it vacated,
-	// which its root already covers.
+	// A hidden or destroyed subtree reports everything it covered, so its root
+	// already carries what its descendants left behind.
 	if node.IsDestroyed() || !node.Visible() {
 		return
 	}
+
+	childScissor := scissor
+	if overflow := node.LayoutNode().Overflow; overflow == layout.OverflowScroll || overflow == layout.OverflowHidden {
+		rect := cullRect(node)
+		childScissor = &rect
+	}
 	for _, child := range node.ChildrenRaw() {
-		r.collectDamage(child, damage)
+		r.collectDamage(child, childScissor, damage)
 	}
 }
 

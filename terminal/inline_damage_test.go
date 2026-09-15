@@ -186,6 +186,34 @@ func TestInlineDamage_DetachedSubtreeErasesMovedDescendants(t *testing.T) {
 	}
 }
 
+// TestInlineDamage_ScissoredContentSettles covers content clipped out of a
+// container. It never paints, so its geometry never matches its last paint. The
+// container has to bound its damage, or every frame stays dirty forever.
+func TestInlineDamage_ScissoredContentSettles(t *testing.T) {
+	box := render.NewBaseRenderable(render.WithID("box"),
+		render.WithWidth(layout.Points(39)), render.WithHeight(layout.Points(4)))
+	box.LayoutNode().Overflow = layout.OverflowScroll
+	box.LayoutNode().FlexDirection = layout.DirectionColumn
+	for i := range 10 {
+		box.Add(newGlyphRow(string(rune('a'+i)), rune('a'+i), 39, 2))
+	}
+
+	r, _ := newInlineTestRenderer()
+	r.root.Add(box)
+	r.root.Add(newGlyphRow("footer", 'F', 39, 2)) // Keeps the clipped rows in frame.
+	r.renderInlineFrame()
+
+	// Nothing changes, so the second frame must find the scene settled.
+	r.renderInlineFrame()
+
+	if got := r.inlineDamaged; !got.IsEmpty() {
+		t.Errorf("damage is %+v, want empty once the scene settles", got)
+	}
+	if got := r.root.LastFrameStats.CmdCount; got != 0 {
+		t.Errorf("issued %d draw commands, want 0", got)
+	}
+}
+
 func TestInlineDamage_CleanFrameDrawsNothing(t *testing.T) {
 	r := newDamageTestRenderer(t, newGlyphRow("a", 'a', 39, 2), newGlyphRow("b", 'b', 39, 2))
 
