@@ -344,26 +344,6 @@ func TestRenderer_SetTitle(t *testing.T) {
 	}
 }
 
-func TestRenderer_PostProcessFns(t *testing.T) {
-	r := newInputTestRenderer()
-
-	called := false
-	r.AddPostProcessFn(func(buf *buffer.Buffer, dt float64) {
-		called = true
-	})
-
-	if len(r.postProcessFns) != 1 {
-		t.Errorf("expected 1 post-process fn, got %d", len(r.postProcessFns))
-	}
-
-	r.ClearPostProcessFns()
-	if len(r.postProcessFns) != 0 {
-		t.Errorf("expected 0 post-process fns after clear, got %d", len(r.postProcessFns))
-	}
-
-	_ = called // This test verifies registration state, not callback execution.
-}
-
 func TestRenderer_StatsToggle(t *testing.T) {
 	r := newInputTestRenderer()
 

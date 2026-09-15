@@ -56,9 +56,6 @@ type Renderer struct {
 	stopChan    chan struct{}
 	dirty       atomic.Bool
 
-	// Post-processing callbacks.
-	postProcessFns []func(*buffer.Buffer, float64)
-
 	// Frame statistics.
 	stats         Stats
 	frameCount    uint64
@@ -131,27 +128,26 @@ func NewRenderer(config ...Config) (*Renderer, error) {
 	eventBus := input.NewEventBus()
 
 	r := &Renderer{
-		root:           root,
-		hitGrid:        hitGrid,
-		backend:        backend,
-		config:         cfg,
-		currentBuffer:  currentBuffer,
-		nextBuffer:     nextBuffer,
-		width:          w,
-		height:         h,
-		controlState:   StateIdle,
-		parser:         parser,
-		eventBus:       eventBus,
-		pendingWork:    make(chan func()),
-		wake:           make(chan struct{}, 1),
-		stopChan:       make(chan struct{}, 1),
-		done:           make(chan struct{}),
-		invalidated:    true,
-		postProcessFns: cfg.PostProcessFns,
-		stats:          NewStats(60),
-		lastFrameTime:  time.Now(),
-		sel:            render.NewSelection(),
-		linkRegistry:   NewLinkRegistry(),
+		root:          root,
+		hitGrid:       hitGrid,
+		backend:       backend,
+		config:        cfg,
+		currentBuffer: currentBuffer,
+		nextBuffer:    nextBuffer,
+		width:         w,
+		height:        h,
+		controlState:  StateIdle,
+		parser:        parser,
+		eventBus:      eventBus,
+		pendingWork:   make(chan func()),
+		wake:          make(chan struct{}, 1),
+		stopChan:      make(chan struct{}, 1),
+		done:          make(chan struct{}),
+		invalidated:   true,
+		stats:         NewStats(60),
+		lastFrameTime: time.Now(),
+		sel:           render.NewSelection(),
+		linkRegistry:  NewLinkRegistry(),
 	}
 
 	// Failure to open an optional debug log does not prevent renderer creation.
@@ -665,16 +661,6 @@ func (r *Renderer) renderFrame() {
 		r.dbg.Printf("[frame] #%d  buf=%dx%d", fc, r.nextBuffer.Width(), r.nextBuffer.Height())
 	}
 
-	// Post-processing modifies the complete frame before flushing.
-	r.mu.Lock()
-	fns := make([]func(*buffer.Buffer, float64), len(r.postProcessFns))
-	copy(fns, r.postProcessFns)
-	r.mu.Unlock()
-
-	for _, fn := range fns {
-		fn(r.nextBuffer, deltaTime)
-	}
-
 	// The first frame and resized frames require a complete repaint.
 	tFlush0 := time.Now()
 	if r.invalidated {
@@ -876,26 +862,6 @@ func (r *Renderer) SetBackgroundColor(ci style.ColorInput) {
 // SetTitle sets the terminal window title.
 func (r *Renderer) SetTitle(title string) {
 	r.backend.SetTitle(title)
-}
-
-// AddPostProcessFn appends a callback run after scene rendering and before
-// flushing.
-func (r *Renderer) AddPostProcessFn(fn func(*buffer.Buffer, float64)) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.postProcessFns = append(r.postProcessFns, fn)
-}
-
-// RemovePostProcessFn currently does nothing because Go function values cannot
-// be compared for identity.
-func (r *Renderer) RemovePostProcessFn(fn func(*buffer.Buffer, float64)) {
-}
-
-// ClearPostProcessFns removes all post-process functions.
-func (r *Renderer) ClearPostProcessFns() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.postProcessFns = nil
 }
 
 // Stats returns a snapshot of aggregate rendering statistics.

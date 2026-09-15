@@ -4,7 +4,6 @@ import (
 	"io"
 	"os"
 
-	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
 	"github.com/unaquatic/fluid/style"
 )
@@ -174,9 +173,6 @@ type Config struct {
 	// Alt navigation with ESC prefixes. The default is false.
 	AltSendsEscPrefix bool
 
-	// PostProcessFns run after widget rendering and before terminal flushing.
-	PostProcessFns []func(buf *buffer.Buffer, deltaTime float64)
-
 	// OnDestroy runs after terminal restoration and scene destruction.
 	OnDestroy func()
 
@@ -266,9 +262,6 @@ func mergeConfig(configs []Config) Config {
 	}
 	if user.KittyKeyboardFlags != 0 {
 		cfg.KittyKeyboardFlags = user.KittyKeyboardFlags
-	}
-	if len(user.PostProcessFns) > 0 {
-		cfg.PostProcessFns = user.PostProcessFns
 	}
 	if user.OnDestroy != nil {
 		cfg.OnDestroy = user.OnDestroy

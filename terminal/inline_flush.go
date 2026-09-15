@@ -84,14 +84,6 @@ func (r *Renderer) renderInlineFrame() {
 		NodeCount: syncStats.NodeCount,
 	}
 
-	r.mu.Lock()
-	fns := make([]func(*buffer.Buffer, float64), len(r.postProcessFns))
-	copy(fns, r.postProcessFns)
-	r.mu.Unlock()
-	for _, fn := range fns {
-		fn(r.nextBuffer, deltaTime)
-	}
-
 	r.drawInlineCursor(r.nextBuffer)
 
 	// Widgets publish the cursor while they paint, so the cell it inverted is

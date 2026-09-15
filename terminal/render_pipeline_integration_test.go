@@ -719,36 +719,6 @@ func TestPipeline_HookOrdering(t *testing.T) {
 	}
 }
 
-// TestPipeline_PostProcessModifiesBuffer verifies frame modification after scene
-// rendering.
-func TestPipeline_PostProcessModifiesBuffer(t *testing.T) {
-	r, _ := setupRenderer(10, 1)
-	r.config.BackgroundColor = style.ColorBlack
-
-	// Scene rendering writes X first.
-	child := render.NewBaseRenderable(
-		render.WithID("content"),
-		render.WithWidth(layout.Points(10)),
-		render.WithHeight(layout.Points(1)),
-	)
-	child.RenderBeforeHook = func(buf *buffer.Buffer, dt float64) {
-		buf.SetCell(child.X(), child.Y(), 'X', style.ColorWhite, style.ColorBlack, 0)
-	}
-	r.root.Add(child)
-
-	// Post-processing replaces that cell with P.
-	r.AddPostProcessFn(func(buf *buffer.Buffer, dt float64) {
-		buf.SetCell(0, 0, 'P', style.ColorYellow, style.ColorBlack, 0)
-	})
-
-	r.renderFrame()
-
-	buf := r.CurrentBuffer()
-	if cell := buf.Cell(0, 0); cell.Char != 'P' {
-		t.Errorf("expected 'P' from post-process, got %q", cell.Char)
-	}
-}
-
 // TestPipeline_MultipleFramesNoArtifacts verifies that shorter replacement
 // content leaves no glyphs from a previous frame.
 func TestPipeline_MultipleFramesNoArtifacts(t *testing.T) {
