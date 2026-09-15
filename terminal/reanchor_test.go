@@ -322,7 +322,7 @@ func checkRightEdgeFlush(t *testing.T, mode string, row int) {
 	r.width, r.height = w, h+1
 	width, height := w, h
 	if strings.HasPrefix(mode, "inline") {
-		width, height = w-1, h+1 // Inline output reserves one column and one trailing row.
+		width, height = w-1, h+1 // Inline output reserves the final column against wrapping.
 	}
 	term := newDisagreeingTerm(w, height, jamoTerm)
 	prev, next := rightEdgeBuffer(width, h, -1), rightEdgeBuffer(width, h, row)
@@ -344,8 +344,9 @@ func checkRightEdgeFlush(t *testing.T, mode string, row int) {
 	}
 	term.feed(out.String())
 	checkRightEdgeRows(t, term, next, row)
-	if strings.HasPrefix(mode, "inline") && (term.cx != 0 || term.cy != h) {
-		t.Errorf("inline cursor = (%d, %d), want (0, %d)", term.cx, term.cy, h)
+	// Inline output leaves the cursor at column zero on its last written row.
+	if strings.HasPrefix(mode, "inline") && (term.cx != 0 || term.cy != h-1) {
+		t.Errorf("inline cursor = (%d, %d), want (0, %d)", term.cx, term.cy, h-1)
 	}
 }
 

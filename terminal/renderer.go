@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"bytes"
 	"context"
 	"log"
 	"os"
@@ -81,10 +82,15 @@ type Renderer struct {
 	// Live-render references.
 	liveCount int32 // Accessed atomically.
 
-	// Inline rendering state.
-	lastInlineHeight      int            // Previous content rows plus its trailing cursor row.
+	// Inline rendering state. The terminal holds every row of inlineCurrentBuf,
+	// but only rows inlineViewportTop and below remain addressable; earlier rows
+	// have scrolled into the scrollback.
 	lastInlineLayoutWidth int            // The width used for the previous inline layout.
 	inlineCurrentBuf      *buffer.Buffer // The frame represented by current inline output.
+	inlineViewportTop     int            // The frame row shown on the terminal's first row.
+	inlineCursorRow       int            // The frame row holding the terminal cursor.
+	inlineTermHeight      int            // The terminal height used for the previous flush.
+	inlineEraseNext       bool           // Whether the next flush erases the screen first.
 
 	// Optional diagnostic log.
 	dbg     *log.Logger
@@ -399,9 +405,12 @@ func (r *Renderer) Destroy() {
 
 	r.Stop()
 
-	// Leave a clean line below inline output for subsequent terminal output.
-	if r.config.InlineMode && r.lastInlineHeight > 0 {
-		r.backend.WriteOut([]byte("\r\n"))
+	// Leave the cursor on a clean line below inline output.
+	if r.config.InlineMode && r.inlineCurrentBuf != nil {
+		var out bytes.Buffer
+		inlineMoveRows(&out, r.inlineCurrentBuf.Height()-1-r.inlineCursorRow)
+		out.WriteString("\r\n")
+		r.backend.WriteOut(out.Bytes())
 	}
 
 	_ = r.backend.Restore()
@@ -441,23 +450,45 @@ func (r *Renderer) signal() {
 	}
 }
 
+// HitTesting reports whether pointer targets are resolved against the scene.
+//
+// Inline mode does not hit test. Its frame is addressed in content rows, of
+// which the terminal shows only the rows below the viewport, while a mouse
+// report names a viewport row. Leaving the mouse to the terminal also keeps its
+// own selection and scrollback bindings working.
+func (r *Renderer) HitTesting() bool {
+	return r.hitGrid != nil && !r.InlineMode()
+}
+
 // AddToHitGrid registers a clipped renderable area in the hit grid.
 func (r *Renderer) AddToHitGrid(x, y, w, h int, id uint64) {
+	if !r.HitTesting() {
+		return
+	}
 	r.hitGrid.AddClipped(x, y, w, h, id)
 }
 
 // PushHitGridScissorRect restricts subsequent hit-grid registrations.
 func (r *Renderer) PushHitGridScissorRect(x, y, w, h int) {
+	if !r.HitTesting() {
+		return
+	}
 	r.hitGrid.PushScissorRect(x, y, w, h)
 }
 
 // PopHitGridScissorRect restores the preceding hit-grid clipping region.
 func (r *Renderer) PopHitGridScissorRect() {
+	if !r.HitTesting() {
+		return
+	}
 	r.hitGrid.PopScissorRect()
 }
 
 // ClearHitGrid clears the hit grid and all scissor rects.
 func (r *Renderer) ClearHitGrid() {
+	if !r.HitTesting() {
+		return
+	}
 	r.hitGrid.Clear()
 	r.hitGrid.ClearScissorRects()
 }
@@ -579,16 +610,12 @@ func (r *Renderer) processResize(w, h int) {
 	}
 
 	if r.config.InlineMode {
-		// Inline layout uses terminal width and content-derived height.
+		// Inline layout uses terminal width and content-derived height. A height
+		// change is detected by the flush, which then rewrites every row.
 		r.invalidated = true
 		r.hitGrid.Resize(w, h)
 		r.root.LayoutNode().Width = layout.Points(w)
 		r.root.LayoutNode().MarkDirty()
-		// Force an overflow-style clear only after output exists or when explicitly
-		// requested for startup.
-		if r.lastInlineHeight > 0 || r.config.ClearScreenOnStart {
-			r.lastInlineHeight = h + 1
-		}
 	} else {
 		// Fullscreen resize invalidates both frame buffers for a complete repaint.
 		r.currentBuffer.Resize(w, h)
@@ -897,7 +924,9 @@ func (r *Renderer) setup() error {
 		return err
 	}
 
-	if r.config.UseMouse {
+	// Inline mode does not hit test, so mouse reports would be discarded while
+	// suppressing the terminal's own selection and scrolling.
+	if r.config.UseMouse && !r.config.InlineMode {
 		r.backend.EnableMouse(r.config.EnableMouseMovement)
 	}
 
@@ -908,6 +937,7 @@ func (r *Renderer) setup() error {
 	if r.config.InlineMode {
 		// Inline mode retains normal scrollback and draws a visual cursor in cells.
 		r.backend.HideCursor()
+		r.inlineEraseNext = r.config.ClearScreenOnStart
 	} else {
 		// Non-inline rendering begins from a cleared screen.
 		r.backend.Clear()

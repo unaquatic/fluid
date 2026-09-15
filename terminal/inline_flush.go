@@ -3,6 +3,7 @@ package terminal
 import (
 	"bytes"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/unaquatic/fluid/buffer"
@@ -10,6 +11,17 @@ import (
 )
 
 const inlineMaxLayoutHeight = 10000
+
+// Terminal control sequences used by inline output.
+const (
+	inlineBeginSync = "\x1b[?2026h"
+	inlineEndSync   = "\x1b[?2026l"
+	inlineNoWrap    = "\x1b[?7l"
+	inlineWrap      = "\x1b[?7h"
+	inlineEraseRow  = "\x1b[2K"
+	inlineResetSGR  = "\x1b[0m"
+	inlineEraseAll  = "\x1b[2J\x1b[H\x1b[3J"
+)
 
 // renderInlineFrame lays out content-height output, renders it, and flushes it
 // into the normal terminal screen.
@@ -47,10 +59,7 @@ func (r *Renderer) renderInlineFrame() {
 	r.nextBuffer.Clear(bgColor)
 	clearDur := time.Since(tClear0)
 
-	if r.hitGrid != nil {
-		r.hitGrid.Resize(layoutWidth, contentHeight)
-	}
-
+	// The hit grid is not maintained inline, so it is neither sized nor filled.
 	execStats := r.root.ExecuteRender(r.nextBuffer, deltaTime)
 
 	r.root.LastFrameStats = FrameStats{
@@ -73,22 +82,7 @@ func (r *Renderer) renderInlineFrame() {
 		fn(r.nextBuffer, deltaTime)
 	}
 
-	// Inline mode represents the cursor by inverting a cell while keeping the
-	// hardware cursor hidden.
-	r.mu.Lock()
-	cx := r.cursorX
-	cy := r.cursorY
-	cursorVisible := r.cursorVisible
-	r.mu.Unlock()
-
-	if cursorVisible && cx >= 0 && cx < r.nextBuffer.Width() && cy >= 0 && cy < contentHeight {
-		cell := r.nextBuffer.Cell(cx, cy)
-		cell.Fg, cell.Bg = cell.Bg, cell.Fg
-		if cell.Char == 0 {
-			cell.Char = ' '
-		}
-		r.nextBuffer.SetCellDirect(cx, cy, cell)
-	}
+	r.drawInlineCursor(r.nextBuffer)
 
 	tFlush0 := time.Now()
 	r.InlineFlush(r.nextBuffer)
@@ -105,231 +99,251 @@ func (r *Renderer) renderInlineFrame() {
 	}
 }
 
-// InlineFlush updates inline output. It rewrites only changed rows when a
-// compatible previous frame exists. The first frame, a width change, or content
-// taller than the terminal triggers a complete rewrite.
-func (r *Renderer) InlineFlush(buf *buffer.Buffer) {
-	flushStart := time.Now()
-	width := buf.Width()
-	height := buf.Height()
+// drawInlineCursor inverts the cell under the cursor. Inline mode keeps the
+// hardware cursor hidden because it cannot be placed in the scrollback.
+func (r *Renderer) drawInlineCursor(buf *buffer.Buffer) {
 	r.mu.Lock()
-	termHeight := r.height
+	x, y, visible := r.cursorX, r.cursorY, r.cursorVisible
 	r.mu.Unlock()
-	if termHeight < 1 {
-		termHeight = height
-	}
 
-	overflow := height > termHeight || r.lastInlineHeight > termHeight
-
-	// Row-level diffing requires matching widths and reliable on-screen cursor
-	// state.
-	prev := r.inlineCurrentBuf
-	useDiff := !overflow && prev != nil && prev.Width() == width
-
-	var out bytes.Buffer
-	tBuild0 := time.Now()
-
-	if useDiff {
-		r.buildInlineDiff(&out, prev, buf)
-	} else {
-		r.buildInlineFull(&out, buf, overflow)
-	}
-
-	buildDur := time.Since(tBuild0)
-	outBytes := out.Len()
-	tWrite0 := time.Now()
-	if outBytes > 0 {
-		r.backend.WriteOut(out.Bytes())
-	}
-	writeDur := time.Since(tWrite0)
-
-	// Expose build and write timings through the frame statistics.
-	r.root.LastFrameStats.FlushBuild = buildDur
-	r.root.LastFrameStats.FlushWrite = writeDur
-	r.root.LastFrameStats.FlushBytes = outBytes
-	_ = flushStart
-
-	// Overflow makes scrollback position unreliable, so the next non-overflow
-	// frame must start with a complete rewrite.
-	if overflow {
-		r.inlineCurrentBuf = nil
-	} else {
-		if r.inlineCurrentBuf == nil || r.inlineCurrentBuf.Width() != width || r.inlineCurrentBuf.Height() != height {
-			r.inlineCurrentBuf = buffer.New(width, height)
-		}
-		r.inlineCurrentBuf.CopyFrom(buf)
-	}
-
-	// Track content rows plus the trailing cursor row.
-	r.lastInlineHeight = height + 1
-}
-
-// buildInlineFull erases prior inline output and writes every current row.
-// Overflow clears the screen and scrollback; normal output erases the known
-// previous rows in place.
-func (r *Renderer) buildInlineFull(out *bytes.Buffer, buf *buffer.Buffer, overflow bool) {
-	width := buf.Width()
-	height := buf.Height()
-
-	out.Grow(width * height * 4)
-
-	// Use synchronized output and disable automatic wrapping during the rewrite.
-	out.WriteString("\x1b[?2026h\x1b[?7l")
-
-	if overflow {
-		// Reset screen, scrollback, and cursor when content exceeds the viewport.
-		out.WriteString("\x1b[2J\x1b[3J\x1b[H")
-	} else if r.lastInlineHeight > 0 {
-		// Erase each known output row while walking back to the content origin.
-		for i := 0; i < r.lastInlineHeight; i++ {
-			out.WriteString("\x1b[2K")
-			if i < r.lastInlineHeight-1 {
-				out.WriteString("\x1b[A")
-			}
-		}
-		out.WriteString("\x1b[G") // Return to the first column.
-	}
-
-	curFg := style.Color{}
-	curBg := style.Color{}
-	var curAttrs uint32
-	var curLinkID uint32
-	needsReset := true
-	linesWritten := 0
-
-	for y := range height {
-		lastCol := inlineRowLastCol(buf, y, width)
-
-		if linesWritten > 0 {
-			out.WriteString("\r\n")
-		}
-		linesWritten++
-		anchored := true // CRLF placed the cursor at column zero.
-
-		for x := 0; x <= lastCol; x++ {
-			cell := buf.Cell(x, y)
-			ch, ok := flushRune(buf, x, y, cell)
-			if !ok {
-				continue // The cluster head accounts for this continuation.
-			}
-
-			if !anchored {
-				anchorColumn(out, x)
-				anchored = true
-			}
-
-			if needsReset || !cell.Fg.Equals(curFg) || !cell.Bg.Equals(curBg) || cell.Attributes != curAttrs {
-				out.WriteString(buildSGR(cell.Fg, cell.Bg, cell.Attributes, r.backend.ColorMode()))
-				curFg = cell.Fg
-				curBg = cell.Bg
-				curAttrs = cell.Attributes
-				needsReset = false
-			}
-
-			linkID := style.GetLinkID(cell.Attributes)
-			if linkID != curLinkID {
-				if linkID != 0 {
-					url := r.linkRegistry.URL(linkID)
-					out.WriteString(fmt.Sprintf("\x1b]8;;%s\x1b\\", url))
-				} else {
-					out.WriteString("\x1b]8;;\x1b\\")
-				}
-				curLinkID = linkID
-			}
-
-			out.WriteRune(ch)
-			if ch == cell.Char {
-				out.WriteString(cell.Combining)
-				anchored = !widthUncertain(cell)
-			}
-		}
-	}
-
-	// Leave the cursor at column zero on the line below the content.
-	out.WriteString("\r\n")
-
-	// Close an active link and reset SGR before restoring terminal modes.
-	if curLinkID != 0 {
-		out.WriteString("\x1b]8;;\x1b\\")
-	}
-	out.WriteString("\x1b[0m")
-
-	out.WriteString("\x1b[?7h\x1b[?2026l")
-}
-
-// buildInlineDiff rewrites changed common rows, appends added rows, and erases
-// removed rows. Unchanged rows produce no output.
-//
-// On return, the cursor is at column zero on the row after the new content.
-func (r *Renderer) buildInlineDiff(out *bytes.Buffer, prev, next *buffer.Buffer) {
-	width := next.Width()
-	prevH := prev.Height()
-	newH := next.Height()
-	commonH := min(prevH, newH)
-
-	// Compare rows shared by both frames.
-	dirtyRows := make([]int, 0, 8)
-	for y := 0; y < commonH; y++ {
-		if !inlineRowsEqual(prev, next, y, width) {
-			dirtyRows = append(dirtyRows, y)
-		}
-	}
-
-	heightGrew := newH > prevH
-	heightShrunk := newH < prevH
-
-	// Identical dimensions and rows require no terminal output.
-	if len(dirtyRows) == 0 && !heightGrew && !heightShrunk {
+	if !visible || x < 0 || x >= buf.Width() || y < 0 || y >= buf.Height() {
 		return
 	}
 
-	// Reserve approximately four bytes per cell in rows that will be written.
-	estRows := len(dirtyRows)
-	if heightGrew {
-		estRows += newH - prevH
+	cell := buf.Cell(x, y)
+	cell.Fg, cell.Bg = cell.Bg, cell.Fg
+	if cell.Char == 0 {
+		cell.Char = ' '
 	}
-	out.Grow(width * estRows * 4)
+	buf.SetCellDirect(x, y, cell)
+}
 
-	out.WriteString("\x1b[?2026h\x1b[?7l") // Synchronize output and disable automatic wrapping.
+// InlineFlush updates inline output to match buf.
+//
+// Rows above the viewport have scrolled into the terminal's scrollback, where
+// they cannot be addressed and are never rewritten. Content reaching past the
+// last terminal row scrolls the terminal, which moves the rows at the top into
+// the scrollback.
+//
+// A first frame writes every row. A width change, a height change, or a change
+// to a row already in the scrollback clears the screen and rewrites every row.
+// Every other frame writes only the rows that differ.
+func (r *Renderer) InlineFlush(buf *buffer.Buffer) {
+	termHeight := r.inlineTermRows(buf.Height())
+	prev := r.inlineCurrentBuf
 
-	// The previous flush left the cursor one row after the old content.
-	curRow := prevH
+	switch {
+	case prev == nil:
+		r.inlineFullFlush(buf, termHeight, r.inlineEraseNext)
+		return
+	case prev.Width() != buf.Width(), r.inlineTermHeight != termHeight:
+		r.inlineFullFlush(buf, termHeight, true)
+		return
+	}
+
+	first, last := inlineChangedRows(prev, buf)
+	switch {
+	case first < 0:
+		r.storeInline(buf, termHeight, r.inlineViewportTop, r.inlineCursorRow)
+	case first < r.inlineViewportTop:
+		r.inlineFullFlush(buf, termHeight, true)
+	default:
+		r.inlineDiffFlush(buf, prev, first, last, termHeight)
+	}
+}
+
+// inlineFullFlush writes every row of buf. Erasing the screen and scrollback
+// first is required whenever previously written rows can no longer be located.
+func (r *Renderer) inlineFullFlush(buf *buffer.Buffer, termHeight int, erase bool) {
+	width, height := buf.Width(), buf.Height()
+
+	var out bytes.Buffer
+	out.Grow(width * height * 4)
+	out.WriteString(inlineBeginSync + inlineNoWrap)
+	if erase {
+		out.WriteString(inlineEraseAll)
+	}
+
 	colorMode := r.backend.ColorMode()
-
-	// Rewrite changed rows while cursor movement skips unchanged rows.
-	for _, y := range dirtyRows {
-		inlineMoveToRow(out, curRow, y)
-		curRow = y
-		out.WriteString("\x1b[2K") // Clear the complete previous row.
-		r.writeInlineRow(out, next, y, width, colorMode)
-	}
-
-	// Append rows added below the previous content.
-	if heightGrew {
-		inlineMoveToRow(out, curRow, prevH)
-		curRow = prevH
-		for y := prevH; y < newH; y++ {
-			out.WriteString("\x1b[2K")
-			r.writeInlineRow(out, next, y, width, colorMode)
+	for y := range height {
+		if y > 0 {
 			out.WriteString("\r\n")
-			curRow = y + 1
 		}
+		out.WriteString(inlineEraseRow)
+		r.writeInlineRow(&out, buf, y, width, colorMode)
 	}
 
-	// Erase rows removed from the previous frame.
-	if heightShrunk {
-		for y := newH; y < prevH; y++ {
-			inlineMoveToRow(out, curRow, y)
-			curRow = y
-			out.WriteString("\x1b[2K")
-		}
+	// The cursor stays on the last written row, at column zero so the next frame
+	// can move by whole rows.
+	out.WriteString("\r" + inlineResetSGR + inlineWrap + inlineEndSync)
+	r.writeInline(&out, "full")
+
+	// Writing past the last terminal row scrolled the rows above out of reach.
+	r.storeInline(buf, termHeight, height-termHeight, max(height-1, 0))
+}
+
+// inlineDiffFlush rewrites rows first through last. It scrolls the terminal
+// when the change sits below the viewport, and erases rows that buf dropped.
+func (r *Renderer) inlineDiffFlush(buf, prev *buffer.Buffer, first, last, termHeight int) {
+	newHeight, prevHeight := buf.Height(), prev.Height()
+	renderEnd := min(last, newHeight-1)
+	bottom := max(newHeight-1, 0)
+
+	// An appended row does not exist on screen yet, so the cursor stops on the
+	// row above it and a newline opens it.
+	target, appendStart := first, false
+	switch {
+	case first > renderEnd:
+		target = bottom // Only dropped rows changed.
+	case first == prevHeight && first > 0:
+		target, appendStart = first-1, true
 	}
 
-	// Restore the trailing cursor position below the new content.
-	inlineMoveToRow(out, curRow, newH)
+	var out bytes.Buffer
+	out.WriteString(inlineBeginSync + inlineNoWrap)
 
-	out.WriteString("\x1b[0m")
-	out.WriteString("\x1b[?7h\x1b[?2026l") // Restore wrapping and end synchronized output.
+	viewportTop, cursorRow := r.inlineScroll(&out, target, termHeight)
+	inlineMoveRows(&out, target-cursorRow)
+	cursorRow = target
+
+	if appendStart {
+		out.WriteString("\r\n")
+		cursorRow = first
+	} else {
+		out.WriteString("\r")
+	}
+
+	colorMode := r.backend.ColorMode()
+	for y := first; y <= renderEnd; y++ {
+		if y > first {
+			out.WriteString("\r\n")
+		}
+		out.WriteString(inlineEraseRow)
+		r.writeInlineRow(&out, buf, y, buf.Width(), colorMode)
+		cursorRow = y
+	}
+
+	// Park on the last row of content so every frame starts from one position.
+	if cursorRow < bottom {
+		inlineMoveRows(&out, bottom-cursorRow)
+		cursorRow = bottom
+	}
+
+	// Erasing dropped rows walks below the cursor and returns to it.
+	deepest := cursorRow + inlineEraseDropped(&out, newHeight, prevHeight)
+
+	out.WriteString("\r" + inlineResetSGR + inlineWrap + inlineEndSync)
+	r.writeInline(&out, "diff")
+
+	// Rows written past the last terminal row scrolled the viewport down.
+	r.storeInline(buf, termHeight, max(viewportTop, deepest-termHeight+1), cursorRow)
+}
+
+// inlineScroll scrolls the terminal until row target can be addressed, and
+// returns the resulting viewport and cursor rows. Scrolling moves the rows at
+// the top of the screen into the scrollback.
+func (r *Renderer) inlineScroll(out *bytes.Buffer, target, termHeight int) (viewportTop, cursorRow int) {
+	viewportTop, cursorRow = r.inlineViewportTop, r.inlineCursorRow
+
+	bottom := viewportTop + termHeight - 1
+	if target <= bottom {
+		return viewportTop, cursorRow
+	}
+
+	inlineMoveRows(out, bottom-cursorRow)
+	scroll := target - bottom
+	out.WriteString(strings.Repeat("\r\n", scroll))
+	return viewportTop + scroll, target
+}
+
+// inlineEraseDropped erases the rows a shorter frame no longer occupies and
+// returns the cursor to the row it started on. It returns the number of rows it
+// walked below that row, which is how far the terminal may have scrolled.
+func inlineEraseDropped(out *bytes.Buffer, newHeight, prevHeight int) int {
+	dropped := max(prevHeight-newHeight, 0)
+	if dropped == 0 {
+		return 0
+	}
+
+	for range dropped {
+		out.WriteString("\r\n" + inlineEraseRow)
+	}
+	inlineMoveRows(out, -dropped)
+	return dropped
+}
+
+// storeInline records the frame the terminal now shows.
+func (r *Renderer) storeInline(buf *buffer.Buffer, termHeight, viewportTop, cursorRow int) {
+	current := r.inlineCurrentBuf
+	if current == nil || current.Width() != buf.Width() || current.Height() != buf.Height() {
+		current = buffer.New(buf.Width(), buf.Height())
+		r.inlineCurrentBuf = current
+	}
+	current.CopyFrom(buf)
+
+	r.inlineTermHeight = termHeight
+	r.inlineViewportTop = max(viewportTop, 0)
+	r.inlineCursorRow = cursorRow
+	r.inlineEraseNext = false
+}
+
+// writeInline sends out to the terminal and records flush statistics.
+func (r *Renderer) writeInline(out *bytes.Buffer, kind string) {
+	start := time.Now()
+	r.backend.WriteOut(out.Bytes())
+
+	r.root.LastFrameStats.FlushWrite = time.Since(start)
+	r.root.LastFrameStats.FlushBytes = out.Len()
+	if r.dbg != nil {
+		r.dbg.Printf("[flush] %s\tbytes=%d\ttop=%d\tcursor=%d", kind, out.Len(), r.inlineViewportTop, r.inlineCursorRow)
+	}
+}
+
+// inlineTermRows returns the terminal height, or fallback when it is unknown.
+func (r *Renderer) inlineTermRows(fallback int) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.height < 1 {
+		return fallback
+	}
+	return r.height
+}
+
+// inlineChangedRows returns the first and last rows in which prev and next
+// differ, or -1, -1 when they match. Rows beyond a frame's height are clear.
+func inlineChangedRows(prev, next *buffer.Buffer) (first, last int) {
+	width := next.Width()
+	first, last = -1, -1
+
+	for y := range max(prev.Height(), next.Height()) {
+		if inlineRowsEqual(prev, next, y, width) {
+			continue
+		}
+		if first < 0 {
+			first = y
+		}
+		last = y
+	}
+
+	// Appended rows are new even when they are clear.
+	if next.Height() > prev.Height() {
+		if first < 0 {
+			first = prev.Height()
+		}
+		last = next.Height() - 1
+	}
+	return first, last
+}
+
+// inlineMoveRows moves the cursor down by delta rows, or up when delta is
+// negative.
+func inlineMoveRows(out *bytes.Buffer, delta int) {
+	switch {
+	case delta > 0:
+		fmt.Fprintf(out, "\x1b[%dB", delta)
+	case delta < 0:
+		fmt.Fprintf(out, "\x1b[%dA", -delta)
+	}
 }
 
 // writeInlineRow writes through the final non-clear cell in row y. Each call
@@ -388,18 +402,6 @@ func (r *Renderer) writeInlineRow(out *bytes.Buffer, buf *buffer.Buffer, y, widt
 	// Close any open hyperlink within this row.
 	if curLinkID != 0 {
 		out.WriteString("\x1b]8;;\x1b\\")
-	}
-}
-
-// inlineMoveToRow moves between zero-based content rows and returns to column
-// zero.
-func inlineMoveToRow(out *bytes.Buffer, from, to int) {
-	if to < from {
-		fmt.Fprintf(out, "\x1b[%dA\r", from-to)
-	} else if to > from {
-		fmt.Fprintf(out, "\x1b[%dB\r", to-from)
-	} else {
-		out.WriteString("\r")
 	}
 }
 
