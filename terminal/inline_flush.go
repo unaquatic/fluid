@@ -49,29 +49,39 @@ func (r *Renderer) renderInlineFrame() {
 	}
 
 	prepStats := r.root.PrepareLayout(deltaTime)
+	syncStats := r.root.SyncPositions(deltaTime)
 
 	contentHeight := max(r.computeContentHeight(), 1)
 
-	if r.nextBuffer.Width() != layoutWidth || r.nextBuffer.Height() != contentHeight {
+	// A resized frame has no usable previous content, so everything is damaged.
+	resized := r.nextBuffer.Width() != layoutWidth || r.nextBuffer.Height() != contentHeight
+	if resized {
 		r.nextBuffer = buffer.New(layoutWidth, contentHeight)
 	}
-	tClear0 := time.Now()
-	r.nextBuffer.Clear(bgColor)
-	clearDur := time.Since(tClear0)
 
-	// The hit grid is not maintained inline, so it is neither sized nor filled.
-	execStats := r.root.ExecuteRender(r.nextBuffer, deltaTime)
+	damage := r.inlineDamage(layoutWidth, contentHeight, resized)
+
+	var clearDur time.Duration
+	var execStats FrameStats
+	if !damage.IsEmpty() {
+		tClear0 := time.Now()
+		r.nextBuffer.FillRect(damage.X, damage.Y, damage.Width, damage.Height, bgColor)
+		clearDur = time.Since(tClear0)
+
+		// The hit grid is not maintained inline, so it is neither sized nor filled.
+		execStats = r.root.Draw(r.nextBuffer, deltaTime, damage)
+	}
 
 	r.root.LastFrameStats = FrameStats{
 		Lifecycle: prepStats.Lifecycle,
 		Update:    prepStats.Update,
 		Layout:    prepStats.Layout,
-		Sync:      execStats.Sync,
+		Sync:      syncStats.Sync,
 		Commands:  execStats.Commands,
 		Render:    execStats.Render,
 		BufClear:  clearDur,
 		CmdCount:  execStats.CmdCount,
-		NodeCount: prepStats.NodeCount,
+		NodeCount: syncStats.NodeCount,
 	}
 
 	r.mu.Lock()
@@ -83,6 +93,11 @@ func (r *Renderer) renderInlineFrame() {
 	}
 
 	r.drawInlineCursor(r.nextBuffer)
+
+	// Widgets publish the cursor while they paint, so the cell it inverted is
+	// only known now. The flush has to compare and store that row even when the
+	// scene damage does not reach it.
+	r.inlineDamaged = damage.Union(r.inlineCursorCell)
 
 	tFlush0 := time.Now()
 	r.InlineFlush(r.nextBuffer)
@@ -99,13 +114,42 @@ func (r *Renderer) renderInlineFrame() {
 	}
 }
 
+// inlineDamage returns the region of the frame to repaint. Rows above the
+// viewport have scrolled into the scrollback, where a repaint could not reach
+// them, so damage never extends above it.
+//
+// A resized frame, or one whose previous content was discarded, is damaged in
+// full.
+func (r *Renderer) inlineDamage(width, height int, resized bool) buffer.Rect {
+	full := buffer.Rect{Width: width, Height: height}
+	if resized || r.inlineCurrentBuf == nil {
+		r.root.ResetDamage() // A full repaint leaves nothing for the next frame.
+		return full
+	}
+
+	viewport := buffer.Rect{
+		Y:      r.inlineViewportTop,
+		Width:  width,
+		Height: height - r.inlineViewportTop,
+	}
+	// The cell the cursor inverted last frame has to be repainted before the
+	// inversion moves. Where it moves to is not known until widgets paint, so
+	// the frame widens its damage again once they have.
+	damage := r.root.TakeDamage().Union(r.inlineCursorCell)
+	return damage.Intersect(viewport)
+}
+
 // drawInlineCursor inverts the cell under the cursor. Inline mode keeps the
 // hardware cursor hidden because it cannot be placed in the scrollback.
+//
+// Widgets publish their cursor position while painting, so this reads the
+// position after the scene is drawn and records the cell it inverted.
 func (r *Renderer) drawInlineCursor(buf *buffer.Buffer) {
 	r.mu.Lock()
 	x, y, visible := r.cursorX, r.cursorY, r.cursorVisible
 	r.mu.Unlock()
 
+	r.inlineCursorCell = buffer.Rect{}
 	if !visible || x < 0 || x >= buf.Width() || y < 0 || y >= buf.Height() {
 		return
 	}
@@ -116,6 +160,7 @@ func (r *Renderer) drawInlineCursor(buf *buffer.Buffer) {
 		cell.Char = ' '
 	}
 	buf.SetCellDirect(x, y, cell)
+	r.inlineCursorCell = buffer.Rect{X: x, Y: y, Width: 1, Height: 1}
 }
 
 // InlineFlush updates inline output to match buf.
@@ -141,7 +186,10 @@ func (r *Renderer) InlineFlush(buf *buffer.Buffer) {
 		return
 	}
 
-	first, last := inlineChangedRows(prev, buf)
+	// Only repainted rows can differ, so the comparison starts at the damage.
+	// Dropped rows lie below the frame and are always considered.
+	from := min(r.inlineDamaged.Y, buf.Height())
+	first, last := inlineChangedRows(prev, buf, from)
 	switch {
 	case first < 0:
 		r.storeInline(buf, termHeight, r.inlineViewportTop, r.inlineCursorRow)
@@ -273,13 +321,18 @@ func inlineEraseDropped(out *bytes.Buffer, newHeight, prevHeight int) int {
 }
 
 // storeInline records the frame the terminal now shows.
+//
+// Only the repainted rows are copied. The frame buffer is never cleared outside
+// its damage, so both buffers already agree everywhere else.
 func (r *Renderer) storeInline(buf *buffer.Buffer, termHeight, viewportTop, cursorRow int) {
 	current := r.inlineCurrentBuf
 	if current == nil || current.Width() != buf.Width() || current.Height() != buf.Height() {
 		current = buffer.New(buf.Width(), buf.Height())
 		r.inlineCurrentBuf = current
+		current.CopyFrom(buf)
+	} else {
+		current.CopyRowsFrom(buf, r.inlineDamaged.Y, r.inlineDamaged.Height)
 	}
-	current.CopyFrom(buf)
 
 	r.inlineTermHeight = termHeight
 	r.inlineViewportTop = max(viewportTop, 0)
@@ -309,13 +362,14 @@ func (r *Renderer) inlineTermRows(fallback int) int {
 	return r.height
 }
 
-// inlineChangedRows returns the first and last rows in which prev and next
-// differ, or -1, -1 when they match. Rows beyond a frame's height are clear.
-func inlineChangedRows(prev, next *buffer.Buffer) (first, last int) {
+// inlineChangedRows returns the first and last rows at or below from in which
+// prev and next differ, or -1, -1 when they match. Rows beyond a frame's height
+// are clear.
+func inlineChangedRows(prev, next *buffer.Buffer, from int) (first, last int) {
 	width := next.Width()
 	first, last = -1, -1
 
-	for y := range max(prev.Height(), next.Height()) {
+	for y := max(from, 0); y < max(prev.Height(), next.Height()); y++ {
 		if inlineRowsEqual(prev, next, y, width) {
 			continue
 		}

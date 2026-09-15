@@ -53,6 +53,11 @@ type Renderable interface {
 	SetVisible(v bool)
 	// IsDirty reports whether the renderable requires repainting.
 	IsDirty() bool
+	// Damage returns the region the renderable must repaint, or an empty
+	// rectangle when it is unchanged.
+	Damage() buffer.Rect
+	// ClearDamage forgets a vacated region once it has been repainted.
+	ClearDamage()
 	// RequestRender marks the renderable dirty and requests a scene repaint.
 	RequestRender()
 	// IsDestroyed reports whether Destroy was called.

@@ -19,28 +19,45 @@ func (r Rect) Contains(x, y int) bool {
 	return x >= r.X && x < r.X+r.Width && y >= r.Y && y < r.Y+r.Height
 }
 
-// Intersect returns the intersection of r and other. A disjoint intersection
-// has zero width or height.
+// Intersect returns the intersection of r and other, or the zero rectangle
+// when they do not overlap.
 func (r Rect) Intersect(other Rect) Rect {
 	x1 := max(r.X, other.X)
 	y1 := max(r.Y, other.Y)
 	x2 := min(r.Right(), other.Right())
 	y2 := min(r.Bottom(), other.Bottom())
 
-	w := x2 - x1
-	h := y2 - y1
-	if w < 0 {
-		w = 0
+	// An empty result carries no position. Callers read X and Y without
+	// rechecking IsEmpty, so a positioned empty rectangle misdirects them.
+	if x2 <= x1 || y2 <= y1 {
+		return Rect{}
 	}
-	if h < 0 {
-		h = 0
-	}
-	return Rect{X: x1, Y: y1, Width: w, Height: h}
+	return Rect{X: x1, Y: y1, Width: x2 - x1, Height: y2 - y1}
 }
 
 // IsEmpty reports whether r has no area.
 func (r Rect) IsEmpty() bool {
 	return r.Width <= 0 || r.Height <= 0
+}
+
+// Union returns the smallest rectangle containing both r and other, or the zero
+// rectangle when both are empty. An empty operand contributes nothing.
+func (r Rect) Union(other Rect) Rect {
+	switch {
+	case r.IsEmpty() && other.IsEmpty():
+		// Neither operand has area, so neither contributes a position.
+		return Rect{}
+	case r.IsEmpty():
+		return other
+	case other.IsEmpty():
+		return r
+	}
+
+	x1 := min(r.X, other.X)
+	y1 := min(r.Y, other.Y)
+	x2 := max(r.Right(), other.Right())
+	y2 := max(r.Bottom(), other.Bottom())
+	return Rect{X: x1, Y: y1, Width: x2 - x1, Height: y2 - y1}
 }
 
 // Right returns the exclusive right edge of r.
@@ -751,6 +768,24 @@ func (b *Buffer) CopyFrom(src *Buffer) {
 		return
 	}
 	copy(b.cells, src.cells)
+}
+
+// CopyRowsFrom replaces rows [y, y+height) of b with the corresponding rows of
+// src, copying only the rows both buffers hold.
+//
+// Buffers of differing width lay their rows out differently, so no row
+// corresponds and it copies nothing.
+func (b *Buffer) CopyRowsFrom(src *Buffer, y, height int) {
+	if b.width != src.width {
+		return
+	}
+
+	top := max(y, 0)
+	bottom := min(y+height, min(b.height, src.height))
+	if top >= bottom {
+		return
+	}
+	copy(b.cells[top*b.width:bottom*b.width], src.cells[top*b.width:bottom*b.width])
 }
 
 // Resize changes the dimensions of b, clears its cells, and resets its

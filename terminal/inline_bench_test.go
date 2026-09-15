@@ -61,7 +61,9 @@ func newTextRow(id string, width, height int) *textRow {
 	return t
 }
 
-func (t *textRow) Render(buf *buffer.Buffer, _ float64) {
+// RenderSelf is the widget content override point, so the base keeps its damage
+// bookkeeping, exactly as the real widgets do.
+func (t *textRow) RenderSelf(buf *buffer.Buffer, _ float64) {
 	for y := range t.Height() {
 		buf.DrawText(t.text, t.X(), t.Y()+y, style.ColorWhite)
 	}
@@ -100,7 +102,8 @@ func BenchmarkInlineFrame_Keystroke(b *testing.B) {
 
 				b.ReportAllocs()
 				for b.Loop() {
-					prompt.LayoutNode().MarkDirty()
+					// Typing changes the prompt and nothing else.
+					prompt.RequestRender()
 					r.renderInlineFrame()
 				}
 
@@ -111,6 +114,70 @@ func BenchmarkInlineFrame_Keystroke(b *testing.B) {
 				b.ReportMetric(float64(stats.Flush.Microseconds()), "flush-us")
 			})
 		}
+	}
+}
+
+// BenchmarkInlineFramePhases breaks a keystroke into its per-frame passes over
+// a nested tree, which is the shape a real transcript has.
+func BenchmarkInlineFramePhases(b *testing.B) {
+	const width, height = 120, 40
+	const rowsPerBubble, childrenPerBubble = 5, 4
+
+	for _, bubbles := range []int{100, 1000} {
+		b.Run(fmt.Sprintf("bubbles=%d", bubbles), func(b *testing.B) {
+			r := benchInlineRenderer(width, height)
+			for i := range bubbles {
+				outer := render.NewBaseRenderable(render.WithID(fmt.Sprintf("bubble-%d", i)),
+					render.WithWidth(layout.Points(width-1)))
+				for j := range childrenPerBubble {
+					outer.Add(newTextRow(fmt.Sprintf("bubble-%d-%d", i, j),
+						width-3, rowsPerBubble/childrenPerBubble+1))
+				}
+				r.root.Add(outer)
+			}
+			prompt := newTextRow("prompt", width-1, 3)
+			r.root.Add(prompt)
+			r.renderInlineFrame()
+
+			nodes := bubbles*(1+childrenPerBubble) + 2
+			b.ReportMetric(float64(nodes), "nodes")
+			b.ReportAllocs()
+			for b.Loop() {
+				prompt.RequestRender()
+				r.renderInlineFrame()
+			}
+
+			s := r.root.LastFrameStats
+			b.ReportMetric(float64(s.Layout.Nanoseconds())/1000, "layout-us")
+			b.ReportMetric(float64(s.Sync.Nanoseconds())/1000, "sync-us")
+			b.ReportMetric(float64(s.Commands.Nanoseconds())/1000, "cmds-us")
+			b.ReportMetric(float64(s.Render.Nanoseconds())/1000, "render-us")
+		})
+	}
+}
+
+// BenchmarkInlineDamageScan measures the tree walk that collects damage, which
+// runs once per frame regardless of how little changed.
+func BenchmarkInlineDamageScan(b *testing.B) {
+	const width, height = 120, 40
+	for _, bubbles := range []int{100, 1000} {
+		b.Run(fmt.Sprintf("bubbles=%d", bubbles), func(b *testing.B) {
+			r := benchInlineRenderer(width, height)
+			for i := range bubbles {
+				outer := render.NewBaseRenderable(render.WithID(fmt.Sprintf("bubble-%d", i)),
+					render.WithWidth(layout.Points(width-1)))
+				for j := range 4 {
+					outer.Add(newTextRow(fmt.Sprintf("bubble-%d-%d", i, j), width-3, 2))
+				}
+				r.root.Add(outer)
+			}
+			r.renderInlineFrame()
+
+			b.ReportAllocs()
+			for b.Loop() {
+				r.root.TakeDamage()
+			}
+		})
 	}
 }
 
@@ -132,7 +199,7 @@ func BenchmarkInlineChangedRows(b *testing.B) {
 
 			b.ReportAllocs()
 			for b.Loop() {
-				inlineChangedRows(prev, next)
+				inlineChangedRows(prev, next, 0)
 			}
 		})
 	}

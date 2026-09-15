@@ -731,6 +731,60 @@ func TestRect_Intersect_NoOverlap(t *testing.T) {
 	}
 }
 
+// TestRectEmptyResultsAreZero pins the property callers rely on: an empty
+// result carries no position, so reading X or Y without rechecking IsEmpty
+// cannot pick up a stale coordinate.
+func TestRectEmptyResultsAreZero(t *testing.T) {
+	tests := []struct {
+		name string
+		got  Rect
+	}{
+		{
+			name: "intersect misses entirely",
+			got:  Rect{Width: 39, Height: 2}.Intersect(Rect{Y: 8, Width: 39, Height: 2}),
+		},
+		{
+			name: "intersect touches along an edge",
+			got:  Rect{Y: 4, Width: 39, Height: 2}.Intersect(Rect{Width: 39, Height: 4}),
+		},
+		{
+			name: "union of two flat operands",
+			got:  Rect{}.Union(Rect{X: 39, Y: 7, Width: 0, Height: 2}),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.got != (Rect{}) {
+				t.Errorf("got %+v, want the zero rectangle", tt.got)
+			}
+		})
+	}
+}
+
+// TestCopyRowsFromClampsToBothBuffers covers a shorter source. Copying the rows
+// both buffers hold beats refusing the call, which leaves the destination
+// silently describing something the source never held.
+func TestCopyRowsFromClampsToBothBuffers(t *testing.T) {
+	dst := New(4, 6)
+	dst.Clear(style.ColorBlack)
+	src := New(4, 3)
+	for y := range 3 {
+		src.SetCell(0, y, 'x', style.ColorWhite, style.ColorBlack, 0)
+	}
+
+	dst.CopyRowsFrom(src, 1, 4) // Rows 1-4 requested, rows 1-2 available.
+
+	for y := 1; y < 3; y++ {
+		if got := dst.Cell(0, y).Char; got != 'x' {
+			t.Errorf("row %d holds %q, want %q", y, got, 'x')
+		}
+	}
+	if got := dst.Cell(0, 3).Char; got == 'x' {
+		t.Error("row 3 was copied from beyond the source")
+	}
+}
+
 func TestRect_IsEmpty(t *testing.T) {
 	if !(Rect{Width: 0, Height: 5}).IsEmpty() {
 		t.Error("zero width should be empty")

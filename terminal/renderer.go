@@ -91,6 +91,8 @@ type Renderer struct {
 	inlineCursorRow       int            // The frame row holding the terminal cursor.
 	inlineTermHeight      int            // The terminal height used for the previous flush.
 	inlineEraseNext       bool           // Whether the next flush erases the screen first.
+	inlineDamaged         buffer.Rect    // The region repainted into the frame being flushed.
+	inlineCursorCell      buffer.Rect    // The cell the inline cursor inverted, which must be restored.
 
 	// Optional diagnostic log.
 	dbg     *log.Logger

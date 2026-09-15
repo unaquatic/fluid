@@ -248,7 +248,7 @@ func TestInlineChangedRows(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			first, last := inlineChangedRows(rowsBuffer(10, tt.prev, 5), rowsBuffer(10, tt.next, 5))
+			first, last := inlineChangedRows(rowsBuffer(10, tt.prev, 5), rowsBuffer(10, tt.next, 5), 0)
 			if first != tt.wantFirst || last != tt.wantLast {
 				t.Errorf("got first=%d last=%d, want %d and %d", first, last, tt.wantFirst, tt.wantLast)
 			}

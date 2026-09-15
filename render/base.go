@@ -199,7 +199,8 @@ type BaseRenderable struct {
 
 	// Resolved geometry copied from layout traversal.
 	x, y, width, height   int
-	prevWidth, prevHeight int // The dimensions used to detect resize callbacks.
+	prevWidth, prevHeight int         // The dimensions used to detect resize callbacks.
+	paintRect             buffer.Rect // The region covered by the most recent paint.
 
 	// Configuration and state.
 	visible    bool
@@ -451,6 +452,37 @@ func (b *BaseRenderable) SetGone(g bool) {
 // IsDirty reports whether b requires repainting.
 func (b *BaseRenderable) IsDirty() bool { return b.dirty }
 
+// Rect returns b's resolved geometry.
+func (b *BaseRenderable) Rect() buffer.Rect {
+	return buffer.Rect{X: b.x, Y: b.y, Width: b.width, Height: b.height}
+}
+
+// Damage returns the region b must repaint, or an empty rectangle when b is
+// unchanged. A renderable that moved or resized damages both the region it
+// occupied and the region it now occupies.
+//
+// A hidden or destroyed renderable damages only the region it last painted,
+// which is the region left behind.
+func (b *BaseRenderable) Damage() buffer.Rect {
+	switch {
+	case b.destroyed, !b.visible:
+		return b.paintRect
+	case b.dirty:
+		return b.paintRect.Union(b.Rect())
+	default:
+		return buffer.Rect{}
+	}
+}
+
+// ClearDamage forgets the region b vacated, once that region has been
+// repainted. Painting clears the damage of a visible renderable, but a hidden
+// one is never painted again.
+func (b *BaseRenderable) ClearDamage() {
+	if b.destroyed || !b.visible {
+		b.paintRect = buffer.Rect{}
+	}
+}
+
 // RequestRender marks b dirty and requests a scene repaint.
 func (b *BaseRenderable) RequestRender() {
 	b.dirty = true
@@ -541,6 +573,12 @@ func (b *BaseRenderable) UpdateFromLayoutWithOffset(offsetX, offsetY int) {
 	b.width = computed.Width
 	b.height = computed.Height
 
+	// Geometry that no longer matches the last paint leaves stale cells behind,
+	// so both the old and the new region need repainting.
+	if b.Rect() != b.paintRect {
+		b.dirty = true
+	}
+
 	// Notify through the concrete widget only when resolved dimensions change.
 	if b.width != b.prevWidth || b.height != b.prevHeight {
 		b.prevWidth = b.width
@@ -576,6 +614,7 @@ func (b *BaseRenderable) Render(buf *buffer.Buffer, deltaTime float64) {
 	// Only visible renderables register hit-test regions.
 	b.ctx.AddToHitGrid(b.x, b.y, b.width, b.height, b.num)
 
+	b.paintRect = b.Rect()
 	b.dirty = false
 }
 
