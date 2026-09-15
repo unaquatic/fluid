@@ -53,13 +53,20 @@ func (r *Renderer) renderInlineFrame() {
 
 	contentHeight := max(r.computeContentHeight(), 1)
 
-	// A resized frame has no usable previous content, so everything is damaged.
-	resized := r.nextBuffer.Width() != layoutWidth || r.nextBuffer.Height() != contentHeight
-	if resized {
-		r.nextBuffer = buffer.New(layoutWidth, contentHeight)
-	}
+	// A width change rewraps every row, leaving no reusable content.
+	widthChanged := r.nextBuffer.Width() != layoutWidth
+	damage := r.inlineDamage(layoutWidth, contentHeight, widthChanged)
 
-	damage := r.inlineDamage(layoutWidth, contentHeight, resized)
+	// A height change only moves the rows below it, so the rest keep their index
+	// and are carried into the new frame. Carrying them is wasted work when the
+	// damage is about to clear the whole frame anyway.
+	if widthChanged || r.nextBuffer.Height() != contentHeight {
+		next := buffer.New(layoutWidth, contentHeight)
+		if !widthChanged && !coversFrame(damage, layoutWidth, contentHeight) {
+			next.CopyRowsFrom(r.nextBuffer, 0, contentHeight)
+		}
+		r.nextBuffer = next
+	}
 
 	var clearDur time.Duration
 	var execStats FrameStats
@@ -106,16 +113,36 @@ func (r *Renderer) renderInlineFrame() {
 	}
 }
 
-// inlineDamage returns the region of the frame to repaint. Rows above the
-// viewport have scrolled into the scrollback, where a repaint could not reach
-// them, so damage never extends above it.
+// coversFrame reports whether damage spans a complete frame of the given size.
+func coversFrame(damage buffer.Rect, width, height int) bool {
+	return damage.X <= 0 && damage.Y <= 0 &&
+		damage.Width >= width && damage.Height >= height
+}
+
+// inlineDamage returns the region of the frame to repaint.
 //
-// A resized frame, or one whose previous content was discarded, is damaged in
-// full.
-func (r *Renderer) inlineDamage(width, height int, resized bool) buffer.Rect {
+// A change at or below the viewport is repainted in place, and the region never
+// extends above the viewport, because the terminal cannot address rows it has
+// scrolled into the scrollback.
+//
+// A frame is damaged in full when its width changed, when no previous content
+// survives, or when the scene changed above the viewport. The last case cannot
+// be repainted in place, so the flush erases the scrollback and rewrites it.
+func (r *Renderer) inlineDamage(width, height int, widthChanged bool) buffer.Rect {
 	full := buffer.Rect{Width: width, Height: height}
-	if resized || r.inlineCurrentBuf == nil {
+	if widthChanged || r.inlineCurrentBuf == nil {
 		r.root.ResetDamage() // A full repaint leaves nothing for the next frame.
+		return full
+	}
+
+	// The cell the cursor inverted last frame has to be repainted before the
+	// inversion moves. Where it moves to is not known until widgets paint, so
+	// the frame widens its damage again once they have.
+	damage := r.root.TakeDamage().Union(r.inlineCursorCell)
+	if damage.IsEmpty() {
+		return buffer.Rect{}
+	}
+	if damage.Y < r.inlineViewportTop {
 		return full
 	}
 
@@ -124,10 +151,6 @@ func (r *Renderer) inlineDamage(width, height int, resized bool) buffer.Rect {
 		Width:  width,
 		Height: height - r.inlineViewportTop,
 	}
-	// The cell the cursor inverted last frame has to be repainted before the
-	// inversion moves. Where it moves to is not known until widgets paint, so
-	// the frame widens its damage again once they have.
-	damage := r.root.TakeDamage().Union(r.inlineCursorCell)
 	return damage.Intersect(viewport)
 }
 
@@ -315,16 +338,23 @@ func inlineEraseDropped(out *bytes.Buffer, newHeight, prevHeight int) int {
 // storeInline records the frame the terminal now shows.
 //
 // Only the repainted rows are copied. The frame buffer is never cleared outside
-// its damage, so both buffers already agree everywhere else.
+// its damage, so both buffers already agree everywhere else. A height change
+// keeps that agreement, because the rows it did not move keep their index.
 func (r *Renderer) storeInline(buf *buffer.Buffer, termHeight, viewportTop, cursorRow int) {
 	current := r.inlineCurrentBuf
-	if current == nil || current.Width() != buf.Width() || current.Height() != buf.Height() {
+	switch {
+	case current == nil || current.Width() != buf.Width():
 		current = buffer.New(buf.Width(), buf.Height())
-		r.inlineCurrentBuf = current
 		current.CopyFrom(buf)
-	} else {
+	case current.Height() != buf.Height():
+		next := buffer.New(buf.Width(), buf.Height())
+		next.CopyRowsFrom(current, 0, buf.Height())
+		next.CopyRowsFrom(buf, r.inlineDamaged.Y, r.inlineDamaged.Height)
+		current = next
+	default:
 		current.CopyRowsFrom(buf, r.inlineDamaged.Y, r.inlineDamaged.Height)
 	}
+	r.inlineCurrentBuf = current
 
 	r.inlineTermHeight = termHeight
 	r.inlineViewportTop = max(viewportTop, 0)

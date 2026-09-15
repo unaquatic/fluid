@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/render"
 	"github.com/unaquatic/fluid/style"
+	"github.com/unaquatic/fluid/widget"
 )
 
 // glyphRow paints every cell it occupies with one glyph, so a stale cell in the
@@ -282,23 +284,57 @@ func TestInlineDamage_HiddenWidgetIsErased(t *testing.T) {
 
 // TestInlineDamage_StopsAtTheViewport keeps repaints out of the scrollback,
 // which the terminal cannot address.
-func TestInlineDamage_StopsAtTheViewport(t *testing.T) {
+// scrolledRenderer returns a renderer whose frame is taller than the terminal,
+// so the rows at the top have scrolled into the scrollback.
+func scrolledRenderer(t *testing.T) (*Renderer, *bytes.Buffer, []*glyphRow) {
+	t.Helper()
 	rows := make([]*glyphRow, 0, 15)
 	for i := range 15 {
 		rows = append(rows, newGlyphRow(string(rune('a'+i)), rune('a'+i), 39, 2))
 	}
-	r := newDamageTestRenderer(t, rows...)
+	r, out := newInlineTestRenderer()
+	for _, row := range rows {
+		r.root.Add(row)
+	}
+	r.renderInlineFrame()
 
 	if r.inlineViewportTop == 0 {
 		t.Fatalf("expected the 30-row frame to scroll a %d-row terminal", testTermHeight)
 	}
+	return r, out, rows
+}
+
+func TestInlineDamage_StopsAtTheViewport(t *testing.T) {
+	r, _, rows := scrolledRenderer(t)
+
+	// The last widget is on screen, below the viewport top.
+	rows[len(rows)-1].setGlyph('Z')
+	r.renderInlineFrame()
+
+	if got := r.inlineDamaged; got.Y < r.inlineViewportTop {
+		t.Errorf("damage %+v reaches above viewportTop=%d", got, r.inlineViewportTop)
+	}
+}
+
+// TestInlineDamage_ScrollbackChangeRewritesTheScreen covers the case that
+// cannot be repainted in place. A row in the scrollback cannot be addressed, so
+// the only way to show the change is to erase and rewrite everything.
+func TestInlineDamage_ScrollbackChangeRewritesTheScreen(t *testing.T) {
+	r, out, rows := scrolledRenderer(t)
+	out.Reset()
 
 	// The first widget is entirely inside the scrollback.
 	rows[0].setGlyph('Z')
 	r.renderInlineFrame()
 
-	if got := r.inlineDamaged; !got.IsEmpty() && got.Y < r.inlineViewportTop {
-		t.Errorf("damage %+v reaches above viewportTop=%d", got, r.inlineViewportTop)
+	if got := r.inlineDamaged; got.Y != 0 {
+		t.Errorf("damage is %+v, want the whole frame", got)
+	}
+	if !strings.Contains(out.String(), inlineEraseAll) {
+		t.Error("expected the screen and scrollback to be rewritten")
+	}
+	if !strings.Contains(out.String(), "ZZZ") {
+		t.Error("expected the changed row to reach the terminal")
 	}
 }
 
@@ -432,6 +468,116 @@ func TestInlineDamage_CursorPublishedWhilePainting(t *testing.T) {
 	}
 	if got := r.inlineDamaged.Intersect(want); got != want {
 		t.Errorf("cursor cell %+v lies outside damage %+v", want, r.inlineDamaged)
+	}
+}
+
+// resize changes a row's height the way a widget setter does.
+func (g *glyphRow) resize(rows int) {
+	g.LayoutNode().Height = layout.Points(rows)
+	g.LayoutNode().MarkDirty()
+	g.RequestRender()
+}
+
+// TestInlineDamage_GrowthPaintsAppendedRows is the quiet failure this design
+// risks. Rows added below the previous height start cleared, so damage that
+// failed to reach them would flush blank rows rather than visibly wrong ones.
+func TestInlineDamage_GrowthPaintsAppendedRows(t *testing.T) {
+	a := newGlyphRow("a", 'a', 39, 2)
+	b := newGlyphRow("b", 'b', 39, 2)
+	r := newDamageTestRenderer(t, a, b)
+
+	b.resize(5)
+	r.renderInlineFrame()
+
+	if got := frameText(r.nextBuffer); got != "aabbbbb" {
+		t.Errorf("frame is %q, want %q with every appended row painted", got, "aabbbbb")
+	}
+}
+
+func TestInlineDamage_GrowthKeepsRowsAbove(t *testing.T) {
+	a := newGlyphRow("a", 'a', 39, 2)
+	b := newGlyphRow("b", 'b', 39, 2)
+	r := newDamageTestRenderer(t, a, b)
+
+	b.resize(4)
+	r.renderInlineFrame()
+
+	if got := frameText(r.nextBuffer); got != "aabbbb" {
+		t.Errorf("frame is %q, want %q", got, "aabbbb")
+	}
+	// The untouched widget sits above the damage and is carried over, not redrawn.
+	if got := r.inlineDamaged.Y; got < 2 {
+		t.Errorf("damage starts at row %d, want the grown widget at row 2", got)
+	}
+}
+
+func TestInlineDamage_ShrinkDropsRows(t *testing.T) {
+	a := newGlyphRow("a", 'a', 39, 2)
+	b := newGlyphRow("b", 'b', 39, 4)
+	r := newDamageTestRenderer(t, a, b)
+
+	b.resize(1)
+	r.renderInlineFrame()
+
+	if got := frameText(r.nextBuffer); got != "aab" {
+		t.Errorf("frame is %q, want %q", got, "aab")
+	}
+}
+
+// TestInlineDamage_TrackedFrameMatchesAfterGrowth checks the snapshot the diff
+// compares against. A height change reallocates it, and rows it fails to carry
+// over would show up as phantom differences on the next frame.
+func TestInlineDamage_TrackedFrameMatchesAfterGrowth(t *testing.T) {
+	a := newGlyphRow("a", 'a', 39, 2)
+	b := newGlyphRow("b", 'b', 39, 2)
+	r := newDamageTestRenderer(t, a, b)
+
+	b.resize(5)
+	r.renderInlineFrame()
+
+	tracked := r.inlineCurrentBuf
+	if tracked.Height() != r.nextBuffer.Height() {
+		t.Fatalf("tracked frame is %d rows, want %d", tracked.Height(), r.nextBuffer.Height())
+	}
+	for y := range tracked.Height() {
+		if !inlineRowsEqual(tracked, r.nextBuffer, y, tracked.Width()) {
+			t.Errorf("tracked row %d does not match the frame", y)
+		}
+	}
+}
+
+// TestInlineDamage_ContainerGrowthDamagesItsWholeRect documents why a growing
+// transcript does not yet benefit from damage tracking.
+//
+// Damage is the union of a renderable's previous and current rectangle, so a
+// container reports everything it covers as soon as its own height changes,
+// even though only the last row moved. Reporting the difference instead would
+// confine the repaint to the rows that actually changed.
+func TestInlineDamage_ContainerGrowthDamagesItsWholeRect(t *testing.T) {
+	container := widget.NewBox(widget.BoxWithID("transcript"),
+		widget.BoxWithFlexDirection(layout.DirectionColumn))
+	bubbles := make([]*glyphRow, 0, 10)
+	for i := range 10 {
+		b := newGlyphRow(string(rune('a'+i)), rune('a'+i), 39, 2)
+		bubbles = append(bubbles, b)
+		container.Add(b)
+	}
+
+	r, _ := newInlineTestRenderer()
+	r.root.Add(container)
+	r.root.Add(newGlyphRow("prompt", 'p', 39, 3))
+	r.renderInlineFrame()
+
+	// The last bubble grows one row, as a streaming message does.
+	bubbles[len(bubbles)-1].resize(3)
+	r.root.PrepareLayout(0)
+	r.root.SyncPositions(0)
+
+	if got := container.Damage(); got.Y != 0 {
+		t.Errorf("container damage is %+v, want it to start at row 0", got)
+	}
+	if got := r.root.TakeDamage(); got.Y != 0 {
+		t.Errorf("scene damage is %+v, want it to start at row 0", got)
 	}
 }
 
