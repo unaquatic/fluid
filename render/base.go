@@ -371,6 +371,12 @@ func (b *BaseRenderable) Remove(id string) {
 			child.SetParent(nil)
 			b.children = append(b.children[:i], b.children[i+1:]...)
 
+			// A sticky offset pins a child to the viewport of the scroll
+			// container that resolved it, so it is meaningless once the child
+			// leaves. A parent that does not scroll never recomputes it.
+			child.SetStickyOffsetX(0)
+			child.SetStickyOffsetY(0)
+
 			// A detached subtree is beyond the reach of scene traversal, so it
 			// can no longer report the region it covered. Painting b clears the
 			// debt again.
