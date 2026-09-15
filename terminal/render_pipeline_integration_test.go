@@ -6,6 +6,7 @@ package terminal
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -762,5 +763,29 @@ func TestPipeline_MultipleFramesNoArtifacts(t *testing.T) {
 	cell5 := buf2.Cell(5, 0)
 	if cell5.Char == '1' {
 		t.Error("frame 2: artifact from frame 1 found at position 5")
+	}
+}
+
+// TestPipeline_FullscreenStatsCountNodes covers the statistics a fullscreen
+// frame reports. Draw never walks the scene, so ExecuteRender has to carry the
+// node count over from SyncPositions.
+func TestPipeline_FullscreenStatsCountNodes(t *testing.T) {
+	r, _ := setupRenderer(10, 4)
+	for i := range 3 {
+		r.root.Add(render.NewBaseRenderable(
+			render.WithID(fmt.Sprintf("child-%d", i)),
+			render.WithWidth(layout.Points(10)),
+			render.WithHeight(layout.Points(1)),
+		))
+	}
+
+	r.renderFrame()
+
+	// Three children plus the root.
+	if got := r.root.LastFrameStats.NodeCount; got != 4 {
+		t.Errorf("NodeCount is %d, want 4", got)
+	}
+	if got := r.root.LastFrameStats.CmdCount; got != 4 {
+		t.Errorf("CmdCount is %d, want 4", got)
 	}
 }

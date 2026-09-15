@@ -148,6 +148,7 @@ func (r *RootRenderable) ExecuteRender(buf *buffer.Buffer, deltaTime float64) Fr
 	sync := r.SyncPositions(deltaTime)
 	stats := r.Draw(buf, deltaTime, buffer.Rect{})
 	stats.Sync = sync.Sync
+	stats.NodeCount = sync.NodeCount
 	return stats
 }
 
@@ -162,18 +163,16 @@ func (r *RootRenderable) ExecuteRender(buf *buffer.Buffer, deltaTime float64) Fr
 // its own rectangle would otherwise write cells the frame never cleared, which
 // no longer match what the caller records as painted.
 func (r *RootRenderable) Draw(buf *buffer.Buffer, deltaTime float64, damage buffer.Rect) FrameStats {
-	t0 := time.Now()
-
 	var damaged *scissorRect
 	if !damage.IsEmpty() {
 		damaged = &scissorRect{x: damage.X, y: damage.Y, w: damage.Width, h: damage.Height}
 	}
-	t1 := time.Now()
 
 	// Build the ordered command stream for the damaged region.
+	t0 := time.Now()
 	var commands []DrawCommand
 	r.collectRenderCommandsWithScissor(r.BaseRenderable, &commands, nil, damaged)
-	t2 := time.Now()
+	t1 := time.Now()
 
 	// Visible render commands repopulate the hit grid.
 	r.Context().ClearHitGrid()
@@ -185,7 +184,7 @@ func (r *RootRenderable) Draw(buf *buffer.Buffer, deltaTime float64, damage buff
 	}
 
 	// Execute render and stack operations in order.
-	t3 := time.Now()
+	t2 := time.Now()
 	for _, cmd := range commands {
 		switch cmd.Action {
 		case "render":
@@ -204,16 +203,16 @@ func (r *RootRenderable) Draw(buf *buffer.Buffer, deltaTime float64, damage buff
 			buf.PopOpacity()
 		}
 	}
-	t4 := time.Now()
+	t3 := time.Now()
 
 	if damaged != nil {
 		buf.PopScissorRect()
 	}
 
+	// Sync and NodeCount belong to SyncPositions, which Draw does not run.
 	return FrameStats{
-		Sync:     t1.Sub(t0),
-		Commands: t2.Sub(t1),
-		Render:   t4.Sub(t3),
+		Commands: t1.Sub(t0),
+		Render:   t3.Sub(t2),
 		CmdCount: len(commands),
 	}
 }
