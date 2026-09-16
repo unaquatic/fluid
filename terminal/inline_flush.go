@@ -98,7 +98,9 @@ func (r *Renderer) renderInlineFrame() {
 	r.inlineDamaged = damage.Union(r.inlineCursorCell)
 
 	tFlush0 := time.Now()
-	r.InlineFlush(r.nextBuffer)
+	if !r.inlineFrameUnchanged() {
+		r.InlineFlush(r.nextBuffer)
+	}
 	flushDur := time.Since(tFlush0)
 	r.root.LastFrameStats.Flush = flushDur
 	totalDur := time.Since(frameStart)
@@ -110,6 +112,18 @@ func (r *Renderer) renderInlineFrame() {
 		r.stats.record(renderTime)
 		r.mu.Unlock()
 	}
+}
+
+// inlineFrameUnchanged reports whether the frame already matches the one the
+// terminal shows.
+//
+// An undamaged frame of unchanged height was never painted, so no cell in it
+// can differ. Establishing that by comparison instead reads every cell of the
+// transcript, which is the most an idle frame can cost.
+func (r *Renderer) inlineFrameUnchanged() bool {
+	return r.inlineDamaged.IsEmpty() &&
+		r.inlineCurrentBuf != nil &&
+		r.inlineCurrentBuf.Height() == r.nextBuffer.Height()
 }
 
 // inlineDamage returns the region of the frame to repaint.
