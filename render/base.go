@@ -2,8 +2,10 @@ package render
 
 import (
 	"fmt"
+	"runtime"
 	"sync"
 	"sync/atomic"
+	"weak"
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
@@ -14,15 +16,28 @@ import (
 var nextNum uint64 // Accessed atomically when assigning numeric IDs.
 
 // renderablesByNum resolves hit-grid IDs to renderables.
-var renderablesByNum sync.Map // map[uint64]Renderable
+//
+// Entries are weak, so registration never keeps a renderable alive: a discarded
+// widget tree is collected whether or not anything calls Destroy. A cleanup
+// removes the key once its renderable is gone.
+var renderablesByNum sync.Map // map[uint64]weak.Pointer[BaseRenderable]
 
-// LookupRenderable returns the renderable registered under num, or nil.
+// LookupRenderable returns the renderable registered under num, or nil when
+// nothing is registered or the renderable has been collected.
 func LookupRenderable(num uint64) Renderable {
 	v, ok := renderablesByNum.Load(num)
 	if !ok {
 		return nil
 	}
-	return v.(Renderable)
+	b := v.(weak.Pointer[BaseRenderable]).Value()
+	if b == nil {
+		return nil
+	}
+	// Callers need the concrete widget to reach overridden methods.
+	if b.self != nil {
+		return b.self
+	}
+	return b
 }
 
 // RenderableOption configures a BaseRenderable during construction.
@@ -256,8 +271,11 @@ func NewBaseRenderable(opts ...RenderableOption) *BaseRenderable {
 		opt(b)
 	}
 
-	// Registration allows the hit grid to resolve the numeric ID.
-	renderablesByNum.Store(num, b)
+	// Registration allows the hit grid to resolve the numeric ID. The cleanup
+	// runs after b is collected and cannot reference it, so neither the entry
+	// nor the cleanup keeps b alive.
+	renderablesByNum.Store(num, weak.Make(b))
+	runtime.AddCleanup(b, func(num uint64) { renderablesByNum.Delete(num) }, num)
 
 	return b
 }
@@ -309,10 +327,9 @@ func (b *BaseRenderable) Add(child Renderable, index ...int) int {
 		return -1
 	}
 
-	// Replace an embedded BaseRenderable's registry entry with the concrete widget.
-	renderablesByNum.Store(child.Num(), child)
-
 	// Store the concrete widget so internal calls reach overridden methods.
+	// LookupRenderable reads it too, which is why the registry needs no entry
+	// of its own for the concrete type.
 	type selfSettable interface{ SetSelf(Renderable) }
 	if ss, ok := child.(selfSettable); ok {
 		ss.SetSelf(child)
