@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"bytes"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -158,22 +159,34 @@ func TestInlineDamage_DetachedSubtreeErases(t *testing.T) {
 	}
 }
 
-// TestInlineDamage_ScissoredContentSettles covers content clipped out of a
-// container. It never paints, so its geometry never matches its last paint. The
-// container has to bound its damage, or every frame stays dirty forever.
-func TestInlineDamage_ScissoredContentSettles(t *testing.T) {
+// newClippedBoxRenderer builds a four-row scroll container holding ten rows, so
+// rows two onward are clipped away. Clipped rows never paint, so they stay
+// dirty and report their region for as long as the scene lives.
+func newClippedBoxRenderer(t *testing.T) (*Renderer, []*glyphRow) {
+	t.Helper()
+
 	box := render.NewBaseRenderable(render.WithID("box"),
 		render.WithWidth(layout.Points(39)), render.WithHeight(layout.Points(4)))
 	box.LayoutNode().Overflow = layout.OverflowScroll
 	box.LayoutNode().FlexDirection = layout.DirectionColumn
-	for i := range 10 {
-		box.Add(newGlyphRow(string(rune('a'+i)), rune('a'+i), 39, 2))
+	rows := make([]*glyphRow, 10)
+	for i := range rows {
+		rows[i] = newGlyphRow(string(rune('a'+i)), rune('a'+i), 39, 2)
+		box.Add(rows[i])
 	}
 
 	r, _ := newInlineTestRenderer()
 	r.root.Add(box)
 	r.root.Add(newGlyphRow("footer", 'F', 39, 2)) // Keeps the clipped rows in frame.
 	r.renderInlineFrame()
+	return r, rows
+}
+
+// TestInlineDamage_ScissoredContentSettles covers an idle frame over clipped
+// content. The clipped rows stay dirty forever, so a frame that consulted them
+// would never settle.
+func TestInlineDamage_ScissoredContentSettles(t *testing.T) {
+	r, _ := newClippedBoxRenderer(t)
 
 	// Nothing changes, so the second frame must find the scene settled.
 	r.renderInlineFrame()
@@ -183,6 +196,88 @@ func TestInlineDamage_ScissoredContentSettles(t *testing.T) {
 	}
 	if got := r.root.LastFrameStats.CmdCount; got != 0 {
 		t.Errorf("issued %d draw commands, want 0", got)
+	}
+}
+
+// TestInlineDamage_ClippedRowsStayOutOfTheDamage covers the bound a clipping
+// container puts on its descendants' damage. Changing a visible row makes
+// traversal descend into the container, which then reaches the clipped rows
+// behind it. Unbounded, their region would drag the damage over the whole
+// content rather than the one row that changed.
+func TestInlineDamage_ClippedRowsStayOutOfTheDamage(t *testing.T) {
+	r, rows := newClippedBoxRenderer(t)
+
+	rows[0].setGlyph('A')
+	r.root.PrepareLayout(0)
+	r.root.SyncPositions(0)
+
+	want := buffer.Rect{X: 0, Y: 0, Width: 39, Height: 2}
+	if got := r.root.TakeDamage(); got != want {
+		t.Errorf("damage is %+v, want %+v bounded to the visible row", got, want)
+	}
+}
+
+// TestInlineDamage_CullsKeepTheCommandStreamSmall pins how many draw commands a
+// clipped scene issues. Both culls in the command pass are invisible to a
+// correctness check, because dropping either one still paints the right frame
+// and only grows the work behind it.
+func TestInlineDamage_CullsKeepTheCommandStreamSmall(t *testing.T) {
+	r, rows := newClippedBoxRenderer(t)
+
+	// The first frame repaints in full, so the damage reaches the rows the box
+	// clips away and the clipping bound alone keeps them out of the stream.
+	const wantFull = 7
+	if got := r.root.LastFrameStats.CmdCount; got != wantFull {
+		t.Errorf("full repaint issued %d commands, want %d", got, wantFull)
+	}
+
+	// One visible row changes, so the damage alone excludes every other row.
+	rows[0].setGlyph('A')
+	r.renderInlineFrame()
+
+	const wantChange = 5
+	if got := r.root.LastFrameStats.CmdCount; got != wantChange {
+		t.Errorf("one visible change issued %d commands, want %d", got, wantChange)
+	}
+}
+
+// TestInlineDamage_PruneSkipsCleanSiblings pins what one change behind many
+// clean siblings costs. Traversal descends on the record an ancestor carries,
+// so the record has to be forgotten once a frame has used it. A record left
+// behind makes its bubble look changed forever, and every bubble after it is
+// followed once traversal stops skipping.
+//
+// The earlier change is what gives the stale record somewhere to survive. A
+// regression here is silent: the frame stays correct and only gets slower, in
+// proportion to the transcript.
+func TestInlineDamage_PruneSkipsCleanSiblings(t *testing.T) {
+	const bubbleCount = 200
+
+	r, _ := newInlineTestRenderer()
+	rows := make([]*glyphRow, bubbleCount)
+	for i := range rows {
+		bubble := render.NewBaseRenderable(render.WithID("bubble"+strconv.Itoa(i)),
+			render.WithWidth(layout.Points(39)), render.WithHeight(layout.Points(1)))
+		rows[i] = newGlyphRow("row"+strconv.Itoa(i), 'a', 39, 1)
+		bubble.Add(rows[i])
+		r.root.Add(bubble)
+	}
+	r.renderInlineFrame() // Establish a painted baseline.
+
+	// Mark the first bubble, which every later frame has to skip again.
+	rows[0].setGlyph('A')
+	r.renderInlineFrame()
+
+	// The last row changes, so every bubble before it holds no change and
+	// nothing before the first change could have moved.
+	rows[bubbleCount-1].setGlyph('Z')
+	r.renderInlineFrame()
+
+	// The root, the changed bubble, and its row, with room for structure.
+	const want = 8
+	if got := r.root.LastFrameStats.NodeCount; got > want {
+		t.Errorf("visited %d nodes for one change behind %d clean bubbles, want at most %d",
+			got, bubbleCount-1, want)
 	}
 }
 
