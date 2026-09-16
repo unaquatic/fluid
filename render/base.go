@@ -356,7 +356,6 @@ func (b *BaseRenderable) Add(child Renderable, index ...int) int {
 		b.children = append(b.children, child)
 	}
 
-	b.dirty = true
 	b.ctx.RequestRender()
 	return idx
 }

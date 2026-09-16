@@ -785,6 +785,68 @@ func TestCopyRowsFromClampsToBothBuffers(t *testing.T) {
 	}
 }
 
+// TestSetHeightKeepsRowsInPlace covers the reason SetHeight exists. A frame as
+// tall as a whole transcript must not be copied to gain or lose a row.
+func TestSetHeightKeepsRowsInPlace(t *testing.T) {
+	b := New(4, 4)
+	for y := range 4 {
+		b.SetCell(0, y, rune('a'+y), style.ColorWhite, style.ColorBlack, 0)
+	}
+
+	b.SetHeight(6)
+
+	if b.Height() != 6 {
+		t.Fatalf("height is %d, want 6", b.Height())
+	}
+	for y := range 4 {
+		if got := b.Cell(0, y).Char; got != rune('a'+y) {
+			t.Errorf("row %d holds %q, want %q", y, got, rune('a'+y))
+		}
+	}
+	// Added rows read as clear, exactly as a fresh buffer does.
+	for y := 4; y < 6; y++ {
+		if got := b.Cell(0, y); got != CellClear {
+			t.Errorf("added row %d holds %+v, want CellClear", y, got)
+		}
+	}
+}
+
+func TestSetHeightShrinkThenGrowClearsReusedRows(t *testing.T) {
+	b := New(4, 6)
+	for y := range 6 {
+		b.SetCell(0, y, 'x', style.ColorWhite, style.ColorBlack, 0)
+	}
+
+	b.SetHeight(2)
+	if b.Height() != 2 {
+		t.Fatalf("height is %d, want 2", b.Height())
+	}
+	b.SetHeight(5)
+
+	// Rows reclaimed from the backing array must not resurface as stale content.
+	for y := 2; y < 5; y++ {
+		if got := b.Cell(0, y); got != CellClear {
+			t.Errorf("reused row %d holds %+v, want CellClear", y, got)
+		}
+	}
+	if got := b.Cell(0, 0).Char; got != 'x' {
+		t.Errorf("kept row holds %q, want %q", got, 'x')
+	}
+}
+
+func TestSetHeightZeroAndNegative(t *testing.T) {
+	for _, h := range []int{0, -3} {
+		b := New(4, 4)
+		b.SetHeight(h)
+		if b.Height() != 0 {
+			t.Errorf("SetHeight(%d) gave height %d, want 0", h, b.Height())
+		}
+		if got := b.Cell(0, 0); got != CellClear {
+			t.Errorf("SetHeight(%d) left %+v readable", h, got)
+		}
+	}
+}
+
 func TestRect_IsEmpty(t *testing.T) {
 	if !(Rect{Width: 0, Height: 5}).IsEmpty() {
 		t.Error("zero width should be empty")

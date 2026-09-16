@@ -332,28 +332,54 @@ func TestBaseRenderable_ContextOnAdd(t *testing.T) {
 	}
 }
 
-func TestBaseRenderable_DirtyOnAdd(t *testing.T) {
+// TestBaseRenderable_CleanOnAdd covers the asymmetry between Add and Remove. An
+// added child is in the scene and reports its own region, so the parent has
+// nothing to add. Marking the parent dirty would damage everything it covers.
+func TestBaseRenderable_CleanOnAdd(t *testing.T) {
 	parent := NewBaseRenderable(WithID("parent"))
+	parent.SetContext(&mockContext{})
+	parent.SetBounds(0, 0, 10, 20)
+	parent.paintRect = parent.Rect()
 	parent.dirty = false
 
 	child := NewBaseRenderable(WithID("child"))
+	child.SetBounds(0, 18, 10, 2)
 	parent.Add(child)
 
-	if !parent.IsDirty() {
-		t.Error("expected parent to be dirty after Add")
+	if parent.IsDirty() {
+		t.Error("expected the parent to stay clean when a child is added")
+	}
+	if got := parent.Damage(); !got.IsEmpty() {
+		t.Errorf("parent damage is %+v, want empty", got)
+	}
+	// The child carries the region the insertion actually affects.
+	want := buffer.Rect{X: 0, Y: 18, Width: 10, Height: 2}
+	if got := child.Damage(); got != want {
+		t.Errorf("child damage is %+v, want %+v", got, want)
 	}
 }
 
+// TestBaseRenderable_DirtyOnRemove covers the opposite case. A detached child is
+// beyond scene traversal and can never report the region it vacated, so the
+// parent has to carry it.
 func TestBaseRenderable_DirtyOnRemove(t *testing.T) {
 	parent := NewBaseRenderable(WithID("parent"))
+	parent.SetContext(&mockContext{})
+	parent.SetBounds(0, 0, 10, 20)
+
 	child := NewBaseRenderable(WithID("child"))
+	child.SetBounds(0, 18, 10, 2)
 	parent.Add(child)
+	parent.paintRect = parent.Rect()
 	parent.dirty = false
 
 	parent.Remove("child")
 
 	if !parent.IsDirty() {
 		t.Error("expected parent to be dirty after Remove")
+	}
+	if got := parent.Damage(); !got.Contains(0, 19) {
+		t.Errorf("parent damage %+v omits the region the child vacated", got)
 	}
 }
 

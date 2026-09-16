@@ -58,14 +58,13 @@ func (r *Renderer) renderInlineFrame() {
 	damage := r.inlineDamage(layoutWidth, contentHeight, widthChanged)
 
 	// A height change only moves the rows below it, so the rest keep their index
-	// and are carried into the new frame. Carrying them is wasted work when the
-	// damage is about to clear the whole frame anyway.
-	if widthChanged || r.nextBuffer.Height() != contentHeight {
-		next := buffer.New(layoutWidth, contentHeight)
-		if !widthChanged && !coversFrame(damage, layoutWidth, contentHeight) {
-			next.CopyRowsFrom(r.nextBuffer, 0, contentHeight)
-		}
-		r.nextBuffer = next
+	// and stay in place. Reslicing avoids copying a frame that is as tall as the
+	// whole transcript.
+	switch {
+	case widthChanged:
+		r.nextBuffer = buffer.New(layoutWidth, contentHeight)
+	case r.nextBuffer.Height() != contentHeight:
+		r.nextBuffer.SetHeight(contentHeight)
 	}
 
 	var clearDur time.Duration
@@ -111,12 +110,6 @@ func (r *Renderer) renderInlineFrame() {
 		r.stats.record(renderTime)
 		r.mu.Unlock()
 	}
-}
-
-// coversFrame reports whether damage spans a complete frame of the given size.
-func coversFrame(damage buffer.Rect, width, height int) bool {
-	return damage.X <= 0 && damage.Y <= 0 &&
-		damage.Width >= width && damage.Height >= height
 }
 
 // inlineDamage returns the region of the frame to repaint.
@@ -342,16 +335,15 @@ func inlineEraseDropped(out *bytes.Buffer, newHeight, prevHeight int) int {
 // keeps that agreement, because the rows it did not move keep their index.
 func (r *Renderer) storeInline(buf *buffer.Buffer, termHeight, viewportTop, cursorRow int) {
 	current := r.inlineCurrentBuf
-	switch {
-	case current == nil || current.Width() != buf.Width():
+	if current == nil || current.Width() != buf.Width() {
 		current = buffer.New(buf.Width(), buf.Height())
 		current.CopyFrom(buf)
-	case current.Height() != buf.Height():
-		next := buffer.New(buf.Width(), buf.Height())
-		next.CopyRowsFrom(current, 0, buf.Height())
-		next.CopyRowsFrom(buf, r.inlineDamaged.Y, r.inlineDamaged.Height)
-		current = next
-	default:
+	} else {
+		// Reslicing keeps the rows a height change did not move, so only the
+		// repainted ones need copying.
+		if current.Height() != buf.Height() {
+			current.SetHeight(buf.Height())
+		}
 		current.CopyRowsFrom(buf, r.inlineDamaged.Y, r.inlineDamaged.Height)
 	}
 	r.inlineCurrentBuf = current

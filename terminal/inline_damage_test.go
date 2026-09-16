@@ -546,6 +546,31 @@ func TestInlineDamage_TrackedFrameMatchesAfterGrowth(t *testing.T) {
 	}
 }
 
+// TestInlineDamage_InsertDamagesTheNewRowsOnly covers appending a renderable to
+// a root whose height does not track its content. The new renderable and the
+// siblings it pushed down report the affected rows, and the root adds nothing.
+func TestInlineDamage_InsertDamagesTheNewRowsOnly(t *testing.T) {
+	r, _ := newInlineTestRenderer()
+	for i := range 8 {
+		r.root.Add(newGlyphRow(string(rune('a'+i)), rune('a'+i), 39, 2))
+	}
+	input := newGlyphRow("input", 'p', 39, 3)
+	r.root.Add(input)
+	r.renderInlineFrame()
+
+	before := r.nextBuffer.Height()
+	r.root.InsertBefore(newGlyphRow("new", 'N', 39, 2), input)
+	r.renderInlineFrame()
+
+	// The new rows and the input that moved, not the eight rows above them.
+	if got := r.inlineDamaged.Y; got != before-input.Height() {
+		t.Errorf("damage starts at row %d, want %d", got, before-input.Height())
+	}
+	if got := frameText(r.nextBuffer); got != "aabbccddeeffgghhNNppp" {
+		t.Errorf("frame is %q, want the new row above the input", got)
+	}
+}
+
 // TestInlineDamage_ContainerGrowthDamagesItsWholeRect documents why a growing
 // transcript does not yet benefit from damage tracking.
 //

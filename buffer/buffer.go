@@ -1,6 +1,7 @@
 package buffer
 
 import (
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -786,6 +787,32 @@ func (b *Buffer) CopyRowsFrom(src *Buffer, y, height int) {
 		return
 	}
 	copy(b.cells[top*b.width:bottom*b.width], src.cells[top*b.width:bottom*b.width])
+}
+
+// SetHeight changes b's height, keeping the rows both sizes hold and clearing
+// the rows the change adds. Existing cells are reused when they have room, so
+// growing by a row costs a row rather than a copy of the whole buffer.
+//
+// It resets the clipping and opacity stacks, as Resize does.
+func (b *Buffer) SetHeight(height int) {
+	if height < 0 {
+		height = 0
+	}
+
+	need := b.width * height
+	if need > cap(b.cells) {
+		b.cells = slices.Grow(b.cells, need-len(b.cells))
+	}
+
+	kept := min(len(b.cells), need)
+	b.cells = b.cells[:need]
+	for i := kept; i < need; i++ {
+		b.cells[i] = CellClear
+	}
+
+	b.height = height
+	b.scissor.Clear()
+	b.opacity.Clear()
 }
 
 // Resize changes the dimensions of b, clears its cells, and resets its
