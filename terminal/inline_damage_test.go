@@ -631,3 +631,126 @@ func TestInlineDamage_CursorCellIsRestored(t *testing.T) {
 		t.Error("expected the new cursor cell to be inverted")
 	}
 }
+
+// TestInlineDamage_AncestorsAddNoDamage covers the split between the two marks.
+// An ancestor only records that a descendant changed, so a change deep inside a
+// tall container repaints the change rather than the container.
+func TestInlineDamage_AncestorsAddNoDamage(t *testing.T) {
+	a := newGlyphRow("a", 'a', 39, 2)
+	b := newGlyphRow("b", 'b', 39, 2)
+	r := newDamageTestRenderer(t, a, b)
+
+	b.setGlyph('B')
+	if r.root.IsDirty() {
+		t.Fatal("expected the root to stay clean")
+	}
+	if !r.root.ChildDirty() {
+		t.Fatal("expected the record to reach the root")
+	}
+
+	r.root.PrepareLayout(0)
+	r.root.SyncPositions(0)
+
+	if got := r.root.Damage(); !got.IsEmpty() {
+		t.Errorf("root damage is %+v, want empty", got)
+	}
+	want := buffer.Rect{X: 0, Y: 2, Width: 39, Height: 2}
+	if got := r.root.TakeDamage(); got != want {
+		t.Errorf("scene damage is %+v, want %+v", got, want)
+	}
+}
+
+// TestInlineDamage_DeepChangeStaysAtTheChange is the regression this split
+// exists for. A container taller than the terminal would otherwise repaint in
+// full for every token, which forces a rewrite of the whole scrollback.
+func TestInlineDamage_DeepChangeStaysAtTheChange(t *testing.T) {
+	bubble := widget.NewBox(widget.BoxWithID("bubble"),
+		widget.BoxWithFlexDirection(layout.DirectionColumn),
+		widget.BoxWithFlexShrink(0))
+	parts := make([]*glyphRow, 0, 5)
+	for i := range 5 {
+		p := newGlyphRow(string(rune('a'+i)), rune('a'+i), 39, 4)
+		parts = append(parts, p)
+		bubble.Add(p)
+	}
+
+	r, _ := newInlineTestRenderer()
+	r.root.Add(bubble)
+	r.renderInlineFrame()
+
+	last := parts[len(parts)-1]
+	last.setGlyph('Z')
+	r.root.PrepareLayout(0)
+	r.root.SyncPositions(0)
+
+	if got, want := r.root.TakeDamage(), last.Rect(); got != want {
+		t.Errorf("damage is %+v, want the changed part %+v", got, want)
+	}
+}
+
+// TestInlineDamage_WalksSkipCleanLeadingRows is the point of the whole design.
+// Streaming changes the last row, so the rows above it must not be visited.
+func TestInlineDamage_WalksSkipCleanLeadingRows(t *testing.T) {
+	rows := make([]*glyphRow, 0, 20)
+	for i := range 20 {
+		rows = append(rows, newGlyphRow(string(rune('a'+i)), rune('a'+i), 39, 1))
+	}
+	r := newDamageTestRenderer(t, rows...)
+
+	rows[len(rows)-1].setGlyph('Z')
+	r.root.PrepareLayout(0)
+
+	stats := r.root.SyncPositions(0)
+	if stats.NodeCount > 3 {
+		t.Errorf("walked %d nodes, want the root and the changed row only", stats.NodeCount)
+	}
+}
+
+// TestInlineDamage_WalksFollowEverythingBelowAChange covers the other half of
+// the rule. A row that grows displaces every row under it, and those rows are
+// not marked when the change happens.
+func TestInlineDamage_WalksFollowEverythingBelowAChange(t *testing.T) {
+	a := newGlyphRow("a", 'a', 39, 2)
+	b := newGlyphRow("b", 'b', 39, 2)
+	c := newGlyphRow("c", 'c', 39, 2)
+	r := newDamageTestRenderer(t, a, b, c)
+
+	a.resize(4)
+	r.renderInlineFrame()
+
+	if got := frameText(r.nextBuffer); got != "aaaabbcc" {
+		t.Errorf("frame is %q, want the rows below the growth moved down", got)
+	}
+	if got := c.Y(); got != 6 {
+		t.Errorf("row c is at %d, want 6", got)
+	}
+}
+
+// TestInlineDamage_CentredContainerIsNotPruned covers the layouts the rule does
+// not hold for. Centring moves the children before a change too, so none of
+// them may keep the geometry of the previous frame.
+func TestInlineDamage_CentredContainerIsNotPruned(t *testing.T) {
+	box := widget.NewBox(widget.BoxWithID("centred"),
+		widget.BoxWithFlexDirection(layout.DirectionColumn),
+		widget.BoxWithJustifyContent(layout.JustifyCenter),
+		widget.BoxWithHeight(layout.Points(10)))
+	a := newGlyphRow("a", 'a', 39, 2)
+	b := newGlyphRow("b", 'b', 39, 2)
+	box.Add(a)
+	box.Add(b)
+
+	r, _ := newInlineTestRenderer()
+	r.root.Add(box)
+	r.renderInlineFrame()
+
+	before := a.Y()
+	b.resize(4)
+	r.renderInlineFrame()
+
+	if a.Y() == before {
+		t.Fatal("test is not exercising the case: row a did not move")
+	}
+	if got := a.Rect(); got.Y != a.Y() {
+		t.Errorf("row a kept stale geometry %+v", got)
+	}
+}

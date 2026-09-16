@@ -141,6 +141,7 @@ func (r *RootRenderable) collectDamage(node render.Renderable, scissor *buffer.R
 	}
 	*damage = damage.Union(nodeDamage)
 	node.ClearDamage()
+	node.ClearChildDirty()
 
 	// A hidden or destroyed subtree reports everything it covered, so its root
 	// already carries what its descendants left behind.
@@ -153,9 +154,34 @@ func (r *RootRenderable) collectDamage(node render.Renderable, scissor *buffer.R
 		rect := cullRect(node)
 		childScissor = &rect
 	}
+
+	stacked := stacksFromStart(node.LayoutNode())
 	for _, child := range node.ChildrenRaw() {
+		// A clean child of a container that stacks from the start holds no
+		// change, and nothing before the first change could have moved.
+		if stacked && !changedBelow(child) {
+			continue
+		}
+		stacked = false
 		r.collectDamage(child, childScissor, damage)
 	}
+}
+
+// changedBelow reports whether node or anything under it changed since the last
+// frame, which is what traversal must descend for.
+func changedBelow(node render.Renderable) bool {
+	return node.IsDirty() || node.ChildDirty()
+}
+
+// stacksFromStart reports whether n places its children from the start of the
+// main axis, where a change to one child cannot move the children before it.
+//
+// Centring, end alignment, and space distribution all move earlier children
+// when a later one resizes, and wrapping moves them across lines.
+func stacksFromStart(n *layout.LayoutNode) bool {
+	return n.JustifyContent == layout.JustifyStart &&
+		n.FlexWrap == layout.WrapNone &&
+		!n.FlexDirection.IsReverse()
 }
 
 // ExecuteRender synchronizes positions from prepared layout, builds commands,
@@ -257,7 +283,12 @@ func (r *RootRenderable) syncPositionsWithClip(node render.Renderable, deltaTime
 	*nodeCount++
 
 	// Copy computed geometry and trigger resize handling when dimensions changed.
+	prev := node.Rect()
 	node.UpdateFromLayoutWithOffset(parentTX, parentTY)
+
+	// A node that moved or resized carries every descendant with it, so none of
+	// them can keep the geometry of the previous frame.
+	moved := node.Rect() != prev
 
 	// Do not run post-layout hooks or descend when the node is outside the clip.
 	if clip != nil {
@@ -285,7 +316,16 @@ func (r *RootRenderable) syncPositionsWithClip(node render.Renderable, deltaTime
 	}
 
 	bound := node.Rect()
+	stacked := !moved && stacksFromStart(node.LayoutNode())
 	for _, child := range node.ChildrenRaw() {
+		// A clean child of a container that stayed put holds the geometry of
+		// the previous frame, and so does its subtree. The bound it recorded
+		// then still encloses it.
+		if stacked && !changedBelow(child) {
+			bound = bound.Union(child.SubtreeRect())
+			continue
+		}
+		stacked = false
 		bound = bound.Union(r.syncPositionsWithClip(child, deltaTime, childTX, childTY, childClip, nodeCount))
 	}
 	node.SetSubtreeRect(bound)

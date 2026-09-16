@@ -332,30 +332,60 @@ func TestBaseRenderable_ContextOnAdd(t *testing.T) {
 	}
 }
 
-// TestBaseRenderable_CleanOnAdd covers the asymmetry between Add and Remove. An
-// added child is in the scene and reports its own region, so the parent has
-// nothing to add. Marking the parent dirty would damage everything it covers.
-func TestBaseRenderable_CleanOnAdd(t *testing.T) {
+// TestBaseRenderable_ChildDirtyOnAdd covers the record an insertion leaves on
+// the ancestors, which lets a scene walk skip a subtree holding no change. The
+// ancestors stay clean, because marking them dirty would repaint everything
+// they cover.
+func TestBaseRenderable_ChildDirtyOnAdd(t *testing.T) {
+	grandparent := NewBaseRenderable(WithID("grandparent"))
+	grandparent.SetContext(&mockContext{})
+	grandparent.SetBounds(0, 0, 10, 20)
+
 	parent := NewBaseRenderable(WithID("parent"))
-	parent.SetContext(&mockContext{})
 	parent.SetBounds(0, 0, 10, 20)
-	parent.paintRect = parent.Rect()
+	grandparent.Add(parent)
+	grandparent.dirty = false
 	parent.dirty = false
 
 	child := NewBaseRenderable(WithID("child"))
 	child.SetBounds(0, 18, 10, 2)
 	parent.Add(child)
 
-	if parent.IsDirty() {
-		t.Error("expected the parent to stay clean when a child is added")
+	if parent.IsDirty() || grandparent.IsDirty() {
+		t.Error("expected the ancestors to stay clean after Add")
 	}
-	if got := parent.Damage(); !got.IsEmpty() {
-		t.Errorf("parent damage is %+v, want empty", got)
+	if !parent.ChildDirty() || !grandparent.ChildDirty() {
+		t.Error("expected the record to reach every ancestor")
 	}
 	// The child carries the region the insertion actually affects.
 	want := buffer.Rect{X: 0, Y: 18, Width: 10, Height: 2}
 	if got := child.Damage(); got != want {
 		t.Errorf("child damage is %+v, want %+v", got, want)
+	}
+}
+
+// TestBaseRenderable_MarkDirtyStopsAtAMarkedAncestor covers the climb's early
+// exit, which keeps a deep scene from rewalking a chain already marked.
+func TestBaseRenderable_MarkDirtyStopsAtAMarkedAncestor(t *testing.T) {
+	root := NewBaseRenderable(WithID("root"))
+	root.SetContext(&mockContext{})
+	mid := NewBaseRenderable(WithID("mid"))
+	leaf := NewBaseRenderable(WithID("leaf"))
+	root.Add(mid)
+	mid.Add(leaf)
+
+	root.ClearChildDirty()
+	mid.MarkChildDirty()
+	root.ClearChildDirty()
+	leaf.dirty = false
+
+	leaf.MarkDirty()
+
+	if !leaf.IsDirty() {
+		t.Error("expected the leaf to be dirty")
+	}
+	if root.ChildDirty() {
+		t.Error("expected the climb to stop at the ancestor already carrying the record")
 	}
 }
 

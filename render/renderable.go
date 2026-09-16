@@ -53,6 +53,16 @@ type Renderable interface {
 	SetVisible(v bool)
 	// IsDirty reports whether the renderable requires repainting.
 	IsDirty() bool
+	// MarkDirty marks the renderable for repainting and records the change on
+	// its ancestors.
+	MarkDirty()
+	// ChildDirty reports whether a descendant changed since the last frame.
+	ChildDirty() bool
+	// MarkChildDirty records that a descendant changed, so scene traversal
+	// descends here. It adds no damage of its own.
+	MarkChildDirty()
+	// ClearChildDirty forgets the record once traversal has used it.
+	ClearChildDirty()
 	// Damage returns the region the renderable must repaint, or an empty
 	// rectangle when it is unchanged.
 	Damage() buffer.Rect

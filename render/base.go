@@ -218,7 +218,8 @@ type BaseRenderable struct {
 	stickyOffsetX int // A horizontal post-layout offset for sticky positioning.
 	stickyOffsetY int // A vertical post-layout offset for sticky positioning.
 
-	dirty bool
+	dirty      bool
+	childDirty bool // Reports whether a descendant changed since the last frame.
 
 	// Private frame buffer used by buffered rendering.
 	frameBuffer *buffer.Buffer
@@ -356,6 +357,9 @@ func (b *BaseRenderable) Add(child Renderable, index ...int) int {
 		b.children = append(b.children, child)
 	}
 
+	// The new child reports its own region, so b has nothing to add and stays
+	// clean. Only the record reaches the ancestors, so traversal descends here.
+	b.MarkChildDirty()
 	b.ctx.RequestRender()
 	return idx
 }
@@ -381,8 +385,7 @@ func (b *BaseRenderable) Remove(id string) {
 			// debt again.
 			b.paintRect = b.paintRect.Union(child.SubtreeRect())
 
-			b.dirty = true
-			b.ctx.RequestRender()
+			b.RequestRender()
 			return
 		}
 	}
@@ -510,9 +513,39 @@ func (b *BaseRenderable) ClearDamage() {
 
 // RequestRender marks b dirty and requests a scene repaint.
 func (b *BaseRenderable) RequestRender() {
-	b.dirty = true
+	b.MarkDirty()
 	b.ctx.RequestRender()
 }
+
+// MarkDirty marks b for repainting and records the change on b's ancestors, so
+// scene traversal descends to b.
+//
+// Only b repaints. An ancestor carries the record alone, which adds no damage,
+// because marking it dirty would repaint everything it covers.
+func (b *BaseRenderable) MarkDirty() {
+	b.dirty = true
+	if b.parent != nil {
+		b.parent.MarkChildDirty()
+	}
+}
+
+// ChildDirty reports whether a descendant changed since the last frame.
+func (b *BaseRenderable) ChildDirty() bool { return b.childDirty }
+
+// MarkChildDirty records that a descendant changed. The climb stops at the
+// first ancestor already carrying the record, whose own ancestors carry it too.
+func (b *BaseRenderable) MarkChildDirty() {
+	if b.childDirty {
+		return
+	}
+	b.childDirty = true
+	if b.parent != nil {
+		b.parent.MarkChildDirty()
+	}
+}
+
+// ClearChildDirty forgets the record once scene traversal has used it.
+func (b *BaseRenderable) ClearChildDirty() { b.childDirty = false }
 
 // IsDestroyed reports whether Destroy was called.
 func (b *BaseRenderable) IsDestroyed() bool { return b.destroyed }
@@ -599,9 +632,10 @@ func (b *BaseRenderable) UpdateFromLayoutWithOffset(offsetX, offsetY int) {
 	b.height = computed.Height
 
 	// Geometry that no longer matches the last paint leaves stale cells behind,
-	// so both the old and the new region need repainting.
+	// so both the old and the new region need repainting. The mark reaches the
+	// ancestors so the damage pass, which runs next, descends to b.
 	if b.Rect() != b.paintRect {
-		b.dirty = true
+		b.MarkDirty()
 	}
 
 	// Notify through the concrete widget only when resolved dimensions change.
