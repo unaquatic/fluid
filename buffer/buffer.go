@@ -223,13 +223,13 @@ func (b *Buffer) isClipped(x, y int) bool {
 	return !b.scissor.Contains(x, y)
 }
 
-// SetCellCombining sets the Combining field for the cell at (x, y).
-// It does nothing when (x, y) is outside the buffer.
+// SetCellCombining sets the grapheme-cluster continuation for the cell at
+// (x, y). It does nothing when (x, y) is outside the buffer.
 func (b *Buffer) SetCellCombining(x, y int, combining string) {
 	if !b.inBounds(x, y) {
 		return
 	}
-	b.cells[b.cellIndex(x, y)].Combining = combining
+	b.cells[b.cellIndex(x, y)].combining = combiningHandle(combining)
 }
 
 // SetGraphemeCluster writes cluster at (x, y). It stores the first code point
@@ -304,14 +304,14 @@ func (b *Buffer) SetCell(x, y int, char rune, fg, bg style.Color, attrs uint32) 
 func (b *Buffer) detachWide(x, y int) {
 	head := x
 	if c := b.Cell(x, y); c.IsContinuation() {
-		head += c.Width
+		head += int(c.Width)
 	}
-	w := b.Cell(head, y).Width
+	w := int(b.Cell(head, y).Width)
 	if head < 0 || w <= max(x-head, 1) {
 		return
 	}
 	for col := head; col < head+min(w, b.width-head); col++ {
-		if col != x && (col == head || b.Cell(col, y).Width == head-col) {
+		if col != x && (col == head || int(b.Cell(col, y).Width) == head-col) {
 			b.blankAt(col, y)
 		}
 	}
@@ -343,11 +343,11 @@ func (b *Buffer) blankAt(x, y int) {
 func (b *Buffer) setCluster(x, y int, char rune, combining string, w int, fg, bg style.Color, attrs uint32) {
 	b.SetCellDirect(x, y, Cell{
 		Char:       char,
-		Combining:  combining,
+		combining:  combiningHandle(combining),
 		Fg:         fg,
 		Bg:         bg,
 		Attributes: attrs,
-		Width:      w,
+		Width:      int16(w),
 	})
 }
 
@@ -361,17 +361,18 @@ func (b *Buffer) SetCellDirect(x, y int, cell Cell) {
 	if !b.inBounds(x, y) || b.isClipped(x, y) {
 		return
 	}
-	if cell.Width > b.width-x {
+	width := int(cell.Width)
+	if width > b.width-x {
 		return
 	}
-	for offset := 1; offset < cell.Width; offset++ {
+	for offset := 1; offset < width; offset++ {
 		if b.isClipped(x+offset, y) {
 			return
 		}
 	}
 	// Rewriting a continuation must not detach it from its existing head.
 	if !cell.IsContinuation() {
-		for offset := range max(cell.Width, 1) {
+		for offset := range max(width, 1) {
 			b.detachWide(x+offset, y)
 		}
 	}
@@ -380,12 +381,12 @@ func (b *Buffer) SetCellDirect(x, y int, cell Cell) {
 		cell.Bg = b.cells[idx].Bg
 	}
 	b.cells[idx] = cell
-	for offset := 1; offset < cell.Width; offset++ {
+	for offset := 1; offset < width; offset++ {
 		b.cells[idx+offset] = Cell{
 			Fg:         cell.Fg,
 			Bg:         cell.Bg,
 			Attributes: cell.Attributes,
-			Width:      -offset,
+			Width:      int16(-offset),
 		}
 	}
 }
@@ -410,7 +411,7 @@ func (b *Buffer) SetCellBlended(x, y int, char rune, fg, bg style.Color, attrs u
 		Fg:         fg,
 		Bg:         bg,
 		Attributes: attrs,
-		Width:      w,
+		Width:      int16(w),
 	}
 
 	b.detachWide(x, y)

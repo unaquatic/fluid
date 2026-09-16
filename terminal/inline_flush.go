@@ -476,7 +476,7 @@ func (r *Renderer) writeInlineRow(out *bytes.Buffer, buf *buffer.Buffer, y, widt
 
 		out.WriteRune(ch)
 		if ch == cell.Char {
-			out.WriteString(cell.Combining)
+			out.WriteString(cell.Combining())
 			anchored = !widthUncertain(cell)
 		}
 	}

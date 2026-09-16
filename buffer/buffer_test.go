@@ -150,8 +150,8 @@ func TestSetGraphemeCluster_SpacingMark(t *testing.T) {
 	if c.Char != '\u0E01' {
 		t.Errorf("Char = %q, want '\u0E01'", c.Char)
 	}
-	if c.Combining != "\u0E33" {
-		t.Errorf("Combining = %q, want %q", c.Combining, "\u0E33")
+	if c.Combining() != "\u0E33" {
+		t.Errorf("Combining = %q, want %q", c.Combining(), "\u0E33")
 	}
 	if c.Width != 2 {
 		t.Errorf("Width = %d, want 2", c.Width)
@@ -199,7 +199,7 @@ func TestDrawClusters_ColumnAccounting(t *testing.T) {
 					ch = ' '
 				}
 				advanced += textbuf.RuneWidth(ch)
-				for _, r := range c.Combining {
+				for _, r := range c.Combining() {
 					advanced += textbuf.RuneWidth(r)
 				}
 			}
@@ -230,7 +230,7 @@ func TestDetachWide_OverdrawKeepsRowWidth(t *testing.T) {
 				continue
 			}
 			n += textbuf.RuneWidth(c.Char)
-			for _, r := range c.Combining {
+			for _, r := range c.Combining() {
 				n += textbuf.RuneWidth(r)
 			}
 		}
@@ -290,7 +290,7 @@ func TestDetachWide_OverdrawKeepsRowWidth(t *testing.T) {
 			if got := b.Cell(5, 0).Char; got != tt.wantAt5 {
 				t.Errorf("cell 5 Char = %q, want %q", got, tt.wantAt5)
 			}
-			if got := b.Cell(4, 0).Width; got != tt.wantWidth {
+			if got := int(b.Cell(4, 0).Width); got != tt.wantWidth {
 				t.Errorf("cell 4 Width = %d, want %d", got, tt.wantWidth)
 			}
 			if got := advanced(b); got != width {

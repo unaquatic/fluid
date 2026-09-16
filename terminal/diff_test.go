@@ -325,7 +325,7 @@ func TestFlushRune_BrokenPair(t *testing.T) {
 				}
 				got.WriteRune(ch)
 				if ch == c.Char {
-					got.WriteString(c.Combining)
+					got.WriteString(c.Combining())
 				}
 				cols += textbuf.RuneWidth(ch)
 			}
