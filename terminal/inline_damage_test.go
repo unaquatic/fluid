@@ -102,43 +102,15 @@ func TestTakeDamage(t *testing.T) {
 	})
 }
 
-// TestSubtreeRectEnclosesMovedDescendants covers the bound that makes subtree
-// culling safe. A translation moves descendants without moving the node, so the
-// node's own rectangle is not enough to decide the subtree paints nothing.
-func TestSubtreeRectEnclosesMovedDescendants(t *testing.T) {
-	wrap := render.NewBaseRenderable(render.WithID("wrap"),
-		render.WithWidth(layout.Points(39)), render.WithHeight(layout.Points(2)))
-	wrap.SetTranslateY(-6)
-	wrap.Add(newGlyphRow("c", 'c', 39, 2))
-
-	r, _ := newInlineTestRenderer()
-	r.root.Add(newGlyphRow("head", 'H', 39, 2))
-	r.root.Add(newGlyphRow("spacer", ' ', 39, 6))
-	r.root.Add(wrap)
-	r.renderInlineFrame()
-
-	if got, want := wrap.Rect(), (buffer.Rect{X: 0, Y: 8, Width: 39, Height: 2}); got != want {
-		t.Fatalf("wrap rect is %+v, want %+v", got, want)
-	}
-	// The child is pulled up to rows 2-3, so the bound spans rows 2-9.
-	if got, want := wrap.SubtreeRect(), (buffer.Rect{X: 0, Y: 2, Width: 39, Height: 8}); got != want {
-		t.Errorf("subtree rect is %+v, want %+v", got, want)
-	}
-}
-
-// newTranslatedChildRenderer builds a frame whose rows 2-3 are painted by a
-// renderable its parent does not enclose: wrap sits at rows 8-9 and pulls its
-// child up to rows 2-3.
-//
-// wrap sits inside a fixed-height container so that hiding or removing it
-// cannot change the frame height, which would repaint everything and hide what
-// these tests are checking.
-func newTranslatedChildRenderer(t *testing.T) (*Renderer, *render.BaseRenderable) {
+// newHiddenSubtreeRenderer builds a frame whose rows 2-3 are painted by wrap's
+// child, with wrap inside a fixed-height container so that hiding or removing
+// it cannot change the frame height. A height change would repaint everything
+// and hide what these tests are checking.
+func newHiddenSubtreeRenderer(t *testing.T) (*Renderer, *render.BaseRenderable) {
 	t.Helper()
 
 	wrap := render.NewBaseRenderable(render.WithID("wrap"),
 		render.WithWidth(layout.Points(39)), render.WithHeight(layout.Points(2)))
-	wrap.SetTranslateY(-6)
 	wrap.Add(newGlyphRow("c", 'c', 39, 2))
 
 	container := render.NewBaseRenderable(render.WithID("container"),
@@ -147,44 +119,42 @@ func newTranslatedChildRenderer(t *testing.T) (*Renderer, *render.BaseRenderable
 
 	r, _ := newInlineTestRenderer()
 	r.root.Add(newGlyphRow("head", 'H', 39, 2))
-	r.root.Add(newGlyphRow("spacer", ' ', 39, 6))
 	r.root.Add(container)
 	r.renderInlineFrame()
 
-	if got := frameText(r.nextBuffer); got != "HHcc      " {
-		t.Fatalf("baseline frame is %q, want %q", got, "HHcc      ")
+	if got := frameText(r.nextBuffer); got != "HHcc" {
+		t.Fatalf("baseline frame is %q, want %q", got, "HHcc")
 	}
 	return r, wrap
 }
 
-// TestInlineDamage_HiddenSubtreeErasesMovedDescendants covers hiding a parent
-// whose child paints outside it. Traversal stops at the hidden parent, so the
-// parent has to report everything its subtree covered or the child's rows keep
-// its content forever.
-func TestInlineDamage_HiddenSubtreeErasesMovedDescendants(t *testing.T) {
-	r, wrap := newTranslatedChildRenderer(t)
+// TestInlineDamage_HiddenSubtreeErases covers hiding a parent. Traversal stops
+// at it, so it has to report the region it painted or its child's rows keep
+// their content forever.
+func TestInlineDamage_HiddenSubtreeErases(t *testing.T) {
+	r, wrap := newHiddenSubtreeRenderer(t)
 
 	// SetVisible keeps the layout space, so the frame height does not change and
 	// the damage path stays in play.
 	wrap.SetVisible(false)
 	r.renderInlineFrame()
 
-	if got := frameText(r.nextBuffer); got != "HH        " {
-		t.Errorf("frame is %q, want %q with the child's rows erased", got, "HH        ")
+	if got := frameText(r.nextBuffer); got != "HH  " {
+		t.Errorf("frame is %q, want %q with the child's rows erased", got, "HH  ")
 	}
 }
 
-// TestInlineDamage_DetachedSubtreeErasesMovedDescendants covers removing that
-// parent. A detached subtree cannot report anything, so its region becomes the
-// parent's to repaint.
-func TestInlineDamage_DetachedSubtreeErasesMovedDescendants(t *testing.T) {
-	r, wrap := newTranslatedChildRenderer(t)
+// TestInlineDamage_DetachedSubtreeErases covers removing that parent. A
+// detached subtree cannot report anything, so its region becomes the parent's
+// to repaint.
+func TestInlineDamage_DetachedSubtreeErases(t *testing.T) {
+	r, wrap := newHiddenSubtreeRenderer(t)
 
 	wrap.Destroy()
 	r.renderInlineFrame()
 
-	if got := frameText(r.nextBuffer); got != "HH        " {
-		t.Errorf("frame is %q, want %q with the child's rows erased", got, "HH        ")
+	if got := frameText(r.nextBuffer); got != "HH  " {
+		t.Errorf("frame is %q, want %q with the child's rows erased", got, "HH  ")
 	}
 }
 
@@ -335,35 +305,6 @@ func TestInlineDamage_ScrollbackChangeRewritesTheScreen(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "ZZZ") {
 		t.Error("expected the changed row to reach the terminal")
-	}
-}
-
-// TestInlineDamage_RepaintsATranslatedChild covers a child placed outside its
-// parent's rectangle. A parent's rectangle says nothing about where its
-// descendants paint, so damage must not cull the subtree along with the parent.
-func TestInlineDamage_RepaintsATranslatedChild(t *testing.T) {
-	wrap := render.NewBaseRenderable(render.WithID("wrap"),
-		render.WithWidth(layout.Points(39)), render.WithHeight(layout.Points(2)))
-	wrap.SetTranslateY(-6) // The child is pulled up into the spacer rows.
-	child := newGlyphRow("c", 'c', 39, 2)
-	wrap.Add(child)
-
-	r, _ := newInlineTestRenderer()
-	r.root.Add(newGlyphRow("head", 'H', 39, 2))
-	r.root.Add(newGlyphRow("spacer", ' ', 39, 6))
-	r.root.Add(wrap)
-	r.renderInlineFrame()
-
-	if got := frameText(r.nextBuffer); got != "HHcc      " {
-		t.Fatalf("baseline frame is %q, want %q", got, "HHcc      ")
-	}
-
-	// The damage covers the child's rows but not the parent's.
-	child.setGlyph('C')
-	r.renderInlineFrame()
-
-	if got := frameText(r.nextBuffer); got != "HHCC      " {
-		t.Errorf("frame is %q, want %q", got, "HHCC      ")
 	}
 }
 

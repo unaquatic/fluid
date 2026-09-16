@@ -68,14 +68,9 @@ type Renderable interface {
 	Damage() buffer.Rect
 	// ClearDamage forgets a vacated region once it has been repainted.
 	ClearDamage()
-	// Rect returns the renderable's resolved geometry.
+	// Rect returns the renderable's resolved geometry, which bounds everywhere
+	// the renderable and its descendants paint.
 	Rect() buffer.Rect
-	// SubtreeRect returns the region enclosing the renderable and every
-	// descendant, which bounds everywhere the subtree can paint.
-	SubtreeRect() buffer.Rect
-	// SetSubtreeRect records the region enclosing the renderable and every
-	// descendant. Scene traversal sets it while resolving layout.
-	SetSubtreeRect(rect buffer.Rect)
 	// RequestRender marks the renderable dirty and requests a scene repaint.
 	RequestRender()
 	// IsDestroyed reports whether Destroy was called.
