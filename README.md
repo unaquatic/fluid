@@ -61,7 +61,6 @@ func main() {
 
 ```
 fluid/
-  animation/        animation & easing utilities
   buffer/           cell buffer (2D grid of styled characters), border drawing
   input/            keyboard, mouse, paste events + keybindings + parser
   layout/           flexbox layout engine

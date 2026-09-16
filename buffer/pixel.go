@@ -207,8 +207,6 @@ func (b *Buffer) DrawGrayscaleBuffer(posX, posY int, intensities []float32, srcW
 		baseBg = *bg
 	}
 
-	opacity := b.opacity.Current()
-
 	for sy := range srcH {
 		destY := posY + sy
 		if destY < 0 {
@@ -236,7 +234,7 @@ func (b *Buffer) DrawGrayscaleBuffer(posX, posY int, intensities []float32, srcW
 
 			ch := grayscaleChar(intensity)
 			gray := clampF(intensity, 0, 1)
-			cellFg := baseFg.WithAlpha(uint8(gray * float32(baseFg.A) * opacity))
+			cellFg := baseFg.WithAlpha(uint8(gray * float32(baseFg.A)))
 
 			b.SetCellBlended(destX, destY, ch, cellFg, baseBg, 0)
 		}
@@ -263,7 +261,6 @@ func (b *Buffer) DrawGrayscaleBufferSupersampled(posX, posY int, intensities []f
 		baseBg = *bg
 	}
 
-	opacity := b.opacity.Current()
 	maxIdx := srcH * srcW
 
 	for cellY := range termH {
@@ -315,7 +312,7 @@ func (b *Buffer) DrawGrayscaleBufferSupersampled(posX, posY int, intensities []f
 
 			ch := grayscaleChar(avg)
 			gray := clampF(avg, 0, 1)
-			cellFg := baseFg.WithAlpha(uint8(gray * float32(baseFg.A) * opacity))
+			cellFg := baseFg.WithAlpha(uint8(gray * float32(baseFg.A)))
 
 			b.SetCellBlended(destX, destY, ch, cellFg, baseBg, 0)
 		}

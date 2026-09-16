@@ -1,6 +1,6 @@
 package terminal
 
-// These integration tests exercise scene rendering, clipping, opacity, hit
+// These integration tests exercise scene rendering, clipping, hit
 // testing, event-driven updates, and painter-order behavior without depending
 // on package widget.
 
@@ -383,66 +383,8 @@ func TestPipeline_ScissorClipsHitGrid(t *testing.T) {
 	}
 }
 
-// TestPipeline_OpacityCompositing verifies that opacity attenuates the overlay
-// rather than producing an opaque replacement.
-func TestPipeline_OpacityCompositing(t *testing.T) {
-	root, _ := setupRoot(10, 3)
-
-	// Paint an opaque red background first.
-	bg := render.NewBaseRenderable(
-		render.WithID("bg"),
-		render.WithWidth(layout.Points(10)),
-		render.WithHeight(layout.Points(3)),
-	)
-	bg.RenderBeforeHook = func(buf *buffer.Buffer, dt float64) {
-		for y := range 3 {
-			for x := range 10 {
-				buf.SetCell(x, y, ' ', style.ColorWhite, style.ColorRed, 0)
-			}
-		}
-	}
-	root.Add(bg)
-
-	// Paint a half-opacity blue absolute overlay on the same area.
-	overlay := render.NewBaseRenderable(
-		render.WithID("overlay"),
-		render.WithOpacity(0.5),
-		render.WithWidth(layout.Points(10)),
-		render.WithHeight(layout.Points(3)),
-		render.WithPosition(layout.PositionAbsolute),
-		render.WithTop(layout.Points(0)),
-		render.WithLeft(layout.Points(0)),
-	)
-	overlay.RenderBeforeHook = func(buf *buffer.Buffer, dt float64) {
-		cx := overlay.X()
-		cy := overlay.Y()
-		for y := range 3 {
-			for x := range 10 {
-				buf.SetCell(cx+x, cy+y, ' ', style.ColorWhite, style.ColorBlue, 0)
-			}
-		}
-	}
-	root.Add(overlay)
-
-	buf := buffer.New(10, 3)
-	root.Render(buf, 0.016)
-
-	// The resulting cell differs from either opaque endpoint.
-	cell := buf.Cell(0, 0)
-	if cell.Bg.Equals(style.ColorRed) {
-		t.Error("expected bg NOT to be pure red after 50% blue overlay")
-	}
-	if cell.Bg.Equals(style.ColorBlue) {
-		t.Error("expected bg NOT to be pure blue (opacity < 1)")
-	}
-	// The overlay contributes a blue channel.
-	if cell.Bg.B < 1 {
-		t.Errorf("expected blended color with blue component > 0, got %v", cell.Bg)
-	}
-}
-
-// TestPipeline_FullOpacity verifies exact output at full opacity.
-func TestPipeline_FullOpacity(t *testing.T) {
+// TestPipeline_ExactCellOutput verifies the exact cell a child paints.
+func TestPipeline_ExactCellOutput(t *testing.T) {
 	root, _ := setupRoot(5, 1)
 
 	child := makeRenderChild("opaque", 0, 0, 5, 1, 'O', style.ColorGreen, style.ColorBlack)

@@ -117,13 +117,12 @@ type BoxDrawOptions struct {
 	TitleAlignment      string // One of "left", "center", or "right".
 }
 
-// Buffer is a 2D grid of styled cells with clipping and opacity support.
+// Buffer is a 2D grid of styled cells with clipping support.
 type Buffer struct {
 	width        int
 	height       int
 	cells        []Cell // Cells are stored in row-major order.
 	scissor      scissorStack
-	opacity      opacityStack
 	respectAlpha bool // Whether DrawFrameBuffer alpha blends this buffer as a source.
 	id           string
 }
@@ -224,15 +223,6 @@ func (b *Buffer) isClipped(x, y int) bool {
 	return !b.scissor.Contains(x, y)
 }
 
-// applyOpacity multiplies both alpha channels by the effective opacity.
-func (b *Buffer) applyOpacity(fg, bg *style.Color) {
-	op := b.opacity.Current()
-	if op < 1.0 {
-		fg.A = uint8(float32(fg.A) * op)
-		bg.A = uint8(float32(bg.A) * op)
-	}
-}
-
 // SetCellCombining sets the Combining field for the cell at (x, y).
 // It does nothing when (x, y) is outside the buffer.
 func (b *Buffer) SetCellCombining(x, y int, combining string) {
@@ -300,7 +290,7 @@ func (b *Buffer) Cell(x, y int) Cell {
 }
 
 // SetCell writes char at (x, y), subject to the current clipping region and
-// opacity. It does nothing when the coordinates are outside either region.
+// It does nothing when the coordinates are outside either region.
 //
 // A wide character occupies a head cell followed by continuation cells. If
 // the complete character does not fit, SetCell discards the write to prevent
@@ -362,7 +352,7 @@ func (b *Buffer) setCluster(x, y int, char rune, combining string, w int, fg, bg
 }
 
 // SetCellDirect writes cell at (x, y), subject to the current clipping region
-// and opacity.
+
 // Transparent backgrounds preserve the existing cell's background.
 // Multi-column cells create continuations with matching styles. If the entire
 // cell does not fit within the buffer and clipping region, the write is
@@ -379,7 +369,6 @@ func (b *Buffer) SetCellDirect(x, y int, cell Cell) {
 			return
 		}
 	}
-	b.applyOpacity(&cell.Fg, &cell.Bg)
 	// Rewriting a continuation must not detach it from its existing head.
 	if !cell.IsContinuation() {
 		for offset := range max(cell.Width, 1) {
@@ -402,14 +391,12 @@ func (b *Buffer) SetCellDirect(x, y int, cell Cell) {
 }
 
 // SetCellBlended alpha blends char over the cell at (x, y), subject to the
-// current clipping region and opacity. It discards a wide character that does
+// current clipping region. It discards a wide character that does
 // not fit in the buffer.
 func (b *Buffer) SetCellBlended(x, y int, char rune, fg, bg style.Color, attrs uint32) {
 	if !b.inBounds(x, y) || b.isClipped(x, y) {
 		return
 	}
-
-	b.applyOpacity(&fg, &bg)
 
 	w := RuneWidth(char)
 
@@ -549,7 +536,6 @@ func (b *Buffer) FillRect(x, y, w, h int, bg style.Color) {
 			if b.inBounds(col, row) && !b.isClipped(col, row) {
 				fg := style.ColorWhite
 				cellBg := bg
-				b.applyOpacity(&fg, &cellBg)
 				b.detachWide(col, row)
 				idx := b.cellIndex(col, row)
 				b.cells[idx] = Cell{
@@ -720,7 +706,7 @@ func (b *Buffer) DrawVLine(x, y, length int, char rune, fg, bg style.Color) {
 
 // DrawFrameBuffer copies src to b at (destX, destY). The first optional source
 // rectangle restricts the copied region. The copy respects b's clipping region
-// and opacity. If src.RespectAlpha reports true, the copy alpha blends each
+// If src.RespectAlpha reports true, the copy alpha blends each
 // source cell over its destination.
 func (b *Buffer) DrawFrameBuffer(destX, destY int, src *Buffer, srcRect ...Rect) {
 	sr := src.Bounds()
@@ -742,13 +728,6 @@ func (b *Buffer) DrawFrameBuffer(destX, destY int, src *Buffer, srcRect ...Rect)
 			// Fully transparent source cells leave the destination unchanged.
 			if srcCell.Bg.A == 0 && srcCell.Fg.A == 0 {
 				continue
-			}
-
-			// Destination opacity attenuates the copied source cell.
-			op := b.opacity.Current()
-			if op < 1.0 {
-				srcCell.Fg.A = uint8(float32(srcCell.Fg.A) * op)
-				srcCell.Bg.A = uint8(float32(srcCell.Bg.A) * op)
 			}
 
 			b.detachWide(dx, dy)
@@ -793,7 +772,7 @@ func (b *Buffer) CopyRowsFrom(src *Buffer, y, height int) {
 // the rows the change adds. Existing cells are reused when they have room, so
 // growing by a row costs a row rather than a copy of the whole buffer.
 //
-// It resets the clipping and opacity stacks, as Resize does.
+// It resets the clipping stack, as Resize does.
 func (b *Buffer) SetHeight(height int) {
 	if height < 0 {
 		height = 0
@@ -812,11 +791,10 @@ func (b *Buffer) SetHeight(height int) {
 
 	b.height = height
 	b.scissor.Clear()
-	b.opacity.Clear()
 }
 
 // Resize changes the dimensions of b, clears its cells, and resets its
-// clipping and opacity stacks.
+// clipping stack.
 func (b *Buffer) Resize(width, height int) {
 	if width < 0 {
 		width = 0
@@ -829,7 +807,6 @@ func (b *Buffer) Resize(width, height int) {
 	b.cells = make([]Cell, width*height)
 	b.fill(CellClear)
 	b.scissor.Clear()
-	b.opacity.Clear()
 }
 
 // PushScissorRect restricts subsequent drawing to the intersection of the
@@ -847,28 +824,6 @@ func (b *Buffer) PopScissorRect() {
 // ClearScissorRects removes all clipping restrictions.
 func (b *Buffer) ClearScissorRects() {
 	b.scissor.Clear()
-}
-
-// PushOpacity multiplies subsequent drawing opacity by opacity, clamped to the
-// range [0, 1].
-func (b *Buffer) PushOpacity(opacity float32) {
-	b.opacity.Push(opacity)
-}
-
-// PopOpacity restores the opacity that preceded the most recent PushOpacity
-// call.
-func (b *Buffer) PopOpacity() {
-	b.opacity.Pop()
-}
-
-// CurrentOpacity returns the product of the stacked opacity multipliers.
-func (b *Buffer) CurrentOpacity() float32 {
-	return b.opacity.Current()
-}
-
-// ClearOpacity removes all opacity multipliers and restores full opacity.
-func (b *Buffer) ClearOpacity() {
-	b.opacity.Clear()
 }
 
 // Chars returns a row-major snapshot of the primary code point in each cell.

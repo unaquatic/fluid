@@ -542,7 +542,6 @@ func TestResize(t *testing.T) {
 	b := New(5, 5)
 	b.SetCell(2, 2, 'X', style.ColorWhite, style.ColorBlack, 0)
 	b.PushScissorRect(0, 0, 5, 5)
-	b.PushOpacity(0.5)
 
 	b.Resize(10, 10)
 
@@ -554,11 +553,6 @@ func TestResize(t *testing.T) {
 	c := b.Cell(2, 2)
 	if c.Char != ' ' {
 		t.Error("after Resize cells should be cleared")
-	}
-
-	// Resize also restores full opacity.
-	if b.CurrentOpacity() != 1.0 {
-		t.Error("after Resize opacity should be 1.0")
 	}
 }
 
@@ -635,24 +629,6 @@ func TestScissorRect_BlocksWrite(t *testing.T) {
 	if b.Cell(0, 0).Char != 'A' {
 		t.Error("after PopScissorRect, write should work")
 	}
-}
-
-func TestOpacity_AffectsCells(t *testing.T) {
-	b := New(10, 1)
-
-	b.PushOpacity(0.5)
-	b.SetCell(0, 0, 'A', style.ColorWhite, style.ColorBlack, 0)
-
-	c := b.Cell(0, 0)
-	// Half opacity reduces each initially opaque alpha channel to about 128.
-	if c.Fg.A < 125 || c.Fg.A > 130 {
-		t.Errorf("Fg.A = %d, want ~128", c.Fg.A)
-	}
-	if c.Bg.A < 125 || c.Bg.A > 130 {
-		t.Errorf("Bg.A = %d, want ~128 (Black.A=255 * 0.5)", c.Bg.A)
-	}
-
-	b.PopOpacity()
 }
 
 func TestCopyFrom(t *testing.T) {

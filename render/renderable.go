@@ -88,10 +88,6 @@ type Renderable interface {
 	Width() int
 	// Height returns the resolved height.
 	Height() int
-	// SetOpacity sets opacity, where zero is transparent and one is opaque.
-	SetOpacity(o float32)
-	// Opacity returns the current opacity.
-	Opacity() float32
 	// TranslateX returns the horizontal offset inherited by descendants after
 	// layout.
 	TranslateX() int
@@ -178,15 +174,6 @@ type Renderable interface {
 	Context() Context
 	// SetContext attaches a renderer context.
 	SetContext(ctx Context)
-
-	// Buffered rendering.
-
-	// Buffered reports whether the renderable uses a private frame buffer.
-	Buffered() bool
-	// SetBuffered controls private frame-buffer rendering.
-	SetBuffered(b bool)
-	// FrameBuffer returns the private frame buffer, or nil if none is allocated.
-	FrameBuffer() *buffer.Buffer
 
 	// Continuous rendering.
 

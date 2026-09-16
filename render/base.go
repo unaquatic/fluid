@@ -2,7 +2,6 @@ package render
 
 import (
 	"fmt"
-	"math"
 	"sync"
 	"sync/atomic"
 
@@ -42,16 +41,6 @@ func WithVisible(v bool) RenderableOption {
 // WithFocusable sets whether the renderable can initially receive focus.
 func WithFocusable(f bool) RenderableOption {
 	return func(b *BaseRenderable) { b.focusable = f }
-}
-
-// WithOpacity sets the initial opacity.
-func WithOpacity(o float32) RenderableOption {
-	return func(b *BaseRenderable) { b.opacity = o }
-}
-
-// WithBuffered controls the initial private frame-buffer mode.
-func WithBuffered(v bool) RenderableOption {
-	return func(b *BaseRenderable) { b.buffered = v }
 }
 
 // WithLive controls the initial continuous-rendering mode.
@@ -208,10 +197,8 @@ type BaseRenderable struct {
 	focused    bool
 	live       bool
 	selectable bool
-	buffered   bool
 	destroyed  bool
 
-	opacity       float32
 	translateX    int
 	translateY    int
 	stickyOffsetX int // A horizontal post-layout offset for sticky positioning.
@@ -219,9 +206,6 @@ type BaseRenderable struct {
 
 	dirty      bool
 	childDirty bool // Reports whether a descendant changed since the last frame.
-
-	// Private frame buffer used by buffered rendering.
-	frameBuffer *buffer.Buffer
 
 	// Local continuous-rendering request count.
 	liveCount int
@@ -262,7 +246,6 @@ func NewBaseRenderable(opts ...RenderableOption) *BaseRenderable {
 		num:        num,
 		id:         fmt.Sprintf("renderable-%d", num),
 		visible:    true,
-		opacity:    1.0,
 		focusable:  false,
 		dirty:      true,
 		layoutNode: layout.NewNode(),
@@ -557,20 +540,6 @@ func (b *BaseRenderable) SetBounds(x, y, w, h int) {
 	b.height = h
 }
 
-// SetOpacity sets b's opacity, clamped to [0, 1].
-func (b *BaseRenderable) SetOpacity(o float32) {
-	if o < 0 {
-		o = 0
-	}
-	if o > 1 {
-		o = 1
-	}
-	b.opacity = o
-}
-
-// Opacity returns b's opacity.
-func (b *BaseRenderable) Opacity() float32 { return b.opacity }
-
 // TranslateX returns the horizontal offset inherited by descendants.
 func (b *BaseRenderable) TranslateX() int { return b.translateX }
 
@@ -645,14 +614,7 @@ func (b *BaseRenderable) Render(buf *buffer.Buffer, deltaTime float64) {
 		return
 	}
 
-	// Buffered rendering draws into the private buffer before compositing it.
-	if b.buffered && b.frameBuffer != nil {
-		b.frameBuffer.Clear()
-		b.renderContent(b.frameBuffer, deltaTime)
-		buf.DrawFrameBuffer(b.x, b.y, b.frameBuffer)
-	} else {
-		b.renderContent(buf, deltaTime)
-	}
+	b.renderContent(buf, deltaTime)
 
 	// Only visible renderables register hit-test regions.
 	b.ctx.AddToHitGrid(b.x, b.y, b.width, b.height, b.num)
@@ -866,21 +828,6 @@ func (b *BaseRenderable) StringWidth(s string) int {
 	return textbuf.StringWidth(s)
 }
 
-// Buffered reports whether b uses private frame-buffer rendering.
-func (b *BaseRenderable) Buffered() bool { return b.buffered }
-
-// SetBuffered controls private frame-buffer rendering and allocates the buffer
-// when enabling it after b has nonzero dimensions.
-func (b *BaseRenderable) SetBuffered(v bool) {
-	b.buffered = v
-	if v && b.frameBuffer == nil && b.width > 0 && b.height > 0 {
-		b.frameBuffer = buffer.New(b.width, b.height)
-	}
-}
-
-// FrameBuffer returns b's private frame buffer, or nil if none is allocated.
-func (b *BaseRenderable) FrameBuffer() *buffer.Buffer { return b.frameBuffer }
-
 // Live reports whether b requested continuous rendering.
 func (b *BaseRenderable) Live() bool { return b.live }
 
@@ -904,34 +851,3 @@ func (b *BaseRenderable) SetLive(l bool) {
 
 // LiveCount returns b's local continuous-render request count.
 func (b *BaseRenderable) LiveCount() int { return b.liveCount }
-
-// Property returns the named animatable value. It supports "opacity",
-// "translateX", and "translateY", and returns zero for any other name.
-func (b *BaseRenderable) Property(name string) float64 {
-	switch name {
-	case "opacity":
-		return float64(b.opacity)
-	case "translateX":
-		return float64(b.translateX)
-	case "translateY":
-		return float64(b.translateY)
-	default:
-		return 0
-	}
-}
-
-// SetProperty updates a supported animatable value and requests a repaint. It
-// supports "opacity", "translateX", and "translateY" and ignores other names.
-func (b *BaseRenderable) SetProperty(name string, value float64) {
-	switch name {
-	case "opacity":
-		b.SetOpacity(float32(value))
-	case "translateX":
-		b.translateX = int(math.Round(value))
-	case "translateY":
-		b.translateY = int(math.Round(value))
-	default:
-		return
-	}
-	b.RequestRender()
-}

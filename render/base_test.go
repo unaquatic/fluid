@@ -64,8 +64,6 @@ func TestBaseRenderable_Options(t *testing.T) {
 	r := NewBaseRenderable(
 		WithVisible(false),
 		WithFocusable(true),
-		WithOpacity(0.5),
-		WithBuffered(true),
 		WithLive(true),
 		WithSelectable(true),
 	)
@@ -75,12 +73,6 @@ func TestBaseRenderable_Options(t *testing.T) {
 	}
 	if !r.Focusable() {
 		t.Error("expected focusable=true")
-	}
-	if r.Opacity() != 0.5 {
-		t.Errorf("expected opacity=0.5, got %f", r.Opacity())
-	}
-	if !r.Buffered() {
-		t.Error("expected buffered=true")
 	}
 	if !r.Live() {
 		t.Error("expected live=true")
@@ -136,9 +128,6 @@ func TestBaseRenderable_Defaults(t *testing.T) {
 	}
 	if r.Focused() {
 		t.Error("expected focused=false by default")
-	}
-	if r.Opacity() != 1.0 {
-		t.Errorf("expected opacity=1.0, got %f", r.Opacity())
 	}
 	if r.IsDestroyed() {
 		t.Error("expected destroyed=false by default")
@@ -444,20 +433,6 @@ func TestBaseRenderable_SetVisible(t *testing.T) {
 	}
 }
 
-func TestBaseRenderable_OpacityClamp(t *testing.T) {
-	r := NewBaseRenderable()
-
-	r.SetOpacity(-0.5)
-	if r.Opacity() != 0 {
-		t.Errorf("expected opacity=0 for negative input, got %f", r.Opacity())
-	}
-
-	r.SetOpacity(2.0)
-	if r.Opacity() != 1.0 {
-		t.Errorf("expected opacity=1.0 for >1 input, got %f", r.Opacity())
-	}
-}
-
 func TestBaseRenderable_Focus(t *testing.T) {
 	r := NewBaseRenderable(WithFocusable(true))
 
@@ -695,28 +670,6 @@ func TestBaseRenderable_Translation(t *testing.T) {
 	}
 	if r.TranslateY() != 20 {
 		t.Errorf("expected translateY=20, got %d", r.TranslateY())
-	}
-}
-
-func TestBaseRenderable_BufferedMode(t *testing.T) {
-	r := NewBaseRenderable()
-	r.width = 10
-	r.height = 5
-
-	if r.Buffered() {
-		t.Error("expected buffered=false by default")
-	}
-	if r.FrameBuffer() != nil {
-		t.Error("expected nil frame buffer by default")
-	}
-
-	r.SetBuffered(true)
-
-	if !r.Buffered() {
-		t.Error("expected buffered=true after SetBuffered(true)")
-	}
-	if r.FrameBuffer() == nil {
-		t.Error("expected non-nil frame buffer after SetBuffered(true)")
 	}
 }
 

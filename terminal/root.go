@@ -52,7 +52,7 @@ func (r *RootRenderable) UnregisterLifecyclePass(num uint64) {
 //  1. Run registered lifecycle callbacks.
 //  2. Resolve flexbox layout.
 //  3. Synchronize widget positions and run post-layout hooks.
-//  4. Build and execute render, clipping, and opacity commands.
+//  4. Build and execute render and clipping commands.
 func (r *RootRenderable) Render(buf *buffer.Buffer, deltaTime float64) {
 	prepStats := r.PrepareLayout(deltaTime)
 	execStats := r.ExecuteRender(buf, deltaTime)
@@ -238,10 +238,6 @@ func (r *RootRenderable) Draw(buf *buffer.Buffer, deltaTime float64, damage buff
 		case "popScissorRect":
 			buf.PopScissorRect()
 			r.Context().PopHitGridScissorRect()
-		case "pushOpacity":
-			buf.PushOpacity(cmd.Opacity)
-		case "popOpacity":
-			buf.PopOpacity()
 		}
 	}
 	t3 := time.Now()
@@ -391,14 +387,6 @@ func (r *RootRenderable) collectRenderCommandsWithScissor(node render.Renderable
 	}
 
 	cull, needsScissor := clipRect(node)
-	needsOpacity := node.Opacity() < 1.0
-
-	if needsOpacity {
-		*commands = append(*commands, DrawCommand{
-			Action:  "pushOpacity",
-			Opacity: node.Opacity(),
-		})
-	}
 
 	// Render the container before clipping its descendants so its border remains
 	// visible.
@@ -458,12 +446,6 @@ func (r *RootRenderable) collectRenderCommandsWithScissor(node render.Renderable
 	if needsScissor {
 		*commands = append(*commands, DrawCommand{
 			Action: "popScissorRect",
-		})
-	}
-
-	if needsOpacity {
-		*commands = append(*commands, DrawCommand{
-			Action: "popOpacity",
 		})
 	}
 }
