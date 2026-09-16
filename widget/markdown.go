@@ -202,7 +202,7 @@ func NewMarkdown(content string, opts ...MarkdownOption) *Markdown {
 
 	// Use Goldmark and Chroma unless options supplied replacements.
 	if m.parser == nil {
-		m.parser = NewGoldmarkParser()
+		m.parser = sharedGoldmarkParser()
 	}
 	if m.highlighter == nil {
 		m.highlighter = NewChromaHighlighter("monokai")
@@ -1100,6 +1100,6 @@ func MarkdownWithTheme(t *style.Theme) MarkdownOption {
 		m.listEnum = t.ResolveMarkdownListEnum()
 		m.rule = t.ResolveMarkdownRule()
 		// Keep fenced-code token colors consistent with the selected UI theme.
-		m.highlighter = NewChromaHighlighterWithStyle(ChromaStyleFromTheme(t))
+		m.highlighter = NewChromaHighlighterWithStyle(ChromaStyleForTheme(t))
 	}
 }

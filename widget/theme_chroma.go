@@ -2,6 +2,7 @@ package widget
 
 import (
 	"strings"
+	"sync"
 
 	"github.com/alecthomas/chroma/v2"
 	"github.com/unaquatic/fluid/style"
@@ -90,6 +91,22 @@ func ChromaStyleFromTheme(t *style.Theme) *chroma.Style {
 	// Every specification below is generated from a Color or fixed keyword,
 	// so MustNewStyle cannot receive malformed style syntax.
 	return chroma.MustNewStyle("fluid-theme", entries)
+}
+
+// themeChromaStyles caches one built style per theme.
+var themeChromaStyles sync.Map // map[*style.Theme]*chroma.Style
+
+// ChromaStyleForTheme returns the Chroma style for t, building it on first use.
+// A built style is immutable, so every widget on a theme can share one.
+//
+// Prefer this over ChromaStyleFromTheme when many widgets share a theme;
+// building a style allocates roughly one and a half kilobytes.
+func ChromaStyleForTheme(t *style.Theme) *chroma.Style {
+	if s, ok := themeChromaStyles.Load(t); ok {
+		return s.(*chroma.Style)
+	}
+	actual, _ := themeChromaStyles.LoadOrStore(t, ChromaStyleFromTheme(t))
+	return actual.(*chroma.Style)
 }
 
 // NewChromaHighlighterWithStyle returns a highlighter that uses s directly
