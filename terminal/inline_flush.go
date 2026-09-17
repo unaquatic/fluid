@@ -10,7 +10,14 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-const inlineMaxLayoutHeight = 10000
+// inlineMaxLayoutHeight is the height the inline root is laid out at. A fixed
+// height keeps growing content from resizing the root, which would damage every
+// row of the transcript.
+//
+// Content taller than this overflows the root, and flexible children are shrunk
+// to fit it, so the height has to stay out of reach of any transcript. A
+// child that grows claims all of it, so inline layouts bound one to a viewport.
+const inlineMaxLayoutHeight = 1 << 20
 
 // Terminal control sequences used by inline output.
 const (
