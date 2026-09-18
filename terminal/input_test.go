@@ -236,7 +236,7 @@ func TestDispatchKeyEvent_ExitOnCtrlC(t *testing.T) {
 	evt.Key.Ctrl = true
 	r.dispatchEvent(evt)
 
-	if !r.destroyed {
+	if !r.IsDestroyed() {
 		t.Error("expected ctrl+c to destroy the renderer")
 	}
 }
@@ -253,7 +253,7 @@ func TestDispatchKeyEvent_BusVetoesExitOnCtrlC(t *testing.T) {
 	evt.Key.Ctrl = true
 	r.dispatchEvent(evt)
 
-	if r.destroyed {
+	if r.IsDestroyed() {
 		t.Error("expected PreventDefault to veto the ExitOnCtrlC default action")
 	}
 }

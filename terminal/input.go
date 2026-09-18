@@ -15,7 +15,7 @@ func (r *Renderer) inputLoop() {
 	buf := make([]byte, 4096)
 	for {
 		n, err := r.backend.stdin.Read(buf)
-		if err != nil || r.destroyed {
+		if err != nil || r.destroyed.Load() {
 			return
 		}
 		if n == 0 {

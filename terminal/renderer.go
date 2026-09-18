@@ -27,13 +27,9 @@ type Renderer struct {
 	backend *Backend
 	config  Config
 
-	currentBuffer *buffer.Buffer // The frame represented on screen.
-	nextBuffer    *buffer.Buffer // The frame currently being built.
-
 	width, height int
 
 	controlState ControlState
-	destroyed    bool
 
 	// Input state.
 	parser        *input.Parser
@@ -55,6 +51,9 @@ type Renderer struct {
 	wake        chan struct{}
 	stopChan    chan struct{}
 	dirty       atomic.Bool
+
+	// destroyed is set once by Destroy and read from the input loop.
+	destroyed atomic.Bool
 
 	// Frame statistics.
 	stats         Stats
@@ -79,9 +78,16 @@ type Renderer struct {
 	// Live-render references.
 	liveCount int32 // Accessed atomically.
 
-	// Inline rendering state. The terminal holds every row of inlineCurrentBuf,
-	// but only rows inlineViewportTop and below remain addressable; earlier rows
+	// Frame state owned by the event-loop goroutine. These fields carry no
+	// lock: reach them from setup, or through Enqueue, and never from another
+	// goroutine.
+	//
+	// Inline output holds every row of inlineCurrentBuf in the terminal, but
+	// only rows inlineViewportTop and below remain addressable; earlier rows
 	// have scrolled into the scrollback.
+	currentBuffer         *buffer.Buffer // The frame represented on screen.
+	nextBuffer            *buffer.Buffer // The frame currently being built.
+	invalidated           bool           // Whether the next fullscreen frame requires FullFlush.
 	lastInlineLayoutWidth int            // The width used for the previous inline layout.
 	inlineCurrentBuf      *buffer.Buffer // The frame represented by current inline output.
 	inlineViewportTop     int            // The frame row shown on the terminal's first row.
@@ -98,8 +104,7 @@ type Renderer struct {
 	// Closed when Destroy completes.
 	done chan struct{}
 
-	mu          sync.Mutex
-	invalidated bool // Whether the next fullscreen frame requires FullFlush.
+	mu sync.Mutex
 
 	// Width-probe result from setup.
 	probedWidths []int
@@ -199,11 +204,7 @@ func (r *Renderer) IsRunning() bool {
 }
 
 // IsDestroyed reports whether Destroy was called.
-func (r *Renderer) IsDestroyed() bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.destroyed
-}
+func (r *Renderer) IsDestroyed() bool { return r.destroyed.Load() }
 
 // ControlState returns the current lifecycle state.
 func (r *Renderer) ControlState() ControlState {
@@ -393,13 +394,9 @@ func (r *Renderer) Stop() {
 // Destroy idempotently stops rendering, restores terminal modes, destroys the
 // scene, clears subscriptions, and closes Done.
 func (r *Renderer) Destroy() {
-	r.mu.Lock()
-	if r.destroyed {
-		r.mu.Unlock()
+	if r.destroyed.Swap(true) {
 		return
 	}
-	r.destroyed = true
-	r.mu.Unlock()
 
 	r.Stop()
 
