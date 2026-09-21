@@ -871,11 +871,9 @@ func TestDrawBorder_AllSides_Single(t *testing.T) {
 	buf := New(10, 5)
 	buf.DrawBorder(BorderDrawOptions{
 		X: 0, Y: 0, Width: 10, Height: 5,
-		BorderConfig: BorderConfig{
-			Style:  style.BorderSingle,
-			Border: style.BorderAll(),
-			Color:  style.ColorWhite,
-		},
+		Style:           style.BorderSingle,
+		Border:          style.BorderAll(),
+		Color:           style.ColorWhite,
 		BackgroundColor: style.ColorBlack,
 		ShouldFill:      true,
 	})
@@ -928,11 +926,9 @@ func TestDrawBorder_AllSides_Double(t *testing.T) {
 	buf := New(10, 5)
 	buf.DrawBorder(BorderDrawOptions{
 		X: 0, Y: 0, Width: 10, Height: 5,
-		BorderConfig: BorderConfig{
-			Style:  style.BorderDouble,
-			Border: style.BorderAll(),
-			Color:  style.ColorWhite,
-		},
+		Style:           style.BorderDouble,
+		Border:          style.BorderAll(),
+		Color:           style.ColorWhite,
 		BackgroundColor: style.ColorBlack,
 		ShouldFill:      false,
 	})
@@ -952,11 +948,9 @@ func TestDrawBorder_AllSides_Rounded(t *testing.T) {
 	buf := New(6, 4)
 	buf.DrawBorder(BorderDrawOptions{
 		X: 0, Y: 0, Width: 6, Height: 4,
-		BorderConfig: BorderConfig{
-			Style:  style.BorderRounded,
-			Border: style.BorderAll(),
-			Color:  style.ColorWhite,
-		},
+		Style:  style.BorderRounded,
+		Border: style.BorderAll(),
+		Color:  style.ColorWhite,
 	})
 
 	if c := getChar(buf, 0, 0); c != style.RoundedChars.TopLeft {
@@ -971,11 +965,9 @@ func TestDrawBorder_AllSides_Heavy(t *testing.T) {
 	buf := New(6, 4)
 	buf.DrawBorder(BorderDrawOptions{
 		X: 0, Y: 0, Width: 6, Height: 4,
-		BorderConfig: BorderConfig{
-			Style:  style.BorderHeavy,
-			Border: style.BorderAll(),
-			Color:  style.ColorWhite,
-		},
+		Style:  style.BorderHeavy,
+		Border: style.BorderAll(),
+		Color:  style.ColorWhite,
 	})
 
 	if c := getChar(buf, 0, 0); c != style.HeavyChars.TopLeft {
@@ -990,11 +982,9 @@ func TestDrawBorder_TopOnly(t *testing.T) {
 	buf := New(10, 5)
 	buf.DrawBorder(BorderDrawOptions{
 		X: 0, Y: 0, Width: 10, Height: 5,
-		BorderConfig: BorderConfig{
-			Style:  style.BorderSingle,
-			Border: style.BorderSides(style.SideTop),
-			Color:  style.ColorWhite,
-		},
+		Style:  style.BorderSingle,
+		Border: style.BorderSides(style.SideTop),
+		Color:  style.ColorWhite,
 	})
 
 	// Without vertical sides, the top border contains no corner runes.
@@ -1018,11 +1008,9 @@ func TestDrawBorder_LeftRight(t *testing.T) {
 	buf := New(10, 5)
 	buf.DrawBorder(BorderDrawOptions{
 		X: 0, Y: 0, Width: 10, Height: 5,
-		BorderConfig: BorderConfig{
-			Style:  style.BorderSingle,
-			Border: style.BorderSides(style.SideLeft, style.SideRight),
-			Color:  style.ColorWhite,
-		},
+		Style:  style.BorderSingle,
+		Border: style.BorderSides(style.SideLeft, style.SideRight),
+		Color:  style.ColorWhite,
 	})
 
 	// With no horizontal sides, both vertical sides span the full height.
@@ -1050,11 +1038,9 @@ func TestDrawBorder_NoSides(t *testing.T) {
 	buf := New(10, 5)
 	buf.DrawBorder(BorderDrawOptions{
 		X: 0, Y: 0, Width: 10, Height: 5,
-		BorderConfig: BorderConfig{
-			Style:  style.BorderSingle,
-			Border: style.BorderNoBorder(),
-			Color:  style.ColorWhite,
-		},
+		Style:  style.BorderSingle,
+		Border: style.BorderNoBorder(),
+		Color:  style.ColorWhite,
 	})
 
 	// With every side disabled, DrawBorder leaves the buffer untouched.
@@ -1068,11 +1054,9 @@ func TestDrawBorder_WithFill(t *testing.T) {
 	bgColor := style.ColorFromInts(128, 128, 128, 255)
 	buf.DrawBorder(BorderDrawOptions{
 		X: 0, Y: 0, Width: 10, Height: 5,
-		BorderConfig: BorderConfig{
-			Style:  style.BorderSingle,
-			Border: style.BorderAll(),
-			Color:  style.ColorWhite,
-		},
+		Style:           style.BorderSingle,
+		Border:          style.BorderAll(),
+		Color:           style.ColorWhite,
 		BackgroundColor: bgColor,
 		ShouldFill:      true,
 	})
@@ -1088,11 +1072,9 @@ func TestDrawBorder_Offset(t *testing.T) {
 	buf := New(20, 10)
 	buf.DrawBorder(BorderDrawOptions{
 		X: 5, Y: 3, Width: 8, Height: 4,
-		BorderConfig: BorderConfig{
-			Style:  style.BorderSingle,
-			Border: style.BorderAll(),
-			Color:  style.ColorWhite,
-		},
+		Style:  style.BorderSingle,
+		Border: style.BorderAll(),
+		Color:  style.ColorWhite,
 	})
 
 	if c := getChar(buf, 5, 3); c != style.SingleChars.TopLeft {
@@ -1108,11 +1090,9 @@ func TestDrawBorder_ZeroDimensions(t *testing.T) {
 	// Zero dimensions make DrawBorder a safe no-op.
 	buf.DrawBorder(BorderDrawOptions{
 		X: 0, Y: 0, Width: 0, Height: 0,
-		BorderConfig: BorderConfig{
-			Style:  style.BorderSingle,
-			Border: style.BorderAll(),
-			Color:  style.ColorWhite,
-		},
+		Style:  style.BorderSingle,
+		Border: style.BorderAll(),
+		Color:  style.ColorWhite,
 	})
 }
 
@@ -1120,11 +1100,9 @@ func TestDrawBorder_TitleLeft(t *testing.T) {
 	buf := New(20, 5)
 	buf.DrawBorder(BorderDrawOptions{
 		X: 0, Y: 0, Width: 20, Height: 5,
-		BorderConfig: BorderConfig{
-			Style:  style.BorderSingle,
-			Border: style.BorderAll(),
-			Color:  style.ColorWhite,
-		},
+		Style:          style.BorderSingle,
+		Border:         style.BorderAll(),
+		Color:          style.ColorWhite,
 		Title:          "Test",
 		TitleAlignment: layout.TextAlignLeft,
 	})
@@ -1148,11 +1126,9 @@ func TestDrawBorder_TitleCenter(t *testing.T) {
 	buf := New(20, 5)
 	buf.DrawBorder(BorderDrawOptions{
 		X: 0, Y: 0, Width: 20, Height: 5,
-		BorderConfig: BorderConfig{
-			Style:  style.BorderSingle,
-			Border: style.BorderAll(),
-			Color:  style.ColorWhite,
-		},
+		Style:          style.BorderSingle,
+		Border:         style.BorderAll(),
+		Color:          style.ColorWhite,
 		Title:          "Hi",
 		TitleAlignment: layout.TextAlignCenter,
 	})
@@ -1170,11 +1146,9 @@ func TestDrawBorder_TitleRight(t *testing.T) {
 	buf := New(20, 5)
 	buf.DrawBorder(BorderDrawOptions{
 		X: 0, Y: 0, Width: 20, Height: 5,
-		BorderConfig: BorderConfig{
-			Style:  style.BorderSingle,
-			Border: style.BorderAll(),
-			Color:  style.ColorWhite,
-		},
+		Style:          style.BorderSingle,
+		Border:         style.BorderAll(),
+		Color:          style.ColorWhite,
 		Title:          "OK",
 		TitleAlignment: layout.TextAlignRight,
 	})
@@ -1192,11 +1166,9 @@ func TestDrawBorder_TitleTruncation(t *testing.T) {
 	buf := New(6, 4) // The title has four columns between the corners.
 	buf.DrawBorder(BorderDrawOptions{
 		X: 0, Y: 0, Width: 6, Height: 4,
-		BorderConfig: BorderConfig{
-			Style:  style.BorderSingle,
-			Border: style.BorderAll(),
-			Color:  style.ColorWhite,
-		},
+		Style:          style.BorderSingle,
+		Border:         style.BorderAll(),
+		Color:          style.ColorWhite,
 		Title:          "TooLong",
 		TitleAlignment: layout.TextAlignLeft,
 	})
@@ -1219,11 +1191,9 @@ func TestDrawBorder_TitleNoTopBorder(t *testing.T) {
 	buf := New(20, 5)
 	buf.DrawBorder(BorderDrawOptions{
 		X: 0, Y: 0, Width: 20, Height: 5,
-		BorderConfig: BorderConfig{
-			Style:  style.BorderSingle,
-			Border: style.BorderSides(style.SideLeft, style.SideRight, style.SideBottom), // The top side is disabled.
-			Color:  style.ColorWhite,
-		},
+		Style:          style.BorderSingle,
+		Border:         style.BorderSides(style.SideLeft, style.SideRight, style.SideBottom), // The top side is disabled.
+		Color:          style.ColorWhite,
 		Title:          "Skip",
 		TitleAlignment: layout.TextAlignLeft,
 	})

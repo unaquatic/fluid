@@ -530,10 +530,7 @@ func (ev *EditSurface) ensureCursorVisible() {
 	// Recover the cursor's absolute virtual-line index.
 	absVisRow := vc.VisualRow + vp.Y
 
-	marginLines := max(int(float32(vp.Height)*ev.scrollMargin), 1)
-	if marginLines > (vp.Height-1)/2 {
-		marginLines = (vp.Height - 1) / 2
-	}
+	marginLines := min(max(int(float32(vp.Height)*ev.scrollMargin), 1), (vp.Height-1)/2)
 
 	newY := vp.Y
 
@@ -543,10 +540,7 @@ func (ev *EditSurface) ensureCursorVisible() {
 	}
 	// Scroll downward when the cursor enters the bottom margin.
 	if absVisRow >= vp.Y+vp.Height-marginLines {
-		newY = min(absVisRow-vp.Height+marginLines+1, totalVLines-vp.Height)
-		if newY < 0 {
-			newY = 0
-		}
+		newY = max(min(absVisRow-vp.Height+marginLines+1, totalVLines-vp.Height), 0)
 	}
 
 	if newY != vp.Y {

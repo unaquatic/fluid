@@ -133,15 +133,13 @@ func (b *Box) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 		}
 
 		buf.DrawBorder(buffer.BorderDrawOptions{
-			X:      x,
-			Y:      y,
-			Width:  w,
-			Height: h,
-			BorderConfig: buffer.BorderConfig{
-				Style:  b.BorderStyle,
-				Border: b.Border,
-				Color:  borderColor,
-			},
+			X:               x,
+			Y:               y,
+			Width:           w,
+			Height:          h,
+			Style:           b.BorderStyle,
+			Border:          b.Border,
+			Color:           borderColor,
 			BackgroundColor: b.BackgroundColor,
 			ShouldFill:      false, // The content area was filled above.
 			Title:           b.Title,

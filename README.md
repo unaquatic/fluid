@@ -3,7 +3,7 @@
 A retained-mode terminal UI framework for Go, with a flexbox layout engine
 and double-buffered cell rendering.
 
-[![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white&style=flat-square)](https://go.dev/)
+[![Go](https://img.shields.io/badge/Go-1.27-00ADD8?logo=go&logoColor=white&style=flat-square)](https://go.dev/)
 [![License](https://img.shields.io/github/license/unaquatic/fluid?style=flat-square)](https://github.com/unaquatic/fluid/blob/main/LICENSE)
 
 ## Install

@@ -564,10 +564,7 @@ func (sb *ScrollBox) computeStickyOffsets() {
 
 	// Top offsets are positive and push children down to the viewport edge.
 	for si, s := range top {
-		raw := sb.scrollY - s.pos
-		if raw < 0 {
-			raw = 0
-		}
+		raw := max(sb.scrollY-s.pos, 0)
 		limit := sb.contentHeight - s.pos - s.size
 		if si+1 < len(top) {
 			limit = top[si+1].pos - s.pos - s.size - sb.stickyGap
@@ -584,10 +581,9 @@ func (sb *ScrollBox) computeStickyOffsets() {
 
 	// Bottom offsets are negative and pull children up to the viewport edge.
 	for si, s := range bottom {
-		raw := (sb.scrollY + vpH) - (s.pos + s.size)
-		if raw > 0 {
-			raw = 0 // The child is already above the viewport bottom.
-		}
+		raw := min((sb.scrollY+vpH)-(s.pos+s.size),
+			// The child is already above the viewport bottom.
+			0)
 		// A previous bottom-sticky child limits upward movement.
 		limit := -(s.pos) // Do not move above the content origin.
 		if si > 0 {
@@ -606,10 +602,7 @@ func (sb *ScrollBox) computeStickyOffsets() {
 
 	// Left offsets follow the same positive-direction rule as top offsets.
 	for si, s := range left {
-		raw := sb.scrollX - s.pos
-		if raw < 0 {
-			raw = 0
-		}
+		raw := max(sb.scrollX-s.pos, 0)
 		limit := sb.contentWidth - s.pos - s.size
 		if si+1 < len(left) {
 			limit = left[si+1].pos - s.pos - s.size - sb.stickyGap
@@ -626,10 +619,7 @@ func (sb *ScrollBox) computeStickyOffsets() {
 
 	// Right offsets follow the same negative-direction rule as bottom offsets.
 	for si, s := range right {
-		raw := (sb.scrollX + vpW) - (s.pos + s.size)
-		if raw > 0 {
-			raw = 0
-		}
+		raw := min((sb.scrollX+vpW)-(s.pos+s.size), 0)
 		limit := -(s.pos)
 		if si > 0 {
 			prev := right[si-1]

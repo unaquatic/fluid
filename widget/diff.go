@@ -426,7 +426,7 @@ func (d *Diff) renderSplitView(buf *buffer.Buffer, x, y, w, h int, deltaTime flo
 
 			maxLen := max(len(rightLines), len(leftLines))
 
-			for j := 0; j < maxLen; j++ {
+			for j := range maxLen {
 				screenRow := visualRow - d.scrollY
 				if screenRow >= 0 && screenRow < h {
 					ry := y + screenRow
@@ -475,7 +475,7 @@ func (d *Diff) renderSplitView(buf *buffer.Buffer, x, y, w, h int, deltaTime flo
 			// Pair removed and added lines by index, padding the shorter side.
 			pairLen := max(len(block.Adds), len(block.Removes))
 
-			for j := 0; j < pairLen; j++ {
+			for j := range pairLen {
 				// The old-file side contains a removed line or padding.
 				var leftContent string
 				var leftLineNum int
@@ -506,7 +506,7 @@ func (d *Diff) renderSplitView(buf *buffer.Buffer, x, y, w, h int, deltaTime flo
 
 				wrapMax := max(len(rightLines), len(leftLines))
 
-				for k := 0; k < wrapMax; k++ {
+				for k := range wrapMax {
 					screenRow := visualRow - d.scrollY
 					if screenRow >= 0 && screenRow < h {
 						ry := y + screenRow

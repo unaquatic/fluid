@@ -757,10 +757,7 @@ func (ta *Textarea) handleMouseScroll(e *input.MouseEvent) {
 		totalVLines := ta.editSurface.TotalVirtualLineCount()
 		maxY := max(totalVLines-vp.Height, 0)
 
-		newY := max(vp.Y+delta, 0)
-		if newY > maxY {
-			newY = maxY
-		}
+		newY := min(max(vp.Y+delta, 0), maxY)
 		if newY != vp.Y {
 			vp.Y = newY
 			ta.RequestRender()
@@ -885,10 +882,7 @@ func (ta *Textarea) OnPostLayout(deltaTime float64) {
 		if vp != nil {
 			totalVLines := ta.editSurface.TotalVirtualLineCount()
 			maxY := max(totalVLines-vp.Height, 0)
-			newY := max(vp.Y+direction*linesToScroll, 0)
-			if newY > maxY {
-				newY = maxY
-			}
+			newY := min(max(vp.Y+direction*linesToScroll, 0), maxY)
 			if newY != vp.Y {
 				vp.Y = newY
 				ta.RequestRender()

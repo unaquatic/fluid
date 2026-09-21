@@ -22,8 +22,8 @@ type editSnapshot struct {
 	cursorCol int
 }
 
-// editBufferIDCounter is accessed atomically when assigning IDs.
-var editBufferIDCounter uint64
+// editBufferIDCounter assigns EditBuffer IDs.
+var editBufferIDCounter atomic.Uint64
 
 // EditBuffer adds cursor movement, text editing, and history to a TextBuffer.
 type EditBuffer struct {
@@ -60,7 +60,7 @@ type EditBuffer struct {
 // NewEditBuffer returns an edit buffer backed by tb with a 100-entry undo limit.
 func NewEditBuffer(tb *TextBuffer) *EditBuffer {
 	return &EditBuffer{
-		id:      atomic.AddUint64(&editBufferIDCounter, 1),
+		id:      editBufferIDCounter.Add(1),
 		tb:      tb,
 		maxUndo: 100,
 	}

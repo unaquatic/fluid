@@ -7,7 +7,7 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-var textNodeNextID uint64
+var textNodeNextID atomic.Uint64
 
 // TextChild contains either plain text or a nested TextNode.
 type TextChild struct {
@@ -52,7 +52,7 @@ type TextNodeOption func(*TextNode)
 // NewTextNode returns an empty, dirty TextNode with optional configuration.
 func NewTextNode(opts ...TextNodeOption) *TextNode {
 	n := &TextNode{
-		id:    fmt.Sprintf("textnode-%d", atomic.AddUint64(&textNodeNextID, 1)),
+		id:    fmt.Sprintf("textnode-%d", textNodeNextID.Add(1)),
 		dirty: true,
 	}
 	for _, opt := range opts {

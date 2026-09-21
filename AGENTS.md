@@ -84,9 +84,9 @@ Hard limits — if a change breaks one, split it before committing:
 - **File size**: split above ~600 lines.
 - **Package deps**: no import cycles, no package importing a sibling just for one helper — duplicate the 5 lines or lift it to a shared package.
 
-### Go 1.26+ style — IMPORTANT
+### Go 1.27+ style — IMPORTANT
 
-This module targets **`go 1.26`** (`go.mod:3`) and the toolchain is Go 1.26.0. **Write modern Go. Do not write Go that looks like it was written in 2018.**
+This module targets **`go 1.27`** (`go.mod:3`) and the toolchain is Go 1.27.0. **Write modern Go. Do not write Go that looks like it was written in 2018.**
 
 Required:
 

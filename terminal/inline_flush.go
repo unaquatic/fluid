@@ -496,7 +496,7 @@ func (r *Renderer) writeInlineRow(out *bytes.Buffer, buf *buffer.Buffer, y, widt
 
 // inlineRowsEqual reports whether the first width cells of row y match.
 func inlineRowsEqual(a, b *buffer.Buffer, y, width int) bool {
-	for x := 0; x < width; x++ {
+	for x := range width {
 		if !a.Cell(x, y).Equals(b.Cell(x, y)) {
 			return false
 		}

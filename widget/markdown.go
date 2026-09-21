@@ -541,10 +541,7 @@ func (m *Markdown) wrapBlocks(w int) {
 
 // wrapBlockList recursively wraps blocks with indent columns of left indentation.
 func (m *Markdown) wrapBlockList(blocks []MdBlock, w int, indent int) {
-	avail := w - indent
-	if avail < 4 {
-		avail = 4
-	}
+	avail := max(w-indent, 4)
 	indentStr := strings.Repeat(" ", indent)
 	// Apply prosePad on both sides while preserving non-positive no-wrap widths.
 	proseW := w

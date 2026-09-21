@@ -57,7 +57,7 @@ type Renderer struct {
 
 	// Frame statistics.
 	stats         Stats
-	frameCount    uint64
+	frameCount    atomic.Uint64
 	lastFrameTime time.Time
 
 	// Cursor and pointer state.
@@ -76,7 +76,7 @@ type Renderer struct {
 	linkRegistry *LinkRegistry
 
 	// Live-render references.
-	liveCount int32 // Accessed atomically.
+	liveCount atomic.Int32
 
 	// Frame state owned by the event-loop goroutine. These fields carry no
 	// lock: reach them from setup, or through Enqueue, and never from another
@@ -422,7 +422,7 @@ func (r *Renderer) Destroy() {
 
 	// Record the final frame count before closing diagnostics.
 	if r.dbg != nil {
-		r.dbg.Printf("=== fluid debug log closed  frames=%d ===", atomic.LoadUint64(&r.frameCount))
+		r.dbg.Printf("=== fluid debug log closed  frames=%d ===", r.frameCount.Load())
 		r.dbgFile.Close()
 		r.dbg = nil
 		r.dbgFile = nil
@@ -520,13 +520,13 @@ func (r *Renderer) ClearSelection() {
 
 // RequestLive increments the live-render reference count and requests a frame.
 func (r *Renderer) RequestLive() {
-	atomic.AddInt32(&r.liveCount, 1)
+	r.liveCount.Add(1)
 	r.RequestRender()
 }
 
 // DropLive decrements the live-render reference count.
 func (r *Renderer) DropLive() {
-	atomic.AddInt32(&r.liveCount, -1)
+	r.liveCount.Add(-1)
 }
 
 // Enqueue sends fn to the event-loop goroutine before its next frame.
@@ -654,7 +654,7 @@ func (r *Renderer) renderFrame() {
 	r.root.Render(r.nextBuffer, deltaTime)
 
 	if r.dbg != nil && r.invalidated {
-		fc := atomic.LoadUint64(&r.frameCount)
+		fc := r.frameCount.Load()
 		r.dbg.Printf("[frame] #%d  buf=%dx%d", fc, r.nextBuffer.Width(), r.nextBuffer.Height())
 	}
 
@@ -692,7 +692,7 @@ func (r *Renderer) renderFrame() {
 		r.backend.HideCursor()
 	}
 
-	atomic.AddUint64(&r.frameCount, 1)
+	r.frameCount.Add(1)
 
 	// Aggregate frame duration only when configured.
 	if r.config.GatherStats {

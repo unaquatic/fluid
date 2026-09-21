@@ -235,7 +235,7 @@ func lineDiff(expected, actual string) string {
 	var sb strings.Builder
 	maxLines := max(len(actLines), len(expLines))
 
-	for i := 0; i < maxLines; i++ {
+	for i := range maxLines {
 		var exp, act string
 		if i < len(expLines) {
 			exp = expLines[i]

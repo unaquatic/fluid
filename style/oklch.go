@@ -100,7 +100,7 @@ func (o OKLCH) Fit() OKLCH {
 	}
 	// Reduce chroma geometrically for at most 24 attempts, then fall back to gray.
 	c := base.C
-	for i := 0; i < 24; i++ {
+	for range 24 {
 		c *= 0.9
 		next := OKLCH{L: base.L, C: c, H: base.H}
 		lr, lg, lb := next.linearRGB()
@@ -217,7 +217,7 @@ func GenerateScale(seed Color, dark bool) [12]Color {
 	}
 
 	var scale [12]Color
-	for i := 0; i < 12; i++ {
+	for i := range 12 {
 		scale[i] = OKLCH{
 			L: lightSteps[i],
 			C: base.C * chromaMul[i],
@@ -304,7 +304,7 @@ func GenerateNeutralScale(seed Color, dark bool, ink Color) [12]Color {
 	}
 
 	var scale [12]Color
-	for i := 0; i < 12; i++ {
+	for i := range 12 {
 		scale[i] = OKLCH{L: lightSteps[i], C: neutralC, H: base.H}.ToColor()
 	}
 	return scale
