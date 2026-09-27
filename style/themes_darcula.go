@@ -6,7 +6,7 @@ func DarculaSolid() *Theme {
 		// Canvas colors.
 		editorBg   = ColorFromHex("#1c1c1c")
 		popupBg    = ColorFromHex("#252526")
-		caretRowBg = ColorFromHex("#323335")
+		caretRowBg = ColorFromHex("#28292b")
 
 		// Border colors.
 		indentGuide    = ColorFromHex("#2c2c2d")
@@ -65,6 +65,12 @@ func DarculaSolid() *Theme {
 		Warning: ColorFromHex("#f3f99c"),
 		Danger:  consoleRed,
 		Info:    consoleGray,
+
+		// Semantic surfaces.
+		SuccessSurface: ColorFromHex("#262b27"),
+		WarningSurface: ColorFromHex("#2a2a25"),
+		DangerSurface:  ColorFromHex("#2e2827"),
+		InfoSurface:    ColorFromHex("#292929"),
 
 		// Foregrounds placed on filled roles.
 		OnAccent:      ColorWhite,

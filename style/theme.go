@@ -59,6 +59,15 @@ type Theme struct {
 	Danger  Color
 	Info    Color
 
+	// Semantic surfaces.
+	// SuccessSurface, WarningSurface, DangerSurface, and InfoSurface are
+	// low-contrast backgrounds tinted toward the matching semantic role. They
+	// have no fallback; a transparent value stays transparent.
+	SuccessSurface Color
+	WarningSurface Color
+	DangerSurface  Color
+	InfoSurface    Color
+
 	// Foregrounds for filled roles.
 	// OnAccent is text drawn on Accent. A transparent value uses ChooseOnColor.
 	OnAccent      Color

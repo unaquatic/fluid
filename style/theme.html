@@ -167,7 +167,7 @@ const BASE = [
   { comment: "Canvas", items: [
     { name: "editorBg",       hex: "#1c1c1c" },
     { name: "popupBg",        hex: "#252526" },
-    { name: "caretRowBg",     hex: "#323335" },
+    { name: "caretRowBg",     hex: "#28292b" },
   ]},
   { comment: "Borders", items: [
     { name: "indentGuide",    hex: "#2c2c2d" },
@@ -249,6 +249,12 @@ const GROUPS = [
     ["Warning", lit("#f3f99c")],
     ["Danger",  ref("consoleRed")],
     ["Info",    ref("consoleGray")],
+  ]},
+  { comment: "Semantic surfaces", keys: [
+    ["SuccessSurface", lit("#262b27")],
+    ["WarningSurface", lit("#2a2a25")],
+    ["DangerSurface",  lit("#2e2827")],
+    ["InfoSurface",    lit("#292929")],
   ]},
   { comment: "On-color foregrounds", keys: [
     ["OnAccent",      WHITE()],
