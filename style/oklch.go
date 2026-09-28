@@ -29,6 +29,20 @@ func linearToSrgb(c float64) float64 {
 
 // ToOKLCH converts c from sRGB to OKLCH and ignores alpha.
 func (c Color) ToOKLCH() OKLCH {
+	L, a, b := c.ToOklab()
+
+	// Convert Cartesian Oklab to polar chroma and hue.
+	C := math.Sqrt(a*a + b*b)
+	H := math.Atan2(b, a) * (180.0 / math.Pi)
+	if H < 0 {
+		H += 360
+	}
+	return OKLCH{L: L, C: C, H: H}
+}
+
+// ToOklab converts c from sRGB to Cartesian Oklab and ignores alpha. Euclidean
+// distance between Oklab coordinates approximates perceived color difference.
+func (c Color) ToOklab() (L, a, b float64) {
 	// Convert normalized sRGB channels to linear RGB.
 	lr := srgbToLinear(float64(c.R) / 255.0)
 	lg := srgbToLinear(float64(c.G) / 255.0)
@@ -44,17 +58,10 @@ func (c Color) ToOKLCH() OKLCH {
 	s := math.Cbrt(s_)
 
 	// Transform cube-root LMS into Cartesian Oklab.
-	L := 0.2104542553*l + 0.7936177850*m - 0.0040720468*s
-	a := 1.9779984951*l - 2.4285922050*m + 0.4505937099*s
-	b := 0.0259040371*l + 0.7827717662*m - 0.8086757660*s
-
-	// Convert Cartesian Oklab to polar chroma and hue.
-	C := math.Sqrt(a*a + b*b)
-	H := math.Atan2(b, a) * (180.0 / math.Pi)
-	if H < 0 {
-		H += 360
-	}
-	return OKLCH{L: L, C: C, H: H}
+	L = 0.2104542553*l + 0.7936177850*m - 0.0040720468*s
+	a = 1.9779984951*l - 2.4285922050*m + 0.4505937099*s
+	b = 0.0259040371*l + 0.7827717662*m - 0.8086757660*s
+	return L, a, b
 }
 
 // linearRGB returns o as unclamped linear RGB. Use ToColor when the result must
