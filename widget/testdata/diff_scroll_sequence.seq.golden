@@ -1,15 +1,57 @@
 === step: scroll_0 ===
+=== text ===
 |      diff --git a/main.go b/main.go              |
 |      index abc1234..def5678 100644               |
 |      --- a/main.go                               |
 |      +++ b/main.go                               |
+=== fg ===
+|      AAAA AAAAA AAAAAAAAA AAAAAAAAA              |
+|      AAAAA AAAAAAAAAAAAAAAA AAAAAA               |
+|      AAA AAAAAAAAA                               |
+|      AAA AAAAAAAAA                               |
+=== legend ===
+A #ffffff
 === step: scroll_2 ===
+=== text ===
 |      --- a/main.go                               |
 |      +++ b/main.go                               |
 |      @@ -1,4 +1,5 @@                             |
 |  1   package main                                |
+=== fg ===
+|      AAA AAAAAAAAA                               |
+|      AAA AAAAAAAAA                               |
+|      AA AAAA AAAA AA                             |
+|  B   AAAAAAA AAAA                                |
+=== bg ===
+|                                                  |
+|                                                  |
+|                                                  |
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+=== legend ===
+A #ffffff
+B #808080
+░ #1e1e1e
 === step: scroll_bottom ===
+=== text ===
 |  3   func main() {                               |
 |  3 -     println("hello")                        |
 |  4 +     fmt.Println("hello")                    |
 |  5   }                                           |
+=== fg ===
+|  A   BBBB BBBBBB B                               |
+|  A C     BBBBBBBBBBBBBBBB                        |
+|  A D     BBBBBBBBBBBBBBBBBBBB                    |
+|  A   B                                           |
+=== bg ===
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+=== legend ===
+A #808080
+B #ffffff
+C #ff5555
+D #55ff55
+░ #1e1e1e
+▒ #321418
+▓ #16271b

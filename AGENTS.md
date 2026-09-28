@@ -35,7 +35,10 @@ go test ./...                  # all tests
 go test ./widget/ -v           # widget tests
 go test ./render/ -run Inline  # inline render tests
 go test ./layout/              # layout engine tests
+go test ./widget/ -update      # regenerate golden files
 ```
+
+- Golden tests use `testutil.AssertGoldenFrames`, or `GoldenSequence.AddFrames` for state transitions, which record text, foreground, background, and attribute frames. Review the `testdata/` diff after `-update` before committing it.
 
 ## Key Architecture Decisions
 

@@ -1,6 +1,21 @@
 === step: initial ===
+=== text ===
 |ABCDEFGH|
+=== fg ===
+|AAAAAAAA|
+=== legend ===
+A #ffffff
 === step: scroll_x=3 ===
+=== text ===
 |DEFGHIJK|
+=== fg ===
+|AAAAAAAA|
+=== legend ===
+A #ffffff
 === step: scroll_x=7 ===
+=== text ===
 |HIJKLMNO|
+=== fg ===
+|AAAAAAAA|
+=== legend ===
+A #ffffff

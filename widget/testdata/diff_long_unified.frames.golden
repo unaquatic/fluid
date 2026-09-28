@@ -1,0 +1,101 @@
+=== text ===
+|      diff --git a/server/handler.go b/server/handler.go              |
+|      index 1a2b3c4..5d6e7f8 100644                                   |
+|      --- a/server/handler.go                                         |
+|      +++ b/server/handler.go                                         |
+|      @@ -12,8 +12,10 @@                                              |
+| 12   import (                                                        |
+| 13       "context"                                                   |
+| 14       "encoding/json"                                             |
+| 15 +     "errors"                                                    |
+| 16       "fmt"                                                       |
+| 17       "net/http"                                                  |
+| 18 +     "time"                                                      |
+| 19   )                                                               |
+| 20                                                                   |
+| 21   type Server struct {                                            |
+|      @@ -45,14 +47,21 @@                                             |
+| 47   func (s *Server) HandleRequest(w http.ResponseWriter, r *http.  |
+|      Request) {                                                      |
+| 48       ctx := r.Context()                                          |
+| 47 -     data, err := s.fetchData(ctx)                               |
+| 49 +     ctx, cancel := context.WithTimeout(ctx, 30*time.Second)     |
+| 50 +     defer cancel()                                              |
+| 51 +                                                                 |
+| 52 +     data, err := s.fetchData(ctx, r.URL.Query())                |
+| 53       if err != nil {                                             |
+| 49 -         http.Error(w, "internal error", http.                   |
+|      StatusInternalServerError)                                      |
+| 54 +         if errors.Is(err, context.DeadlineExceeded) {           |
+| 55 +             http.Error(w, "request timeout", http.              |
+|      StatusGatewayTimeout)                                           |
+=== fg ===
+|      AAAA AAAAA AAAAAAAAAAAAAAAAAAA AAAAAAAAAAAAAAAAAAA              |
+|      AAAAA AAAAAAAAAAAAAAAA AAAAAA                                   |
+|      AAA AAAAAAAAAAAAAAAAAAA                                         |
+|      AAA AAAAAAAAAAAAAAAAAAA                                         |
+|      AA AAAAA AAAAAA AA                                              |
+| BB   AAAAAA A                                                        |
+| BB       AAAAAAAAA                                                   |
+| BB       AAAAAAAAAAAAAAA                                             |
+| BB C     AAAAAAAA                                                    |
+| BB       AAAAA                                                       |
+| BB       AAAAAAAAAA                                                  |
+| BB C     AAAAAA                                                      |
+| BB   A                                                               |
+| BB                                                                   |
+| BB   AAAA AAAAAA AAAAAA A                                            |
+|      AA AAAAAA AAAAAA AA                                             |
+| BB   AAAA AA AAAAAAAA AAAAAAAAAAAAAAA AAAAAAAAAAAAAAAAAAAA A AAAAAA  |
+|      AAAAAAAA A                                                      |
+| BB       AAA AA AAAAAAAAAAA                                          |
+| BB D     AAAAA AAA AA AAAAAAAAAAAAAAAA                               |
+| BB C     AAAA AAAAAA AA AAAAAAAAAAAAAAAAAAAAAAAA AAAAAAAAAAAAAAA     |
+| BB C     AAAAA AAAAAAAA                                              |
+| BB C                                                                 |
+| BB C     AAAAA AAA AA AAAAAAAAAAAAAAAA AAAAAAAAAAAAAA                |
+| BB       AA AAA AA AAA A                                             |
+| BB D         AAAAAAAAAAAAA AAAAAAAAA AAAAAAA AAAAA                   |
+|      AAAAAAAAAAAAAAAAAAAAAAAAAA                                      |
+| BB C         AA AAAAAAAAAAAAAA AAAAAAAAAAAAAAAAAAAAAAAAA A           |
+| BB C             AAAAAAAAAAAAA AAAAAAAA AAAAAAAAA AAAAA              |
+|      AAAAAAAAAAAAAAAAAAAAA                                           |
+=== bg ===
+|                                                                      |
+|                                                                      |
+|                                                                      |
+|                                                                      |
+|                                                                      |
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|                                                                      |
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓|
+|▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+=== legend ===
+A #ffffff
+B #808080
+C #55ff55
+D #ff5555
+░ #1e1e1e
+▒ #16271b
+▓ #321418

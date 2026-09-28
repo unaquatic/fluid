@@ -1,0 +1,11 @@
+=== text ===
+|▶ Folder A          |
+|  Folder B          |
+|                    |
+=== fg ===
+|A BBBBBB B          |
+|  BBBBBB B          |
+|                    |
+=== legend ===
+A #808080
+B #ffffff

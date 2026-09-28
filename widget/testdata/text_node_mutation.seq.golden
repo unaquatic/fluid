@@ -1,8 +1,28 @@
 === step: empty ===
+=== text ===
 |                    |
 === step: add_text ===
+=== text ===
 |Hello               |
+=== fg ===
+|AAAAA               |
+=== legend ===
+A #ffffff
 === step: add_bold_node ===
-|{#ffffff}Hello [B]B[B]o[B]l[B]d[B]          |
+=== text ===
+|Hello Bold          |
+=== fg ===
+|AAAAA AAAA          |
+=== attrs ===
+|     BBBBB          |
+=== legend ===
+A #ffffff
 === step: clear_and_replace ===
-|{#ffffff}R[I]e[I]p[I]l[I]a[I]c[I]e[I]d[I]            |
+=== text ===
+|Replaced            |
+=== fg ===
+|AAAAAAAA            |
+=== attrs ===
+|IIIIIIII            |
+=== legend ===
+A #ffffff

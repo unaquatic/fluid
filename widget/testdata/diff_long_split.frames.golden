@@ -1,0 +1,103 @@
+=== text ===
+|       diff --git a/server/handler.go b/server/handler.go                                           |
+|       index 1a2b3c4..5d6e7f8 100644                                                                |
+|       --- a/server/handler.go                                                                      |
+|       +++ b/server/handler.go                                                                      |
+|       @@ -12,8 +12,10 @@                                                                           |
+|  12   import (                                  │  12   import (                                   |
+|  13   "context"                                 │  13   "context"                                  |
+|  14   "encoding/json"                           │  14   "encoding/json"                            |
+|                                                 │  15 + "errors"                                   |
+|  15   "fmt"                                     │  16   "fmt"                                      |
+|  16   "net/http"                                │  17   "net/http"                                 |
+|                                                 │  18 + "time"                                     |
+|  17   )                                         │  19   )                                          |
+|  18                                             │  20                                              |
+|  19   type Server struct {                      │  21   type Server struct {                       |
+|       @@ -45,14 +47,21 @@                                                                          |
+|  45   func (s *Server) HandleRequest(w          │  47   func (s *Server) HandleRequest(w           |
+|       http.ResponseWriter, r *http.Request) {   │       http.ResponseWriter, r *http.Request) {    |
+|  46   ctx := r.Context()                        │  48   ctx := r.Context()                         |
+|  47 - data, err := s.fetchData(ctx)             │  49 + ctx, cancel := context.WithTimeout(ctx,    |
+|                                                 │       30*time.Second)                            |
+|                                                 │  50 + defer cancel()                             |
+|                                                 │  51 +                                            |
+|                                                 │  52 + data, err := s.fetchData(ctx,              |
+|                                                 │       r.URL.Query())                             |
+|  48   if err != nil {                           │  53   if err != nil {                            |
+|  49 - http.Error(w, "internal error",           │  54 + if errors.Is(err,                          |
+|       http.StatusInternalServerError)           │       context.DeadlineExceeded) {                |
+|                                                 │  55 + http.Error(w, "request timeout",           |
+|                                                 │       http.StatusGatewayTimeout)                 |
+=== fg ===
+|       AAAA AAAAA AAAAAAAAAAAAAAAAAAA AAAAAAAAAAAAAAAAAAA                                           |
+|       AAAAA AAAAAAAAAAAAAAAA AAAAAA                                                                |
+|       AAA AAAAAAAAAAAAAAAAAAA                                                                      |
+|       AAA AAAAAAAAAAAAAAAAAAA                                                                      |
+|       BB BBBBB BBBBBB BB                                                                           |
+|  CC   DDDDDD D                                  C  CC   DDDDDD D                                   |
+|  CC   DDDDDDDDD                                 C  CC   DDDDDDDDD                                  |
+|  CC   DDDDDDDDDDDDDDD                           C  CC   DDDDDDDDDDDDDDD                            |
+|                                                 C  CC E DDDDDDDD                                   |
+|  CC   DDDDD                                     C  CC   DDDDD                                      |
+|  CC   DDDDDDDDDD                                C  CC   DDDDDDDDDD                                 |
+|                                                 C  CC E DDDDDD                                     |
+|  CC   D                                         C  CC   D                                          |
+|  CC                                             C  CC                                              |
+|  CC   DDDD DDDDDD DDDDDD D                      C  CC   DDDD DDDDDD DDDDDD D                       |
+|       BB BBBBBB BBBBBB BB                                                                          |
+|  CC   DDDD DD DDDDDDDD DDDDDDDDDDDDDDD          C  CC   DDDD DD DDDDDDDD DDDDDDDDDDDDDDD           |
+|       DDDDDDDDDDDDDDDDDDDD D DDDDDDDDDDDDDD D   C       DDDDDDDDDDDDDDDDDDDD D DDDDDDDDDDDDDD D    |
+|  CC   DDD DD DDDDDDDDDDD                        C  CC   DDD DD DDDDDDDDDDD                         |
+|  CC F DDDDD DDD DD DDDDDDDDDDDDDDDD             C  CC E DDDD DDDDDD DD DDDDDDDDDDDDDDDDDDDDDDDD    |
+|                                                 C       DDDDDDDDDDDDDDD                            |
+|                                                 C  CC E DDDDD DDDDDDDD                             |
+|                                                 C  CC E                                            |
+|                                                 C  CC E DDDDD DDD DD DDDDDDDDDDDDDDDD              |
+|                                                 C       DDDDDDDDDDDDDD                             |
+|  CC   DD DDD DD DDD D                           C  CC   DD DDD DD DDD D                            |
+|  CC F DDDDDDDDDDDDD DDDDDDDDD DDDDDDD           C  CC E DD DDDDDDDDDDDDDD                          |
+|       DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD           C       DDDDDDDDDDDDDDDDDDDDDDDDD D                |
+|                                                 C  CC E DDDDDDDDDDDDD DDDDDDDD DDDDDDDDD           |
+|                                                 C       DDDDDDDDDDDDDDDDDDDDDDDDDD                 |
+=== bg ===
+|                                                                                                    |
+|                                                                                                    |
+|                                                                                                    |
+|                                                                                                    |
+|                                                                                                    |
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|                                                  ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|                                                  ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|                                                                                                    |
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▓▓▓▓▓▓▓                                           ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|                                                  ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|                                                  ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|                                                  ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|                                                  ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|                                                  ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|                                                  ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+=== legend ===
+A #55ffff
+B #ff55ff
+C #808080
+D #ffffff
+E #55ff55
+F #ff5555
+░ #1e1e1e
+▒ #16271b
+▓ #321418

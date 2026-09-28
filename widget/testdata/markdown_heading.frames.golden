@@ -1,0 +1,18 @@
+=== text ===
+|Hello               |
+|                    |
+|Some text here.     |
+|                    |
+=== fg ===
+|AAAAA               |
+|                    |
+|BBBB BBBB BBBBB     |
+|                    |
+=== attrs ===
+|BBBBB               |
+|                    |
+|                    |
+|                    |
+=== legend ===
+A #55ffff
+B #ffffff

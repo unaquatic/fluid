@@ -43,72 +43,6 @@ func GoldenText(buf *buffer.Buffer) string {
 	return sb.String()
 }
 
-// GoldenStyled returns a deterministic representation of characters,
-// foreground colors, and selected text attributes. Its cell format is:
-//
-//	char[attrs]
-//
-// Attribute flags are B for bold, D for dim, I for italic, U for underline,
-// and S for strikethrough. A {#RRGGBB} tag marks each foreground-color change;
-// {-} marks transparency. For example:
-//
-//	|{#ff0000}H[B]e[B]l[B]l[B]o[B]|
-//
-// Only the five listed attributes have flags. Background colors and link IDs
-// are not encoded.
-func GoldenStyled(buf *buffer.Buffer) string {
-	var sb strings.Builder
-	w := buf.Width()
-	h := buf.Height()
-	for y := range h {
-		sb.WriteByte('|')
-		var lastFg string
-		for x := range w {
-			cell := buf.Cell(x, y)
-
-			// Emit a foreground tag only when the color changes within this row.
-			fg := colorHex(cell.Fg)
-			if fg != lastFg {
-				sb.WriteString("{")
-				sb.WriteString(fg)
-				sb.WriteString("}")
-				lastFg = fg
-			}
-
-			// Represent an unset character as one visible space.
-			if cell.Char == 0 {
-				sb.WriteRune(' ')
-			} else {
-				sb.WriteRune(cell.Char)
-			}
-
-			// Append stable single-letter flags for base text attributes.
-			attrs := cell.Attributes & style.AttributeBaseMask
-			if attrs != 0 {
-				sb.WriteByte('[')
-				if attrs&style.AttrBold != 0 {
-					sb.WriteByte('B')
-				}
-				if attrs&style.AttrDim != 0 {
-					sb.WriteByte('D')
-				}
-				if attrs&style.AttrItalic != 0 {
-					sb.WriteByte('I')
-				}
-				if attrs&style.AttrUnderline != 0 {
-					sb.WriteByte('U')
-				}
-				if attrs&style.AttrStrikethrough != 0 {
-					sb.WriteByte('S')
-				}
-				sb.WriteByte(']')
-			}
-		}
-		sb.WriteString("|\n")
-	}
-	return sb.String()
-}
-
 // colorHex returns an RGB hex string for c, or "-" when c is transparent.
 func colorHex(c style.Color) string {
 	if c.A == 0 {
@@ -118,22 +52,6 @@ func colorHex(c style.Color) string {
 }
 
 // Golden-file assertions.
-
-// AssertGolden compares GoldenText for buf with testdata/<name>.golden.
-//
-// The -update test flag creates or replaces the file. Without that flag,
-// a missing or different file fails the test and prints the actual output.
-func AssertGolden(t *testing.T, name string, buf *buffer.Buffer) {
-	t.Helper()
-	assertGoldenContent(t, name+".golden", GoldenText(buf))
-}
-
-// AssertGoldenStyled compares GoldenStyled for buf with
-// testdata/<name>.styled.golden.
-func AssertGoldenStyled(t *testing.T, name string, buf *buffer.Buffer) {
-	t.Helper()
-	assertGoldenContent(t, name+".styled.golden", GoldenStyled(buf))
-}
 
 // assertGoldenContent updates or compares one file in the package's testdata directory.
 func assertGoldenContent(t *testing.T, filename, actual string) {
@@ -173,15 +91,20 @@ func assertGoldenContent(t *testing.T, filename, actual string) {
 	}
 }
 
-// GoldenSequence collects named snapshots for one state-transition golden file.
-// String labels each snapshot with a header:
+// GoldenSequence collects named GoldenFrames snapshots for one
+// state-transition golden file. String labels each snapshot with a header:
 //
 //	=== step: initial ===
+//	=== text ===
 //	|Hello     |
-//	|World     |
+//	=== fg ===
+//	|AAAAA     |
+//	=== legend ===
+//	A #ffffff
 //	=== step: after scroll ===
+//	=== text ===
 //	|World     |
-//	|          |
+//	...
 //
 // A sequence can capture output before and after any number of state changes.
 type GoldenSequence struct {
@@ -191,6 +114,7 @@ type GoldenSequence struct {
 type goldenStep struct {
 	name    string
 	content string
+	err     error
 }
 
 // NewGoldenSequence returns an empty snapshot sequence.
@@ -198,15 +122,12 @@ func NewGoldenSequence() *GoldenSequence {
 	return &GoldenSequence{}
 }
 
-// Add appends a GoldenText snapshot named name and returns gs.
-func (gs *GoldenSequence) Add(name string, buf *buffer.Buffer) *GoldenSequence {
-	gs.steps = append(gs.steps, goldenStep{name: name, content: GoldenText(buf)})
-	return gs
-}
-
-// AddStyled appends a GoldenStyled snapshot named name and returns gs.
-func (gs *GoldenSequence) AddStyled(name string, buf *buffer.Buffer) *GoldenSequence {
-	gs.steps = append(gs.steps, goldenStep{name: name, content: GoldenStyled(buf)})
+// AddFrames appends a GoldenFrames snapshot of buf named name and returns gs.
+// names labels colors in the snapshot's legend and may be nil. An error
+// building the snapshot fails AssertGoldenSequence.
+func (gs *GoldenSequence) AddFrames(name string, buf *buffer.Buffer, names map[style.Color]string) *GoldenSequence {
+	content, err := GoldenFrames(buf, names)
+	gs.steps = append(gs.steps, goldenStep{name: name, content: content, err: err})
 	return gs
 }
 
@@ -224,6 +145,11 @@ func (gs *GoldenSequence) String() string {
 // The -update test flag creates or replaces the file.
 func AssertGoldenSequence(t *testing.T, name string, seq *GoldenSequence) {
 	t.Helper()
+	for _, step := range seq.steps {
+		if step.err != nil {
+			t.Fatalf("golden sequence %s, step %s: %v", name, step.name, step.err)
+		}
+	}
 	assertGoldenContent(t, name+".seq.golden", seq.String())
 }
 

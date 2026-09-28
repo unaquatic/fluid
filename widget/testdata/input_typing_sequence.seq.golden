@@ -1,16 +1,52 @@
 === step: empty ===
+=== text ===
 |          |
 === step: typed_H ===
+=== text ===
 |H         |
+=== fg ===
+|A         |
+=== legend ===
+A #ffffff
 === step: typed_e ===
+=== text ===
 |He        |
+=== fg ===
+|AA        |
+=== legend ===
+A #ffffff
 === step: typed_l ===
+=== text ===
 |Hel       |
+=== fg ===
+|AAA       |
+=== legend ===
+A #ffffff
 === step: typed_l ===
+=== text ===
 |Hell      |
+=== fg ===
+|AAAA      |
+=== legend ===
+A #ffffff
 === step: typed_o ===
+=== text ===
 |Hello     |
+=== fg ===
+|AAAAA     |
+=== legend ===
+A #ffffff
 === step: backspace_1 ===
+=== text ===
 |Hell      |
+=== fg ===
+|AAAA      |
+=== legend ===
+A #ffffff
 === step: backspace_2 ===
+=== text ===
 |Hel       |
+=== fg ===
+|AAA       |
+=== legend ===
+A #ffffff

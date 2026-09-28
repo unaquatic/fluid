@@ -1,0 +1,18 @@
+=== text ===
+|┌──────────────────┐|
+|│Hello             │|
+|│╭────────────────╮│|
+|││                ││|
+|││                ││|
+|│╰────────────────╯│|
+|└──────────────────┘|
+=== fg ===
+|AAAAAAAAAAAAAAAAAAAA|
+|AAAAAA             A|
+|AAAAAAAAAAAAAAAAAAAA|
+|AA                AA|
+|AA                AA|
+|AAAAAAAAAAAAAAAAAAAA|
+|AAAAAAAAAAAAAAAAAAAA|
+=== legend ===
+A #ffffff

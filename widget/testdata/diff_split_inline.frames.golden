@@ -1,0 +1,23 @@
+=== text ===
+|      @@ -1,2 +1,2 @@                                       |
+|  1 - hello world            │  1 + hello earth             |
+|                             │                              |
+|                             │                              |
+=== fg ===
+|      AA AAAA AAAA AA                                       |
+|  B C DDDDD DDDDD            B  B E DDDDD DDDDD             |
+|                             B                              |
+|                             B                              |
+=== bg ===
+|                                                            |
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|                                                            |
+|                                                            |
+=== legend ===
+A #ff55ff
+B #808080
+C #ff5555
+D #ffffff
+E #55ff55
+░ #321418
+▒ #16271b

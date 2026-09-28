@@ -1,0 +1,15 @@
+=== text ===
+|▼ Root              |
+|    Child 1         |
+|  ▼ Child 2         |
+|      Grandchild    |
+|                    |
+=== fg ===
+|A BBBB              |
+|    BBBBB B         |
+|  A BBBBB B         |
+|      BBBBBBBBBB    |
+|                    |
+=== legend ===
+A #808080
+B #ffffff

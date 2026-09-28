@@ -1,0 +1,12 @@
+=== text ===
+|func main() {                 |
+|    fmt.Println("hello")      |
+|}                             |
+|                              |
+=== fg ===
+|AAAA AAAAAA A                 |
+|    AAAAAAAAAAAAAAAAAAAA      |
+|A                             |
+|                              |
+=== legend ===
+A #ffffff

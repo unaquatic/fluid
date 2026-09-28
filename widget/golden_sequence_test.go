@@ -28,15 +28,15 @@ func TestGoldenSeq_TextScrollY(t *testing.T) {
 	seq := testutil.NewGoldenSequence()
 
 	// Capture the initial top viewport.
-	seq.Add("initial", rerender(txt, 10, 3))
+	seq.AddFrames("initial", rerender(txt, 10, 3), nil)
 
 	// Capture a one-row offset.
 	txt.SetScrollY(1)
-	seq.Add("scroll_y=1", rerender(txt, 10, 3))
+	seq.AddFrames("scroll_y=1", rerender(txt, 10, 3), nil)
 
 	// Capture a two-row offset.
 	txt.SetScrollY(2)
-	seq.Add("scroll_y=2", rerender(txt, 10, 3))
+	seq.AddFrames("scroll_y=2", rerender(txt, 10, 3), nil)
 
 	testutil.AssertGoldenSequence(t, "text_scroll_y", seq)
 }
@@ -49,15 +49,15 @@ func TestGoldenSeq_TextScrollX(t *testing.T) {
 	seq := testutil.NewGoldenSequence()
 
 	// Capture the initial left edge.
-	seq.Add("initial", rerender(txt, 8, 1))
+	seq.AddFrames("initial", rerender(txt, 8, 1), nil)
 
 	// Capture a three-column offset.
 	txt.SetScrollX(3)
-	seq.Add("scroll_x=3", rerender(txt, 8, 1))
+	seq.AddFrames("scroll_x=3", rerender(txt, 8, 1), nil)
 
 	// Capture a seven-column offset.
 	txt.SetScrollX(7)
-	seq.Add("scroll_x=7", rerender(txt, 8, 1))
+	seq.AddFrames("scroll_x=7", rerender(txt, 8, 1), nil)
 
 	testutil.AssertGoldenSequence(t, "text_scroll_x", seq)
 }
@@ -71,11 +71,11 @@ func TestGoldenSeq_TextContentChange(t *testing.T) {
 
 	seq := testutil.NewGoldenSequence()
 
-	seq.Add("initial", rerender(txt, 20, 1))
+	seq.AddFrames("initial", rerender(txt, 20, 1), nil)
 
 	// Replace the initial plain content.
 	txt.SetContent("World")
-	seq.Add("after_set_content", rerender(txt, 20, 1))
+	seq.AddFrames("after_set_content", rerender(txt, 20, 1), nil)
 
 	// Replace it with styled content.
 	txt.SetStyledContent(style.NewStyledText(
@@ -83,7 +83,7 @@ func TestGoldenSeq_TextContentChange(t *testing.T) {
 		style.Plain(" "),
 		style.FgBlue("Blue"),
 	))
-	seq.Add("after_styled_content", rerender(txt, 20, 1))
+	seq.AddFrames("after_styled_content", rerender(txt, 20, 1), nil)
 
 	testutil.AssertGoldenSequence(t, "text_content_change", seq)
 }
@@ -96,20 +96,20 @@ func TestGoldenSeq_TextNodeMutation(t *testing.T) {
 	seq := testutil.NewGoldenSequence()
 
 	// Capture an empty node tree.
-	seq.Add("empty", rerender(txt, 20, 1))
+	seq.AddFrames("empty", rerender(txt, 20, 1), nil)
 
 	// Add plain node content.
 	txt.AddText("Hello")
-	seq.Add("add_text", rerender(txt, 20, 1))
+	seq.AddFrames("add_text", rerender(txt, 20, 1), nil)
 
 	// Append bold node content.
 	txt.AddNode(widget.BoldText(" Bold"))
-	seq.AddStyled("add_bold_node", rerender(txt, 20, 1))
+	seq.AddFrames("add_bold_node", rerender(txt, 20, 1), nil)
 
 	// Replace the complete node tree.
 	txt.ClearNodes()
 	txt.AddNode(widget.ItalicText("Replaced"))
-	seq.AddStyled("clear_and_replace", rerender(txt, 20, 1))
+	seq.AddFrames("clear_and_replace", rerender(txt, 20, 1), nil)
 
 	testutil.AssertGoldenSequence(t, "text_node_mutation", seq)
 }
@@ -124,17 +124,17 @@ func TestGoldenSeq_TextNodeColorChange(t *testing.T) {
 	seq := testutil.NewGoldenSequence()
 
 	// Capture the initial red foreground.
-	seq.AddStyled("red", rerender(txt, 10, 1))
+	seq.AddFrames("red", rerender(txt, 10, 1), nil)
 
 	// Change the node foreground to green.
 	green := style.ColorGreen
 	span.SetFg(&green)
-	seq.AddStyled("green", rerender(txt, 10, 1))
+	seq.AddFrames("green", rerender(txt, 10, 1), nil)
 
 	// Change the node foreground to blue.
 	blue := style.ColorBlue
 	span.SetFg(&blue)
-	seq.AddStyled("blue", rerender(txt, 10, 1))
+	seq.AddFrames("blue", rerender(txt, 10, 1), nil)
 
 	testutil.AssertGoldenSequence(t, "text_node_color_change", seq)
 }
@@ -152,20 +152,20 @@ func TestGoldenSeq_InputFocusUnfocus(t *testing.T) {
 	seq := testutil.NewGoldenSequence()
 
 	// Capture the unfocused placeholder.
-	seq.AddStyled("unfocused_empty", rerender(inp, 15, 1))
+	seq.AddFrames("unfocused_empty", rerender(inp, 15, 1), nil)
 
 	// Capture the focused placeholder.
 	inp.Focus()
-	seq.AddStyled("focused_empty", rerender(inp, 15, 1))
+	seq.AddFrames("focused_empty", rerender(inp, 15, 1), nil)
 
 	// Capture focused input after typing.
 	pressKey(inp, "H")
 	pressKey(inp, "i")
-	seq.AddStyled("focused_with_text", rerender(inp, 15, 1))
+	seq.AddFrames("focused_with_text", rerender(inp, 15, 1), nil)
 
 	// Capture the entered text after blur.
 	inp.Blur()
-	seq.AddStyled("unfocused_with_text", rerender(inp, 15, 1))
+	seq.AddFrames("unfocused_with_text", rerender(inp, 15, 1), nil)
 
 	testutil.AssertGoldenSequence(t, "input_focus_unfocus", seq)
 }
@@ -177,19 +177,19 @@ func TestGoldenSeq_InputTypingSequence(t *testing.T) {
 
 	seq := testutil.NewGoldenSequence()
 
-	seq.Add("empty", rerender(inp, 10, 1))
+	seq.AddFrames("empty", rerender(inp, 10, 1), nil)
 
 	for _, ch := range "Hello" {
 		pressKey(inp, string(ch))
-		seq.Add("typed_"+string(ch), rerender(inp, 10, 1))
+		seq.AddFrames("typed_"+string(ch), rerender(inp, 10, 1), nil)
 	}
 
 	// Capture two deletions after the typing sequence.
 	pressKey(inp, input.KeyBackspace)
-	seq.Add("backspace_1", rerender(inp, 10, 1))
+	seq.AddFrames("backspace_1", rerender(inp, 10, 1), nil)
 
 	pressKey(inp, input.KeyBackspace)
-	seq.Add("backspace_2", rerender(inp, 10, 1))
+	seq.AddFrames("backspace_2", rerender(inp, 10, 1), nil)
 
 	testutil.AssertGoldenSequence(t, "input_typing_sequence", seq)
 }
@@ -206,17 +206,17 @@ func TestGoldenSeq_TextWrapGrowingContent(t *testing.T) {
 	// Capture content that fits on one row.
 	txt.ClearNodes()
 	txt.AddText("Hi")
-	seq.Add("short", rerender(txt, 10, 4))
+	seq.AddFrames("short", rerender(txt, 10, 4), nil)
 
 	// Capture content that wraps once.
 	txt.ClearNodes()
 	txt.AddText("Hello World")
-	seq.Add("medium", rerender(txt, 10, 4))
+	seq.AddFrames("medium", rerender(txt, 10, 4), nil)
 
 	// Capture content that wraps across several rows.
 	txt.ClearNodes()
 	txt.AddText("The quick brown fox jumps")
-	seq.Add("long", rerender(txt, 10, 4))
+	seq.AddFrames("long", rerender(txt, 10, 4), nil)
 
 	testutil.AssertGoldenSequence(t, "text_wrap_growing", seq)
 }
@@ -239,15 +239,15 @@ func TestGoldenSeq_BoxFocusBorderColor(t *testing.T) {
 	seq := testutil.NewGoldenSequence()
 
 	// Capture the normal white border.
-	seq.AddStyled("unfocused", rerender(box, 10, 3))
+	seq.AddFrames("unfocused", rerender(box, 10, 3), nil)
 
 	// Capture the focused green border.
 	box.Focus()
-	seq.AddStyled("focused", rerender(box, 10, 3))
+	seq.AddFrames("focused", rerender(box, 10, 3), nil)
 
 	// Capture the restored normal border after blur.
 	box.Blur()
-	seq.AddStyled("blurred", rerender(box, 10, 3))
+	seq.AddFrames("blurred", rerender(box, 10, 3), nil)
 
 	testutil.AssertGoldenSequence(t, "box_focus_border_color", seq)
 }
@@ -263,11 +263,11 @@ func TestGoldenSeq_TextWrapThenScroll(t *testing.T) {
 	seq := testutil.NewGoldenSequence()
 
 	// Capture the first wrapped viewport.
-	seq.Add("initial", rerender(txt, 10, 3))
+	seq.AddFrames("initial", rerender(txt, 10, 3), nil)
 
 	// Capture the wrapped viewport after scrolling.
 	txt.SetScrollY(2)
-	seq.Add("scrolled", rerender(txt, 10, 3))
+	seq.AddFrames("scrolled", rerender(txt, 10, 3), nil)
 
 	testutil.AssertGoldenSequence(t, "text_wrap_then_scroll", seq)
 }

@@ -1,0 +1,49 @@
+=== text ===
+|      diff --git a/main.go b/main.go                                            |
+|      index abc1234..def5678 100644                                             |
+|      --- a/main.go                                                             |
+|      +++ b/main.go                                                             |
+|      @@ -1,4 +1,5 @@                                                           |
+|  1   package main                     │  1   package main                      |
+|                                       │  2 + import "fmt"                      |
+|  2   func main() {                    │  3   func main() {                     |
+|  3 -     println("hello")             │  4 +     fmt.Println("hello")          |
+|  4   }                                │  5   }                                 |
+|                                       │                                        |
+|                                       │                                        |
+=== fg ===
+|      AAAA AAAAA AAAAAAAAA AAAAAAAAA                                            |
+|      AAAAA AAAAAAAAAAAAAAAA AAAAAA                                             |
+|      AAA AAAAAAAAA                                                             |
+|      AAA AAAAAAAAA                                                             |
+|      BB BBBB BBBB BB                                                           |
+|  C   DDDDDDD DDDD                     C  C   DDDDDDD DDDD                      |
+|                                       C  C E DDDDDD DDDDD                      |
+|  C   DDDD DDDDDD D                    C  C   DDDD DDDDDD D                     |
+|  C F     DDDDDDDDDDDDDDDD             C  C E     DDDDDDDDDDDDDDDDDDDD          |
+|  C   D                                C  C   D                                 |
+|                                       C                                        |
+|                                       C                                        |
+=== bg ===
+|                                                                                |
+|                                                                                |
+|                                                                                |
+|                                                                                |
+|                                                                                |
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|                                        ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|                                                                                |
+|                                                                                |
+=== legend ===
+A #55ffff
+B #ff55ff
+C #808080
+D #ffffff
+E #55ff55
+F #ff5555
+░ #1e1e1e
+▒ #16271b
+▓ #321418
