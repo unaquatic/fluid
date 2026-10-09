@@ -350,12 +350,25 @@ func (t *Backend) HideCursor() {
 	t.writeRaw("\x1b[?25l")
 }
 
-// SetTitle sets the terminal window title via OSC 2.
+// SetTitle sets the terminal window and tab title via OSC 0.
 func (t *Backend) SetTitle(title string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	t.writeRaw(fmt.Sprintf("\x1b]2;%s\x07", title))
+	t.writeRaw(fmt.Sprintf("\x1b]0;%s\x07", title))
+}
+
+// SetProgress shows an indeterminate progress indicator via OSC 9;4 when
+// active is true, and clears it when active is false.
+func (t *Backend) SetProgress(active bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if active {
+		t.writeRaw("\x1b]9;4;3\x07")
+	} else {
+		t.writeRaw("\x1b]9;4;0\x07")
+	}
 }
 
 // Clear clears the terminal screen.

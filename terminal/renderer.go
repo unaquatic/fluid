@@ -104,6 +104,10 @@ type Renderer struct {
 	// Closed when Destroy completes.
 	done chan struct{}
 
+	// progressStop is closed to end the keepalive of an active progress
+	// indicator, and is nil while none is shown. Guarded by mu.
+	progressStop chan struct{}
+
 	mu sync.Mutex
 
 	// Width-probe result from setup.
@@ -407,6 +411,10 @@ func (r *Renderer) Destroy() {
 		out.WriteString("\r\n")
 		r.backend.WriteOut(out.Bytes())
 	}
+
+	r.mu.Lock()
+	r.clearProgressLocked()
+	r.mu.Unlock()
 
 	_ = r.backend.Restore()
 
@@ -856,9 +864,61 @@ func (r *Renderer) SetBackgroundColor(ci style.ColorInput) {
 	r.RequestRender()
 }
 
-// SetTitle sets the terminal window title.
+// SetTitle sets the terminal window and tab title.
 func (r *Renderer) SetTitle(title string) {
 	r.backend.SetTitle(title)
+}
+
+// ProgressKeepalive is how often an active progress indicator is repeated.
+// Ghostty drops an indicator that goes 15 seconds without an update.
+const ProgressKeepalive = time.Second
+
+// SetProgress shows an indeterminate progress indicator on the terminal tab
+// while active is true, and clears it when active is false. An active
+// indicator is repeated every [ProgressKeepalive] until it is cleared or the
+// renderer is destroyed.
+func (r *Renderer) SetProgress(active bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if !active {
+		r.clearProgressLocked()
+		return
+	}
+	r.backend.SetProgress(true)
+	if r.progressStop != nil {
+		return
+	}
+	stop := make(chan struct{})
+	r.progressStop = stop
+	go func() {
+		ticker := time.NewTicker(ProgressKeepalive)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-ticker.C:
+				// A tick racing a clear must not show the indicator again.
+				r.mu.Lock()
+				if r.progressStop == stop {
+					r.backend.SetProgress(true)
+				}
+				r.mu.Unlock()
+			}
+		}
+	}()
+}
+
+// clearProgressLocked ends the progress keepalive and clears the indicator.
+// It does nothing when no indicator is active. The caller must hold r.mu.
+func (r *Renderer) clearProgressLocked() {
+	if r.progressStop == nil {
+		return
+	}
+	close(r.progressStop)
+	r.progressStop = nil
+	r.backend.SetProgress(false)
 }
 
 // Stats returns a snapshot of aggregate rendering statistics.

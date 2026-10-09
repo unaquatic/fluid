@@ -304,7 +304,7 @@ func TestTerminal_SetTitle(t *testing.T) {
 	term.SetTitle("My App")
 
 	output := buf.String()
-	if !strings.Contains(output, "\x1b]2;My App\x07") {
+	if !strings.Contains(output, "\x1b]0;My App\x07") {
 		t.Errorf("expected title escape, got: %q", output)
 	}
 }
