@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="344" height="168" viewBox="0 0 43 21" role="img" aria-label="fluid">
+  <rect width="43" height="21" rx="0" fill="#e4e4e4"/>
+  <g transform="translate(4 3)">
+    <path fill="#e65600" d="M13 4H15V12H19V4H21V13H20V14H14V13H13Z"/>
+    <path fill="#1c1c1c" d="M4 0H7V2H5V4H7V6H5V14H4V15H1V14H0V12H2V13H3V6H1V4H3V1H4ZM8 0H11V12H12V14H8V12H9V2H8ZM23 0H25V2H23ZM33 0H35V13H34V14H28V13H27V5H28V4H33ZM22 4H25V12H26V14H22V12H23V6H22ZM29 6V12H33V6Z"/>
+  </g>
+</svg>

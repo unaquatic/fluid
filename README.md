@@ -1,10 +1,20 @@
-# fluid
+<p align="center">
+  <a href="https://github.com/unaquatic/fluid">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/logo-dark.svg">
+      <img src="docs/logo-light.svg" alt="fluid">
+    </picture>
+  </a>
+</p>
 
-A retained-mode terminal UI framework for Go, with a flexbox layout engine
-and double-buffered cell rendering.
+<p align="center">
+  <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.27-555?labelColor=888&logo=go&logoColor=white&style=flat-square" alt="Go"></a>
+  <a href="https://github.com/unaquatic/fluid/blob/main/LICENSE"><img src="https://img.shields.io/github/license/unaquatic/fluid?labelColor=888&color=555&style=flat-square" alt="License"></a>
+</p>
 
-[![Go](https://img.shields.io/badge/Go-1.27-00ADD8?logo=go&logoColor=white&style=flat-square)](https://go.dev/)
-[![License](https://img.shields.io/github/license/unaquatic/fluid?style=flat-square)](https://github.com/unaquatic/fluid/blob/main/LICENSE)
+<p align="center"><b>A terminal user interface framework written in golang.</b></p>
+
+---
 
 ## Install
 
@@ -12,7 +22,7 @@ and double-buffered cell rendering.
 go get github.com/unaquatic/fluid
 ```
 
-## Quick start
+## Usage
 
 ```go
 package main
@@ -51,28 +61,6 @@ func main() {
 }
 ```
 
-## Rendering modes
-
-- **Inline** renders into the terminal's normal scrollback, emitting only the
-  rows the content needs. The terminal's own scrollbar keeps working.
-- **Fullscreen** uses the alternate screen buffer with a fixed viewport.
-
-## Structure
-
-```
-fluid/
-  buffer/           cell buffer (2D grid of styled characters), border drawing
-  input/            keyboard, mouse, paste events + keybindings + parser
-  layout/           flexbox layout engine
-  render/           scene graph, base renderable, selection, render context
-  style/            color, style (fg/bg/attrs), StyledText, border types & chars
-  symbol/           unicode character constants (borders, bars, blocks, scrollbars)
-  terminal/         terminal renderer, diff, input loop, hit-testing, backend
-  testutil/         test helpers (golden output, mock renderables)
-  textbuf/          text buffer, edit buffer, text/edit surface, word wrap, unicode width
-  widget/           box, text, textarea, scrollbox, markdown, diff, code, table, tree, etc.
-```
-
 ## Testing
 
 ```sh
@@ -81,3 +69,7 @@ go test ./widget/ -v           # widget tests
 go test ./render/ -run Inline  # inline render tests
 go test ./layout/              # layout engine tests
 ```
+
+## License
+
+Fluid is released under the [MIT License](LICENSE).
