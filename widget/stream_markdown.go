@@ -193,6 +193,14 @@ func StreamMarkdownWithCodeBlockMargin(n int) StreamMarkdownOption {
 	}
 }
 
+// StreamMarkdownWithCodeBlockFit sets whether each child fits fenced-block
+// backgrounds to their widest line.
+func StreamMarkdownWithCodeBlockFit(v bool) StreamMarkdownOption {
+	return func(sm *StreamMarkdown) {
+		sm.mdOpts = append(sm.mdOpts, MarkdownWithCodeBlockFit(v))
+	}
+}
+
 // StreamMarkdownWithProsePadding sets prose padding on each child.
 func StreamMarkdownWithProsePadding(n int) StreamMarkdownOption {
 	return func(sm *StreamMarkdown) {

@@ -51,6 +51,10 @@ type Markdown struct {
 	codeBlockPad    int
 	codeBlockMargin int
 
+	// codeBlockFit ends the fenced-code background after its widest line
+	// rather than at the right margin.
+	codeBlockFit bool
+
 	// prosePad insets prose but not top-level fenced-code backgrounds.
 	prosePad int
 
@@ -426,31 +430,43 @@ func (m *Markdown) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 // renderCodeBlock renders a fenced or indented code block at width w.
 // It uses syntax highlighting when both a highlighter and language are available.
 //
-// Each line fills the block width with codeBg. codeBlockPad inserts blank rows
-// above and below and moves source text inward by the same number of columns.
-// Unless the wrap mode is WrapNone, a source line wider than the block wraps
-// onto further rows, as prose does.
+// Each line fills the block width with codeBg, or, when codeBlockFit is set,
+// the width of the widest line and codeBlockPad columns after it. codeBlockPad
+// inserts blank rows above and below and moves source text inward by the same
+// number of columns. Unless the wrap mode is WrapNone, a source line wider
+// than the block wraps onto further rows, as prose does.
 func (m *Markdown) renderCodeBlock(blk MdBlock, indent string, w int) {
 	lead := indent + strings.Repeat(" ", m.codeBlockPad)
 
-	for range m.codeBlockPad {
-		m.addCodeLine(nil, 0, w)
+	// end is the column at which the background stops.
+	end := w - m.codeBlockMargin
+	if m.codeBlockFit {
+		widest := 0
+		for _, line := range blk.CodeLines {
+			widest = max(widest, textbuf.StringWidth(line))
+		}
+		end = min(m.codeBlockMargin+textbuf.StringWidth(lead)+widest+m.codeBlockPad, end)
 	}
-	if !m.renderHighlighted(blk, lead, w) {
+
+	for range m.codeBlockPad {
+		m.addCodeLine(nil, 0, end)
+	}
+	if !m.renderHighlighted(blk, lead, w, end) {
 		for _, line := range blk.CodeLines {
 			m.addCodeText(
 				style.TextChunk{Text: lead, Fg: &m.codeFg, Bg: &m.codeBg},
-				[]style.TextChunk{{Text: line, Fg: &m.codeFg, Bg: &m.codeBg}}, w,
+				[]style.TextChunk{{Text: line, Fg: &m.codeFg, Bg: &m.codeBg}}, w, end,
 			)
 		}
 	}
 	for range m.codeBlockPad {
-		m.addCodeLine(nil, 0, w)
+		m.addCodeLine(nil, 0, end)
 	}
 }
 
-// renderHighlighted appends highlighted code lines and reports whether it succeeded.
-func (m *Markdown) renderHighlighted(blk MdBlock, lead string, w int) bool {
+// renderHighlighted appends highlighted code lines, with the background ending
+// at column end, and reports whether it succeeded.
+func (m *Markdown) renderHighlighted(blk MdBlock, lead string, w, end int) bool {
 	if m.highlighter == nil || blk.Lang == "" {
 		return false
 	}
@@ -470,23 +486,24 @@ func (m *Markdown) renderHighlighted(blk MdBlock, lead string, w int) bool {
 				Attributes: span.Attributes,
 			})
 		}
-		m.addCodeText(style.TextChunk{Text: lead, Bg: &m.codeBg}, body, w)
+		m.addCodeText(style.TextChunk{Text: lead, Bg: &m.codeBg}, body, w, end)
 	}
 	return true
 }
 
-// addCodeText appends one source line of a code block, body after lead. Unless
-// the wrap mode is WrapNone, a body wider than the block wraps onto further
-// rows, each of which starts with lead.
-func (m *Markdown) addCodeText(lead style.TextChunk, body []style.TextChunk, w int) {
+// addCodeText appends one source line of a code block, body after lead, with
+// the background ending at column end. Unless the wrap mode is WrapNone, a
+// body wider than the block at width w wraps onto further rows, each of which
+// starts with lead.
+func (m *Markdown) addCodeText(lead style.TextChunk, body []style.TextChunk, w, end int) {
 	leadW, bodyW := textbuf.StringWidth(lead.Text), 0
 	for _, c := range body {
 		bodyW += textbuf.StringWidth(c.Text)
 	}
-	// The block's background ends codeBlockMargin columns before w.
+	// The widest block ends codeBlockMargin columns before w.
 	avail := w - 2*m.codeBlockMargin - leadW
 	if m.wrapMode == WrapNone || avail < 1 || bodyW <= avail {
-		m.addCodeLine(append([]style.TextChunk{lead}, body...), leadW+bodyW, w)
+		m.addCodeLine(append([]style.TextChunk{lead}, body...), leadW+bodyW, end)
 		return
 	}
 	for _, row := range wrapChunks(body, m.wrapMode, avail, avail) {
@@ -494,19 +511,20 @@ func (m *Markdown) addCodeText(lead style.TextChunk, body []style.TextChunk, w i
 		for _, c := range row {
 			used += textbuf.StringWidth(c.Text)
 		}
-		m.addCodeLine(append([]style.TextChunk{lead}, row...), used, w)
+		m.addCodeLine(append([]style.TextChunk{lead}, row...), used, end)
 	}
 }
 
-// addCodeLine appends one code line whose background spans the configured margins.
-func (m *Markdown) addCodeLine(chunks []style.TextChunk, used, w int) {
+// addCodeLine appends one code line after the left margin, with its
+// background filled to column end.
+func (m *Markdown) addCodeLine(chunks []style.TextChunk, used, end int) {
 	margin := m.codeBlockMargin
 	if margin > 0 {
 		gutter := style.TextChunk{Text: strings.Repeat(" ", margin)}
 		chunks = append([]style.TextChunk{gutter}, chunks...)
 		used += margin
 	}
-	if end := w - margin; used < end {
+	if used < end {
 		chunks = append(chunks, style.TextChunk{
 			Text: strings.Repeat(" ", end-used),
 			Bg:   &m.codeBg,
@@ -1056,6 +1074,13 @@ func MarkdownWithCodeBlockPadding(n int) MarkdownOption {
 // background. Negative values become zero.
 func MarkdownWithCodeBlockMargin(n int) MarkdownOption {
 	return func(m *Markdown) { m.codeBlockMargin = max(n, 0) }
+}
+
+// MarkdownWithCodeBlockFit ends a fenced-code background after the block's
+// widest line and its padding rather than at the right margin, so that the
+// block keeps to the left. A line too wide for the margins still wraps.
+func MarkdownWithCodeBlockFit(v bool) MarkdownOption {
+	return func(m *Markdown) { m.codeBlockFit = v }
 }
 
 // MarkdownWithProsePadding insets paragraphs, headings, lists, and quotes by n columns.
