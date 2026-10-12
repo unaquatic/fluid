@@ -332,6 +332,59 @@ func TestDestroy_InlineClearOnExit(t *testing.T) {
 	}
 }
 
+// TestRender covers drawing a frame outside the event loop, which shows a
+// change before Destroy ends rendering: hiding the last row erases it at once,
+// the frame takes the place of the one requested, and the cursor resumes below
+// the rows that remain.
+func TestRender(t *testing.T) {
+	r, out, term, rows := drawInline(t, shortGlyphs)
+	rows[len(rows)-1].SetGone(true)
+	r.RequestRender()
+
+	r.Render()
+	if r.dirty.Load() {
+		t.Error("expected the requested frame to be drawn")
+	}
+	r.Destroy()
+	term.feed(out.String())
+
+	kept := shortGlyphs[:len(shortGlyphs)-1]
+	if got, want := firstColumn(term.lines()), "$"+kept; got != want {
+		t.Errorf("terminal rows begin %q, want %q", got, want)
+	}
+	if term.cx != 0 || term.cy != len(kept)+1 {
+		t.Errorf("cursor at (%d, %d), want (0, %d)", term.cx, term.cy, len(kept)+1)
+	}
+}
+
+// TestRender_NotRunning checks that Render writes nothing before setup or
+// after Destroy, when no frame belongs on the terminal.
+func TestRender_NotRunning(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		make func() (*Renderer, *bytes.Buffer)
+	}{
+		{name: "before setup", make: newInlineTestRenderer},
+		{name: "destroyed", make: func() (*Renderer, *bytes.Buffer) {
+			r, out := startedTestRenderer()
+			r.Destroy()
+			out.Reset()
+			return r, out
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			r, out := tt.make()
+			r.root.Add(newGlyphRow("0", 'a', glyphRowWidth, 1))
+
+			r.Render()
+
+			if out.Len() != 0 {
+				t.Errorf("expected no output, got %q", out.String())
+			}
+		})
+	}
+}
+
 // TestDestroy_FullscreenWithoutInlineOutput keeps the exit of a renderer that
 // never drew inline: leaving the alternate screen restores the shell as it was.
 func TestDestroy_FullscreenWithoutInlineOutput(t *testing.T) {

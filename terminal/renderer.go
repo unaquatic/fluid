@@ -454,6 +454,22 @@ func (r *Renderer) Destroy() {
 	}
 }
 
+// Render draws and flushes a frame now, without waiting for the event loop,
+// and takes the place of a frame RequestRender marked due. It lets a change
+// reach the terminal before a call that ends rendering, such as Destroy. It
+// does nothing unless the renderer is running.
+//
+// Call it from the event-loop goroutine, for example from an input handler or
+// through Enqueue, so that it does not race the loop's own frames.
+func (r *Renderer) Render() {
+	if r.destroyed.Load() || !r.IsRunning() {
+		return
+	}
+	// Clear before drawing so a request made during the frame remains pending.
+	r.dirty.Store(false)
+	r.renderFrame()
+}
+
 // RequestRender marks one frame due and wakes the event loop. Repeated requests
 // coalesce until the loop clears the dirty flag.
 func (r *Renderer) RequestRender() {
