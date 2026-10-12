@@ -234,14 +234,26 @@ func (sb *ScrollBox) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 //
 // Computed positions exclude scroll translation. Measuring rendered positions
 // would feed the previous frame's translation back into content dimensions.
+//
+// A child's bottom and right margins count as content, so the space they leave
+// after the last child can be scrolled into view. They resolve against the
+// content box, as layout resolves them. Gone children take no space.
 func (sb *ScrollBox) OnPostLayout(deltaTime float64) {
-	sbComputed := sb.LayoutNode().Computed
+	ln := sb.LayoutNode()
+	sbComputed := ln.Computed
+	contentWidth, contentHeight := contentBoxSize(ln)
 	maxHeight := 0
 	maxWidth := 0
 	for _, child := range sb.Children() {
-		cc := child.LayoutNode().Computed
-		bottom := cc.Y - sbComputed.Y + cc.Height
-		right := cc.X - sbComputed.X + cc.Width
+		cn := child.LayoutNode()
+		if cn.Visibility == layout.Gone {
+			continue
+		}
+		cc := cn.Computed
+		marginBottom, _ := cn.MarginBottom.Resolve(contentHeight)
+		marginRight, _ := cn.MarginRight.Resolve(contentWidth)
+		bottom := cc.Y - sbComputed.Y + cc.Height + marginBottom
+		right := cc.X - sbComputed.X + cc.Width + marginRight
 		if bottom > maxHeight {
 			maxHeight = bottom
 		}
@@ -265,6 +277,17 @@ func (sb *ScrollBox) OnPostLayout(deltaTime float64) {
 	if sb.anchorScroll && sb.userScrolled {
 		sb.updateAnchor()
 	}
+}
+
+// contentBoxSize returns the size of n's content box: its computed size less
+// its padding, which resolves against that size.
+func contentBoxSize(n *layout.LayoutNode) (width, height int) {
+	w, h := n.Computed.Width, n.Computed.Height
+	top, _ := n.PaddingTop.Resolve(h)
+	right, _ := n.PaddingRight.Resolve(w)
+	bottom, _ := n.PaddingBottom.Resolve(h)
+	left, _ := n.PaddingLeft.Resolve(w)
+	return max(w-left-right, 0), max(h-top-bottom, 0)
 }
 
 // Keyboard navigation.

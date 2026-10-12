@@ -7,6 +7,7 @@ import (
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
 	"github.com/unaquatic/fluid/layout"
+	"github.com/unaquatic/fluid/render"
 	"github.com/unaquatic/fluid/style"
 	"github.com/unaquatic/fluid/testutil"
 )
@@ -180,6 +181,72 @@ func TestScrollBox_ScrollTo(t *testing.T) {
 	}
 	if sb.ScrollY() != 12 {
 		t.Errorf("expected scrollY 12, got %d", sb.ScrollY())
+	}
+}
+
+// TestScrollBox_ContentSizeIncludesTrailingMargins checks that a child's bottom
+// and right margins count as content, so a viewport at the end shows the space
+// they leave. A Gone child takes no space, margins included.
+func TestScrollBox_ContentSizeIncludesTrailingMargins(t *testing.T) {
+	gone := NewBox(BoxWithHeight(layout.Points(1)), BoxWithMarginBottom(layout.Points(5)))
+	gone.SetGone(true)
+
+	for _, tt := range []struct {
+		name          string
+		dir           layout.FlexDirection
+		children      []render.Renderable
+		width, height int // The wanted content size.
+	}{
+		{
+			name: "bottom margin",
+			dir:  layout.DirectionColumn,
+			children: []render.Renderable{NewBox(BoxWithWidth(layout.Points(4)),
+				BoxWithHeight(layout.Points(3)), BoxWithFlexShrink(0), BoxWithMarginBottom(layout.Points(1)))},
+			width: 4, height: 4,
+		},
+		{
+			name: "right margin",
+			dir:  layout.DirectionRow,
+			children: []render.Renderable{NewBox(BoxWithWidth(layout.Points(5)),
+				BoxWithHeight(layout.Points(1)), BoxWithFlexShrink(0), BoxWithMarginRight(layout.Points(2)))},
+			width: 7, height: 1,
+		},
+		{
+			name: "gone child",
+			dir:  layout.DirectionColumn,
+			children: []render.Renderable{NewBox(BoxWithWidth(layout.Points(4)),
+				BoxWithHeight(layout.Points(2)), BoxWithFlexShrink(0)), gone},
+			width: 4, height: 2,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			sb := NewScrollBox(ScrollBoxWithFlexDirection(tt.dir), ScrollBoxWithChildren(tt.children...))
+			testutil.SetupWidget(sb, 3, 1)
+			sb.OnPostLayout(0)
+
+			if sb.ContentWidth() != tt.width || sb.ContentHeight() != tt.height {
+				t.Errorf("content is %dx%d, want %dx%d", sb.ContentWidth(), sb.ContentHeight(), tt.width, tt.height)
+			}
+		})
+	}
+}
+
+// TestScrollBox_AutoScroll_BottomShowsTrailingMargin checks that following the
+// bottom edge keeps the last child's bottom margin in view.
+func TestScrollBox_AutoScroll_BottomShowsTrailingMargin(t *testing.T) {
+	last := NewBox(BoxWithHeight(layout.Points(3)), BoxWithFlexShrink(0), BoxWithMarginBottom(layout.Points(1)))
+	sb := NewScrollBox(
+		ScrollBoxWithFlexDirection(layout.DirectionColumn),
+		ScrollBoxWithAutoScroll(AutoScrollBottom),
+		ScrollBoxWithChildren(last),
+	)
+	testutil.SetupWidget(sb, 20, 2)
+	sb.OnPostLayout(0)
+
+	// Three rows and the margin leave the last row of the box and the margin
+	// in the two-row viewport.
+	if got := sb.ScrollY(); got != 2 {
+		t.Errorf("scrollY = %d, want 2", got)
 	}
 }
 
