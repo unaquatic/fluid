@@ -246,7 +246,7 @@ func (r *Renderer) inlineFullFlush(buf *buffer.Buffer, termHeight int, erase boo
 		if y > 0 {
 			out.WriteString("\r\n")
 		}
-		out.WriteString(inlineEraseRow)
+		r.eraseInlineRow(&out, buf, y, colorMode)
 		r.writeInlineRow(&out, buf, y, width, colorMode)
 	}
 
@@ -295,7 +295,7 @@ func (r *Renderer) inlineDiffFlush(buf, prev *buffer.Buffer, first, last, termHe
 		if y > first {
 			out.WriteString("\r\n")
 		}
-		out.WriteString(inlineEraseRow)
+		r.eraseInlineRow(&out, buf, y, colorMode)
 		r.writeInlineRow(&out, buf, y, buf.Width(), colorMode)
 		cursorRow = y
 	}
@@ -342,6 +342,9 @@ func inlineEraseDropped(out *bytes.Buffer, newHeight, prevHeight int) int {
 		return 0
 	}
 
+	// The rows now lie outside the frame, so they return to the terminal's
+	// default background rather than take the last cell written's.
+	out.WriteString(inlineResetSGR)
 	for range dropped {
 		out.WriteString("\r\n" + inlineEraseRow)
 	}
@@ -492,6 +495,30 @@ func (r *Renderer) writeInlineRow(out *bytes.Buffer, buf *buffer.Buffer, y, widt
 	if curLinkID != 0 {
 		out.WriteString("\x1b]8;;\x1b\\")
 	}
+}
+
+// eraseInlineRow erases the cursor's row in the background of row y's last
+// cell. Terminals fill erased cells with the active background, and the
+// erase reaches the column that layout leaves free, so the column continues
+// the row's right edge instead of whatever the previous row left active.
+func (r *Renderer) eraseInlineRow(out *bytes.Buffer, buf *buffer.Buffer, y int, colorMode style.ColorMode) {
+	out.WriteString(buildSGR(style.Color{}, r.inlineEdgeBg(buf, y), 0, colorMode))
+	out.WriteString(inlineEraseRow)
+}
+
+// inlineEdgeBg returns the background of row y's last cell. The cursor swaps
+// the colors of the cell it inverts, so that cell's background is its
+// foreground.
+func (r *Renderer) inlineEdgeBg(buf *buffer.Buffer, y int) style.Color {
+	x := buf.Width() - 1
+	if x < 0 {
+		return style.Color{}
+	}
+	cell := buf.Cell(x, y)
+	if r.inlineCursorCell.Contains(x, y) {
+		return cell.Fg
+	}
+	return cell.Bg
 }
 
 // inlineRowsEqual reports whether the first width cells of row y match.

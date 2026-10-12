@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"bytes"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -331,6 +332,121 @@ func TestInlineFlush_HeightShrunk_ErasesRemovedRows(t *testing.T) {
 	}
 	if r.inlineCursorRow != 2 {
 		t.Errorf("expected cursorRow=2, got %d", r.inlineCursorRow)
+	}
+}
+
+// filledBuffer returns a buffer with one row for each background in bgs, each
+// filled edge to edge with blanks in that background.
+func filledBuffer(width int, bgs ...style.Color) *buffer.Buffer {
+	buf := buffer.New(width, len(bgs))
+	for y, bg := range bgs {
+		buf.FillRect(0, y, width, 1, bg)
+	}
+	return buf
+}
+
+// eraseBackgrounds returns the background active at each row erase in
+// output, as SGR parameters such as "48;2;48;48;48", or "" for the terminal
+// default. Terminals fill erased cells with the active background.
+func eraseBackgrounds(output string) []string {
+	var bgs []string
+	bg := ""
+	for i := 0; i < len(output); {
+		if strings.HasPrefix(output[i:], inlineEraseRow) {
+			bgs = append(bgs, bg)
+			i += len(inlineEraseRow)
+			continue
+		}
+		if !strings.HasPrefix(output[i:], "\x1b[") {
+			i++
+			continue
+		}
+		end := i + 2
+		for end < len(output) && (output[end] < 0x40 || output[end] > 0x7e) {
+			end++
+		}
+		if end < len(output) && output[end] == 'm' {
+			bg = sgrBackground(output[i+2:end], bg)
+		}
+		i = end + 1
+	}
+	return bgs
+}
+
+// sgrBackground returns the background that the SGR parameters params leave
+// active when bg was active before them.
+func sgrBackground(params, bg string) string {
+	p := strings.Split(params, ";")
+	for k := 0; k < len(p); k++ {
+		switch p[k] {
+		case "", "0", "49":
+			bg = ""
+		case "48":
+			n := 3 // 48;5;index
+			if k+1 < len(p) && p[k+1] == "2" {
+				n = 5 // 48;2;r;g;b
+			}
+			n = min(n, len(p)-k)
+			bg = strings.Join(p[k:k+n], ";")
+			k += n - 1
+		}
+	}
+	return bg
+}
+
+// bgParams returns the SGR parameters that select c as the background.
+func bgParams(r *Renderer, c style.Color) string {
+	seq := style.BgColorSeq(c, r.backend.ColorMode())
+	return seq[2 : len(seq)-1]
+}
+
+// TestInlineFlush_ShrinkErasesInTheDefaultBackground guards against rows that
+// a shorter frame drops taking the fill of the last cell written above them,
+// as when a filled box moves up into the rows a closed menu left.
+func TestInlineFlush_ShrinkErasesInTheDefaultBackground(t *testing.T) {
+	r, outBuf := newInlineTestRenderer()
+	menu, fill := style.ColorFromInts(40, 40, 40, 255), style.ColorFromInts(48, 48, 48, 255)
+	r.InlineFlush(filledBuffer(10, menu, menu, fill, fill, fill))
+	outBuf.Reset()
+
+	r.InlineFlush(filledBuffer(10, fill, fill, fill))
+
+	got := eraseBackgrounds(outBuf.String())
+	want := []string{bgParams(r, fill), bgParams(r, fill), bgParams(r, fill), "", ""}
+	if !slices.Equal(got, want) {
+		t.Errorf("rows erased in backgrounds %q, want the two dropped rows in the default, %q", got, want)
+	}
+}
+
+// TestInlineFlush_ErasesEachRowInItsEdgeBackground checks that the terminal
+// column layout leaves free continues each row's last cell, rather than the
+// row written before it.
+func TestInlineFlush_ErasesEachRowInItsEdgeBackground(t *testing.T) {
+	r, outBuf := newInlineTestRenderer()
+	red, blue := style.ColorFromInts(255, 0, 0, 255), style.ColorFromInts(0, 0, 255, 255)
+
+	r.InlineFlush(filledBuffer(10, red, blue, style.ColorTransparent))
+
+	want := []string{bgParams(r, red), bgParams(r, blue), ""}
+	if got := eraseBackgrounds(outBuf.String()); !slices.Equal(got, want) {
+		t.Errorf("rows erased in backgrounds %q, want %q", got, want)
+	}
+}
+
+// TestInlineFlush_EdgeBackgroundIgnoresTheCursor checks that a cursor on a
+// row's last cell, which swaps the cell's colors, does not widen into the
+// free column.
+func TestInlineFlush_EdgeBackgroundIgnoresTheCursor(t *testing.T) {
+	r, outBuf := newInlineTestRenderer()
+	fill := style.ColorFromInts(48, 48, 48, 255)
+	buf := filledBuffer(10, fill)
+	r.SetCursorPosition(9, 0, true)
+	r.drawInlineCursor(buf)
+
+	r.InlineFlush(buf)
+
+	if got, want := eraseBackgrounds(outBuf.String()), []string{bgParams(r, fill)}; !slices.Equal(got, want) {
+		t.Errorf("row erased in backgrounds %q, want %q", got, want)
 	}
 }
 
