@@ -84,7 +84,8 @@ type Renderer struct {
 	//
 	// Inline output holds every row of inlineCurrentBuf in the terminal, but
 	// only rows inlineViewportTop and below remain addressable; earlier rows
-	// have scrolled into the scrollback.
+	// have scrolled into the scrollback. The alternate screen leaves them in
+	// place, so they stay valid while it is shown.
 	currentBuffer         *buffer.Buffer // The frame represented on screen.
 	nextBuffer            *buffer.Buffer // The frame currently being built.
 	invalidated           bool           // Whether the next fullscreen frame requires FullFlush.
@@ -404,11 +405,27 @@ func (r *Renderer) Destroy() {
 
 	r.Stop()
 
-	// Leave the cursor on a clean line below inline output.
+	// Inline output is erased when configured, and otherwise kept with the
+	// cursor on a clean line below it.
 	if r.config.InlineMode && r.inlineCurrentBuf != nil {
 		var out bytes.Buffer
-		inlineMoveRows(&out, r.inlineCurrentBuf.Height()-1-r.inlineCursorRow)
-		out.WriteString("\r\n")
+		if r.config.ClearOnExit {
+			r.eraseInlineOutput(&out)
+		} else {
+			inlineMoveRows(&out, r.inlineCurrentBuf.Height()-1-r.inlineCursorRow)
+			out.WriteString("\r\n")
+		}
+		r.backend.WriteOut(out.Bytes())
+	}
+
+	// Leaving the alternate screen shows the inline output it covered, with
+	// the cursor where that output left it. That output is stale, so it is
+	// erased rather than left for the shell to print over.
+	if !r.config.InlineMode && r.inlineCurrentBuf != nil && r.backend.AlternateScreen() {
+		r.backend.LeaveAlternateScreen()
+
+		var out bytes.Buffer
+		r.eraseInlineOutput(&out)
 		r.backend.WriteOut(out.Bytes())
 	}
 

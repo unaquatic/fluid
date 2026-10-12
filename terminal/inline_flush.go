@@ -21,14 +21,25 @@ const inlineMaxLayoutHeight = 1 << 20
 
 // Terminal control sequences used by inline output.
 const (
-	inlineBeginSync = "\x1b[?2026h"
-	inlineEndSync   = "\x1b[?2026l"
-	inlineNoWrap    = "\x1b[?7l"
-	inlineWrap      = "\x1b[?7h"
-	inlineEraseRow  = "\x1b[2K"
-	inlineResetSGR  = "\x1b[0m"
-	inlineEraseAll  = "\x1b[2J\x1b[H\x1b[3J"
+	inlineBeginSync  = "\x1b[?2026h"
+	inlineEndSync    = "\x1b[?2026l"
+	inlineNoWrap     = "\x1b[?7l"
+	inlineWrap       = "\x1b[?7h"
+	inlineEraseRow   = "\x1b[2K"
+	inlineEraseBelow = "\x1b[J"
+	inlineResetSGR   = "\x1b[0m"
+	inlineEraseAll   = "\x1b[2J\x1b[H\x1b[3J"
 )
+
+// inlineLayoutWidth returns the width inline output is laid out at for a
+// terminal termWidth columns wide. It reserves the final column, so a full row
+// cannot wrap.
+func inlineLayoutWidth(termWidth int) int {
+	if termWidth > 1 {
+		return termWidth - 1
+	}
+	return termWidth
+}
 
 // renderInlineFrame lays out content-height output, renders it, and flushes it
 // into the normal terminal screen.
@@ -42,11 +53,7 @@ func (r *Renderer) renderInlineFrame() {
 	termWidth := r.width
 	r.mu.Unlock()
 
-	// Reserve the final terminal column to prevent automatic wrapping.
-	layoutWidth := termWidth
-	if layoutWidth > 1 {
-		layoutWidth = termWidth - 1
-	}
+	layoutWidth := inlineLayoutWidth(termWidth)
 
 	// Resize the root only when width changes; content mutations already dirty
 	// the layout tree.
@@ -350,6 +357,27 @@ func inlineEraseDropped(out *bytes.Buffer, newHeight, prevHeight int) int {
 	}
 	inlineMoveRows(out, -dropped)
 	return dropped
+}
+
+// eraseInlineOutput writes to out the sequences that erase the tracked inline
+// output from the normal screen, leaving the cursor where that output began.
+//
+// Rows on screen are erased in place, which keeps the scrollback above them.
+// Rows in the scrollback cannot be addressed, and a resize may have moved the
+// rows on screen, so otherwise the screen and scrollback are erased.
+func (r *Renderer) eraseInlineOutput(out *bytes.Buffer) {
+	r.mu.Lock()
+	w, h := r.width, r.height
+	r.mu.Unlock()
+
+	out.WriteString(inlineResetSGR)
+	if r.inlineViewportTop == 0 && r.inlineTermHeight == h &&
+		r.inlineCurrentBuf.Width() == inlineLayoutWidth(w) {
+		inlineMoveRows(out, -r.inlineCursorRow)
+		out.WriteString("\r" + inlineEraseBelow)
+		return
+	}
+	out.WriteString(inlineEraseAll)
 }
 
 // storeInline records the frame the terminal now shows.

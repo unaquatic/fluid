@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -10,15 +11,29 @@ import (
 )
 
 // disagreeingTerm models a terminal whose grapheme widths differ from the
-// buffer's widths. It also models deferred wrapping and inline cursor controls.
+// buffer's widths. It also models deferred wrapping, inline cursor controls,
+// the scrollback, and the alternate screen.
 type disagreeingTerm struct {
-	w, h     int
-	grid     [][]rune
-	cx, cy   int
-	pending  bool
-	autowrap bool
-	scrolled int
-	adv      func(rune) int
+	w, h       int
+	grid       [][]rune
+	cx, cy     int
+	pending    bool
+	autowrap   bool
+	scrolled   int
+	scrollback []string
+	normal     *savedScreen // The normal screen while the alternate one is shown.
+	adv        func(rune) int
+}
+
+// savedScreen is the normal screen and cursor that entering the alternate
+// screen saves, and leaving it restores.
+type savedScreen struct {
+	grid   [][]rune
+	cx, cy int
+}
+
+func (s *disagreeingTerm) blankRow() []rune {
+	return []rune(strings.Repeat(".", s.w))
 }
 
 func (s *disagreeingTerm) lineFeed() {
@@ -27,10 +42,67 @@ func (s *disagreeingTerm) lineFeed() {
 	if s.cy < s.h {
 		return
 	}
+	// Only the normal screen feeds the scrollback.
+	if s.normal == nil {
+		s.scrollback = append(s.scrollback, string(s.grid[0]))
+	}
 	copy(s.grid, s.grid[1:])
-	s.grid[s.h-1] = []rune(strings.Repeat(".", s.w))
+	s.grid[s.h-1] = s.blankRow()
 	s.cy = s.h - 1
 	s.scrolled++
+}
+
+// eraseDisplay applies ED: 0 erases from the cursor to the end of the screen,
+// 2 erases the screen, and 3 erases the scrollback.
+func (s *disagreeingTerm) eraseDisplay(params string) {
+	switch params {
+	case "", "0":
+		for x := s.cx; x < s.w; x++ {
+			s.grid[s.cy][x] = '.'
+		}
+		for y := s.cy + 1; y < s.h; y++ {
+			s.grid[y] = s.blankRow()
+		}
+	case "2":
+		for y := range s.h {
+			s.grid[y] = s.blankRow()
+		}
+	case "3":
+		s.scrollback = nil
+	}
+}
+
+// switchScreen applies mode 1049, which saves the cursor and shows a blank
+// alternate screen, or returns to the normal screen and restores the cursor.
+func (s *disagreeingTerm) switchScreen(alternate bool) {
+	switch {
+	case alternate && s.normal == nil:
+		s.normal = &savedScreen{grid: s.grid, cx: s.cx, cy: s.cy}
+		s.grid = make([][]rune, s.h)
+		for y := range s.h {
+			s.grid[y] = s.blankRow()
+		}
+	case !alternate && s.normal != nil:
+		s.grid, s.cx, s.cy = s.normal.grid, s.normal.cx, s.normal.cy
+		s.normal = nil
+	}
+	s.pending = false
+}
+
+// lines returns the scrollback and then the screen, without trailing blank
+// cells or trailing blank rows.
+func (s *disagreeingTerm) lines() []string {
+	all := slices.Clone(s.scrollback)
+	for _, row := range s.grid {
+		all = append(all, string(row))
+	}
+	for i, row := range all {
+		all[i] = strings.TrimRight(row, ".")
+	}
+	for len(all) > 0 && all[len(all)-1] == "" {
+		all = all[:len(all)-1]
+	}
+	return all
 }
 
 func (s *disagreeingTerm) put(r rune) {
@@ -65,11 +137,16 @@ func (s *disagreeingTerm) csi(params string, command byte) {
 		s.cy, s.pending = min(s.cy+max(atoiParam(params), 1), s.h-1), false
 	case 'K':
 		if params == "2" {
-			s.grid[s.cy] = []rune(strings.Repeat(".", s.w))
+			s.grid[s.cy] = s.blankRow()
 		}
+	case 'J':
+		s.eraseDisplay(params)
 	case 'h', 'l':
-		if params == "?7" {
+		switch params {
+		case "?7":
 			s.autowrap = command == 'h'
+		case "?1049":
+			s.switchScreen(command == 'h')
 		}
 	}
 }
