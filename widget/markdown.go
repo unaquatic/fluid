@@ -428,6 +428,8 @@ func (m *Markdown) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 //
 // Each line fills the block width with codeBg. codeBlockPad inserts blank rows
 // above and below and moves source text inward by the same number of columns.
+// Unless the wrap mode is WrapNone, a source line wider than the block wraps
+// onto further rows, as prose does.
 func (m *Markdown) renderCodeBlock(blk MdBlock, indent string, w int) {
 	lead := indent + strings.Repeat(" ", m.codeBlockPad)
 
@@ -436,10 +438,9 @@ func (m *Markdown) renderCodeBlock(blk MdBlock, indent string, w int) {
 	}
 	if !m.renderHighlighted(blk, lead, w) {
 		for _, line := range blk.CodeLines {
-			text := lead + line
-			m.addCodeLine(
-				[]style.TextChunk{{Text: text, Fg: &m.codeFg, Bg: &m.codeBg}},
-				textbuf.StringWidth(text), w,
+			m.addCodeText(
+				style.TextChunk{Text: lead, Fg: &m.codeFg, Bg: &m.codeBg},
+				[]style.TextChunk{{Text: line, Fg: &m.codeFg, Bg: &m.codeBg}}, w,
 			)
 		}
 	}
@@ -459,21 +460,42 @@ func (m *Markdown) renderHighlighted(blk MdBlock, lead string, w int) bool {
 		return false
 	}
 	for _, line := range highlighted {
-		chunks := []style.TextChunk{{Text: lead, Bg: &m.codeBg}}
-		used := textbuf.StringWidth(lead)
+		var body []style.TextChunk
 		for _, span := range line.Spans {
 			fg, bg := span.Fg, span.Bg
-			chunks = append(chunks, style.TextChunk{
+			body = append(body, style.TextChunk{
 				Text:       span.Text,
 				Fg:         &fg,
 				Bg:         &bg,
 				Attributes: span.Attributes,
 			})
-			used += textbuf.StringWidth(span.Text)
 		}
-		m.addCodeLine(chunks, used, w)
+		m.addCodeText(style.TextChunk{Text: lead, Bg: &m.codeBg}, body, w)
 	}
 	return true
+}
+
+// addCodeText appends one source line of a code block, body after lead. Unless
+// the wrap mode is WrapNone, a body wider than the block wraps onto further
+// rows, each of which starts with lead.
+func (m *Markdown) addCodeText(lead style.TextChunk, body []style.TextChunk, w int) {
+	leadW, bodyW := textbuf.StringWidth(lead.Text), 0
+	for _, c := range body {
+		bodyW += textbuf.StringWidth(c.Text)
+	}
+	// The block's background ends codeBlockMargin columns before w.
+	avail := w - 2*m.codeBlockMargin - leadW
+	if m.wrapMode == WrapNone || avail < 1 || bodyW <= avail {
+		m.addCodeLine(append([]style.TextChunk{lead}, body...), leadW+bodyW, w)
+		return
+	}
+	for _, row := range wrapChunks(body, m.wrapMode, avail, avail) {
+		used := leadW
+		for _, c := range row {
+			used += textbuf.StringWidth(c.Text)
+		}
+		m.addCodeLine(append([]style.TextChunk{lead}, row...), used, w)
+	}
 }
 
 // addCodeLine appends one code line whose background spans the configured margins.
@@ -642,6 +664,32 @@ func (m *Markdown) addWrappedLine(prefix []style.TextChunk, prefixWidth int, max
 		return
 	}
 
+	// Continuations omit the prefix but retain prose padding.
+	rest := maxWidth
+	if m.prosePad > 0 {
+		rest = max(maxWidth-m.prosePad, 4)
+	}
+	for i, row := range wrapChunks(body, m.wrapMode, availWidth, rest) {
+		var lineChunks []style.TextChunk
+		if i == 0 {
+			lineChunks = append(lineChunks, prefix...)
+		} else if m.prosePad > 0 {
+			lineChunks = append(lineChunks, style.TextChunk{
+				Text: strings.Repeat(" ", m.prosePad),
+			})
+		}
+		lineChunks = append(lineChunks, row...)
+		m.renderedLines = append(m.renderedLines, mdLine{chunks: lineChunks})
+	}
+}
+
+// wrapChunks splits body into rows, the first at most first cells wide and
+// the others at most rest cells wide. WrapWord breaks after the last
+// whitespace that fits when more text follows, and within a word only when a
+// row has no such whitespace; other modes break at any grapheme cluster.
+// Whitespace that would begin a row after a break is dropped, and a row holds
+// at least one cluster even when that cluster is wider than the row.
+func wrapChunks(body []style.TextChunk, mode WrapMode, first, rest int) [][]style.TextChunk {
 	// Flatten styled chunks into indivisible grapheme clusters for wrapping.
 	type styledCluster struct {
 		text string
@@ -671,23 +719,19 @@ func (m *Markdown) addWrappedLine(prefix []style.TextChunk, prefixWidth int, max
 		}
 	}
 
-	firstLine := true
+	var rows [][]style.TextChunk
 	clusterIdx := 0
 
 	for clusterIdx < len(allClusters) {
 		lineWidth := 0
-		lineAvail := availWidth
-		if !firstLine {
-			// Continuations omit the prefix but retain prose padding.
-			lineAvail = maxWidth
-			if m.prosePad > 0 {
-				lineAvail = max(maxWidth-m.prosePad, 4)
-			}
+		lineAvail := rest
+		if len(rows) == 0 {
+			lineAvail = first
 		}
 
 		lineStart := clusterIdx
 
-		if m.wrapMode == WrapWord {
+		if mode == WrapWord {
 			// Track the last whitespace boundary that fits.
 			lastBreak := -1
 			for clusterIdx < len(allClusters) {
@@ -717,16 +761,14 @@ func (m *Markdown) addWrappedLine(prefix []style.TextChunk, prefixWidth int, max
 				clusterIdx++
 			}
 		}
-
-		// Reassemble this line while preserving style boundaries.
-		var lineChunks []style.TextChunk
-		if firstLine {
-			lineChunks = append(lineChunks, prefix...)
-		} else if m.prosePad > 0 {
-			lineChunks = append(lineChunks, style.TextChunk{
-				Text: strings.Repeat(" ", m.prosePad),
-			})
+		// Take at least one cluster, so that one wider than the row cannot
+		// stall wrapping.
+		if clusterIdx == lineStart {
+			clusterIdx++
 		}
+
+		// Reassemble this row while preserving style boundaries.
+		var lineChunks []style.TextChunk
 
 		// Merge adjacent clusters with identical styles.
 		var sb strings.Builder
@@ -769,14 +811,14 @@ func (m *Markdown) addWrappedLine(prefix []style.TextChunk, prefixWidth int, max
 		}
 		flushChunk()
 
-		m.renderedLines = append(m.renderedLines, mdLine{chunks: lineChunks})
-		firstLine = false
+		rows = append(rows, lineChunks)
 
 		// Drop whitespace that would begin the next continuation line.
 		for clusterIdx < len(allClusters) && unicode.IsSpace(allClusters[clusterIdx].base) {
 			clusterIdx++
 		}
 	}
+	return rows
 }
 
 // cellText returns a table cell's text without styling.
