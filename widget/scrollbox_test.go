@@ -924,6 +924,73 @@ func TestScrollBox_AnchorScroll_KeyNavBackToBottomReengagesAutoScroll(t *testing
 	}
 }
 
+// resizeChild sets the height of sb's child i to h, lays sb out again in a
+// vpW by vpH viewport, and runs its post-layout hook, as a frame does.
+func resizeChild(sb *ScrollBox, i, h, vpW, vpH int) {
+	child := sb.Children()[i]
+	child.LayoutNode().Height = layout.Points(h)
+	child.LayoutNode().MarkDirty()
+	sb.LayoutNode().ComputeLayout(vpW, vpH)
+	sb.UpdateFromLayout()
+	for _, c := range sb.Children() {
+		c.UpdateFromLayout()
+	}
+	sb.OnPostLayout(0)
+}
+
+func TestScrollBox_StopFollowing_GrowthExtendsBelow(t *testing.T) {
+	// The 15-cell viewport follows the bottom at y=45, the last 15 cells of
+	// child 2, which spans 30 to 60.
+	sb := newAnchorScrollBox(20, 15, 10, 20, 30)
+	if !sb.IsAtBottom() {
+		t.Fatal("expected at bottom initially")
+	}
+
+	sb.StopFollowing()
+	if !sb.UserScrolled() {
+		t.Fatal("expected StopFollowing to suspend edge following")
+	}
+
+	// Child 2 grows by ten cells below what the viewport shows.
+	resizeChild(sb, 2, 40, 20, 15)
+	if sb.ScrollY() != 45 {
+		t.Errorf("expected scrollY to stay 45 as the content grows below, got %d", sb.ScrollY())
+	}
+	if sb.IsAtBottom() || !sb.UserScrolled() {
+		t.Errorf("expected the viewport above the new bottom, not following it; scrollY=%d", sb.ScrollY())
+	}
+}
+
+func TestScrollBox_StopFollowing_ShrinkToEdgeFollowsAgain(t *testing.T) {
+	sb := newAnchorScrollBox(20, 15, 10, 20, 30)
+	sb.StopFollowing()
+	resizeChild(sb, 2, 40, 20, 15)
+
+	// Shrinking back brings the bottom edge into view at y=45 again.
+	sb.StopFollowing()
+	resizeChild(sb, 2, 30, 20, 15)
+	if sb.ScrollY() != 45 || !sb.IsAtBottom() {
+		t.Fatalf("expected scrollY=45 at the bottom after shrinking, got %d", sb.ScrollY())
+	}
+	if sb.UserScrolled() {
+		t.Fatal("expected edge following to resume at the bottom")
+	}
+
+	// New content is followed once more.
+	resizeChild(sb, 2, 50, 20, 15)
+	if !sb.IsAtBottom() {
+		t.Errorf("expected auto-scroll bottom after growth, scrollY=%d", sb.ScrollY())
+	}
+}
+
+func TestScrollBox_StopFollowing_NoAutoScroll(t *testing.T) {
+	sb := newTestScrollBox(20, 10, 20, 50)
+	sb.StopFollowing()
+	if sb.UserScrolled() {
+		t.Error("expected StopFollowing to do nothing without an auto-scroll edge")
+	}
+}
+
 // Sticky positioning.
 
 // newStickyScrollBox returns a laid-out column whose indexed children stick to the top.

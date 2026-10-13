@@ -191,6 +191,27 @@ func (sb *ScrollBox) SetAutoScroll(edge AutoScrollEdge) {
 // UserScrolled reports whether scrolling has moved away from the configured auto-scroll edge.
 func (sb *ScrollBox) UserScrolled() bool { return sb.userScrolled }
 
+// StopFollowing stops following the auto-scroll edge at the current offset,
+// as scrolling away from the edge does, so that the next change to the
+// content's size keeps the viewport over the content it shows. With anchor
+// scrolling, the child at the viewport top stays put, and content growing
+// below it extends past the viewport's bottom instead of pushing what it
+// shows up. Following resumes once the viewport is back at the edge, after a
+// scroll or a change to the content's size. It does nothing without an
+// auto-scroll edge.
+//
+// Call it before a change the user makes in place, such as expanding a block
+// they clicked, so that the block stays under the pointer.
+func (sb *ScrollBox) StopFollowing() {
+	if sb.autoScroll == AutoScrollNone {
+		return
+	}
+	sb.userScrolled = true
+	if sb.anchorScroll {
+		sb.updateAnchor()
+	}
+}
+
 // ContentHeight returns the total content height.
 func (sb *ScrollBox) ContentHeight() int { return sb.contentHeight }
 
@@ -207,10 +228,13 @@ func (sb *ScrollBox) ViewportWidth() int {
 	return sb.Box.InnerRect().Width
 }
 
-// SetContentHeight sets the child-content height used for scrolling and edge following.
+// SetContentHeight sets the child-content height used for scrolling and edge
+// following. Content that shrinks to bring the auto-scroll edge back into
+// view resumes following it.
 func (sb *ScrollBox) SetContentHeight(h int) {
 	sb.contentHeight = h
 	sb.recalculateAutoScroll()
+	sb.updateAutoScrollState()
 	sb.updateChildTranslation()
 	sb.RequestRender()
 }
