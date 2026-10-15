@@ -186,6 +186,14 @@ func StreamMarkdownWithCodeBlockPadding(n int) StreamMarkdownOption {
 	}
 }
 
+// StreamMarkdownWithCodeBlockPaddingY sets the blank rows above and below
+// fenced blocks on each child, in place of those the padding sets.
+func StreamMarkdownWithCodeBlockPaddingY(n int) StreamMarkdownOption {
+	return func(sm *StreamMarkdown) {
+		sm.mdOpts = append(sm.mdOpts, MarkdownWithCodeBlockPaddingY(n))
+	}
+}
+
 // StreamMarkdownWithCodeBlockMargin sets fenced-block margins on each child.
 func StreamMarkdownWithCodeBlockMargin(n int) StreamMarkdownOption {
 	return func(sm *StreamMarkdown) {
