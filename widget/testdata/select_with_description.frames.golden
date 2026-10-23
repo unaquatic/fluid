@@ -1,0 +1,18 @@
+=== text ===
+|Save                     |
+|  Save the file          |
+|Quit                     |
+|  Exit the app           |
+=== fg ===
+|AAAA                     |
+|  AAAA AAA AAAA          |
+|AAAA                     |
+|  AAAA AAA AAA           |
+=== bg ===
+|░░░░░░░░░░░░░░░░░░░░░░░░░|
+|                         |
+|                         |
+|                         |
+=== legend ===
+A #ffffff
+░ #404040

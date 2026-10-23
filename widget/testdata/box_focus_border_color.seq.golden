@@ -1,12 +1,33 @@
 === step: unfocused ===
-|{#ffffff}┌────────┐|
-|{#ffffff}│        │|
-|{#ffffff}└────────┘|
+=== text ===
+|┌────────┐|
+|│        │|
+|└────────┘|
+=== fg ===
+|AAAAAAAAAA|
+|A        A|
+|AAAAAAAAAA|
+=== legend ===
+A #ffffff
 === step: focused ===
-|{#00ff00}┌────────┐|
-|{#00ff00}│{#ffffff}        {#00ff00}│|
-|{#00ff00}└────────┘|
+=== text ===
+|┌────────┐|
+|│        │|
+|└────────┘|
+=== fg ===
+|AAAAAAAAAA|
+|A        A|
+|AAAAAAAAAA|
+=== legend ===
+A #00ff00
 === step: blurred ===
-|{#ffffff}┌────────┐|
-|{#ffffff}│        │|
-|{#ffffff}└────────┘|
+=== text ===
+|┌────────┐|
+|│        │|
+|└────────┘|
+=== fg ===
+|AAAAAAAAAA|
+|A        A|
+|AAAAAAAAAA|
+=== legend ===
+A #ffffff

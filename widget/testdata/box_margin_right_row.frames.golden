@@ -1,0 +1,10 @@
+=== text ===
+|AAAA   BBBB         |
+=== fg ===
+|AAAA   AAAA         |
+=== bg ===
+|░░░░   ▒▒▒▒         |
+=== legend ===
+A #ffffff
+░ #ff0000
+▒ #0000ff

@@ -1,15 +1,39 @@
 === step: short ===
+=== text ===
 |Hi        |
 |          |
 |          |
 |          |
+=== fg ===
+|AA        |
+|          |
+|          |
+|          |
+=== legend ===
+A #ffffff
 === step: medium ===
+=== text ===
 |Hello     |
 |World     |
 |          |
 |          |
+=== fg ===
+|AAAAA     |
+|AAAAA     |
+|          |
+|          |
+=== legend ===
+A #ffffff
 === step: long ===
+=== text ===
 |The quick |
 |brown fox |
 |jumps     |
 |          |
+=== fg ===
+|AAA AAAAA |
+|AAAAA AAA |
+|AAAAA     |
+|          |
+=== legend ===
+A #ffffff

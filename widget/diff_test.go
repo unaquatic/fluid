@@ -165,12 +165,12 @@ const longPatchManyLines = `diff --git a/pkg/processor/transform.go b/pkg/proces
 
 func TestDiffGolden_UnifiedBasic(t *testing.T) {
 	buf := renderDiff(simplePatch, 40, 6)
-	testutil.AssertGolden(t, "diff_unified_basic", buf)
+	testutil.AssertGoldenFrames(t, "diff_unified_basic", buf, nil)
 }
 
 func TestDiffGolden_UnifiedFullHeaders(t *testing.T) {
 	buf := renderDiff(fullHeaderPatch, 50, 12)
-	testutil.AssertGolden(t, "diff_unified_full_headers", buf)
+	testutil.AssertGoldenFrames(t, "diff_unified_full_headers", buf, nil)
 }
 
 func TestDiffGolden_UnifiedNoGutter(t *testing.T) {
@@ -178,19 +178,19 @@ func TestDiffGolden_UnifiedNoGutter(t *testing.T) {
 		DiffWithShowLineNumbers(false),
 		DiffWithShowSigns(false),
 	)
-	testutil.AssertGolden(t, "diff_unified_no_gutter", buf)
+	testutil.AssertGoldenFrames(t, "diff_unified_no_gutter", buf, nil)
 }
 
 func TestDiffGolden_UnifiedNoSigns(t *testing.T) {
 	buf := renderDiff(simplePatch, 30, 6,
 		DiffWithShowSigns(false),
 	)
-	testutil.AssertGolden(t, "diff_unified_no_signs", buf)
+	testutil.AssertGoldenFrames(t, "diff_unified_no_signs", buf, nil)
 }
 
 func TestDiffGolden_UnifiedMultiHunk(t *testing.T) {
 	buf := renderDiff(multiHunkPatch, 45, 10)
-	testutil.AssertGolden(t, "diff_unified_multi_hunk", buf)
+	testutil.AssertGoldenFrames(t, "diff_unified_multi_hunk", buf, nil)
 }
 
 func TestDiffGolden_UnifiedScrolled(t *testing.T) {
@@ -198,54 +198,54 @@ func TestDiffGolden_UnifiedScrolled(t *testing.T) {
 	d.SetScrollY(3) // scroll past the first 3 lines
 	buf := buffer.New(50, 5)
 	d.RenderSelf(buf, 0)
-	testutil.AssertGolden(t, "diff_unified_scrolled", buf)
+	testutil.AssertGoldenFrames(t, "diff_unified_scrolled", buf, nil)
 }
 
 func TestDiffGolden_SplitBasic(t *testing.T) {
 	buf := renderDiff(simplePatch, 60, 6, DiffWithViewMode(DiffSplit))
-	testutil.AssertGolden(t, "diff_split_basic", buf)
+	testutil.AssertGoldenFrames(t, "diff_split_basic", buf, nil)
 }
 
 func TestDiffGolden_SplitPadding(t *testing.T) {
 	buf := renderDiff(unevenPatch, 60, 6, DiffWithViewMode(DiffSplit))
-	testutil.AssertGolden(t, "diff_split_padding", buf)
+	testutil.AssertGoldenFrames(t, "diff_split_padding", buf, nil)
 }
 
 func TestDiffGolden_SplitMultiHunk(t *testing.T) {
 	buf := renderDiff(multiHunkPatch, 70, 10, DiffWithViewMode(DiffSplit))
-	testutil.AssertGolden(t, "diff_split_multi_hunk", buf)
+	testutil.AssertGoldenFrames(t, "diff_split_multi_hunk", buf, nil)
 }
 
 func TestDiffGolden_EmptyPatch(t *testing.T) {
 	buf := renderDiff("", 30, 4)
-	testutil.AssertGolden(t, "diff_empty", buf)
+	testutil.AssertGoldenFrames(t, "diff_empty", buf, nil)
 }
 
 func TestDiffGolden_SplitFullHeaders(t *testing.T) {
 	buf := renderDiff(fullHeaderPatch, 80, 12, DiffWithViewMode(DiffSplit))
-	testutil.AssertGolden(t, "diff_split_full_headers", buf)
+	testutil.AssertGoldenFrames(t, "diff_split_full_headers", buf, nil)
 }
 
 // Large-diff golden tests.
 
 func TestDiffGolden_LongUnified(t *testing.T) {
 	buf := renderDiff(longPatch, 70, 30)
-	testutil.AssertGolden(t, "diff_long_unified", buf)
+	testutil.AssertGoldenFrames(t, "diff_long_unified", buf, nil)
 }
 
 func TestDiffGolden_LongSplit(t *testing.T) {
 	buf := renderDiff(longPatch, 100, 30, DiffWithViewMode(DiffSplit))
-	testutil.AssertGolden(t, "diff_long_split", buf)
+	testutil.AssertGoldenFrames(t, "diff_long_split", buf, nil)
 }
 
 func TestDiffGolden_LongManyLinesUnified(t *testing.T) {
 	buf := renderDiff(longPatchManyLines, 70, 40)
-	testutil.AssertGolden(t, "diff_long_many_lines_unified", buf)
+	testutil.AssertGoldenFrames(t, "diff_long_many_lines_unified", buf, nil)
 }
 
 func TestDiffGolden_LongManyLinesSplit(t *testing.T) {
 	buf := renderDiff(longPatchManyLines, 100, 40, DiffWithViewMode(DiffSplit))
-	testutil.AssertGolden(t, "diff_long_many_lines_split", buf)
+	testutil.AssertGoldenFrames(t, "diff_long_many_lines_split", buf, nil)
 }
 
 func TestDiffGolden_LongScrollSequence(t *testing.T) {
@@ -255,55 +255,55 @@ func TestDiffGolden_LongScrollSequence(t *testing.T) {
 	// Capture the first viewport.
 	buf := buffer.New(70, 10)
 	d.RenderSelf(buf, 0)
-	seq.Add("top", buf)
+	seq.AddFrames("top", buf, nil)
 
 	// Capture an interior viewport.
 	d.SetScrollY(d.MaxScrollY() / 2)
 	buf = buffer.New(70, 10)
 	d.RenderSelf(buf, 0)
-	seq.Add("middle", buf)
+	seq.AddFrames("middle", buf, nil)
 
 	// Capture the final viewport.
 	d.ScrollToBottom()
 	buf = buffer.New(70, 10)
 	d.RenderSelf(buf, 0)
-	seq.Add("bottom", buf)
+	seq.AddFrames("bottom", buf, nil)
 
 	testutil.AssertGoldenSequence(t, "diff_long_scroll_sequence", seq)
 }
 
 func TestDiffGolden_LongSplitStyled(t *testing.T) {
 	buf := renderDiff(longPatch, 100, 15, DiffWithViewMode(DiffSplit))
-	testutil.AssertGoldenStyled(t, "diff_long_split", buf)
+	testutil.AssertGoldenFrames(t, "diff_long_split_short", buf, nil)
 }
 
 func TestDiffGolden_LongNarrowUnified(t *testing.T) {
 	// A narrow unified viewport exposes long-line truncation.
 	buf := renderDiff(longPatch, 40, 20)
-	testutil.AssertGolden(t, "diff_long_narrow_unified", buf)
+	testutil.AssertGoldenFrames(t, "diff_long_narrow_unified", buf, nil)
 }
 
 func TestDiffGolden_LongNarrowSplit(t *testing.T) {
 	// A narrow split viewport exposes pane truncation.
 	buf := renderDiff(longPatch, 50, 20, DiffWithViewMode(DiffSplit))
-	testutil.AssertGolden(t, "diff_long_narrow_split", buf)
+	testutil.AssertGoldenFrames(t, "diff_long_narrow_split", buf, nil)
 }
 
 // Styled golden tests.
 
 func TestDiffGolden_UnifiedStyled(t *testing.T) {
 	buf := renderDiff(simplePatch, 40, 6)
-	testutil.AssertGoldenStyled(t, "diff_unified_basic", buf)
+	testutil.AssertGoldenFrames(t, "diff_unified_basic", buf, nil)
 }
 
 func TestDiffGolden_SplitStyled(t *testing.T) {
 	buf := renderDiff(simplePatch, 60, 6, DiffWithViewMode(DiffSplit))
-	testutil.AssertGoldenStyled(t, "diff_split_basic", buf)
+	testutil.AssertGoldenFrames(t, "diff_split_basic", buf, nil)
 }
 
 func TestDiffGolden_SplitInlineStyled(t *testing.T) {
 	buf := renderDiff(inlinePatch, 60, 4, DiffWithViewMode(DiffSplit))
-	testutil.AssertGoldenStyled(t, "diff_split_inline", buf)
+	testutil.AssertGoldenFrames(t, "diff_split_inline", buf, nil)
 }
 
 // State-transition golden tests.
@@ -315,13 +315,13 @@ func TestDiffGolden_ViewModeSwitch(t *testing.T) {
 	// Capture the initial unified view.
 	buf := buffer.New(60, 6)
 	d.RenderSelf(buf, 0)
-	seq.Add("unified", buf)
+	seq.AddFrames("unified", buf, nil)
 
 	// Capture the same patch after switching to split view.
 	d.SetViewMode(DiffSplit)
 	buf = buffer.New(60, 6)
 	d.RenderSelf(buf, 0)
-	seq.Add("split", buf)
+	seq.AddFrames("split", buf, nil)
 
 	testutil.AssertGoldenSequence(t, "diff_view_mode_switch", seq)
 }
@@ -333,19 +333,19 @@ func TestDiffGolden_ScrollSequence(t *testing.T) {
 	// Capture the initial top viewport.
 	buf := buffer.New(50, 4)
 	d.RenderSelf(buf, 0)
-	seq.Add("scroll_0", buf)
+	seq.AddFrames("scroll_0", buf, nil)
 
 	// Capture an offset viewport.
 	d.SetScrollY(2)
 	buf = buffer.New(50, 4)
 	d.RenderSelf(buf, 0)
-	seq.Add("scroll_2", buf)
+	seq.AddFrames("scroll_2", buf, nil)
 
 	// Capture the final viewport.
 	d.ScrollToBottom()
 	buf = buffer.New(50, 4)
 	d.RenderSelf(buf, 0)
-	seq.Add("scroll_bottom", buf)
+	seq.AddFrames("scroll_bottom", buf, nil)
 
 	testutil.AssertGoldenSequence(t, "diff_scroll_sequence", seq)
 }
@@ -357,13 +357,13 @@ func TestDiffGolden_PatchChange(t *testing.T) {
 	// Capture the original patch.
 	buf := buffer.New(40, 6)
 	d.RenderSelf(buf, 0)
-	seq.Add("initial", buf)
+	seq.AddFrames("initial", buf, nil)
 
 	// Capture the replacement patch.
 	d.SetPatch(inlinePatch)
 	buf = buffer.New(40, 6)
 	d.RenderSelf(buf, 0)
-	seq.Add("after_change", buf)
+	seq.AddFrames("after_change", buf, nil)
 
 	testutil.AssertGoldenSequence(t, "diff_patch_change", seq)
 }

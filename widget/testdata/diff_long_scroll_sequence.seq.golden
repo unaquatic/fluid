@@ -1,4 +1,5 @@
 === step: top ===
+=== text ===
 |      diff --git a/server/handler.go b/server/handler.go              |
 |      index 1a2b3c4..5d6e7f8 100644                                   |
 |      --- a/server/handler.go                                         |
@@ -9,7 +10,36 @@
 | 14       "encoding/json"                                             |
 | 15 +     "errors"                                                    |
 | 16       "fmt"                                                       |
+=== fg ===
+|      AAAA AAAAA AAAAAAAAAAAAAAAAAAA AAAAAAAAAAAAAAAAAAA              |
+|      AAAAA AAAAAAAAAAAAAAAA AAAAAA                                   |
+|      AAA AAAAAAAAAAAAAAAAAAA                                         |
+|      AAA AAAAAAAAAAAAAAAAAAA                                         |
+|      AA AAAAA AAAAAA AA                                              |
+| BB   AAAAAA A                                                        |
+| BB       AAAAAAAAA                                                   |
+| BB       AAAAAAAAAAAAAAA                                             |
+| BB C     AAAAAAAA                                                    |
+| BB       AAAAA                                                       |
+=== bg ===
+|                                                                      |
+|                                                                      |
+|                                                                      |
+|                                                                      |
+|                                                                      |
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+=== legend ===
+A #ffffff
+B #808080
+C #55ff55
+░ #1e1e1e
+▒ #16271b
 === step: middle ===
+=== text ===
 | 47 -     data, err := s.fetchData(ctx)                               |
 | 49 +     ctx, cancel := context.WithTimeout(ctx, 30*time.Second)     |
 | 50 +     defer cancel()                                              |
@@ -20,7 +50,38 @@
 |      StatusInternalServerError)                                      |
 | 54 +         if errors.Is(err, context.DeadlineExceeded) {           |
 | 55 +             http.Error(w, "request timeout", http.              |
+=== fg ===
+| AA B     CCCCC CCC CC CCCCCCCCCCCCCCCC                               |
+| AA D     CCCC CCCCCC CC CCCCCCCCCCCCCCCCCCCCCCCC CCCCCCCCCCCCCCC     |
+| AA D     CCCCC CCCCCCCC                                              |
+| AA D                                                                 |
+| AA D     CCCCC CCC CC CCCCCCCCCCCCCCCC CCCCCCCCCCCCCC                |
+| AA       CC CCC CC CCC C                                             |
+| AA B         CCCCCCCCCCCCC CCCCCCCCC CCCCCCC CCCCC                   |
+|      CCCCCCCCCCCCCCCCCCCCCCCCCC                                      |
+| AA D         CC CCCCCCCCCCCCCC CCCCCCCCCCCCCCCCCCCCCCCCC C           |
+| AA D             CCCCCCCCCCCCC CCCCCCCC CCCCCCCCC CCCCC              |
+=== bg ===
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+=== legend ===
+A #808080
+B #ff5555
+C #ffffff
+D #55ff55
+░ #321418
+▒ #16271b
+▓ #1e1e1e
 === step: bottom ===
+=== text ===
 |      charset=utf-8")                                                 |
 | 63 +     w.Header().Set("Cache-Control", "no-cache")                 |
 | 64       json.NewEncoder(w).Encode(data)                             |
@@ -31,3 +92,33 @@
 |113       defer s.mu.Unlock()                                         |
 |105 -     return s.listener.Close()                                   |
 |114 +     s.logger.Info("shutting down server")                       |
+=== fg ===
+|      AAAAAAAAAAAAAAA                                                 |
+| BB C     AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA AAAAAAAAAAA                 |
+| BB       AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA                             |
+| BB   A                                                               |
+|      AA AAAAAA AAAAAA AA                                             |
+|BBB   AAAA AA AAAAAAAA AAAAAAAAAAAA AAAAAAAAAAAAAAAA AAAAA A          |
+|BBB       AAAAAAAAAAA                                                 |
+|BBB       AAAAA AAAAAAAAAAAAA                                         |
+|BBB D     AAAAAA AAAAAAAAAAAAAAAAAA                                   |
+|BBB C     AAAAAAAAAAAAAAAAAAAAAAA AAAA AAAAAAAA                       |
+=== bg ===
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|                                                                      |
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+=== legend ===
+A #ffffff
+B #808080
+C #55ff55
+D #ff5555
+░ #16271b
+▒ #1e1e1e
+▓ #321418

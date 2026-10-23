@@ -1,0 +1,22 @@
+=== text ===
+|Item       Qty   |
+|Apples     5     |
+|Bananas    3     |
+|Cherries   8     |
+|                 |
+=== fg ===
+|AAAA       AAA   |
+|AAAAAA     A     |
+|AAAAAAA    A     |
+|AAAAAAAA   A     |
+|                 |
+=== bg ===
+|░░░░░░░░░░░░░░░░░|
+|                 |
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|                 |
+|                 |
+=== legend ===
+A #ffffff
+░ #282828
+▒ #191919

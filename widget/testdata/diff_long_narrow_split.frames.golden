@@ -1,0 +1,71 @@
+=== text ===
+|       diff --git a/server/handler.go             |
+|       b/server/handler.go                        |
+|       index 1a2b3c4..5d6e7f8 100644              |
+|       --- a/server/handler.go                    |
+|       +++ b/server/handler.go                    |
+|       @@ -12,8 +12,10 @@                         |
+|  12   import (         │  12   import (          |
+|  13   "context"        │  13   "context"         |
+|  14   "encoding/json"  │  14   "encoding/json"   |
+|                        │  15 + "errors"          |
+|  15   "fmt"            │  16   "fmt"             |
+|  16   "net/http"       │  17   "net/http"        |
+|                        │  18 + "time"            |
+|  17   )                │  19   )                 |
+|  18                    │  20                     |
+|  19   type Server      │  21   type Server       |
+|       struct {         │       struct {          |
+|       @@ -45,14 +47,21 @@                        |
+|  45   func (s *Server) │  47   func (s *Server)  |
+|       HandleRequest(w  │       HandleRequest(w   |
+=== fg ===
+|       AAAA AAAAA AAAAAAAAAAAAAAAAAAA             |
+|       AAAAAAAAAAAAAAAAAAA                        |
+|       AAAAA AAAAAAAAAAAAAAAA AAAAAA              |
+|       AAA AAAAAAAAAAAAAAAAAAA                    |
+|       AAA AAAAAAAAAAAAAAAAAAA                    |
+|       BB BBBBB BBBBBB BB                         |
+|  CC   DDDDDD D         C  CC   DDDDDD D          |
+|  CC   DDDDDDDDD        C  CC   DDDDDDDDD         |
+|  CC   DDDDDDDDDDDDDDD  C  CC   DDDDDDDDDDDDDDD   |
+|                        C  CC E DDDDDDDD          |
+|  CC   DDDDD            C  CC   DDDDD             |
+|  CC   DDDDDDDDDD       C  CC   DDDDDDDDDD        |
+|                        C  CC E DDDDDD            |
+|  CC   D                C  CC   D                 |
+|  CC                    C  CC                     |
+|  CC   DDDD DDDDDD      C  CC   DDDD DDDDDD       |
+|       DDDDDD D         C       DDDDDD D          |
+|       BB BBBBBB BBBBBB BB                        |
+|  CC   DDDD DD DDDDDDDD C  CC   DDDD DD DDDDDDDD  |
+|       DDDDDDDDDDDDDDD  C       DDDDDDDDDDDDDDD   |
+=== bg ===
+|                                                  |
+|                                                  |
+|                                                  |
+|                                                  |
+|                                                  |
+|                                                  |
+|░░░░░░░░░░░░░░░░░░░░░░░░ ░░░░░░░░░░░░░░░░░░░░░░░░░|
+|░░░░░░░░░░░░░░░░░░░░░░░░ ░░░░░░░░░░░░░░░░░░░░░░░░░|
+|░░░░░░░░░░░░░░░░░░░░░░░░ ░░░░░░░░░░░░░░░░░░░░░░░░░|
+|                         ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|░░░░░░░░░░░░░░░░░░░░░░░░ ░░░░░░░░░░░░░░░░░░░░░░░░░|
+|░░░░░░░░░░░░░░░░░░░░░░░░ ░░░░░░░░░░░░░░░░░░░░░░░░░|
+|                         ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|░░░░░░░░░░░░░░░░░░░░░░░░ ░░░░░░░░░░░░░░░░░░░░░░░░░|
+|░░░░░░░░░░░░░░░░░░░░░░░░ ░░░░░░░░░░░░░░░░░░░░░░░░░|
+|░░░░░░░░░░░░░░░░░░░░░░░░ ░░░░░░░░░░░░░░░░░░░░░░░░░|
+|░░░░░░░░░░░░░░░░░░░░░░░░ ░░░░░░░░░░░░░░░░░░░░░░░░░|
+|                                                  |
+|░░░░░░░░░░░░░░░░░░░░░░░░ ░░░░░░░░░░░░░░░░░░░░░░░░░|
+|░░░░░░░░░░░░░░░░░░░░░░░░ ░░░░░░░░░░░░░░░░░░░░░░░░░|
+=== legend ===
+A #55ffff
+B #ff55ff
+C #808080
+D #ffffff
+E #55ff55
+░ #1e1e1e
+▒ #16271b

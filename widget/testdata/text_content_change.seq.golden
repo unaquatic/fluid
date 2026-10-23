@@ -1,6 +1,22 @@
 === step: initial ===
+=== text ===
 |Hello               |
+=== fg ===
+|AAAAA               |
+=== legend ===
+A #ffffff
 === step: after_set_content ===
+=== text ===
 |World               |
+=== fg ===
+|AAAAA               |
+=== legend ===
+A #ffffff
 === step: after_styled_content ===
+=== text ===
 |Red Blue            |
+=== fg ===
+|AAA BBBB            |
+=== legend ===
+A #ff0000
+B #0000ff

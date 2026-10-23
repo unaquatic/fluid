@@ -1,0 +1,131 @@
+=== text ===
+|      diff --git a/pkg/processor/transform.go b/pkg/processor/        |
+|      transform.go                                                    |
+|      --- a/pkg/processor/transform.go                                |
+|      +++ b/pkg/processor/transform.go                                |
+|      @@ -88,30 +88,35 @@                                             |
+| 88   func (p *Processor) Transform(input []Record) ([]Record, error) |
+|      {                                                               |
+| 89       results := make([]Record, 0, len(input))                    |
+| 90 -     for _, rec := range input {                                 |
+| 91 -         if rec.IsEmpty() {                                      |
+| 92 -             continue                                            |
+| 93 -         }                                                       |
+| 94 -         transformed, err := p.applyRules(rec)                   |
+| 95 -         if err != nil {                                         |
+| 96 -             p.logger.Warn("skipping record", "id", rec.ID,      |
+|      "error", err)                                                   |
+| 97 -             p.metrics.IncrementSkipped()                        |
+| 98 -             continue                                            |
+| 99 -         }                                                       |
+|100 -         if transformed.Score < p.threshold {                    |
+|101 -             p.metrics.IncrementFiltered()                       |
+|102 -             continue                                            |
+|103 -         }                                                       |
+|104 -         results = append(results, transformed)                  |
+|105 -         p.metrics.IncrementProcessed()                          |
+|106 -     }                                                           |
+| 90 +     errCh := make(chan error, len(input))                       |
+| 91 +     resultCh := make(chan Record, len(input))                   |
+| 92 +                                                                 |
+| 93 +     for _, rec := range input {                                 |
+| 94 +         go func(r Record) {                                     |
+| 95 +             if r.IsEmpty() {                                    |
+| 96 +                 return                                          |
+| 97 +             }                                                   |
+| 98 +             transformed, err := p.applyRules(r)                 |
+| 99 +             if err != nil {                                     |
+|100 +                 p.logger.Warn("skipping record", "id", r.ID,    |
+|      "error", err)                                                   |
+|101 +                 p.metrics.IncrementSkipped()                    |
+|102 +                 errCh <- err                                    |
+=== fg ===
+|      AAAA AAAAA AAAAAAAAAAAAAAAAAAAAAAAAAAAA AAAAAAAAAAAAAAAA        |
+|      AAAAAAAAAAAA                                                    |
+|      AAA AAAAAAAAAAAAAAAAAAAAAAAAAAAA                                |
+|      AAA AAAAAAAAAAAAAAAAAAAAAAAAAAAA                                |
+|      AA AAAAAA AAAAAA AA                                             |
+| BB   AAAA AA AAAAAAAAAAA AAAAAAAAAAAAAAA AAAAAAAAA AAAAAAAAAA AAAAAA |
+|      A                                                               |
+| BB       AAAAAAA AA AAAAAAAAAAAAAA AA AAAAAAAAAAA                    |
+| BB C     AAA AA AAA AA AAAAA AAAAA A                                 |
+| BB C         AA AAAAAAAAAAAAA A                                      |
+| BB C             AAAAAAAA                                            |
+| BB C         A                                                       |
+| BB C         AAAAAAAAAAAA AAA AA AAAAAAAAAAAAAAAAA                   |
+| BB C         AA AAA AA AAA A                                         |
+| BB C             AAAAAAAAAAAAAAAAAAAAAAA AAAAAAAA AAAAA AAAAAAA      |
+|      AAAAAAAA AAAA                                                   |
+| BB C             AAAAAAAAAAAAAAAAAAAAAAAAAAAA                        |
+| BB C             AAAAAAAA                                            |
+| BB C         A                                                       |
+|BBB C         AA AAAAAAAAAAAAAAAAA A AAAAAAAAAAA A                    |
+|BBB C             AAAAAAAAAAAAAAAAAAAAAAAAAAAAA                       |
+|BBB C             AAAAAAAA                                            |
+|BBB C         A                                                       |
+|BBB C         AAAAAAA A AAAAAAAAAAAAAAA AAAAAAAAAAAA                  |
+|BBB C         AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA                          |
+|BBB C     A                                                           |
+| BB D     AAAAA AA AAAAAAAAA AAAAAA AAAAAAAAAAA                       |
+| BB D     AAAAAAAA AA AAAAAAAAA AAAAAAA AAAAAAAAAAA                   |
+| BB D                                                                 |
+| BB D     AAA AA AAA AA AAAAA AAAAA A                                 |
+| BB D         AA AAAAAA AAAAAAA A                                     |
+| BB D             AA AAAAAAAAAAA A                                    |
+| BB D                 AAAAAA                                          |
+| BB D             A                                                   |
+| BB D             AAAAAAAAAAAA AAA AA AAAAAAAAAAAAAAA                 |
+| BB D             AA AAA AA AAA A                                     |
+|BBB D                 AAAAAAAAAAAAAAAAAAAAAAA AAAAAAAA AAAAA AAAAA    |
+|      AAAAAAAA AAAA                                                   |
+|BBB D                 AAAAAAAAAAAAAAAAAAAAAAAAAAAA                    |
+|BBB D                 AAAAA AA AAA                                    |
+=== bg ===
+|                                                                      |
+|                                                                      |
+|                                                                      |
+|                                                                      |
+|                                                                      |
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒|
+|▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓|
+|▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓|
+|▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓|
+|▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓|
+|▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓|
+|▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓|
+|▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓|
+|▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓|
+|▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓|
+|▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓|
+|▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓|
+|▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓|
+|▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓|
+|▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓|
+=== legend ===
+A #ffffff
+B #808080
+C #ff5555
+D #55ff55
+░ #1e1e1e
+▒ #321418
+▓ #16271b

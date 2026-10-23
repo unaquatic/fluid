@@ -1,0 +1,11 @@
+=== text ===
+| Tab 1  │ Tab 2  │ Tab 3 |
+|━━━━━━━━─────────────────|
+=== fg ===
+| AAA A  B CCC C  B CCC C |
+|DDDDDDDDBBBBBBBBBBBBBBBBB|
+=== legend ===
+A #ffffff
+B #3c3c3c
+C #808080
+D #5555ff

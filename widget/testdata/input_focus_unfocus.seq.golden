@@ -1,8 +1,28 @@
 === step: unfocused_empty ===
-|{#808080}Type here{#ffffff}      |
+=== text ===
+|Type here      |
+=== fg ===
+|AAAA AAAA      |
+=== legend ===
+A #808080
 === step: focused_empty ===
-|{#808080}Type here{#ffffff}      |
+=== text ===
+|Type here      |
+=== fg ===
+|AAAA AAAA      |
+=== legend ===
+A #808080
 === step: focused_with_text ===
-|{#ffffff}Hi             |
+=== text ===
+|Hi             |
+=== fg ===
+|AA             |
+=== legend ===
+A #ffffff
 === step: unfocused_with_text ===
-|{#ffffff}Hi             |
+=== text ===
+|Hi             |
+=== fg ===
+|AA             |
+=== legend ===
+A #ffffff

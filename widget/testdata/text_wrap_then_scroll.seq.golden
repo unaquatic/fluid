@@ -1,8 +1,22 @@
 === step: initial ===
+=== text ===
 |Line 1    |
 |content   |
 |Line 2    |
+=== fg ===
+|AAAA A    |
+|AAAAAAA   |
+|AAAA A    |
+=== legend ===
+A #ffffff
 === step: scrolled ===
+=== text ===
 |Line 2    |
 |content   |
 |Line 3    |
+=== fg ===
+|AAAA A    |
+|AAAAAAA   |
+|AAAA A    |
+=== legend ===
+A #ffffff

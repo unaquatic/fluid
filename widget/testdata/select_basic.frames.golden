@@ -1,0 +1,15 @@
+=== text ===
+|Option A       |
+|Option B       |
+|Option C       |
+=== fg ===
+|AAAAAA A       |
+|AAAAAA A       |
+|AAAAAA A       |
+=== bg ===
+|░░░░░░░░░░░░░░░|
+|               |
+|               |
+=== legend ===
+A #ffffff
+░ #404040
