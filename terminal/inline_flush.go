@@ -414,7 +414,7 @@ func (r *Renderer) writeInline(out *bytes.Buffer, kind string) {
 	r.root.LastFrameStats.FlushWrite = time.Since(start)
 	r.root.LastFrameStats.FlushBytes = out.Len()
 	if r.dbg != nil {
-		r.dbg.Printf("[flush] %s\tbytes=%d\ttop=%d\tcursor=%d", kind, out.Len(), r.inlineViewportTop, r.inlineCursorRow)
+		r.dbg.Info("flush", "kind", kind, "bytes", out.Len(), "top", r.inlineViewportTop, "cursor", r.inlineCursorRow)
 	}
 }
 

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"math/rand"
+	"math/rand/v2"
 	"time"
 
 	"github.com/unaquatic/fluid/input"
@@ -225,7 +225,6 @@ func runDashboardDemo(ctx context.Context, o DemoOptions) error {
 	go func() {
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
-		rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 		tick := 0
 		for range ticker.C {
 			if r.IsDestroyed() {
@@ -234,7 +233,7 @@ func runDashboardDemo(ctx context.Context, o DemoOptions) error {
 			tick++
 
 			for i := range gauges {
-				jitter := (rng.Float64() - 0.5) * 0.08
+				jitter := (rand.Float64() - 0.5) * 0.08
 				v := gauges[i].base + jitter + 0.05*math.Sin(float64(tick)*0.2+float64(i))
 				if v < 0 {
 					v = 0
@@ -245,7 +244,7 @@ func runDashboardDemo(ctx context.Context, o DemoOptions) error {
 				gauges[i].gauge.SetValue(v)
 			}
 
-			cpuVal := 0.5 + 0.3*math.Sin(float64(tick)*0.15) + (rng.Float64()-0.5)*0.1
+			cpuVal := 0.5 + 0.3*math.Sin(float64(tick)*0.15) + (rand.Float64()-0.5)*0.1
 			if cpuVal < 0 {
 				cpuVal = 0
 			}
