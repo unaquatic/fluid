@@ -5,9 +5,11 @@ package style
 //
 // Widgets can override individual theme roles through their own styling APIs.
 type Theme struct {
+	// Name identifies the theme, such as "darcula-solid".
 	Name string
 
 	// Core surfaces.
+
 	// Bg is the application's root background.
 	Bg Color
 	// Surface is the panel background above Bg.
@@ -29,6 +31,7 @@ type Theme struct {
 	BorderFocus Color
 
 	// Text roles.
+
 	// TextStrong is the primary foreground color.
 	TextStrong Color
 	// TextBase is the body foreground. A transparent value inherits TextStrong.
@@ -42,6 +45,7 @@ type Theme struct {
 	TextLink Color
 
 	// Accent and interactive roles.
+
 	// Accent is the primary highlight color.
 	Accent Color
 	// AccentStrong is a more saturated accent for emphasis.
@@ -54,30 +58,48 @@ type Theme struct {
 	InteractiveStrong Color
 
 	// Semantic roles.
-	Success Color
-	Warning Color
-	Danger  Color
-	Info    Color
 
-	// Semantic surfaces.
-	// SuccessSurface, WarningSurface, DangerSurface, and InfoSurface are
-	// low-contrast backgrounds tinted toward the matching semantic role. They
-	// have no fallback; a transparent value stays transparent.
+	// Success marks successful states.
+	Success Color
+	// Warning marks states that need attention.
+	Warning Color
+	// Danger marks errors and destructive actions.
+	Danger Color
+	// Info marks informational states.
+	Info Color
+
+	// Semantic surfaces. Each is a low-contrast background tinted toward its
+	// semantic role, with no fallback: a transparent value stays transparent.
+
+	// SuccessSurface is tinted toward Success.
 	SuccessSurface Color
+	// WarningSurface is tinted toward Warning.
 	WarningSurface Color
-	DangerSurface  Color
-	InfoSurface    Color
+	// DangerSurface is tinted toward Danger.
+	DangerSurface Color
+	// InfoSurface is tinted toward Info.
+	InfoSurface Color
 
 	// Foregrounds for filled roles.
+
 	// OnAccent is text drawn on Accent. A transparent value uses ChooseOnColor.
-	OnAccent      Color
-	OnInteractive Color // Text drawn on Interactive.
-	OnSuccess     Color
-	OnWarning     Color
-	OnDanger      Color
-	OnInfo        Color
+	OnAccent Color
+	// OnInteractive is text drawn on Interactive. A transparent value uses
+	// ChooseOnColor.
+	OnInteractive Color
+	// OnSuccess is text drawn on Success. A transparent value uses
+	// ChooseOnColor.
+	OnSuccess Color
+	// OnWarning is text drawn on Warning. A transparent value uses
+	// ChooseOnColor.
+	OnWarning Color
+	// OnDanger is text drawn on Danger. A transparent value uses ChooseOnColor.
+	OnDanger Color
+	// OnInfo is text drawn on Info. A transparent value uses ChooseOnColor.
+	OnInfo Color
 
 	// Selection roles.
+
 	// SelectionBg fills selected text and active rows. A transparent value derives
 	// from Interactive blended toward Surface.
 	SelectionBg Color
@@ -89,46 +111,63 @@ type Theme struct {
 	SelectionInactiveBg Color
 
 	// Diff roles.
-	// DiffAddSurface and DiffRemoveSurface tint complete diff rows. Transparent
-	// values derive from Success or Danger blended toward Bg.
-	DiffAddSurface    Color
+
+	// DiffAddSurface tints complete added rows. A transparent value derives
+	// from Success blended toward Bg.
+	DiffAddSurface Color
+	// DiffRemoveSurface tints complete removed rows. A transparent value
+	// derives from Danger blended toward Bg.
 	DiffRemoveSurface Color
-	// DiffAddFg and DiffRemoveFg color markers and intra-line highlights.
-	// Transparent values inherit Success and Danger, respectively.
-	DiffAddFg    Color
+	// DiffAddFg colors added-line markers and intra-line highlights. A
+	// transparent value inherits Success.
+	DiffAddFg Color
+	// DiffRemoveFg colors removed-line markers and intra-line highlights. A
+	// transparent value inherits Danger.
 	DiffRemoveFg Color
 
 	// Markdown roles. Zero entries inherit as described below.
-	MarkdownHeading [6]Entry // Heading levels H1 through H6.
+
+	// MarkdownHeading styles heading levels H1 through H6. A zero entry
+	// inherits MarkdownText's foreground in bold.
+	MarkdownHeading [6]Entry
 	// MarkdownText is the body text inside rendered markdown.
 	// A zero entry inherits TextBase.
 	MarkdownText Entry
-	// MarkdownLink styles a URL and MarkdownLinkText styles its displayed label.
-	// Zero entries inherit TextLink and MarkdownLink, respectively.
-	MarkdownLink     Entry
+	// MarkdownLink styles a link's URL. A zero entry inherits TextLink.
+	MarkdownLink Entry
+	// MarkdownLinkText styles a link's displayed label. A zero entry inherits
+	// MarkdownLink.
 	MarkdownLinkText Entry
 	// MarkdownCode styles inline code. A zero entry inherits CodeFg on CodeBg.
 	MarkdownCode Entry
-	// MarkdownEmph and MarkdownStrong style emphasis and strong spans. Zero
-	// entries inherit italic TextWeak and bold TextStrong.
-	MarkdownEmph   Entry
+	// MarkdownEmph styles emphasis. A zero entry inherits italic TextWeak.
+	MarkdownEmph Entry
+	// MarkdownStrong styles strong spans. A zero entry inherits bold
+	// TextStrong.
 	MarkdownStrong Entry
-	// MarkdownBullet styles unordered markers and MarkdownListEnum styles ordered
-	// markers. A zero MarkdownListEnum inherits MarkdownBullet.
-	MarkdownBullet   Entry
+	// MarkdownBullet styles unordered list markers.
+	MarkdownBullet Entry
+	// MarkdownListEnum styles ordered list markers. A zero entry inherits
+	// MarkdownBullet.
 	MarkdownListEnum Entry
-	// MarkdownQuote styles blockquote prose and MarkdownQuoteBorder its gutter.
-	MarkdownQuote       Entry
+	// MarkdownQuote styles blockquote prose.
+	MarkdownQuote Entry
+	// MarkdownQuoteBorder styles a blockquote's gutter.
 	MarkdownQuoteBorder Entry
-	MarkdownRule        Entry
-	// MarkdownImage and MarkdownImageText style image URLs and alternative text.
-	// Zero entries inherit MarkdownLink and MarkdownLinkText.
-	MarkdownImage     Entry
+	// MarkdownRule styles horizontal rules. A zero entry inherits BorderWeak as
+	// its foreground.
+	MarkdownRule Entry
+	// MarkdownImage styles image URLs. A zero entry inherits MarkdownLink.
+	MarkdownImage Entry
+	// MarkdownImageText styles an image's alternative text. A zero entry
+	// inherits MarkdownLinkText.
 	MarkdownImageText Entry
 
 	// Code roles.
-	// CodeFg and CodeBg are the default colors for code without token styling.
+
+	// CodeFg is the default foreground of code without token styling.
 	CodeFg Color
+	// CodeBg is the default background of code without token styling.
 	CodeBg Color
 
 	// Code contains per-token syntax styles. Zero roles inherit from
@@ -141,31 +180,61 @@ type Theme struct {
 // from related core roles.
 type CodePalette struct {
 	// Core roles.
-	Keyword     Entry // Language keywords.
-	Type        Entry // Built-in and user-defined types.
-	Function    Entry // Function and method names.
-	Builtin     Entry // Built-in values and functions.
-	Variable    Entry // Identifiers without a more specific role.
-	Constant    Entry // Named constants.
-	String      Entry // String literals.
-	Number      Entry // Numeric literals.
-	Comment     Entry // Line and block comments.
-	Operator    Entry // Operators.
-	Punctuation Entry // Delimiters and separators.
-	Decorator   Entry // Decorators, attributes, and annotations.
-	Error       Entry // Tokenization errors.
 
-	// Optional roles. A zero entry inherits from the role named in its comment.
-	StringEscape Entry // Inherits Number.
-	Regex        Entry // Inherits String.
-	Tag          Entry // Inherits Keyword.
-	Attribute    Entry // Inherits Variable.
-	Property     Entry // Inherits Variable.
-	Primitive    Entry // Inherits Constant.
-	Object       Entry // Inherits Variable.
-	Preproc      Entry // Inherits Comment.
-	DiffAdded    Entry // Inherits the theme's Success role.
-	DiffRemoved  Entry // Inherits the theme's Danger role.
+	// Keyword styles language keywords.
+	Keyword Entry
+	// Type styles built-in and user-defined types.
+	Type Entry
+	// Function styles function and method names.
+	Function Entry
+	// Builtin styles built-in values and functions.
+	Builtin Entry
+	// Variable styles identifiers without a more specific role.
+	Variable Entry
+	// Constant styles named constants.
+	Constant Entry
+	// String styles string literals.
+	String Entry
+	// Number styles numeric literals.
+	Number Entry
+	// Comment styles line and block comments.
+	Comment Entry
+	// Operator styles operators.
+	Operator Entry
+	// Punctuation styles delimiters and separators.
+	Punctuation Entry
+	// Decorator styles decorators, attributes, and annotations.
+	Decorator Entry
+	// Error styles tokenization errors.
+	Error Entry
+
+	// Optional roles. A zero entry inherits the role its doc names.
+
+	// StringEscape styles escape sequences in strings. A zero entry inherits
+	// Number.
+	StringEscape Entry
+	// Regex styles regular expression literals. A zero entry inherits String.
+	Regex Entry
+	// Tag styles markup tag names. A zero entry inherits Keyword.
+	Tag Entry
+	// Attribute styles markup attribute names. A zero entry inherits Variable.
+	Attribute Entry
+	// Property styles property names. A zero entry inherits Variable.
+	Property Entry
+	// Primitive styles pseudo-keywords, such as true, false, and nil. A zero
+	// entry inherits Constant.
+	Primitive Entry
+	// Object styles other names the lexer marks. A zero entry inherits
+	// Variable.
+	Object Entry
+	// Preproc styles preprocessor directives. A zero entry inherits Comment.
+	Preproc Entry
+	// DiffAdded styles added lines in diff code. A zero entry inherits the
+	// theme's Success role.
+	DiffAdded Entry
+	// DiffRemoved styles removed lines in diff code. A zero entry inherits the
+	// theme's Danger role.
+	DiffRemoved Entry
 }
 
 // Entry contains the foreground, background, and attributes for one styled
@@ -173,8 +242,11 @@ type CodePalette struct {
 //
 // A zero Entry is unset and inherits its complete fallback entry.
 type Entry struct {
-	Fg    Color
-	Bg    Color
+	// Fg is the foreground color.
+	Fg Color
+	// Bg is the background color.
+	Bg Color
+	// Attrs is a bitmask of the Attr flags, such as AttrBold.
 	Attrs uint32
 }
 

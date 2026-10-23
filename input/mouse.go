@@ -57,30 +57,43 @@ const (
 
 // ScrollInfo contains horizontal and vertical scroll deltas.
 type ScrollInfo struct {
-	DeltaX int // The horizontal scroll delta.
-	DeltaY int // The vertical scroll delta; negative is up and positive is down.
+	// DeltaX is the horizontal scroll delta.
+	DeltaX int
+	// DeltaY is the vertical scroll delta; negative is up and positive is down.
+	DeltaY int
 }
 
 // MouseModifiers reports the modifier keys held during a mouse event.
 type MouseModifiers struct {
+	// Shift reports whether Shift was held.
 	Shift bool
-	Alt   bool
-	Ctrl  bool
+	// Alt reports whether Alt or Option was held.
+	Alt bool
+	// Ctrl reports whether Ctrl was held.
+	Ctrl bool
 }
 
 // MouseEvent describes one mouse input event.
 type MouseEvent struct {
-	Type       MouseEventType
-	Button     MouseButton
-	X, Y       int // Zero-based terminal coordinates.
-	Modifiers  MouseModifiers
-	Scroll     *ScrollInfo // Non-nil for MouseScroll events.
+	// Type is the kind of event, such as a press, a drag, or a scroll.
+	Type MouseEventType
+	// Button is the button pressed or held, or ButtonNone.
+	Button MouseButton
+	// X and Y are the zero-based terminal coordinates.
+	X, Y int
+	// Modifiers are the modifier keys held during the event.
+	Modifiers MouseModifiers
+	// Scroll is non-nil for MouseScroll events.
+	Scroll *ScrollInfo
+	// IsDragging reports whether a button was held while the mouse moved.
 	IsDragging bool
 
-	// The renderer sets Source and Target during dispatch. They use any to avoid
-	// an import cycle; the render package provides typed accessors.
-	Source any // The renderable that initiated the event.
-	Target any // The renderable under the cursor.
+	// Source is the renderable that initiated the event. The renderer sets it
+	// during dispatch. It is any to avoid an import cycle; the render package
+	// provides typed accessors.
+	Source any
+	// Target is the renderable under the cursor, set and typed as Source is.
+	Target any
 
 	propagationStopped bool
 	defaultPrevented   bool

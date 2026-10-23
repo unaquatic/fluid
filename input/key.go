@@ -71,17 +71,28 @@ const (
 
 // KeyEvent describes one keyboard input event.
 type KeyEvent struct {
-	Name     string       // The canonical key name, such as "a", "return", "up", or "f1".
-	Text     string       // Printable input text, or empty for a non-printable key.
-	Ctrl     bool         // Whether Control was held.
-	Shift    bool         // Whether Shift was held.
-	Alt      bool         // Whether Alt was held.
-	Meta     bool         // Whether a distinct Meta, Super, or Command key was held.
-	Raw      string       // The original terminal input sequence.
-	Type     KeyEventType // The key's press, release, or repeat state.
-	Code     string       // The Kitty keyboard protocol code point, when available.
-	Source   string       // The parser source, either "raw" or "kitty".
-	Repeated bool         // Whether this is an automatic key repeat.
+	// Name is the canonical key name, such as "a", "return", "up", or "f1".
+	Name string
+	// Text is the printable input text, or empty for a non-printable key.
+	Text string
+	// Ctrl reports whether Control was held.
+	Ctrl bool
+	// Shift reports whether Shift was held.
+	Shift bool
+	// Alt reports whether Alt was held.
+	Alt bool
+	// Meta reports whether a distinct Meta, Super, or Command key was held.
+	Meta bool
+	// Raw is the original terminal input sequence.
+	Raw string
+	// Type is the key's press, release, or repeat state.
+	Type KeyEventType
+	// Code is the Kitty keyboard protocol code point, when available.
+	Code string
+	// Source is the parser source, either "raw" or "kitty".
+	Source string
+	// Repeated reports whether this is an automatic key repeat.
+	Repeated bool
 
 	propagationStopped bool
 	defaultPrevented   bool

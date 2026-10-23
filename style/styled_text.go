@@ -7,15 +7,21 @@ import (
 
 // TextChunk is a run of text with uniform styling.
 type TextChunk struct {
-	Text       string
-	Fg         *Color // Nil inherits the surrounding foreground.
-	Bg         *Color // Nil inherits the surrounding background.
+	// Text is the text of the run.
+	Text string
+	// Fg is the foreground color; nil inherits the surrounding foreground.
+	Fg *Color
+	// Bg is the background color; nil inherits the surrounding background.
+	Bg *Color
+	// Attributes is a bitmask of the Attr flags, such as AttrBold.
 	Attributes uint32
-	Link       string // The link URL, or empty for no link.
+	// Link is the link URL, or empty for no link.
+	Link string
 }
 
 // StyledText is a sequence of styled text chunks.
 type StyledText struct {
+	// Chunks are the runs of text, in order.
 	Chunks []TextChunk
 }
 

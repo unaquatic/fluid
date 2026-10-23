@@ -3,17 +3,28 @@ package symbol
 // BorderCharacters contains the line, corner, and junction runes needed to draw
 // a rectangular grid.
 type BorderCharacters struct {
-	TopLeft     rune
-	TopRight    rune
-	BottomLeft  rune
+	// TopLeft is the top-left corner.
+	TopLeft rune
+	// TopRight is the top-right corner.
+	TopRight rune
+	// BottomLeft is the bottom-left corner.
+	BottomLeft rune
+	// BottomRight is the bottom-right corner.
 	BottomRight rune
-	Horizontal  rune
-	Vertical    rune
-	TopT        rune // Joins left, right, and down.
-	BottomT     rune // Joins left, right, and up.
-	LeftT       rune // Joins up, down, and right.
-	RightT      rune // Joins up, down, and left.
-	Cross       rune // Joins all four directions.
+	// Horizontal is the horizontal line.
+	Horizontal rune
+	// Vertical is the vertical line.
+	Vertical rune
+	// TopT joins left, right, and down.
+	TopT rune
+	// BottomT joins left, right, and up.
+	BottomT rune
+	// LeftT joins up, down, and right.
+	LeftT rune
+	// RightT joins up, down, and left.
+	RightT rune
+	// Cross joins all four directions.
+	Cross rune
 }
 
 // SingleChars contains thin single-line border characters.

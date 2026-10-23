@@ -7,12 +7,18 @@ import (
 
 // KeyBinding associates a key combination with an action.
 type KeyBinding struct {
-	Name   string // The canonical key name, such as "up", "a", or "return".
-	Ctrl   bool
-	Shift  bool
-	Alt    bool
-	Meta   bool   // Whether Meta, Super, or Command is required.
-	Action string // The action identifier, such as "move-up" or "submit".
+	// Name is the canonical key name, such as "up", "a", or "return".
+	Name string
+	// Ctrl reports whether Ctrl is required.
+	Ctrl bool
+	// Shift reports whether Shift is required.
+	Shift bool
+	// Alt reports whether Alt or Option is required.
+	Alt bool
+	// Meta reports whether Meta, Super, or Command is required.
+	Meta bool
+	// Action is the action identifier, such as "move-up" or "submit".
+	Action string
 }
 
 // KeyAliasMap maps alternative key names to canonical names.

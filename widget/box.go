@@ -8,20 +8,36 @@ import (
 )
 
 // Box lays out child renderables with optional borders, background fill, and gaps.
+//
+// After construction, change a Box through its setters. A field written
+// directly shows only at the next frame something else requests, and Border
+// and the gaps reach the layout only through NewBox or their setters.
 type Box struct {
 	*render.BaseRenderable
 
-	BackgroundColor    style.Color
-	BorderStyle        style.BorderStyle
-	Border             style.Border
-	BorderColor        style.Color
-	ShouldFill         bool
-	Title              string
-	TitleAlignment     layout.Alignment
+	// BackgroundColor fills the box, inside any border, while ShouldFill is set.
+	BackgroundColor style.Color
+	// BorderStyle is the border's line style, such as style.BorderSingle.
+	BorderStyle style.BorderStyle
+	// Border selects the sides the border draws.
+	Border style.Border
+	// BorderColor colors the border.
+	BorderColor style.Color
+	// ShouldFill fills the box with BackgroundColor.
+	ShouldFill bool
+	// Title is drawn in the top border.
+	Title string
+	// TitleAlignment places Title along the top border.
+	TitleAlignment layout.Alignment
+	// FocusedBorderColor colors the border while the box has focus, unless it
+	// is transparent.
 	FocusedBorderColor style.Color
-	Gap                layout.Scalar
-	RowGap             layout.Scalar
-	ColumnGap          layout.Scalar
+	// Gap is the gap between children on both axes.
+	Gap layout.Scalar
+	// RowGap is the vertical gap between children, which overrides Gap.
+	RowGap layout.Scalar
+	// ColumnGap is the horizontal gap between children, which overrides Gap.
+	ColumnGap layout.Scalar
 }
 
 // BoxOption configures a Box during construction.
@@ -152,6 +168,88 @@ func (b *Box) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 func (b *Box) InnerRect() buffer.Rect {
 	sides := style.GetBorderSides(b.Border)
 	return buffer.InnerRect(b.X(), b.Y(), b.Width(), b.Height(), sides)
+}
+
+// SetBackgroundColor fills the box with c, as BoxWithBackgroundColor does,
+// and requests a frame.
+func (b *Box) SetBackgroundColor(c style.Color) {
+	b.BackgroundColor = c
+	b.ShouldFill = true
+	b.RequestRender()
+}
+
+// SetShouldFill turns the background fill on or off and requests a frame.
+func (b *Box) SetShouldFill(v bool) {
+	b.ShouldFill = v
+	b.RequestRender()
+}
+
+// SetBorderStyle sets the border's line style and requests a frame.
+func (b *Box) SetBorderStyle(s style.BorderStyle) {
+	b.BorderStyle = s
+	b.RequestRender()
+}
+
+// SetBorder sets which border sides to draw, reserves a cell of padding inside
+// each active side, as NewBox does, and lays the box out again. The padding
+// stays when a side is turned off.
+func (b *Box) SetBorder(brd style.Border) {
+	b.Border = brd
+	b.applyBorderPadding()
+	b.LayoutNode().MarkDirty()
+	b.RequestRender()
+}
+
+// SetBorderColor sets the border color and requests a frame.
+func (b *Box) SetBorderColor(c style.Color) {
+	b.BorderColor = c
+	b.RequestRender()
+}
+
+// SetFocusedBorderColor sets the border color used while the box has focus
+// and requests a frame.
+func (b *Box) SetFocusedBorderColor(c style.Color) {
+	b.FocusedBorderColor = c
+	b.RequestRender()
+}
+
+// SetTitle sets the title drawn in the top border and requests a frame.
+func (b *Box) SetTitle(t string) {
+	b.Title = t
+	b.RequestRender()
+}
+
+// SetTitleAlignment sets where the title sits along the top border and
+// requests a frame.
+func (b *Box) SetTitleAlignment(a layout.Alignment) {
+	b.TitleAlignment = a
+	b.RequestRender()
+}
+
+// SetGap sets the gap between children on both axes and lays the box out
+// again.
+func (b *Box) SetGap(g layout.Scalar) {
+	b.Gap = g
+	b.applyGap()
+	b.LayoutNode().MarkDirty()
+	b.RequestRender()
+}
+
+// SetRowGap sets the vertical gap between children and lays the box out again.
+func (b *Box) SetRowGap(g layout.Scalar) {
+	b.RowGap = g
+	b.applyGap()
+	b.LayoutNode().MarkDirty()
+	b.RequestRender()
+}
+
+// SetColumnGap sets the horizontal gap between children and lays the box out
+// again.
+func (b *Box) SetColumnGap(g layout.Scalar) {
+	b.ColumnGap = g
+	b.applyGap()
+	b.LayoutNode().MarkDirty()
+	b.RequestRender()
 }
 
 // Box options.

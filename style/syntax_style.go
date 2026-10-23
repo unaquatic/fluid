@@ -3,9 +3,13 @@ package style
 // SyntaxTokenStyle contains the optional colors and attributes for a named
 // syntax token.
 type SyntaxTokenStyle struct {
-	Name       string
-	Fg         *Color // Nil inherits the default foreground.
-	Bg         *Color // Nil inherits the default background.
+	// Name is the token name the style was registered under.
+	Name string
+	// Fg is the foreground color; nil inherits the default foreground.
+	Fg *Color
+	// Bg is the background color; nil inherits the default background.
+	Bg *Color
+	// Attributes is a bitmask of the Attr flags, such as AttrBold.
 	Attributes uint32
 }
 

@@ -12,6 +12,7 @@ import (
 
 // Rect describes a rectangular region in buffer cell coordinates.
 type Rect struct {
+	// X and Y are the top-left cell, and Width and Height the size in cells.
 	X, Y, Width, Height int
 }
 
@@ -107,14 +108,24 @@ func WithMaxWidth(w int) DrawTextOption {
 
 // BoxDrawOptions configures the DrawBox method.
 type BoxDrawOptions struct {
+	// X and Y are the box's top-left cell, and Width and Height its size.
 	X, Y, Width, Height int
-	BorderStyle         style.BorderStyle
-	Border              style.Border
-	BorderColor         style.Color
-	BackgroundColor     style.Color
-	ShouldFill          bool
-	Title               string
-	TitleAlignment      string // One of "left", "center", or "right".
+	// BorderStyle selects the border's line characters.
+	BorderStyle style.BorderStyle
+	// Border selects the sides to draw.
+	Border style.Border
+	// BorderColor colors the border.
+	BorderColor style.Color
+	// BackgroundColor is the background of the border and, with ShouldFill,
+	// of the whole box.
+	BackgroundColor style.Color
+	// ShouldFill fills the whole box with BackgroundColor before the border.
+	ShouldFill bool
+	// Title is drawn in the top border when the top side is drawn and wide
+	// enough.
+	Title string
+	// TitleAlignment is one of "left", "center", or "right".
+	TitleAlignment string
 }
 
 // Buffer is a 2D grid of styled cells with clipping support.
@@ -151,22 +162,22 @@ func NewWithID(width, height int, id string) *Buffer {
 	return b
 }
 
-// BufferOption configures a Buffer during construction.
-type BufferOption func(*Buffer)
+// Option configures a Buffer during construction.
+type Option func(*Buffer)
 
-// WithRespectAlphaOpt configures whether DrawFrameBuffer alpha blends the new
+// WithRespectAlpha configures whether DrawFrameBuffer alpha blends the new
 // buffer when it is used as a source.
-func WithRespectAlphaOpt(v bool) BufferOption {
+func WithRespectAlpha(v bool) Option {
 	return func(b *Buffer) { b.respectAlpha = v }
 }
 
-// WithIDOpt sets the new buffer's identifier.
-func WithIDOpt(id string) BufferOption {
+// WithID sets the new buffer's identifier.
+func WithID(id string) Option {
 	return func(b *Buffer) { b.id = id }
 }
 
 // NewWithOptions allocates a buffer with configurable options.
-func NewWithOptions(width, height int, opts ...BufferOption) *Buffer {
+func NewWithOptions(width, height int, opts ...Option) *Buffer {
 	b := New(width, height)
 	for _, opt := range opts {
 		opt(b)
@@ -351,8 +362,7 @@ func (b *Buffer) setCluster(x, y int, char rune, combining string, w int, fg, bg
 	})
 }
 
-// SetCellDirect writes cell at (x, y), subject to the current clipping region
-
+// SetCellDirect writes cell at (x, y), subject to the current clipping region.
 // Transparent backgrounds preserve the existing cell's background.
 // Multi-column cells create continuations with matching styles. If the entire
 // cell does not fit within the buffer and clipping region, the write is
@@ -1002,19 +1012,29 @@ func (b *Buffer) Lines() []textbuf.Line {
 
 // BorderConfig defines a border's sides, characters, and color.
 type BorderConfig struct {
-	Style  style.BorderStyle
+	// Style selects the border's line characters.
+	Style style.BorderStyle
+	// Border selects the sides to draw.
 	Border style.Border
-	Color  style.Color
+	// Color colors the border.
+	Color style.Color
 }
 
 // BorderDrawOptions configures DrawBorder.
 type BorderDrawOptions struct {
+	// X and Y are the border's top-left cell, and Width and Height its size.
 	X, Y, Width, Height int
 	BorderConfig
+	// BackgroundColor is the background of the border and, with ShouldFill,
+	// of the area inside it.
 	BackgroundColor style.Color
-	ShouldFill      bool // Whether to fill the interior with BackgroundColor.
-	Title           string
-	TitleAlignment  layout.Alignment
+	// ShouldFill fills the area inside the border with BackgroundColor.
+	ShouldFill bool
+	// Title is drawn in the top border when the top side is drawn and wide
+	// enough.
+	Title string
+	// TitleAlignment places Title along the top border.
+	TitleAlignment layout.Alignment
 }
 
 // DrawBorder draws the configured border, optional interior fill, and optional

@@ -14,9 +14,12 @@ var _ render.Renderable = (*ScrollBox)(nil)
 // ScrollAnchor records the viewport top relative to one child.
 // This relative position remains stable when earlier children change size.
 type ScrollAnchor struct {
-	ChildIndex int  // Index of the child intersecting the viewport top.
-	Offset     int  // Cells from the child's top to the viewport top.
-	Valid      bool // Whether ChildIndex and Offset contain a computed anchor.
+	// ChildIndex is the index of the child intersecting the viewport top.
+	ChildIndex int
+	// Offset is the number of cells from the child's top to the viewport top.
+	Offset int
+	// Valid reports whether ChildIndex and Offset contain a computed anchor.
+	Valid bool
 }
 
 // AutoScrollEdge identifies the viewport edge followed as dimensions change.
@@ -305,7 +308,7 @@ func (sb *ScrollBox) OnPostLayout(deltaTime float64) {
 
 // contentBoxSize returns the size of n's content box: its computed size less
 // its padding, which resolves against that size.
-func contentBoxSize(n *layout.LayoutNode) (width, height int) {
+func contentBoxSize(n *layout.Node) (width, height int) {
 	w, h := n.Computed.Width, n.Computed.Height
 	top, _ := n.PaddingTop.Resolve(h)
 	right, _ := n.PaddingRight.Resolve(w)

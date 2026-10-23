@@ -19,13 +19,21 @@ const (
 
 // AttributeOptions selects text decorations for CreateTextAttributes.
 type AttributeOptions struct {
-	Bold          bool
-	Dim           bool
-	Italic        bool
-	Underline     bool
-	Blink         bool
-	Inverse       bool
-	Hidden        bool
+	// Bold selects AttrBold.
+	Bold bool
+	// Dim selects AttrDim, a fainter intensity.
+	Dim bool
+	// Italic selects AttrItalic.
+	Italic bool
+	// Underline selects AttrUnderline.
+	Underline bool
+	// Blink selects AttrBlink.
+	Blink bool
+	// Inverse selects AttrInverse, which swaps foreground and background.
+	Inverse bool
+	// Hidden selects AttrHidden, which hides the text.
+	Hidden bool
+	// Strikethrough selects AttrStrikethrough.
 	Strikethrough bool
 }
 

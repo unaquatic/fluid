@@ -3,7 +3,7 @@ package terminal
 import (
 	"bytes"
 	"context"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"slices"
@@ -99,7 +99,7 @@ type Renderer struct {
 	inlineCursorCell      buffer.Rect    // The cell the inline cursor inverted, which must be restored.
 
 	// Optional diagnostic log.
-	dbg     *log.Logger
+	dbg     *slog.Logger
 	dbgFile *os.File
 
 	// Closed when Destroy completes.
@@ -165,8 +165,8 @@ func NewRenderer(config ...Config) (*Renderer, error) {
 		f, err := os.OpenFile(cfg.DebugLog, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 		if err == nil {
 			r.dbgFile = f
-			r.dbg = log.New(f, "", log.Ltime|log.Lmicroseconds)
-			r.dbg.Printf("=== fluid debug log opened  pid=%d ===", os.Getpid())
+			r.dbg = slog.New(slog.NewTextHandler(f, nil))
+			r.dbg.Info("debug log opened", "pid", os.Getpid())
 		}
 	}
 
@@ -447,7 +447,7 @@ func (r *Renderer) Destroy() {
 
 	// Record the final frame count before closing diagnostics.
 	if r.dbg != nil {
-		r.dbg.Printf("=== fluid debug log closed  frames=%d ===", r.frameCount.Load())
+		r.dbg.Info("debug log closed", "frames", r.frameCount.Load())
 		r.dbgFile.Close()
 		r.dbg = nil
 		r.dbgFile = nil
@@ -642,7 +642,7 @@ func (r *Renderer) processResize(w, h int) {
 	r.mu.Unlock()
 
 	if r.dbg != nil {
-		r.dbg.Printf("[resize] %dx%d", w, h)
+		r.dbg.Info("resize", "width", w, "height", h)
 	}
 
 	if r.config.InlineMode {
@@ -695,8 +695,7 @@ func (r *Renderer) renderFrame() {
 	r.root.Render(r.nextBuffer, deltaTime)
 
 	if r.dbg != nil && r.invalidated {
-		fc := r.frameCount.Load()
-		r.dbg.Printf("[frame] #%d  buf=%dx%d", fc, r.nextBuffer.Width(), r.nextBuffer.Height())
+		r.dbg.Info("frame", "n", r.frameCount.Load(), "width", r.nextBuffer.Width(), "height", r.nextBuffer.Height())
 	}
 
 	// The first frame and resized frames require a complete repaint.
@@ -1025,9 +1024,9 @@ func (r *Renderer) probeWidths() {
 
 	if r.dbg != nil {
 		if err != nil {
-			r.dbg.Printf("[probe] unavailable: %v", err)
+			r.dbg.Info("probe unavailable", "error", err)
 		} else {
-			r.dbg.Printf("[probe] measured %v", widths)
+			r.dbg.Info("probe measured", "widths", widths)
 		}
 	}
 }

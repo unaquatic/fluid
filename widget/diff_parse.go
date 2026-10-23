@@ -8,19 +8,30 @@ import (
 
 // StructuredPatch contains the headers and hunks parsed from a unified diff.
 type StructuredPatch struct {
+	// OldFileName is the text after "--- ", such as "a/main.go".
 	OldFileName string
+	// NewFileName is the text after "+++ ", such as "b/main.go".
 	NewFileName string
-	OldHeader   string
-	NewHeader   string
-	FileHeaders []string // Raw lines before the first hunk, including diff, index, ---, and +++.
-	Hunks       []DiffHunk
+	// OldHeader is not set by ParsePatch, which keeps the raw lines in
+	// FileHeaders.
+	OldHeader string
+	// NewHeader is not set by ParsePatch, which keeps the raw lines in
+	// FileHeaders.
+	NewHeader string
+	// FileHeaders holds the raw lines before the first hunk, including diff,
+	// index, ---, and +++.
+	FileHeaders []string
+	// Hunks are the patch's hunks, in order.
+	Hunks []DiffHunk
 }
 
 // DiffLayout is a view-independent sequence of parsed diff blocks.
 // Both unified and split renderers consume the same sequence and line numbers.
 type DiffLayout struct {
-	Blocks     []DiffBlock
-	MaxLineNum int // Largest old-file or new-file line number in Blocks.
+	// Blocks are the blocks, in display order.
+	Blocks []DiffBlock
+	// MaxLineNum is the largest old-file or new-file line number in Blocks.
+	MaxLineNum int
 }
 
 // DiffBlockKind classifies a block in the diff layout.
@@ -38,41 +49,55 @@ const (
 //   - DiffBlockContext:   Text is the line content, OldLineNum/NewLineNum are set.
 //   - DiffBlockChange:    Removes and Adds hold the changed lines.
 type DiffBlock struct {
+	// Kind decides which of the fields below the block uses.
 	Kind DiffBlockKind
 
-	// Text and Type describe full-width and context blocks.
-	Text string       // Text displayed for the block.
-	Type diffLineType // Classification used to select colors.
+	// Text is the text displayed for a full-width or context block.
+	Text string
+	// Type is the classification used to select the block's colors.
+	Type diffLineType
 
-	// Context blocks carry a line number for each file.
-	OldLineNum int // Line number in the old file.
-	NewLineNum int // Line number in the new file.
+	// OldLineNum is a context block's line number in the old file.
+	OldLineNum int
+	// NewLineNum is a context block's line number in the new file.
+	NewLineNum int
 
-	// Change blocks separate old-file removals from new-file additions.
+	// Removes are a change block's removed lines, numbered in the old file.
 	Removes []DiffLine
-	Adds    []DiffLine
+	// Adds are a change block's added lines, numbered in the new file.
+	Adds []DiffLine
 }
 
 // DiffLine contains one changed line and its source-file line number.
 type DiffLine struct {
+	// Content is the line content without its diff prefix.
 	Content string
+	// LineNum is the line's number in its file.
 	LineNum int
 }
 
 // DiffHunk represents a single hunk from a unified diff.
 type DiffHunk struct {
+	// OldStart is the first old-file line, from the hunk header.
 	OldStart int
+	// OldLines is the old-file line count; 1 when the header omits it.
 	OldLines int
+	// NewStart is the first new-file line, from the hunk header.
 	NewStart int
+	// NewLines is the new-file line count; 1 when the header omits it.
 	NewLines int
-	Header   string // Complete @@ hunk-header line.
-	Lines    []HunkLine
+	// Header is the complete @@ hunk-header line.
+	Header string
+	// Lines are the hunk's lines, in order.
+	Lines []HunkLine
 }
 
 // HunkLine is a single line within a hunk.
 type HunkLine struct {
-	Content string       // Line content without its diff prefix.
-	Type    diffLineType // One of diffAdded, diffRemoved, or diffContext.
+	// Content is the line content without its diff prefix.
+	Content string
+	// Type is one of diffAdded, diffRemoved, or diffContext.
+	Type diffLineType
 }
 
 // hunkHeaderRe captures old and new ranges from a unified-diff hunk header.
@@ -276,11 +301,18 @@ func BuildDiffLayout(patch *StructuredPatch) *DiffLayout {
 
 // LogicalDiffLine contains one flattened display line from a parsed diff.
 type LogicalDiffLine struct {
-	Content     string       // Display text.
-	Type        diffLineType // Classification used to select colors.
-	OldLineNum  int          // Zero when not applicable.
-	NewLineNum  int          // Zero when not applicable.
-	HideLineNum bool         // True for padding rows in split view.
+	// Content is the display text.
+	Content string
+	// Type is the classification used to select colors.
+	Type diffLineType
+	// OldLineNum is the line number in the old file, or zero when not
+	// applicable.
+	OldLineNum int
+	// NewLineNum is the line number in the new file, or zero when not
+	// applicable.
+	NewLineNum int
+	// HideLineNum is true for padding rows in split view.
+	HideLineNum bool
 }
 
 // BuildUnifiedLines flattens patch hunks into sequential logical lines.

@@ -14,11 +14,18 @@ import (
 // the whole transcript, so the width of this struct sets the memory cost of the
 // renderer.
 type Cell struct {
-	Char       rune        // The first code point; zero represents an empty cell.
-	Fg         style.Color // The foreground color.
-	Bg         style.Color // The background color.
-	Attributes uint32      // The low 8 bits are style flags; the upper bits are a link ID.
-	Width      int16       // A head's column width, or a continuation's negative offset to its head.
+	// Char is the first code point; zero represents an empty cell.
+	Char rune
+	// Fg is the foreground color.
+	Fg style.Color
+	// Bg is the background color.
+	Bg style.Color
+	// Attributes holds style flags in its low 8 bits and a link ID in the
+	// upper bits.
+	Attributes uint32
+	// Width is a head's column width, or a continuation's negative offset to
+	// its head.
+	Width int16
 
 	// combining holds the interned code points that follow Char in the same
 	// grapheme cluster. Handles are comparable and globally unique, so cells

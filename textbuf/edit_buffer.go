@@ -10,9 +10,12 @@ import (
 // CursorPosition identifies one location in logical and global display-width
 // coordinates.
 type CursorPosition struct {
-	Row    int // Logical line index.
-	Col    int // Display-column offset within the line.
-	Offset int // Global display-width offset from the buffer start.
+	// Row is the logical line index.
+	Row int
+	// Col is the display-column offset within the line.
+	Col int
+	// Offset is the global display-width offset from the buffer start.
+	Offset int
 }
 
 // editSnapshot captures text and cursor state for undo or redo.

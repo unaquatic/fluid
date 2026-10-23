@@ -177,7 +177,7 @@ func changedBelow(node render.Renderable) bool {
 //
 // Centring, end alignment, and space distribution all move earlier children
 // when a later one resizes, and wrapping moves them across lines.
-func stacksFromStart(n *layout.LayoutNode) bool {
+func stacksFromStart(n *layout.Node) bool {
 	return n.JustifyContent == layout.JustifyStart &&
 		n.FlexWrap == layout.WrapNone &&
 		!n.FlexDirection.IsReverse()

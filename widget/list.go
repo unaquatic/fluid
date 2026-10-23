@@ -11,7 +11,9 @@ import (
 
 // ListItem contains the displayed text and caller-defined value for one list row.
 type ListItem struct {
-	Text  string
+	// Text is the row's displayed text.
+	Text string
+	// Value is caller-defined data for the row.
 	Value any
 }
 

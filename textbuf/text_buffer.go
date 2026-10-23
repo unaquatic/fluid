@@ -10,6 +10,7 @@ import (
 
 // Line is one logical line stored as a sequence of spans.
 type Line struct {
+	// Spans are the line's runs of text, in order.
 	Spans []Span
 }
 
@@ -53,11 +54,16 @@ type TextBuffer struct {
 
 // Highlight describes a half-open display-column range on one logical line.
 type Highlight struct {
-	Start, End int // Inclusive start and exclusive end columns.
-	Fg         *style.Color
-	Bg         *style.Color
+	// Start and End are the inclusive start and exclusive end columns.
+	Start, End int
+	// Fg is the foreground color; nil leaves the text's foreground.
+	Fg *style.Color
+	// Bg is the background color; nil leaves the text's background.
+	Bg *style.Color
+	// Attributes is a bitmask of the style.Attr flags, such as style.AttrBold.
 	Attributes uint32
-	Ref        int // Caller-defined identifier used for removal.
+	// Ref is a caller-defined identifier used for removal.
+	Ref int
 }
 
 // NewTextBuffer returns an empty one-line buffer with white foreground,

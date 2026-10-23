@@ -2,7 +2,8 @@ package input
 
 // PasteEvent contains text received through terminal bracketed paste mode.
 type PasteEvent struct {
-	Text string // The pasted text after ANSI escape sequences are removed.
+	// Text is the pasted text after ANSI escape sequences are removed.
+	Text string
 
 	propagationStopped bool
 	defaultPrevented   bool

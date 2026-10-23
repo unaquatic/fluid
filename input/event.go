@@ -31,16 +31,23 @@ const (
 
 // ResizeEvent reports new terminal dimensions in cells.
 type ResizeEvent struct {
-	Width  int
+	// Width is the terminal's new width in cells.
+	Width int
+	// Height is the terminal's new height in cells.
 	Height int
 }
 
 // TerminalEvent contains one event payload identified by Type.
 type TerminalEvent struct {
-	Type   EventType
-	Key    *KeyEvent
-	Mouse  *MouseEvent
-	Paste  *PasteEvent
+	// Type names the payload that is set.
+	Type EventType
+	// Key is the payload of an EventKeyboard event.
+	Key *KeyEvent
+	// Mouse is the payload of an EventMouse event.
+	Mouse *MouseEvent
+	// Paste is the payload of an EventPaste event.
+	Paste *PasteEvent
+	// Resize is the payload of an EventResize event.
 	Resize *ResizeEvent
 }
 

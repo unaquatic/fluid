@@ -2,10 +2,14 @@ package symbol
 
 // ScrollBarSet contains the runes used to draw a scrollbar.
 type ScrollBarSet struct {
-	Track rune // The background track.
-	Thumb rune // The movable thumb.
-	Begin rune // The optional start cap; zero omits it.
-	End   rune // The optional end cap; zero omits it.
+	// Track is the background track.
+	Track rune
+	// Thumb is the movable thumb.
+	Thumb rune
+	// Begin is the optional start cap; zero omits it.
+	Begin rune
+	// End is the optional end cap; zero omits it.
+	End rune
 }
 
 var (

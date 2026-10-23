@@ -8,6 +8,8 @@ import (
 
 // Color stores red, green, blue, and alpha channels in the range [0, 255].
 type Color struct {
+	// R, G, and B are the red, green, and blue channels, and A the opacity,
+	// from 0, transparent, to 255, opaque.
 	R, G, B, A uint8
 }
 

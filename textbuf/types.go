@@ -81,52 +81,77 @@ const (
 
 // Viewport defines a rectangular window in virtual-line coordinates.
 type Viewport struct {
-	X, Y          int
+	// X and Y are the first visible display column and virtual line.
+	X, Y int
+	// Width and Height are the visible size in columns and virtual lines.
 	Width, Height int
 }
 
 // TextSelection describes a highlighted half-open range in global display-width
 // coordinates.
 type TextSelection struct {
-	Start, End int // Inclusive start and exclusive end offsets.
-	BgColor    *style.Color
-	FgColor    *style.Color
+	// Start and End are the inclusive start and exclusive end offsets.
+	Start, End int
+	// BgColor is the selected text's background; nil leaves the text's.
+	BgColor *style.Color
+	// FgColor is the selected text's foreground; nil leaves the text's.
+	FgColor *style.Color
 }
 
 // Span is a run of text with uniform styling.
 type Span struct {
-	Text       string
-	Fg         style.Color
-	Bg         style.Color
+	// Text is the text of the run.
+	Text string
+	// Fg is the foreground color.
+	Fg style.Color
+	// Bg is the background color.
+	Bg style.Color
+	// Attributes is a bitmask of the style.Attr flags, such as style.AttrBold.
 	Attributes uint32
-	Width      int // Cached display width; zero can mean not yet measured.
+	// Width is the cached display width; zero can mean not yet measured.
+	Width int
 }
 
 // VirtualChunk is an equally styled fragment of a wrapped visual line.
 type VirtualChunk struct {
-	Text          string      // Resolved text content.
-	GraphemeStart int         // Display-column offset within the virtual line.
-	Width         int         // Display width.
-	Fg            style.Color // Foreground color.
-	Bg            style.Color // Background color.
-	Attributes    uint32      // Text attributes.
+	// Text is the resolved text content.
+	Text string
+	// GraphemeStart is the display-column offset within the virtual line.
+	GraphemeStart int
+	// Width is the display width.
+	Width int
+	// Fg is the foreground color.
+	Fg style.Color
+	// Bg is the background color.
+	Bg style.Color
+	// Attributes is a bitmask of the style.Attr flags, such as style.AttrBold.
+	Attributes uint32
 }
 
 // VirtualLine is one visual row produced by wrapping a logical source line.
 type VirtualLine struct {
-	Chunks          []VirtualChunk
-	Width           int // Total display width.
-	CharOffset      int // Global display-width offset at the line start.
-	SourceLine      int // Logical source-line index.
-	SourceColOffset int // Display-column offset within the source line.
+	// Chunks are the row's equally styled fragments, in order.
+	Chunks []VirtualChunk
+	// Width is the total display width.
+	Width int
+	// CharOffset is the global display-width offset at the line start.
+	CharOffset int
+	// SourceLine is the logical source-line index.
+	SourceLine int
+	// SourceColOffset is the display-column offset within the source line.
+	SourceColOffset int
 }
 
 // LineInfo contains parallel layout metadata for virtual lines.
 type LineInfo struct {
-	Starts   []int // Global display-width offset of each virtual line.
-	Widths   []int // Display width of each virtual line.
-	Sources  []int // Logical source-line index of each virtual line.
-	MaxWidth int   // Maximum virtual-line width.
+	// Starts holds the global display-width offset of each virtual line.
+	Starts []int
+	// Widths holds the display width of each virtual line.
+	Widths []int
+	// Sources holds the logical source-line index of each virtual line.
+	Sources []int
+	// MaxWidth is the maximum virtual-line width.
+	MaxWidth int
 }
 
 // Surface exposes viewport-adjusted text and styling to a buffer renderer.

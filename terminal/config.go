@@ -196,14 +196,17 @@ type Config struct {
 	// WidthProbeSamples contains strings measured by WidthProbeAuto.
 	WidthProbeSamples []string
 
-	// DebugLog enables frame diagnostics at the given path. Its parent directory
-	// must exist. Records use these tab-separated forms:
+	// DebugLog enables diagnostics at the given path, whose parent directory
+	// must exist. Each record is a line of log/slog text, its time, level, and
+	// message followed by these attributes:
 	//
-	//   frame  <n>  <total_ms>ms
-	//   render  full|partial  buf=<w>x<h>  dirty=<n>  clear=<µs>  exec=<µs>
-	//   flush   full|diff|overflow  rows=<h>  bytes=<n>  build=<µs>  write=<µs>
+	//   msg=flush kind=full|diff bytes=<n> top=<row> cursor=<row>   each inline flush
+	//   msg=frame n=<count> width=<w> height=<h>                    each full fullscreen repaint
+	//   msg=resize width=<w> height=<h>
+	//   msg="probe measured" widths=<widths>, or msg="probe unavailable" error=<err>
+	//   msg="debug log opened" pid=<pid>, and msg="debug log closed" frames=<count>
 	//
-	// Debug logging applies only to inline mode and is disabled by default.
+	// Debug logging is disabled by default.
 	DebugLog string
 }
 

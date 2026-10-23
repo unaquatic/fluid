@@ -59,19 +59,44 @@ type NoopContext struct{}
 
 var _ Context = NoopContext{}
 
-func (NoopContext) RequestRender()                                                 {}
-func (NoopContext) FocusRenderable(Renderable)                                     {}
-func (NoopContext) AddToHitGrid(x, y, w, h int, id uint64)                         {}
-func (NoopContext) PushHitGridScissorRect(x, y, w, h int)                          {}
-func (NoopContext) PopHitGridScissorRect()                                         {}
-func (NoopContext) ClearHitGrid()                                                  {}
-func (NoopContext) SetCursorPosition(x, y int, visible bool)                       {}
-func (NoopContext) Selection() *Selection                                          { return nil }
-func (NoopContext) StartSelection(Renderable, int, int)                            {}
+// RequestRender does nothing.
+func (NoopContext) RequestRender() {}
+
+// FocusRenderable does nothing.
+func (NoopContext) FocusRenderable(Renderable) {}
+
+// AddToHitGrid does nothing.
+func (NoopContext) AddToHitGrid(x, y, w, h int, id uint64) {}
+
+// PushHitGridScissorRect does nothing.
+func (NoopContext) PushHitGridScissorRect(x, y, w, h int) {}
+
+// PopHitGridScissorRect does nothing.
+func (NoopContext) PopHitGridScissorRect() {}
+
+// ClearHitGrid does nothing.
+func (NoopContext) ClearHitGrid() {}
+
+// SetCursorPosition does nothing.
+func (NoopContext) SetCursorPosition(x, y int, visible bool) {}
+
+// Selection returns nil, since a NoopContext never holds a selection.
+func (NoopContext) Selection() *Selection { return nil }
+
+// StartSelection does nothing.
+func (NoopContext) StartSelection(Renderable, int, int) {}
+
+// UpdateSelection does nothing.
 func (NoopContext) UpdateSelection(Renderable, int, int, ...SelectionUpdateOption) {}
-func (NoopContext) ClearSelection()                                                {}
-func (NoopContext) RequestLive()                                                   {}
-func (NoopContext) DropLive()                                                      {}
+
+// ClearSelection does nothing.
+func (NoopContext) ClearSelection() {}
+
+// RequestLive does nothing.
+func (NoopContext) RequestLive() {}
+
+// DropLive does nothing.
+func (NoopContext) DropLive() {}
 
 // noopContext keeps detached BaseRenderable contexts non-nil.
 var noopContext Context = NoopContext{}

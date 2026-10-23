@@ -14,7 +14,9 @@ const (
 
 // MeasureResult contains an intrinsic width and height in terminal cells.
 type MeasureResult struct {
-	Width  int
+	// Width is the measured width in cells.
+	Width int
+	// Height is the measured height in cells.
 	Height int
 }
 
@@ -28,69 +30,118 @@ type MeasureFunc func(
 	height int, heightMode MeasureMode,
 ) MeasureResult
 
-// LayoutNode is one node in a flex layout tree.
-type LayoutNode struct {
+// Node is one node in a flex layout tree.
+type Node struct {
 	// Container properties.
-	FlexDirection  FlexDirection  // The main axis and item order. The default is DirectionRow.
-	FlexWrap       FlexWrap       // The line-wrapping mode. The default is WrapNone.
-	JustifyContent JustifyContent // The main-axis distribution. The default is JustifyStart.
-	AlignItems     Align          // The cross-axis alignment. The default is AlignStretch.
-	Gap            int            // The fallback gap between rows and columns.
-	RowGap         int            // The row gap when positive, overriding Gap.
-	ColumnGap      int            // The column gap when positive, overriding Gap.
+
+	// FlexDirection is the main axis and item order. The default is
+	// DirectionRow.
+	FlexDirection FlexDirection
+	// FlexWrap is the line-wrapping mode. The default is WrapNone.
+	FlexWrap FlexWrap
+	// JustifyContent is the main-axis distribution. The default is
+	// JustifyStart.
+	JustifyContent JustifyContent
+	// AlignItems is the cross-axis alignment. The default is AlignStretch.
+	AlignItems Align
+	// Gap is the fallback gap between rows and columns.
+	Gap int
+	// RowGap is the row gap when positive, overriding Gap.
+	RowGap int
+	// ColumnGap is the column gap when positive, overriding Gap.
+	ColumnGap int
 
 	// Item properties.
-	FlexGrow   int    // The growth factor. The default is zero.
-	FlexShrink int    // The shrink factor. The default is one.
-	FlexBasis  Scalar // The initial main-axis size. The default is Auto.
-	AlignSelf  Align  // The item alignment override. The default is AlignAuto.
+
+	// FlexGrow is the growth factor. The default is zero.
+	FlexGrow int
+	// FlexShrink is the shrink factor. The default is one.
+	FlexShrink int
+	// FlexBasis is the initial main-axis size. The default is Auto.
+	FlexBasis Scalar
+	// AlignSelf overrides AlignItems for this item. The default is AlignAuto.
+	AlignSelf Align
 
 	// Dimensions.
-	Width     Scalar // The preferred width. The default is Auto.
-	Height    Scalar // The preferred height. The default is Auto.
-	MinWidth  Scalar // The minimum width. The default is Undefined.
-	MaxWidth  Scalar // The maximum width. The default is Undefined.
-	MinHeight Scalar // The minimum height. The default is Undefined.
-	MaxHeight Scalar // The maximum height. The default is Undefined.
+
+	// Width is the preferred width. The default is Auto.
+	Width Scalar
+	// Height is the preferred height. The default is Auto.
+	Height Scalar
+	// MinWidth is the minimum width. The default is Undefined.
+	MinWidth Scalar
+	// MaxWidth is the maximum width. The default is Undefined.
+	MaxWidth Scalar
+	// MinHeight is the minimum height. The default is Undefined.
+	MinHeight Scalar
+	// MaxHeight is the maximum height. The default is Undefined.
+	MaxHeight Scalar
 
 	// Intrinsic measurement.
-	Measure MeasureFunc // An optional content measurement function.
+
+	// Measure is an optional function that measures the node's content.
+	Measure MeasureFunc
 
 	// Box model.
-	MarginTop     Scalar // The top margin. The default is zero points.
-	MarginRight   Scalar
-	MarginBottom  Scalar
-	MarginLeft    Scalar
-	PaddingTop    Scalar // The top padding. The default is zero points.
-	PaddingRight  Scalar
+
+	// MarginTop is the top margin. The default is zero points.
+	MarginTop Scalar
+	// MarginRight is the right margin. The default is zero points.
+	MarginRight Scalar
+	// MarginBottom is the bottom margin. The default is zero points.
+	MarginBottom Scalar
+	// MarginLeft is the left margin. The default is zero points.
+	MarginLeft Scalar
+	// PaddingTop is the top padding. The default is zero points.
+	PaddingTop Scalar
+	// PaddingRight is the right padding. The default is zero points.
+	PaddingRight Scalar
+	// PaddingBottom is the bottom padding. The default is zero points.
 	PaddingBottom Scalar
-	PaddingLeft   Scalar
+	// PaddingLeft is the left padding. The default is zero points.
+	PaddingLeft Scalar
 
 	// Positioning.
-	Position   Position   // The positioning mode. The default is PositionRelative.
-	Top        Scalar     // The top offset. The default is Undefined.
-	Right      Scalar     // The right offset. The default is Undefined.
-	Bottom     Scalar     // The bottom offset. The default is Undefined.
-	Left       Scalar     // The left offset. The default is Undefined.
-	Overflow   Overflow   // The overflow mode. The default is OverflowVisible.
-	Sticky     Sticky     // The pinned viewport edge. The default is StickyNone.
-	Visibility Visibility // The layout and rendering visibility. The default is Visible.
+
+	// Position is the positioning mode. The default is PositionRelative.
+	Position Position
+	// Top is the top offset. The default is Undefined.
+	Top Scalar
+	// Right is the right offset. The default is Undefined.
+	Right Scalar
+	// Bottom is the bottom offset. The default is Undefined.
+	Bottom Scalar
+	// Left is the left offset. The default is Undefined.
+	Left Scalar
+	// Overflow is the overflow mode. The default is OverflowVisible.
+	Overflow Overflow
+	// Sticky is the viewport edge the node pins to. The default is StickyNone.
+	Sticky Sticky
+	// Visibility controls layout and rendering visibility. The default is
+	// Visible.
+	Visibility Visibility
 
 	// Resolved output.
+
+	// Computed is the position and size from the last layout.
 	Computed ComputedLayout
 
 	// Tree links.
-	Parent   *LayoutNode
-	Children []*LayoutNode
+
+	// Parent is the parent node, or nil for a root.
+	Parent *Node
+	// Children are the child nodes, in layout order.
+	Children []*Node
 
 	// Layout state.
 	dirty bool
-	Cache LayoutCache // The cached inputs used to skip an unchanged subtree.
+	// Cache holds the inputs used to skip an unchanged subtree.
+	Cache Cache
 }
 
 // NewNode returns a dirty layout node with flexbox defaults.
-func NewNode() *LayoutNode {
-	return &LayoutNode{
+func NewNode() *Node {
+	return &Node{
 		FlexDirection:  DirectionRow,
 		FlexWrap:       WrapNone,
 		JustifyContent: JustifyStart,
@@ -129,7 +180,7 @@ func NewNode() *LayoutNode {
 }
 
 // AddChild appends child to n, removing it from any previous parent first.
-func (n *LayoutNode) AddChild(child *LayoutNode) {
+func (n *Node) AddChild(child *Node) {
 	if child.Parent != nil {
 		child.Parent.RemoveChild(child)
 	}
@@ -140,7 +191,7 @@ func (n *LayoutNode) AddChild(child *LayoutNode) {
 
 // AddChildAt inserts child at index after removing it from any previous parent.
 // It appends child when index is outside the existing child range.
-func (n *LayoutNode) AddChildAt(child *LayoutNode, index int) {
+func (n *Node) AddChildAt(child *Node, index int) {
 	if child.Parent != nil {
 		child.Parent.RemoveChild(child)
 	}
@@ -158,7 +209,7 @@ func (n *LayoutNode) AddChildAt(child *LayoutNode, index int) {
 
 // RemoveChild removes child from n and clears its parent link. It does nothing
 // when child is not a direct child of n.
-func (n *LayoutNode) RemoveChild(child *LayoutNode) {
+func (n *Node) RemoveChild(child *Node) {
 	for i, c := range n.Children {
 		if c == child {
 			n.Children = append(n.Children[:i], n.Children[i+1:]...)
@@ -170,12 +221,12 @@ func (n *LayoutNode) RemoveChild(child *LayoutNode) {
 }
 
 // ChildCount returns the number of direct children.
-func (n *LayoutNode) ChildCount() int {
+func (n *Node) ChildCount() int {
 	return len(n.Children)
 }
 
 // MarkDirty marks n and every ancestor for layout recomputation.
-func (n *LayoutNode) MarkDirty() {
+func (n *Node) MarkDirty() {
 	// Walk the full chain because a skipped Gone node can outlive a clean ancestor.
 	for node := n; node != nil; node = node.Parent {
 		node.dirty = true
@@ -183,14 +234,14 @@ func (n *LayoutNode) MarkDirty() {
 }
 
 // IsDirty reports whether n requires layout recomputation.
-func (n *LayoutNode) IsDirty() bool {
+func (n *Node) IsDirty() bool {
 	return n.dirty
 }
 
 // ShiftDescendantPositions moves every descendant's absolute position and
 // cached parent position by (dx, dy). It preserves internal layout when a
 // clean subtree moves as a unit.
-func (n *LayoutNode) ShiftDescendantPositions(dx, dy int) {
+func (n *Node) ShiftDescendantPositions(dx, dy int) {
 	for _, child := range n.Children {
 		child.Computed.X += dx
 		child.Computed.Y += dy
@@ -201,7 +252,7 @@ func (n *LayoutNode) ShiftDescendantPositions(dx, dy int) {
 }
 
 // SetMargin sets all four margins to all.
-func (n *LayoutNode) SetMargin(all Scalar) {
+func (n *Node) SetMargin(all Scalar) {
 	n.MarginTop = all
 	n.MarginRight = all
 	n.MarginBottom = all
@@ -210,7 +261,7 @@ func (n *LayoutNode) SetMargin(all Scalar) {
 }
 
 // SetMarginXY sets both horizontal margins to x and both vertical margins to y.
-func (n *LayoutNode) SetMarginXY(x, y Scalar) {
+func (n *Node) SetMarginXY(x, y Scalar) {
 	n.MarginLeft = x
 	n.MarginRight = x
 	n.MarginTop = y
@@ -219,7 +270,7 @@ func (n *LayoutNode) SetMarginXY(x, y Scalar) {
 }
 
 // SetPadding sets padding on all four sides to all.
-func (n *LayoutNode) SetPadding(all Scalar) {
+func (n *Node) SetPadding(all Scalar) {
 	n.PaddingTop = all
 	n.PaddingRight = all
 	n.PaddingBottom = all
@@ -228,7 +279,7 @@ func (n *LayoutNode) SetPadding(all Scalar) {
 }
 
 // SetPaddingXY sets both horizontal paddings to x and both vertical paddings to y.
-func (n *LayoutNode) SetPaddingXY(x, y Scalar) {
+func (n *Node) SetPaddingXY(x, y Scalar) {
 	n.PaddingLeft = x
 	n.PaddingRight = x
 	n.PaddingTop = y
@@ -237,7 +288,7 @@ func (n *LayoutNode) SetPaddingXY(x, y Scalar) {
 }
 
 // SetSize sets the preferred width and height.
-func (n *LayoutNode) SetSize(w, h Scalar) {
+func (n *Node) SetSize(w, h Scalar) {
 	n.Width = w
 	n.Height = h
 	n.MarkDirty()

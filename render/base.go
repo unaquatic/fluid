@@ -199,7 +199,7 @@ type BaseRenderable struct {
 	parent   Renderable
 	children []Renderable
 
-	layoutNode *layout.LayoutNode
+	layoutNode *layout.Node
 
 	// Resolved geometry copied from layout traversal.
 	x, y, width, height   int
@@ -229,24 +229,46 @@ type BaseRenderable struct {
 	ctx Context
 
 	// Optional input handlers.
-	OnMouseHandler        func(*input.MouseEvent)
-	OnMouseDownHandler    func(*input.MouseEvent)
-	OnMouseUpHandler      func(*input.MouseEvent)
-	OnMouseMoveHandler    func(*input.MouseEvent)
-	OnMouseDragHandler    func(*input.MouseEvent)
+
+	// OnMouseHandler runs for every mouse event first; stopping propagation
+	// skips the handler for the event's type.
+	OnMouseHandler func(*input.MouseEvent)
+	// OnMouseDownHandler runs for MouseDown events.
+	OnMouseDownHandler func(*input.MouseEvent)
+	// OnMouseUpHandler runs for MouseUp events.
+	OnMouseUpHandler func(*input.MouseEvent)
+	// OnMouseMoveHandler runs for MouseMove events.
+	OnMouseMoveHandler func(*input.MouseEvent)
+	// OnMouseDragHandler runs for MouseDrag events.
+	OnMouseDragHandler func(*input.MouseEvent)
+	// OnMouseDragEndHandler runs for MouseDragEnd events.
 	OnMouseDragEndHandler func(*input.MouseEvent)
-	OnMouseDropHandler    func(*input.MouseEvent)
-	OnMouseOverHandler    func(*input.MouseEvent)
-	OnMouseOutHandler     func(*input.MouseEvent)
-	OnMouseScrollHandler  func(*input.MouseEvent)
-	OnPasteHandler        func(*input.PasteEvent)
-	OnKeyDownHandler      func(*input.KeyEvent)
-	OnSizeChangeHandler   func()
+	// OnMouseDropHandler runs for MouseDrop events.
+	OnMouseDropHandler func(*input.MouseEvent)
+	// OnMouseOverHandler runs for MouseOver events.
+	OnMouseOverHandler func(*input.MouseEvent)
+	// OnMouseOutHandler runs for MouseOut events.
+	OnMouseOutHandler func(*input.MouseEvent)
+	// OnMouseScrollHandler runs for MouseScroll events.
+	OnMouseScrollHandler func(*input.MouseEvent)
+	// OnPasteHandler runs for pasted text.
+	OnPasteHandler func(*input.PasteEvent)
+	// OnKeyDownHandler runs for key events; stopping propagation keeps a key
+	// from the renderable's ancestors.
+	OnKeyDownHandler func(*input.KeyEvent)
+	// OnSizeChangeHandler runs after layout changes the renderable's size.
+	OnSizeChangeHandler func()
 
 	// Optional rendering and lifecycle hooks.
+
+	// RenderBeforeHook runs before RenderSelf, with the frame buffer and the
+	// seconds since the last frame.
 	RenderBeforeHook func(*buffer.Buffer, float64)
-	RenderAfterHook  func(*buffer.Buffer, float64)
-	OnLifecyclePass  func()
+	// RenderAfterHook runs after RenderSelf, with the same arguments.
+	RenderAfterHook func(*buffer.Buffer, float64)
+	// OnLifecyclePass runs before each layout once the renderable is
+	// registered with the root's RegisterLifecyclePass.
+	OnLifecyclePass func()
 }
 
 // Verify that BaseRenderable implements Renderable.
@@ -535,7 +557,7 @@ func (b *BaseRenderable) ClearChildDirty() { b.childDirty = false }
 func (b *BaseRenderable) IsDestroyed() bool { return b.destroyed }
 
 // LayoutNode returns b's flexbox node.
-func (b *BaseRenderable) LayoutNode() *layout.LayoutNode { return b.layoutNode }
+func (b *BaseRenderable) LayoutNode() *layout.Node { return b.layoutNode }
 
 // X returns the resolved absolute x-coordinate.
 func (b *BaseRenderable) X() int { return b.x }

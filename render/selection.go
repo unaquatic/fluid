@@ -23,6 +23,7 @@ type SelectableRenderable interface {
 
 // Point is a zero-based coordinate in absolute terminal-cell space.
 type Point struct {
+	// X is the column and Y the row.
 	X, Y int
 }
 

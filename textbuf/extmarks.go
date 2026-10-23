@@ -11,30 +11,51 @@ import (
 //
 // Cursor movement skips a Virtual extmark as one range.
 type Extmark struct {
-	ID         int
-	Start      int  // Inclusive global display-width offset.
-	End        int  // Exclusive global display-width offset.
-	Virtual    bool // Whether cursor movement skips the range.
-	Fg         *style.Color
-	Bg         *style.Color
-	Attributes uint32 // Decoration bits and an optional packed link ID.
-	Priority   int
-	Data       any // Caller-defined data.
-	TypeID     int // Category identifier; zero is the default category.
+	// ID is the identifier the controller assigned, starting at 1.
+	ID int
+	// Start is the inclusive global display-width offset.
+	Start int
+	// End is the exclusive global display-width offset.
+	End int
+	// Virtual reports whether cursor movement skips the range.
+	Virtual bool
+	// Fg is the foreground color; nil leaves the text's foreground.
+	Fg *style.Color
+	// Bg is the background color; nil leaves the text's background.
+	Bg *style.Color
+	// Attributes holds decoration bits and an optional packed link ID.
+	Attributes uint32
+	// Priority is caller-defined; textbuf stores it but does not order by it.
+	Priority int
+	// Data is caller-defined data.
+	Data any
+	// TypeID is the category identifier; zero is the default category.
+	TypeID int
 }
 
-// ExtmarkOptions configures a new Extmark.
+// ExtmarkOptions configures a new Extmark. Its fields mean what the Extmark
+// fields of the same names do.
 type ExtmarkOptions struct {
-	Start      int
-	End        int
-	Virtual    bool
-	Fg         *style.Color
-	Bg         *style.Color
-	Attributes uint32 // Decoration bits and an optional packed link ID.
-	Priority   int
-	Data       any
-	TypeID     int
-	Metadata   any // Data stored separately and returned by Metadata.
+	// Start is the inclusive global display-width offset.
+	Start int
+	// End is the exclusive global display-width offset.
+	End int
+	// Virtual reports whether cursor movement skips the range.
+	Virtual bool
+	// Fg is the foreground color; nil leaves the text's foreground.
+	Fg *style.Color
+	// Bg is the background color; nil leaves the text's background.
+	Bg *style.Color
+	// Attributes holds decoration bits and an optional packed link ID.
+	Attributes uint32
+	// Priority is caller-defined; textbuf stores it but does not order by it.
+	Priority int
+	// Data is caller-defined data.
+	Data any
+	// TypeID is the category identifier; zero is the default category.
+	TypeID int
+	// Metadata is data stored separately and returned by Metadata.
+	Metadata any
 }
 
 // ExtmarksController tracks extmark positions through EditBuffer mutations and
