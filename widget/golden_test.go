@@ -690,22 +690,22 @@ func TestGolden_ListScrolled(t *testing.T) {
 // Select golden tests.
 
 func TestGolden_SelectBasic(t *testing.T) {
-	options := []widget.SelectItem{
+	items := []widget.SelectItem{
 		{Name: "Option A"},
 		{Name: "Option B"},
 		{Name: "Option C"},
 	}
-	s := widget.NewSelect(options)
+	s := widget.NewSelect(items)
 	buf := testutil.RenderWidget(s, 15, 3)
 	testutil.AssertGoldenFrames(t, "select_basic", buf, nil)
 }
 
 func TestGolden_SelectWithDescription(t *testing.T) {
-	options := []widget.SelectItem{
+	items := []widget.SelectItem{
 		{Name: "Save", Description: "Save the file"},
 		{Name: "Quit", Description: "Exit the app"},
 	}
-	s := widget.NewSelect(options)
+	s := widget.NewSelect(items)
 	buf := testutil.RenderWidget(s, 25, 4)
 	testutil.AssertGoldenFrames(t, "select_with_description", buf, nil)
 }
@@ -713,12 +713,12 @@ func TestGolden_SelectWithDescription(t *testing.T) {
 // TabSelect golden tests.
 
 func TestGolden_TabSelectBasic(t *testing.T) {
-	options := []widget.TabSelectItem{
+	items := []widget.TabSelectItem{
 		{Name: "Tab 1"},
 		{Name: "Tab 2"},
 		{Name: "Tab 3"},
 	}
-	ts := widget.NewTabSelect(options)
+	ts := widget.NewTabSelect(items)
 	buf := testutil.RenderWidget(ts, 25, 2)
 	testutil.AssertGoldenFrames(t, "tabselect_basic", buf, nil)
 }

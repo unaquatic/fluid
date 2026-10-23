@@ -19,7 +19,7 @@ type TabSelectItem struct {
 type TabSelect struct {
 	*render.BaseRenderable
 
-	options       []TabSelectItem
+	items         []TabSelectItem
 	selectedIndex int
 	tabWidth      int  // Fixed tab width; zero distributes available width.
 	showUnderline bool // Reserves a second row for the tab underline.
@@ -40,11 +40,11 @@ type TabSelect struct {
 // TabSelectOption configures a TabSelect during construction.
 type TabSelectOption func(*TabSelect)
 
-// NewTabSelect returns a focusable horizontal selector containing options.
-func NewTabSelect(options []TabSelectItem, opts ...TabSelectOption) *TabSelect {
+// NewTabSelect returns a focusable horizontal selector containing items.
+func NewTabSelect(items []TabSelectItem, opts ...TabSelectOption) *TabSelect {
 	ts := &TabSelect{
 		BaseRenderable:    render.NewBaseRenderable(render.WithFocusable(true)),
-		options:           options,
+		items:             items,
 		showUnderline:     true,
 		textColor:         style.ColorGray,
 		selectedTextColor: style.ColorWhite,
@@ -71,13 +71,13 @@ func NewTabSelect(options []TabSelectItem, opts ...TabSelectOption) *TabSelect {
 // SelectedIndex returns the currently selected tab index.
 func (ts *TabSelect) SelectedIndex() int { return ts.selectedIndex }
 
-// SetSelectedIndex selects the index after clamping it to the options range.
+// SetSelectedIndex selects the index after clamping it to the items range.
 func (ts *TabSelect) SetSelectedIndex(idx int) {
 	if idx < 0 {
 		idx = 0
 	}
-	if idx >= len(ts.options) {
-		idx = len(ts.options) - 1
+	if idx >= len(ts.items) {
+		idx = len(ts.items) - 1
 	}
 	if idx != ts.selectedIndex {
 		ts.selectedIndex = idx
@@ -88,11 +88,11 @@ func (ts *TabSelect) SetSelectedIndex(idx int) {
 	}
 }
 
-// SetOptions replaces the tab options.
-func (ts *TabSelect) SetOptions(options []TabSelectItem) {
-	ts.options = options
-	if ts.selectedIndex >= len(options) {
-		ts.selectedIndex = max(len(options)-1, 0)
+// SetItems replaces the tab items.
+func (ts *TabSelect) SetItems(items []TabSelectItem) {
+	ts.items = items
+	if ts.selectedIndex >= len(items) {
+		ts.selectedIndex = max(len(items)-1, 0)
 	}
 	ts.RequestRender()
 }
@@ -101,7 +101,7 @@ func (ts *TabSelect) SetOptions(options []TabSelectItem) {
 func (ts *TabSelect) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 	w := ts.Width()
 	h := ts.Height()
-	if w <= 0 || h <= 0 || len(ts.options) == 0 {
+	if w <= 0 || h <= 0 || len(ts.items) == 0 {
 		return
 	}
 
@@ -118,7 +118,7 @@ func (ts *TabSelect) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 
 	// Render tabs left to right until the viewport is full.
 	cx := x
-	for i, opt := range ts.options {
+	for i, item := range ts.items {
 		if cx >= x+w {
 			break
 		}
@@ -142,7 +142,7 @@ func (ts *TabSelect) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 		}
 
 		// Truncate and center the tab label within its allocated width.
-		name := opt.Name
+		name := item.Name
 		nameWidth := ts.StringWidth(name)
 		if nameWidth > tw {
 			name = truncateToWidth(name, tw)
@@ -167,7 +167,7 @@ func (ts *TabSelect) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 		cx += tw
 
 		// Separate adjacent tabs in both rows.
-		if i < len(ts.options)-1 && cx < x+w {
+		if i < len(ts.items)-1 && cx < x+w {
 			buf.SetCell(cx, y, symbol.Vertical, ts.separatorColor, ts.backgroundColor, 0)
 			if ts.showUnderline && h >= 2 {
 				buf.SetCell(cx, y+1, symbol.Horizontal, ts.separatorColor, ts.backgroundColor, 0)
@@ -179,7 +179,7 @@ func (ts *TabSelect) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 
 // HandleKeyPress moves or activates the selected tab for a supported key event.
 func (ts *TabSelect) HandleKeyPress(e *input.KeyEvent) bool {
-	if e.Type == input.KeyRelease || len(ts.options) == 0 {
+	if e.Type == input.KeyRelease || len(ts.items) == 0 {
 		return false
 	}
 
@@ -196,7 +196,7 @@ func (ts *TabSelect) HandleKeyPress(e *input.KeyEvent) bool {
 		}
 
 	case e.Matches(input.KeyRight) || e.Matches("l"):
-		if ts.selectedIndex < len(ts.options)-1 {
+		if ts.selectedIndex < len(ts.items)-1 {
 			ts.selectedIndex++
 			if ts.OnSelectionChanged != nil {
 				ts.OnSelectionChanged(ts.selectedIndex)
@@ -213,7 +213,7 @@ func (ts *TabSelect) HandleKeyPress(e *input.KeyEvent) bool {
 		ts.SetSelectedIndex(0)
 
 	case e.Matches(input.KeyEnd):
-		ts.SetSelectedIndex(len(ts.options) - 1)
+		ts.SetSelectedIndex(len(ts.items) - 1)
 
 	default:
 		handled = false
@@ -227,7 +227,7 @@ func (ts *TabSelect) HandleKeyPress(e *input.KeyEvent) bool {
 
 // calculateTabWidths divides the available width among tabs.
 func (ts *TabSelect) calculateTabWidths(totalWidth int) []int {
-	n := len(ts.options)
+	n := len(ts.items)
 	if n == 0 {
 		return nil
 	}

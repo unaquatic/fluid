@@ -99,8 +99,8 @@ func (n *TextNode) SetID(id string) { n.id = id }
 // Parent returns the parent TextNode, or nil if this is the root.
 func (n *TextNode) Parent() *TextNode { return n.parent }
 
-// ChildrenList returns the node's ordered children.
-func (n *TextNode) ChildrenList() []TextChild { return n.children }
+// Children returns the node's ordered children.
+func (n *TextNode) Children() []TextChild { return n.children }
 
 // ChildrenCount returns the number of children.
 func (n *TextNode) ChildrenCount() int { return len(n.children) }

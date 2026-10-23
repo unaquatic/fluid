@@ -118,12 +118,12 @@ func runSelectDemo(ctx context.Context, o DemoOptions) error {
 	)
 	root.Add(container)
 
-	sel.OnSelectionChanged = func(idx int, opt widget.SelectItem) {
-		detailName.SetContent(opt.Name)
-		detailDesc.SetContent(opt.Description)
+	sel.OnSelectionChanged = func(idx int, item widget.SelectItem) {
+		detailName.SetContent(item.Name)
+		detailDesc.SetContent(item.Description)
 	}
-	sel.OnItemSelected = func(idx int, opt widget.SelectItem) {
-		detailName.SetContent(fmt.Sprintf("[Selected] %s", opt.Name))
+	sel.OnItemSelected = func(idx int, item widget.SelectItem) {
+		detailName.SetContent(fmt.Sprintf("[Selected] %s", item.Name))
 	}
 	tabs.OnSelectionChanged = func(idx int) {
 		tabNames := []string{"General", "Appearance", "Keybindings", "Extensions", "About"}

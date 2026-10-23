@@ -11,7 +11,7 @@ import (
 	"github.com/unaquatic/fluid/testutil"
 )
 
-func makeSelectOptions() []SelectItem {
+func makeSelectItems() []SelectItem {
 	return []SelectItem{
 		{Name: "Option 1", Description: "First option", Value: 1},
 		{Name: "Option 2", Description: "Second option", Value: 2},
@@ -20,22 +20,22 @@ func makeSelectOptions() []SelectItem {
 }
 
 func setupSelect() *Select {
-	s := NewSelect(makeSelectOptions())
+	s := NewSelect(makeSelectItems())
 	testutil.SetupWidget(s, 30, 10)
 	return s
 }
 
 func TestNewSelect_Defaults(t *testing.T) {
-	s := NewSelect(makeSelectOptions())
+	s := NewSelect(makeSelectItems())
 	if s.SelectedIndex() != 0 {
 		t.Errorf("expected selectedIndex 0, got %d", s.SelectedIndex())
 	}
-	if len(s.Options()) != 3 {
-		t.Errorf("expected 3 options, got %d", len(s.Options()))
+	if len(s.Items()) != 3 {
+		t.Errorf("expected 3 items, got %d", len(s.Items()))
 	}
-	opt := s.SelectedOption()
-	if opt == nil || opt.Name != "Option 1" {
-		t.Error("expected first option selected")
+	item := s.SelectedItem()
+	if item == nil || item.Name != "Option 1" {
+		t.Error("expected first item selected")
 	}
 }
 
@@ -101,15 +101,15 @@ func TestSelect_HomeEnd(t *testing.T) {
 
 func TestSelect_OnItemSelected(t *testing.T) {
 	var selectedIdx int
-	var selectedOpt SelectItem
-	s := NewSelect(makeSelectOptions(), SelectWithOnItemSelected(func(idx int, opt SelectItem) {
+	var selectedItem SelectItem
+	s := NewSelect(makeSelectItems(), SelectWithOnItemSelected(func(idx int, item SelectItem) {
 		selectedIdx = idx
-		selectedOpt = opt
+		selectedItem = item
 	}))
 	testutil.SetupWidget(s, 30, 10)
 
 	s.HandleKeyPress(&input.KeyEvent{Name: input.KeyReturn, Type: input.KeyPress})
-	if selectedIdx != 0 || selectedOpt.Name != "Option 1" {
+	if selectedIdx != 0 || selectedItem.Name != "Option 1" {
 		t.Error("expected first option to be selected via Enter")
 	}
 }
@@ -121,7 +121,7 @@ func TestSelect_SetOptions(t *testing.T) {
 	newOpts := []SelectItem{
 		{Name: "New Option 1", Value: "a"},
 	}
-	s.SetOptions(newOpts)
+	s.SetItems(newOpts)
 	if s.SelectedIndex() != 0 {
 		t.Errorf("expected selectedIndex clamped to 0, got %d", s.SelectedIndex())
 	}
@@ -148,7 +148,7 @@ func TestSelect_HintColor(t *testing.T) {
 	hintFg := style.ColorFromInts(112, 112, 112, 255)
 	textFg := style.ColorFromInts(180, 180, 180, 255)
 	selectedFg := style.ColorWhite
-	opts := []SelectItem{{Name: "alpha", Hint: "[default]"}, {Name: "beta", Hint: "[new]"}}
+	items := []SelectItem{{Name: "alpha", Hint: "[default]"}, {Name: "beta", Hint: "[new]"}}
 	// The hint starts after the name and a space.
 	hintAt := func(buf *buffer.Buffer, row int, name string) style.Color {
 		return buf.Cell(len(name)+1, row).Fg
@@ -163,7 +163,7 @@ func TestSelect_HintColor(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewSelect(opts, append([]SelectOption{
+			s := NewSelect(items, append([]SelectOption{
 				SelectWithTextColor(textFg),
 				SelectWithDescriptionColor(textFg),
 				SelectWithFocusedTextColor(selectedFg),
@@ -184,7 +184,7 @@ func TestSelect_HintColor(t *testing.T) {
 }
 
 func TestSelect_ArrowColumn(t *testing.T) {
-	opts := []SelectItem{
+	items := []SelectItem{
 		{Name: "alpha", Description: "first"},
 		{Name: "beta", Hint: "hint"},
 	}
@@ -212,7 +212,7 @@ func TestSelect_ArrowColumn(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewSelect(opts, append([]SelectOption{
+			s := NewSelect(items, append([]SelectOption{
 				SelectWithSelectionArrow(true),
 				SelectWithInlineDescription(true),
 				SelectWithNameWidth(6),
@@ -234,7 +234,7 @@ func TestSelect_ArrowColumn(t *testing.T) {
 }
 
 func TestSelect_Options(t *testing.T) {
-	s := NewSelect(makeSelectOptions(),
+	s := NewSelect(makeSelectItems(),
 		SelectWithID("my-select"),
 		SelectWithBackgroundColor(style.ColorBlack),
 		SelectWithTextColor(style.ColorWhite),
@@ -258,12 +258,12 @@ func TestSelect_Options(t *testing.T) {
 }
 
 func TestSelect_SelectedBackground(t *testing.T) {
-	opts := []SelectItem{
+	items := []SelectItem{
 		{Name: "enter code manually", Value: "manual"},
 		{Name: "cancel", Value: "cancel"},
 	}
 	selectedBg := style.ColorFromInts(51, 153, 255, 255)
-	s := NewSelect(opts,
+	s := NewSelect(items,
 		SelectWithBackgroundColor(style.ColorFromInts(30, 30, 30, 255)),
 		SelectWithTextColor(style.ColorFromInts(180, 180, 180, 255)),
 		SelectWithSelectedBackgroundColor(selectedBg),
