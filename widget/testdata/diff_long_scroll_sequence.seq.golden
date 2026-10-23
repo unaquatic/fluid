@@ -1,0 +1,33 @@
+=== step: top ===
+|      diff --git a/server/handler.go b/server/handler.go              |
+|      index 1a2b3c4..5d6e7f8 100644                                   |
+|      --- a/server/handler.go                                         |
+|      +++ b/server/handler.go                                         |
+|      @@ -12,8 +12,10 @@                                              |
+| 12   import (                                                        |
+| 13       "context"                                                   |
+| 14       "encoding/json"                                             |
+| 15 +     "errors"                                                    |
+| 16       "fmt"                                                       |
+=== step: middle ===
+| 47 -     data, err := s.fetchData(ctx)                               |
+| 49 +     ctx, cancel := context.WithTimeout(ctx, 30*time.Second)     |
+| 50 +     defer cancel()                                              |
+| 51 +                                                                 |
+| 52 +     data, err := s.fetchData(ctx, r.URL.Query())                |
+| 53       if err != nil {                                             |
+| 49 -         http.Error(w, "internal error", http.                   |
+|      StatusInternalServerError)                                      |
+| 54 +         if errors.Is(err, context.DeadlineExceeded) {           |
+| 55 +             http.Error(w, "request timeout", http.              |
+=== step: bottom ===
+|      charset=utf-8")                                                 |
+| 63 +     w.Header().Set("Cache-Control", "no-cache")                 |
+| 64       json.NewEncoder(w).Encode(data)                             |
+| 65   }                                                               |
+|      @@ -102,7 +111,9 @@                                             |
+|111   func (s *Server) Shutdown(ctx context.Context) error {          |
+|112       s.mu.Lock()                                                 |
+|113       defer s.mu.Unlock()                                         |
+|105 -     return s.listener.Close()                                   |
+|114 +     s.logger.Info("shutting down server")                       |

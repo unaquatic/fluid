@@ -1,0 +1,8 @@
+=== step: unfocused_empty ===
+|{#808080}Type here{#ffffff}      |
+=== step: focused_empty ===
+|{#808080}Type here{#ffffff}      |
+=== step: focused_with_text ===
+|{#ffffff}Hi             |
+=== step: unfocused_with_text ===
+|{#ffffff}Hi             |

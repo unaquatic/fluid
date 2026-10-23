@@ -1,0 +1,8 @@
+=== step: empty ===
+|                    |
+=== step: add_text ===
+|Hello               |
+=== step: add_bold_node ===
+|{#ffffff}Hello [B]B[B]o[B]l[B]d[B]          |
+=== step: clear_and_replace ===
+|{#ffffff}R[I]e[I]p[I]l[I]a[I]c[I]e[I]d[I]            |

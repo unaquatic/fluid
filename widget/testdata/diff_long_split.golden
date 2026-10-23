@@ -1,0 +1,30 @@
+|       diff --git a/server/handler.go b/server/handler.go                                           |
+|       index 1a2b3c4..5d6e7f8 100644                                                                |
+|       --- a/server/handler.go                                                                      |
+|       +++ b/server/handler.go                                                                      |
+|       @@ -12,8 +12,10 @@                                                                           |
+|  12   import (                                  │  12   import (                                   |
+|  13   "context"                                 │  13   "context"                                  |
+|  14   "encoding/json"                           │  14   "encoding/json"                            |
+|                                                 │  15 + "errors"                                   |
+|  15   "fmt"                                     │  16   "fmt"                                      |
+|  16   "net/http"                                │  17   "net/http"                                 |
+|                                                 │  18 + "time"                                     |
+|  17   )                                         │  19   )                                          |
+|  18                                             │  20                                              |
+|  19   type Server struct {                      │  21   type Server struct {                       |
+|       @@ -45,14 +47,21 @@                                                                          |
+|  45   func (s *Server) HandleRequest(w          │  47   func (s *Server) HandleRequest(w           |
+|       http.ResponseWriter, r *http.Request) {   │       http.ResponseWriter, r *http.Request) {    |
+|  46   ctx := r.Context()                        │  48   ctx := r.Context()                         |
+|  47 - data, err := s.fetchData(ctx)             │  49 + ctx, cancel := context.WithTimeout(ctx,    |
+|                                                 │       30*time.Second)                            |
+|                                                 │  50 + defer cancel()                             |
+|                                                 │  51 +                                            |
+|                                                 │  52 + data, err := s.fetchData(ctx,              |
+|                                                 │       r.URL.Query())                             |
+|  48   if err != nil {                           │  53   if err != nil {                            |
+|  49 - http.Error(w, "internal error",           │  54 + if errors.Is(err,                          |
+|       http.StatusInternalServerError)           │       context.DeadlineExceeded) {                |
+|                                                 │  55 + http.Error(w, "request timeout",           |
+|                                                 │       http.StatusGatewayTimeout)                 |

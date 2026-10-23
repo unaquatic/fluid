@@ -1,0 +1,20 @@
+|      diff --git a/server/handler.go b/ |
+|      server/handler.go                 |
+|      index 1a2b3c4..5d6e7f8 100644     |
+|      --- a/server/handler.go           |
+|      +++ b/server/handler.go           |
+|      @@ -12,8 +12,10 @@                |
+| 12   import (                          |
+| 13       "context"                     |
+| 14       "encoding/json"               |
+| 15 +     "errors"                      |
+| 16       "fmt"                         |
+| 17       "net/http"                    |
+| 18 +     "time"                        |
+| 19   )                                 |
+| 20                                     |
+| 21   type Server struct {              |
+|      @@ -45,14 +47,21 @@               |
+| 47   func (s *Server) HandleRequest(w  |
+|      http.ResponseWriter, r *http.     |
+|      Request) {                        |
