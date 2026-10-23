@@ -151,22 +151,22 @@ func NewWithID(width, height int, id string) *Buffer {
 	return b
 }
 
-// BufferOption configures a Buffer during construction.
-type BufferOption func(*Buffer)
+// Option configures a Buffer during construction.
+type Option func(*Buffer)
 
-// WithRespectAlphaOpt configures whether DrawFrameBuffer alpha blends the new
+// WithRespectAlpha configures whether DrawFrameBuffer alpha blends the new
 // buffer when it is used as a source.
-func WithRespectAlphaOpt(v bool) BufferOption {
+func WithRespectAlpha(v bool) Option {
 	return func(b *Buffer) { b.respectAlpha = v }
 }
 
-// WithIDOpt sets the new buffer's identifier.
-func WithIDOpt(id string) BufferOption {
+// WithID sets the new buffer's identifier.
+func WithID(id string) Option {
 	return func(b *Buffer) { b.id = id }
 }
 
 // NewWithOptions allocates a buffer with configurable options.
-func NewWithOptions(width, height int, opts ...BufferOption) *Buffer {
+func NewWithOptions(width, height int, opts ...Option) *Buffer {
 	b := New(width, height)
 	for _, opt := range opts {
 		opt(b)

@@ -4,7 +4,7 @@ import "math"
 
 // flexLine contains the items and dimensions of one flex line.
 type flexLine struct {
-	items     []*LayoutNode
+	items     []*Node
 	mainSize  int // The main-axis space consumed by items and gaps.
 	crossSize int // The largest outer cross-axis size on the line.
 }
@@ -20,7 +20,7 @@ type flexItemInfo struct {
 
 // layoutFlexContainer resolves node and its descendants. parentX and parentY
 // give node's absolute border-box position.
-func (node *LayoutNode) layoutFlexContainer(availableWidth, availableHeight int, parentX, parentY int) {
+func (node *Node) layoutFlexContainer(availableWidth, availableHeight int, parentX, parentY int) {
 	// Reuse a clean subtree when its available dimensions are unchanged. If only
 	// its origin changed, shift the cached descendant positions by the same delta.
 	if !node.dirty && node.Cache.Valid &&
@@ -66,8 +66,8 @@ func (node *LayoutNode) layoutFlexContainer(availableWidth, availableHeight int,
 	contentY := parentY + padTop
 
 	// Gone children have no layout; absolute children are resolved after flex flow.
-	var flexItems []*LayoutNode
-	var absoluteItems []*LayoutNode
+	var flexItems []*Node
+	var absoluteItems []*Node
 	for _, child := range node.Children {
 		if child.Visibility == Gone {
 			child.Computed = ComputedLayout{}
@@ -123,7 +123,7 @@ func (node *LayoutNode) layoutFlexContainer(availableWidth, availableHeight int,
 	layoutAbsoluteChildren(absoluteItems, node, contentX, contentY, contentWidth, contentHeight)
 
 	// Cache the inputs needed to reuse this subtree.
-	node.Cache = LayoutCache{
+	node.Cache = Cache{
 		AvailWidth:  availableWidth,
 		AvailHeight: availableHeight,
 		ParentX:     parentX,
@@ -133,7 +133,7 @@ func (node *LayoutNode) layoutFlexContainer(availableWidth, availableHeight int,
 }
 
 // collectFlexLines groups items according to the container's wrapping mode.
-func collectFlexLines(items []*LayoutNode, container *LayoutNode, dir FlexDirection, mainAvailable, crossAvailable, mainGap int) []*flexLine {
+func collectFlexLines(items []*Node, container *Node, dir FlexDirection, mainAvailable, crossAvailable, mainGap int) []*flexLine {
 	if len(items) == 0 {
 		return nil
 	}
@@ -144,7 +144,7 @@ func collectFlexLines(items []*LayoutNode, container *LayoutNode, dir FlexDirect
 	}
 
 	var lines []*flexLine
-	var currentItems []*LayoutNode
+	var currentItems []*Node
 	var lineMainSize int
 
 	for i, item := range items {
@@ -161,7 +161,7 @@ func collectFlexLines(items []*LayoutNode, container *LayoutNode, dir FlexDirect
 		if len(currentItems) > 0 && lineMainSize+gapSize+itemMainSize > mainAvailable {
 			// Move an item that would exceed the main-axis limit to a new line.
 			lines = append(lines, &flexLine{items: currentItems, mainSize: lineMainSize})
-			currentItems = []*LayoutNode{item}
+			currentItems = []*Node{item}
 			lineMainSize = itemMainSize
 		} else {
 			currentItems = append(currentItems, item)
@@ -185,7 +185,7 @@ func collectFlexLines(items []*LayoutNode, container *LayoutNode, dir FlexDirect
 }
 
 // resolveFlexibleLengths applies flex growth or shrinkage to one line.
-func resolveFlexibleLengths(line *flexLine, container *LayoutNode, dir FlexDirection, mainAvailable, crossAvailable, mainGap int) {
+func resolveFlexibleLengths(line *flexLine, container *Node, dir FlexDirection, mainAvailable, crossAvailable, mainGap int) {
 	items := line.items
 	if len(items) == 0 {
 		return
@@ -238,7 +238,7 @@ func resolveFlexibleLengths(line *flexLine, container *LayoutNode, dir FlexDirec
 
 // distributeGrow apportions freeSpace according to positive FlexGrow factors.
 // Integer rounding remainder goes to the last eligible item.
-func distributeGrow(items []*LayoutNode, info []flexItemInfo, freeSpace int) {
+func distributeGrow(items []*Node, info []flexItemInfo, freeSpace int) {
 	totalGrow := float32(0)
 	for _, item := range items {
 		totalGrow += float32(item.FlexGrow)
@@ -309,7 +309,7 @@ func distributeGrow(items []*LayoutNode, info []flexItemInfo, freeSpace int) {
 }
 
 // distributeShrink apportions overflow by each item's FlexShrink-weighted basis.
-func distributeShrink(items []*LayoutNode, info []flexItemInfo, overflow int) {
+func distributeShrink(items []*Node, info []flexItemInfo, overflow int) {
 	// A larger basis or shrink factor receives a larger share of the deficit.
 	totalWeightedShrink := float32(0)
 	for i, item := range items {
@@ -344,7 +344,7 @@ func distributeShrink(items []*LayoutNode, info []flexItemInfo, overflow int) {
 
 // resolveLineCrossSize resolves the line's outer cross size and each item's
 // inner cross size.
-func resolveLineCrossSize(line *flexLine, container *LayoutNode, dir FlexDirection, crossAvailable int, isSingleLine bool) {
+func resolveLineCrossSize(line *flexLine, container *Node, dir FlexDirection, crossAvailable int, isSingleLine bool) {
 	maxCross := 0
 
 	for _, item := range line.items {
@@ -389,7 +389,7 @@ func resolveLineCrossSize(line *flexLine, container *LayoutNode, dir FlexDirecti
 }
 
 // positionMainAxis places each line's items according to JustifyContent.
-func positionMainAxis(lines []*flexLine, container *LayoutNode, dir FlexDirection, mainAvailable, mainGap int) {
+func positionMainAxis(lines []*flexLine, container *Node, dir FlexDirection, mainAvailable, mainGap int) {
 	for _, line := range lines {
 		items := line.items
 		if len(items) == 0 {
@@ -446,7 +446,7 @@ func positionMainAxis(lines []*flexLine, container *LayoutNode, dir FlexDirectio
 }
 
 // positionCrossAxis places items within each line and advances between lines.
-func positionCrossAxis(lines []*flexLine, container *LayoutNode, dir FlexDirection, crossAvailable, crossGap int) {
+func positionCrossAxis(lines []*flexLine, container *Node, dir FlexDirection, crossAvailable, crossGap int) {
 	crossOffset := 0
 
 	for _, line := range lines {
@@ -478,7 +478,7 @@ func positionCrossAxis(lines []*flexLine, container *LayoutNode, dir FlexDirecti
 }
 
 // layoutAbsoluteChildren resolves items against the container's content box.
-func layoutAbsoluteChildren(items []*LayoutNode, container *LayoutNode, contentX, contentY, contentWidth, contentHeight int) {
+func layoutAbsoluteChildren(items []*Node, container *Node, contentX, contentY, contentWidth, contentHeight int) {
 	for _, item := range items {
 		itemWidth := resolveNodeWidth(item, contentWidth)
 		itemHeight := resolveNodeHeight(item, contentHeight)
@@ -545,7 +545,7 @@ func crossDimension(width, height int, dir FlexDirection) int {
 
 // resolveGap returns the main-axis gap. A positive axis-specific gap overrides
 // the general Gap value.
-func resolveGap(node *LayoutNode, dir FlexDirection) int {
+func resolveGap(node *Node, dir FlexDirection) int {
 	if dir.IsRow() {
 		if node.ColumnGap > 0 {
 			return node.ColumnGap
@@ -560,7 +560,7 @@ func resolveGap(node *LayoutNode, dir FlexDirection) int {
 
 // resolveCrossGap returns the cross-axis gap. A positive axis-specific gap
 // overrides the general Gap value.
-func resolveCrossGap(node *LayoutNode, dir FlexDirection) int {
+func resolveCrossGap(node *Node, dir FlexDirection) int {
 	if dir.IsRow() {
 		if node.RowGap > 0 {
 			return node.RowGap
@@ -575,7 +575,7 @@ func resolveCrossGap(node *LayoutNode, dir FlexDirection) int {
 
 // resolveFlexBasis returns item's initial main-axis size before flexible
 // growth or shrinkage.
-func resolveFlexBasis(item *LayoutNode, container *LayoutNode, dir FlexDirection, mainAvailable, crossAvailable int) int {
+func resolveFlexBasis(item *Node, container *Node, dir FlexDirection, mainAvailable, crossAvailable int) int {
 	if !item.FlexBasis.IsAuto() && !item.FlexBasis.IsUndefined() {
 		if resolved, ok := item.FlexBasis.Resolve(mainAvailable); ok {
 			return resolved
@@ -658,7 +658,7 @@ func resolveFlexBasis(item *LayoutNode, container *LayoutNode, dir FlexDirection
 //
 // When node and its parent use the same axis, child sizes and gaps are summed.
 // When their axes differ, the largest child size determines the result.
-func intrinsicMainSize(node *LayoutNode, parentDir FlexDirection, mainAvailable, crossAvailable int) int {
+func intrinsicMainSize(node *Node, parentDir FlexDirection, mainAvailable, crossAvailable int) int {
 	childDir := node.FlexDirection
 	sameAxis := childDir.IsRow() == parentDir.IsRow()
 
@@ -749,8 +749,8 @@ func intrinsicMainSize(node *LayoutNode, parentDir FlexDirection, mainAvailable,
 // preResolveMainSizes returns each in-flow child's tentative main-axis size
 // without modifying Computed. intrinsicMainSize uses these values as cross-axis
 // constraints when a container and its parent have perpendicular axes.
-func preResolveMainSizes(node *LayoutNode, dir FlexDirection, mainAvailable, crossAvailable int) []int {
-	var items []*LayoutNode
+func preResolveMainSizes(node *Node, dir FlexDirection, mainAvailable, crossAvailable int) []int {
+	var items []*Node
 	for _, child := range node.Children {
 		if child.Position != PositionAbsolute && child.Visibility != Gone {
 			items = append(items, child)
@@ -802,12 +802,12 @@ func preResolveMainSizes(node *LayoutNode, dir FlexDirection, mainAvailable, cro
 }
 
 // resolveMainMargins returns the sum of item's main-axis margins.
-func resolveMainMargins(item *LayoutNode, dir FlexDirection, mainAvailable int) int {
+func resolveMainMargins(item *Node, dir FlexDirection, mainAvailable int) int {
 	return resolveMainMarginBefore(item, dir, mainAvailable) + resolveMainMarginAfter(item, dir, mainAvailable)
 }
 
 // resolveMainMarginBefore returns item's leading main-axis margin.
-func resolveMainMarginBefore(item *LayoutNode, dir FlexDirection, mainAvailable int) int {
+func resolveMainMarginBefore(item *Node, dir FlexDirection, mainAvailable int) int {
 	var s Scalar
 	if dir.IsRow() {
 		s = item.MarginLeft
@@ -818,7 +818,7 @@ func resolveMainMarginBefore(item *LayoutNode, dir FlexDirection, mainAvailable 
 }
 
 // resolveMainMarginAfter returns item's trailing main-axis margin.
-func resolveMainMarginAfter(item *LayoutNode, dir FlexDirection, mainAvailable int) int {
+func resolveMainMarginAfter(item *Node, dir FlexDirection, mainAvailable int) int {
 	var s Scalar
 	if dir.IsRow() {
 		s = item.MarginRight
@@ -830,19 +830,19 @@ func resolveMainMarginAfter(item *LayoutNode, dir FlexDirection, mainAvailable i
 
 // resolveChildCrossSize returns item's effective cross-axis constraint for the
 // intrinsic-size cache.
-func resolveChildCrossSize(item *LayoutNode, parentDir FlexDirection, parentCross int) int {
+func resolveChildCrossSize(item *Node, parentDir FlexDirection, parentCross int) int {
 	if explicit, ok := resolveItemExplicitCrossSize(item, parentDir, parentCross); ok {
 		return explicit
 	}
 	return parentCross - resolveCrossMargins(item, parentDir, parentCross)
 }
 
-func resolveCrossMargins(item *LayoutNode, dir FlexDirection, crossAvailable int) int {
+func resolveCrossMargins(item *Node, dir FlexDirection, crossAvailable int) int {
 	return resolveCrossMarginBefore(item, dir, crossAvailable) + resolveCrossMarginAfter(item, dir, crossAvailable)
 }
 
 // resolveCrossMarginBefore returns item's leading cross-axis margin.
-func resolveCrossMarginBefore(item *LayoutNode, dir FlexDirection, crossAvailable int) int {
+func resolveCrossMarginBefore(item *Node, dir FlexDirection, crossAvailable int) int {
 	var s Scalar
 	if dir.IsRow() {
 		s = item.MarginTop
@@ -853,7 +853,7 @@ func resolveCrossMarginBefore(item *LayoutNode, dir FlexDirection, crossAvailabl
 }
 
 // resolveCrossMarginAfter returns item's trailing cross-axis margin.
-func resolveCrossMarginAfter(item *LayoutNode, dir FlexDirection, crossAvailable int) int {
+func resolveCrossMarginAfter(item *Node, dir FlexDirection, crossAvailable int) int {
 	var s Scalar
 	if dir.IsRow() {
 		s = item.MarginBottom
@@ -864,7 +864,7 @@ func resolveCrossMarginAfter(item *LayoutNode, dir FlexDirection, crossAvailable
 }
 
 // resolveMainMin returns item's main-axis minimum, or zero when unspecified.
-func resolveMainMin(item *LayoutNode, dir FlexDirection, mainAvailable int) int {
+func resolveMainMin(item *Node, dir FlexDirection, mainAvailable int) int {
 	var s Scalar
 	if dir.IsRow() {
 		s = item.MinWidth
@@ -875,7 +875,7 @@ func resolveMainMin(item *LayoutNode, dir FlexDirection, mainAvailable int) int 
 }
 
 // resolveMainMax returns item's main-axis maximum, or maxInt when unspecified.
-func resolveMainMax(item *LayoutNode, dir FlexDirection, mainAvailable int) int {
+func resolveMainMax(item *Node, dir FlexDirection, mainAvailable int) int {
 	var s Scalar
 	if dir.IsRow() {
 		s = item.MaxWidth
@@ -890,7 +890,7 @@ func resolveMainMax(item *LayoutNode, dir FlexDirection, mainAvailable int) int 
 }
 
 // resolveItemCrossSize returns item's outer cross-axis size.
-func resolveItemCrossSize(item *LayoutNode, container *LayoutNode, dir FlexDirection, crossAvailable int) int {
+func resolveItemCrossSize(item *Node, container *Node, dir FlexDirection, crossAvailable int) int {
 	cross, hasExplicit := resolveItemExplicitCrossSize(item, dir, crossAvailable)
 	if hasExplicit {
 		return cross + resolveCrossMargins(item, dir, crossAvailable)
@@ -915,7 +915,7 @@ func resolveItemCrossSize(item *LayoutNode, container *LayoutNode, dir FlexDirec
 
 // resolveItemExplicitCrossSize returns a constrained explicit cross-axis size.
 // It reports false for automatic or undefined sizes.
-func resolveItemExplicitCrossSize(item *LayoutNode, dir FlexDirection, crossAvailable int) (int, bool) {
+func resolveItemExplicitCrossSize(item *Node, dir FlexDirection, crossAvailable int) (int, bool) {
 	var s Scalar
 	if dir.IsRow() {
 		s = item.Height
@@ -948,14 +948,14 @@ func resolveItemExplicitCrossSize(item *LayoutNode, dir FlexDirection, crossAvai
 }
 
 // resolveAlign returns item's alignment override or the container default.
-func resolveAlign(item *LayoutNode, container *LayoutNode) Align {
+func resolveAlign(item *Node, container *Node) Align {
 	if item.AlignSelf != AlignAuto {
 		return item.AlignSelf
 	}
 	return container.AlignItems
 }
 
-func setMainComputedSize(item *LayoutNode, dir FlexDirection, size int) {
+func setMainComputedSize(item *Node, dir FlexDirection, size int) {
 	if dir.IsRow() {
 		item.Computed.Width = size
 	} else {
@@ -963,7 +963,7 @@ func setMainComputedSize(item *LayoutNode, dir FlexDirection, size int) {
 	}
 }
 
-func setCrossComputedSize(item *LayoutNode, dir FlexDirection, size int) {
+func setCrossComputedSize(item *Node, dir FlexDirection, size int) {
 	if dir.IsRow() {
 		item.Computed.Height = size
 	} else {
@@ -971,21 +971,21 @@ func setCrossComputedSize(item *LayoutNode, dir FlexDirection, size int) {
 	}
 }
 
-func getMainComputedSize(item *LayoutNode, dir FlexDirection) int {
+func getMainComputedSize(item *Node, dir FlexDirection) int {
 	if dir.IsRow() {
 		return item.Computed.Width
 	}
 	return item.Computed.Height
 }
 
-func getCrossComputedSize(item *LayoutNode, dir FlexDirection) int {
+func getCrossComputedSize(item *Node, dir FlexDirection) int {
 	if dir.IsRow() {
 		return item.Computed.Height
 	}
 	return item.Computed.Width
 }
 
-func setMainComputedPos(item *LayoutNode, dir FlexDirection, pos int) {
+func setMainComputedPos(item *Node, dir FlexDirection, pos int) {
 	if dir.IsRow() {
 		item.Computed.X = pos
 	} else {
@@ -993,7 +993,7 @@ func setMainComputedPos(item *LayoutNode, dir FlexDirection, pos int) {
 	}
 }
 
-func setCrossComputedPos(item *LayoutNode, dir FlexDirection, pos int) {
+func setCrossComputedPos(item *Node, dir FlexDirection, pos int) {
 	if dir.IsRow() {
 		item.Computed.Y = pos
 	} else {
@@ -1015,16 +1015,16 @@ func resolveNodeDimension(size, minSize, maxSize Scalar, available int) int {
 	return clampSize(v, minV, maxV)
 }
 
-func resolveNodeWidth(node *LayoutNode, availableWidth int) int {
+func resolveNodeWidth(node *Node, availableWidth int) int {
 	return resolveNodeDimension(node.Width, node.MinWidth, node.MaxWidth, availableWidth)
 }
 
-func resolveNodeHeight(node *LayoutNode, availableHeight int) int {
+func resolveNodeHeight(node *Node, availableHeight int) int {
 	return resolveNodeDimension(node.Height, node.MinHeight, node.MaxHeight, availableHeight)
 }
 
 // reverseNodes reverses nodes in place.
-func reverseNodes(nodes []*LayoutNode) {
+func reverseNodes(nodes []*Node) {
 	for i, j := 0, len(nodes)-1; i < j; i, j = i+1, j-1 {
 		nodes[i], nodes[j] = nodes[j], nodes[i]
 	}
@@ -1033,7 +1033,7 @@ func reverseNodes(nodes []*LayoutNode) {
 // measureModes returns physical width and height modes for intrinsic
 // measurement. Explicit dimensions are exact, automatic dimensions are
 // bounded, and undefined dimensions are unconstrained.
-func measureModes(item *LayoutNode, dir FlexDirection, mainAvailable, crossAvailable int) (widthMode, heightMode MeasureMode) {
+func measureModes(item *Node, dir FlexDirection, mainAvailable, crossAvailable int) (widthMode, heightMode MeasureMode) {
 	widthMode = scalarToMode(item.Width)
 	heightMode = scalarToMode(item.Height)
 	if dir.IsRow() {

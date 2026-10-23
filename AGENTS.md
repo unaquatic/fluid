@@ -51,7 +51,7 @@ go run ./cmd/goldenview -o /tmp/goldens.html .   # draw every golden file in col
 fluid is a retained-mode terminal UI framework with a flexbox layout engine:
 
 - **Scene graph**: Widgets implement `render.Renderable`. The tree is rooted at the renderer's root renderable, reached via `Renderer.Root()`.
-- **Layout**: CSS-like flexbox (`layout.LayoutNode`) with `FlexGrow`, `FlexShrink`, `AlignItems`, `JustifyContent`, etc. Leaf widgets provide a `MeasureFunc` for intrinsic sizing.
+- **Layout**: CSS-like flexbox (`layout.Node`) with `FlexGrow`, `FlexShrink`, `AlignItems`, `JustifyContent`, etc. Leaf widgets provide a `MeasureFunc` for intrinsic sizing.
 - **Rendering**: Double-buffered cell grid (`buffer.Buffer`). Widgets draw into the buffer via `RenderSelf`. The renderer diffs and flushes to the terminal.
 - **Inline mode**: Renders into the terminal's normal scrollback (no alternate screen). Uses `computeContentHeight()` to emit only the rows needed. Trailing clear cells are trimmed per-row.
 - **Fullscreen mode**: Uses the alternate screen buffer with a fixed viewport.

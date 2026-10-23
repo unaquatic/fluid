@@ -199,7 +199,7 @@ type BaseRenderable struct {
 	parent   Renderable
 	children []Renderable
 
-	layoutNode *layout.LayoutNode
+	layoutNode *layout.Node
 
 	// Resolved geometry copied from layout traversal.
 	x, y, width, height   int
@@ -535,7 +535,7 @@ func (b *BaseRenderable) ClearChildDirty() { b.childDirty = false }
 func (b *BaseRenderable) IsDestroyed() bool { return b.destroyed }
 
 // LayoutNode returns b's flexbox node.
-func (b *BaseRenderable) LayoutNode() *layout.LayoutNode { return b.layoutNode }
+func (b *BaseRenderable) LayoutNode() *layout.Node { return b.layoutNode }
 
 // X returns the resolved absolute x-coordinate.
 func (b *BaseRenderable) X() int { return b.x }

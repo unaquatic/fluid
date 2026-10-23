@@ -9,8 +9,8 @@ import (
 	"github.com/unaquatic/fluid/symbol"
 )
 
-// TabSelectOption contains the label and caller-defined value for one tab.
-type TabSelectOption struct {
+// TabSelectItem contains the label and caller-defined value for one tab.
+type TabSelectItem struct {
 	Name  string
 	Value any
 }
@@ -19,7 +19,7 @@ type TabSelectOption struct {
 type TabSelect struct {
 	*render.BaseRenderable
 
-	options       []TabSelectOption
+	options       []TabSelectItem
 	selectedIndex int
 	tabWidth      int  // Fixed tab width; zero distributes available width.
 	showUnderline bool // Reserves a second row for the tab underline.
@@ -37,11 +37,11 @@ type TabSelect struct {
 	OnItemSelected func(index int)
 }
 
-// TabSelectOpt configures a TabSelect during construction.
-type TabSelectOpt func(*TabSelect)
+// TabSelectOption configures a TabSelect during construction.
+type TabSelectOption func(*TabSelect)
 
 // NewTabSelect returns a focusable horizontal selector containing options.
-func NewTabSelect(options []TabSelectOption, opts ...TabSelectOpt) *TabSelect {
+func NewTabSelect(options []TabSelectItem, opts ...TabSelectOption) *TabSelect {
 	ts := &TabSelect{
 		BaseRenderable:    render.NewBaseRenderable(render.WithFocusable(true)),
 		options:           options,
@@ -89,7 +89,7 @@ func (ts *TabSelect) SetSelectedIndex(idx int) {
 }
 
 // SetOptions replaces the tab options.
-func (ts *TabSelect) SetOptions(options []TabSelectOption) {
+func (ts *TabSelect) SetOptions(options []TabSelectItem) {
 	ts.options = options
 	if ts.selectedIndex >= len(options) {
 		ts.selectedIndex = max(len(options)-1, 0)
@@ -263,61 +263,61 @@ func (ts *TabSelect) calculateTabWidths(totalWidth int) []int {
 // TabSelect options.
 
 // TabSelectWithTabWidth sets a fixed width for every tab; zero uses even distribution.
-func TabSelectWithTabWidth(w int) TabSelectOpt {
+func TabSelectWithTabWidth(w int) TabSelectOption {
 	return func(ts *TabSelect) { ts.tabWidth = w }
 }
 
 // TabSelectWithShowUnderline controls whether the selector renders an underline row.
-func TabSelectWithShowUnderline(v bool) TabSelectOpt {
+func TabSelectWithShowUnderline(v bool) TabSelectOption {
 	return func(ts *TabSelect) { ts.showUnderline = v }
 }
 
 // TabSelectWithTextColor sets the default text color.
-func TabSelectWithTextColor(c style.Color) TabSelectOpt {
+func TabSelectWithTextColor(c style.Color) TabSelectOption {
 	return func(ts *TabSelect) { ts.textColor = c }
 }
 
 // TabSelectWithSelectedTextColor sets the selected text color.
-func TabSelectWithSelectedTextColor(c style.Color) TabSelectOpt {
+func TabSelectWithSelectedTextColor(c style.Color) TabSelectOption {
 	return func(ts *TabSelect) { ts.selectedTextColor = c }
 }
 
 // TabSelectWithSelectedBgColor sets the selected background color.
-func TabSelectWithSelectedBgColor(c style.Color) TabSelectOpt {
+func TabSelectWithSelectedBgColor(c style.Color) TabSelectOption {
 	return func(ts *TabSelect) { ts.selectedBgColor = c }
 }
 
 // TabSelectWithUnderlineColor sets the underline color.
-func TabSelectWithUnderlineColor(c style.Color) TabSelectOpt {
+func TabSelectWithUnderlineColor(c style.Color) TabSelectOption {
 	return func(ts *TabSelect) { ts.underlineColor = c }
 }
 
 // TabSelectWithBackgroundColor sets the background color.
-func TabSelectWithBackgroundColor(c style.Color) TabSelectOpt {
+func TabSelectWithBackgroundColor(c style.Color) TabSelectOption {
 	return func(ts *TabSelect) { ts.backgroundColor = c }
 }
 
 // TabSelectWithOnSelectionChanged sets the callback invoked after selection changes.
-func TabSelectWithOnSelectionChanged(fn func(int)) TabSelectOpt {
+func TabSelectWithOnSelectionChanged(fn func(int)) TabSelectOption {
 	return func(ts *TabSelect) { ts.OnSelectionChanged = fn }
 }
 
 // TabSelectWithOnItemSelected sets the callback invoked when the user activates a tab.
-func TabSelectWithOnItemSelected(fn func(int)) TabSelectOpt {
+func TabSelectWithOnItemSelected(fn func(int)) TabSelectOption {
 	return func(ts *TabSelect) { ts.OnItemSelected = fn }
 }
 
 // TabSelectWithID sets the widget ID.
-func TabSelectWithID(id string) TabSelectOpt {
+func TabSelectWithID(id string) TabSelectOption {
 	return func(ts *TabSelect) { ts.SetID(id) }
 }
 
 // TabSelectWithWidth sets the widget width.
-func TabSelectWithWidth(s layout.Scalar) TabSelectOpt {
+func TabSelectWithWidth(s layout.Scalar) TabSelectOption {
 	return func(ts *TabSelect) { ts.LayoutNode().Width = s }
 }
 
 // TabSelectWithHeight sets the widget height.
-func TabSelectWithHeight(s layout.Scalar) TabSelectOpt {
+func TabSelectWithHeight(s layout.Scalar) TabSelectOption {
 	return func(ts *TabSelect) { ts.LayoutNode().Height = s }
 }

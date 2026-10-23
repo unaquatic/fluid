@@ -690,7 +690,7 @@ func TestGolden_ListScrolled(t *testing.T) {
 // Select golden tests.
 
 func TestGolden_SelectBasic(t *testing.T) {
-	options := []widget.SelectOption{
+	options := []widget.SelectItem{
 		{Name: "Option A"},
 		{Name: "Option B"},
 		{Name: "Option C"},
@@ -701,7 +701,7 @@ func TestGolden_SelectBasic(t *testing.T) {
 }
 
 func TestGolden_SelectWithDescription(t *testing.T) {
-	options := []widget.SelectOption{
+	options := []widget.SelectItem{
 		{Name: "Save", Description: "Save the file"},
 		{Name: "Quit", Description: "Exit the app"},
 	}
@@ -713,7 +713,7 @@ func TestGolden_SelectWithDescription(t *testing.T) {
 // TabSelect golden tests.
 
 func TestGolden_TabSelectBasic(t *testing.T) {
-	options := []widget.TabSelectOption{
+	options := []widget.TabSelectItem{
 		{Name: "Tab 1"},
 		{Name: "Tab 2"},
 		{Name: "Tab 3"},

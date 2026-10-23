@@ -305,7 +305,7 @@ func (sb *ScrollBox) OnPostLayout(deltaTime float64) {
 
 // contentBoxSize returns the size of n's content box: its computed size less
 // its padding, which resolves against that size.
-func contentBoxSize(n *layout.LayoutNode) (width, height int) {
+func contentBoxSize(n *layout.Node) (width, height int) {
 	w, h := n.Computed.Width, n.Computed.Height
 	top, _ := n.PaddingTop.Resolve(h)
 	right, _ := n.PaddingRight.Resolve(w)

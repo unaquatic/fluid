@@ -79,7 +79,7 @@ type Renderable interface {
 	// Layout.
 
 	// LayoutNode returns the flexbox node configured by the renderable.
-	LayoutNode() *layout.LayoutNode
+	LayoutNode() *layout.Node
 	// X returns the resolved absolute x-coordinate.
 	X() int
 	// Y returns the resolved absolute y-coordinate.

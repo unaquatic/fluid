@@ -193,9 +193,9 @@ type ComputedLayout struct {
 	Height int // The resolved height in cells.
 }
 
-// LayoutCache contains the inputs from a node's most recent layout. A clean
+// Cache contains the inputs from a node's most recent layout. A clean
 // node can reuse its subtree layout when the available dimensions match.
-type LayoutCache struct {
+type Cache struct {
 	AvailWidth  int // The available width used for the cached layout.
 	AvailHeight int // The available height used for the cached layout.
 	ParentX     int // The cached absolute x-coordinate of the node.

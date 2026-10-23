@@ -1289,8 +1289,8 @@ func TestDiff_NoLineNumbers(t *testing.T) {
 
 // TabSelect behavior.
 
-func makeTabOptions() []TabSelectOption {
-	return []TabSelectOption{
+func makeTabOptions() []TabSelectItem {
+	return []TabSelectItem{
 		{Name: "Tab 1", Value: 1},
 		{Name: "Tab 2", Value: 2},
 		{Name: "Tab 3", Value: 3},

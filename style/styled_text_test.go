@@ -169,7 +169,7 @@ func TestLinkFunction(t *testing.T) {
 }
 
 func TestStyledChunk(t *testing.T) {
-	s := StyleFrom(ColorRed, ColorBlue, AttrBold)
+	s := From(ColorRed, ColorBlue, AttrBold)
 	chunk := Styled("styled", s)
 	if chunk.Text != "styled" {
 		t.Errorf("text should be 'styled', got %q", chunk.Text)

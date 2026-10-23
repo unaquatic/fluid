@@ -8,7 +8,7 @@ import (
 // Renderable provides the layout operations required by the setup helpers.
 // Widgets embedding render.BaseRenderable satisfy this interface.
 type Renderable interface {
-	LayoutNode() *layout.LayoutNode
+	LayoutNode() *layout.Node
 	UpdateFromLayout()
 }
 

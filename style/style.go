@@ -12,8 +12,8 @@ type Style struct {
 	Attributes uint32
 }
 
-// NewStyle returns white text on a transparent background with no attributes.
-func NewStyle() Style {
+// New returns white text on a transparent background with no attributes.
+func New() Style {
 	return Style{
 		Fg:         ColorWhite,
 		Bg:         ColorTransparent,
@@ -21,8 +21,8 @@ func NewStyle() Style {
 	}
 }
 
-// StyleFrom returns a style with the supplied colors and attributes.
-func StyleFrom(fg, bg Color, attrs uint32) Style {
+// From returns a style with the supplied colors and attributes.
+func From(fg, bg Color, attrs uint32) Style {
 	return Style{
 		Fg:         fg,
 		Bg:         bg,

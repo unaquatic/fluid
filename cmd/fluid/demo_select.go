@@ -31,7 +31,7 @@ func runSelectDemo(ctx context.Context, o DemoOptions) error {
 
 	root := r.Root()
 
-	tabs := widget.NewTabSelect([]widget.TabSelectOption{
+	tabs := widget.NewTabSelect([]widget.TabSelectItem{
 		{Name: "General"},
 		{Name: "Appearance"},
 		{Name: "Keybindings"},
@@ -39,7 +39,7 @@ func runSelectDemo(ctx context.Context, o DemoOptions) error {
 		{Name: "About"},
 	})
 
-	selectOptions := []widget.SelectOption{
+	selectOptions := []widget.SelectItem{
 		{Name: "Language", Description: "Set the display language"},
 		{Name: "Font Size", Description: "Adjust editor font size"},
 		{Name: "Tab Size", Description: "Number of spaces per tab"},
@@ -118,11 +118,11 @@ func runSelectDemo(ctx context.Context, o DemoOptions) error {
 	)
 	root.Add(container)
 
-	sel.OnSelectionChanged = func(idx int, opt widget.SelectOption) {
+	sel.OnSelectionChanged = func(idx int, opt widget.SelectItem) {
 		detailName.SetContent(opt.Name)
 		detailDesc.SetContent(opt.Description)
 	}
-	sel.OnItemSelected = func(idx int, opt widget.SelectOption) {
+	sel.OnItemSelected = func(idx int, opt widget.SelectItem) {
 		detailName.SetContent(fmt.Sprintf("[Selected] %s", opt.Name))
 	}
 	tabs.OnSelectionChanged = func(idx int) {

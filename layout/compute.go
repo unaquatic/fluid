@@ -11,7 +11,7 @@ import "math"
 // clean.
 //
 // Callers must perform tree mutations and layout on the same goroutine.
-func (n *LayoutNode) ComputeLayout(availableWidth, availableHeight int) {
+func (n *Node) ComputeLayout(availableWidth, availableHeight int) {
 	for n.dirty {
 		n.layoutFlexContainer(availableWidth, availableHeight, 0, 0)
 	}
@@ -27,7 +27,7 @@ func safeResolve(s Scalar, parentDim int) int {
 }
 
 // resolveMargins resolves node's margins against the parent dimensions.
-func resolveMargins(node *LayoutNode, parentW, parentH int) (top, right, bottom, left int) {
+func resolveMargins(node *Node, parentW, parentH int) (top, right, bottom, left int) {
 	top = safeResolve(node.MarginTop, parentH)
 	right = safeResolve(node.MarginRight, parentW)
 	bottom = safeResolve(node.MarginBottom, parentH)
@@ -36,7 +36,7 @@ func resolveMargins(node *LayoutNode, parentW, parentH int) (top, right, bottom,
 }
 
 // resolvePaddings resolves node's paddings against the parent dimensions.
-func resolvePaddings(node *LayoutNode, parentW, parentH int) (top, right, bottom, left int) {
+func resolvePaddings(node *Node, parentW, parentH int) (top, right, bottom, left int) {
 	top = safeResolve(node.PaddingTop, parentH)
 	right = safeResolve(node.PaddingRight, parentW)
 	bottom = safeResolve(node.PaddingBottom, parentH)

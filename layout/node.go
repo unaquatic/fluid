@@ -28,8 +28,8 @@ type MeasureFunc func(
 	height int, heightMode MeasureMode,
 ) MeasureResult
 
-// LayoutNode is one node in a flex layout tree.
-type LayoutNode struct {
+// Node is one node in a flex layout tree.
+type Node struct {
 	// Container properties.
 	FlexDirection  FlexDirection  // The main axis and item order. The default is DirectionRow.
 	FlexWrap       FlexWrap       // The line-wrapping mode. The default is WrapNone.
@@ -80,17 +80,17 @@ type LayoutNode struct {
 	Computed ComputedLayout
 
 	// Tree links.
-	Parent   *LayoutNode
-	Children []*LayoutNode
+	Parent   *Node
+	Children []*Node
 
 	// Layout state.
 	dirty bool
-	Cache LayoutCache // The cached inputs used to skip an unchanged subtree.
+	Cache Cache // The cached inputs used to skip an unchanged subtree.
 }
 
 // NewNode returns a dirty layout node with flexbox defaults.
-func NewNode() *LayoutNode {
-	return &LayoutNode{
+func NewNode() *Node {
+	return &Node{
 		FlexDirection:  DirectionRow,
 		FlexWrap:       WrapNone,
 		JustifyContent: JustifyStart,
@@ -129,7 +129,7 @@ func NewNode() *LayoutNode {
 }
 
 // AddChild appends child to n, removing it from any previous parent first.
-func (n *LayoutNode) AddChild(child *LayoutNode) {
+func (n *Node) AddChild(child *Node) {
 	if child.Parent != nil {
 		child.Parent.RemoveChild(child)
 	}
@@ -140,7 +140,7 @@ func (n *LayoutNode) AddChild(child *LayoutNode) {
 
 // AddChildAt inserts child at index after removing it from any previous parent.
 // It appends child when index is outside the existing child range.
-func (n *LayoutNode) AddChildAt(child *LayoutNode, index int) {
+func (n *Node) AddChildAt(child *Node, index int) {
 	if child.Parent != nil {
 		child.Parent.RemoveChild(child)
 	}
@@ -158,7 +158,7 @@ func (n *LayoutNode) AddChildAt(child *LayoutNode, index int) {
 
 // RemoveChild removes child from n and clears its parent link. It does nothing
 // when child is not a direct child of n.
-func (n *LayoutNode) RemoveChild(child *LayoutNode) {
+func (n *Node) RemoveChild(child *Node) {
 	for i, c := range n.Children {
 		if c == child {
 			n.Children = append(n.Children[:i], n.Children[i+1:]...)
@@ -170,12 +170,12 @@ func (n *LayoutNode) RemoveChild(child *LayoutNode) {
 }
 
 // ChildCount returns the number of direct children.
-func (n *LayoutNode) ChildCount() int {
+func (n *Node) ChildCount() int {
 	return len(n.Children)
 }
 
 // MarkDirty marks n and every ancestor for layout recomputation.
-func (n *LayoutNode) MarkDirty() {
+func (n *Node) MarkDirty() {
 	// Walk the full chain because a skipped Gone node can outlive a clean ancestor.
 	for node := n; node != nil; node = node.Parent {
 		node.dirty = true
@@ -183,14 +183,14 @@ func (n *LayoutNode) MarkDirty() {
 }
 
 // IsDirty reports whether n requires layout recomputation.
-func (n *LayoutNode) IsDirty() bool {
+func (n *Node) IsDirty() bool {
 	return n.dirty
 }
 
 // ShiftDescendantPositions moves every descendant's absolute position and
 // cached parent position by (dx, dy). It preserves internal layout when a
 // clean subtree moves as a unit.
-func (n *LayoutNode) ShiftDescendantPositions(dx, dy int) {
+func (n *Node) ShiftDescendantPositions(dx, dy int) {
 	for _, child := range n.Children {
 		child.Computed.X += dx
 		child.Computed.Y += dy
@@ -201,7 +201,7 @@ func (n *LayoutNode) ShiftDescendantPositions(dx, dy int) {
 }
 
 // SetMargin sets all four margins to all.
-func (n *LayoutNode) SetMargin(all Scalar) {
+func (n *Node) SetMargin(all Scalar) {
 	n.MarginTop = all
 	n.MarginRight = all
 	n.MarginBottom = all
@@ -210,7 +210,7 @@ func (n *LayoutNode) SetMargin(all Scalar) {
 }
 
 // SetMarginXY sets both horizontal margins to x and both vertical margins to y.
-func (n *LayoutNode) SetMarginXY(x, y Scalar) {
+func (n *Node) SetMarginXY(x, y Scalar) {
 	n.MarginLeft = x
 	n.MarginRight = x
 	n.MarginTop = y
@@ -219,7 +219,7 @@ func (n *LayoutNode) SetMarginXY(x, y Scalar) {
 }
 
 // SetPadding sets padding on all four sides to all.
-func (n *LayoutNode) SetPadding(all Scalar) {
+func (n *Node) SetPadding(all Scalar) {
 	n.PaddingTop = all
 	n.PaddingRight = all
 	n.PaddingBottom = all
@@ -228,7 +228,7 @@ func (n *LayoutNode) SetPadding(all Scalar) {
 }
 
 // SetPaddingXY sets both horizontal paddings to x and both vertical paddings to y.
-func (n *LayoutNode) SetPaddingXY(x, y Scalar) {
+func (n *Node) SetPaddingXY(x, y Scalar) {
 	n.PaddingLeft = x
 	n.PaddingRight = x
 	n.PaddingTop = y
@@ -237,7 +237,7 @@ func (n *LayoutNode) SetPaddingXY(x, y Scalar) {
 }
 
 // SetSize sets the preferred width and height.
-func (n *LayoutNode) SetSize(w, h Scalar) {
+func (n *Node) SetSize(w, h Scalar) {
 	n.Width = w
 	n.Height = h
 	n.MarkDirty()

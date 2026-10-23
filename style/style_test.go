@@ -6,7 +6,7 @@ import (
 )
 
 func TestNewStyle(t *testing.T) {
-	s := NewStyle()
+	s := New()
 	if !s.Fg.Equals(ColorWhite) {
 		t.Errorf("default fg should be White, got %s", s.Fg)
 	}
@@ -19,7 +19,7 @@ func TestNewStyle(t *testing.T) {
 }
 
 func TestStyleFrom(t *testing.T) {
-	s := StyleFrom(ColorRed, ColorBlue, AttrBold|AttrItalic)
+	s := From(ColorRed, ColorBlue, AttrBold|AttrItalic)
 	if !s.Fg.Equals(ColorRed) {
 		t.Errorf("fg should be Red, got %s", s.Fg)
 	}
@@ -32,49 +32,49 @@ func TestStyleFrom(t *testing.T) {
 }
 
 func TestStyleBold(t *testing.T) {
-	s := NewStyle().Bold()
+	s := New().Bold()
 	if !HasAttribute(s.Attributes, AttrBold) {
 		t.Error("should have Bold")
 	}
 }
 
 func TestStyleItalic(t *testing.T) {
-	s := NewStyle().Italic()
+	s := New().Italic()
 	if !HasAttribute(s.Attributes, AttrItalic) {
 		t.Error("should have Italic")
 	}
 }
 
 func TestStyleUnderline(t *testing.T) {
-	s := NewStyle().Underline()
+	s := New().Underline()
 	if !HasAttribute(s.Attributes, AttrUnderline) {
 		t.Error("should have Underline")
 	}
 }
 
 func TestStyleDim(t *testing.T) {
-	s := NewStyle().Dim()
+	s := New().Dim()
 	if !HasAttribute(s.Attributes, AttrDim) {
 		t.Error("should have Dim")
 	}
 }
 
 func TestStyleStrikethrough(t *testing.T) {
-	s := NewStyle().Strikethrough()
+	s := New().Strikethrough()
 	if !HasAttribute(s.Attributes, AttrStrikethrough) {
 		t.Error("should have Strikethrough")
 	}
 }
 
 func TestStyleInverse(t *testing.T) {
-	s := NewStyle().Inverse()
+	s := New().Inverse()
 	if !HasAttribute(s.Attributes, AttrInverse) {
 		t.Error("should have Inverse")
 	}
 }
 
 func TestStyleChaining(t *testing.T) {
-	s := NewStyle().Bold().Italic().Underline().WithFg(ColorRed).WithBg(ColorBlue)
+	s := New().Bold().Italic().Underline().WithFg(ColorRed).WithBg(ColorBlue)
 	if !HasAttribute(s.Attributes, AttrBold) {
 		t.Error("should have Bold")
 	}
@@ -93,28 +93,28 @@ func TestStyleChaining(t *testing.T) {
 }
 
 func TestStyleWithFg(t *testing.T) {
-	s := NewStyle().WithFg(ColorGreen)
+	s := New().WithFg(ColorGreen)
 	if !s.Fg.Equals(ColorGreen) {
 		t.Errorf("fg should be Green, got %s", s.Fg)
 	}
 }
 
 func TestStyleWithBg(t *testing.T) {
-	s := NewStyle().WithBg(ColorYellow)
+	s := New().WithBg(ColorYellow)
 	if !s.Bg.Equals(ColorYellow) {
 		t.Errorf("bg should be Yellow, got %s", s.Bg)
 	}
 }
 
 func TestStyleWithAttrs(t *testing.T) {
-	s := NewStyle().WithAttrs(AttrBlink | AttrHidden)
+	s := New().WithAttrs(AttrBlink | AttrHidden)
 	if s.Attributes != AttrBlink|AttrHidden {
 		t.Errorf("attrs should be Blink|Hidden, got %d", s.Attributes)
 	}
 }
 
 func TestStyleImmutability(t *testing.T) {
-	s1 := NewStyle()
+	s1 := New()
 	s2 := s1.Bold()
 	if HasAttribute(s1.Attributes, AttrBold) {
 		t.Error("original style should not be modified")
@@ -125,7 +125,7 @@ func TestStyleImmutability(t *testing.T) {
 }
 
 func TestStyleMerge_FgOverride(t *testing.T) {
-	base := NewStyle().WithFg(ColorWhite)
+	base := New().WithFg(ColorWhite)
 	overlay := Style{Fg: ColorRed, Bg: ColorTransparent, Attributes: AttrNone}
 	merged := base.Merge(overlay)
 	if !merged.Fg.Equals(ColorRed) {
@@ -134,7 +134,7 @@ func TestStyleMerge_FgOverride(t *testing.T) {
 }
 
 func TestStyleMerge_BgOverride(t *testing.T) {
-	base := NewStyle()
+	base := New()
 	overlay := Style{Fg: ColorTransparent, Bg: ColorBlue, Attributes: AttrNone}
 	merged := base.Merge(overlay)
 	if !merged.Bg.Equals(ColorBlue) {
@@ -143,7 +143,7 @@ func TestStyleMerge_BgOverride(t *testing.T) {
 }
 
 func TestStyleMerge_TransparentNoOverride(t *testing.T) {
-	base := NewStyle().WithFg(ColorGreen)
+	base := New().WithFg(ColorGreen)
 	overlay := Style{Fg: ColorTransparent, Bg: ColorTransparent, Attributes: AttrNone}
 	merged := base.Merge(overlay)
 	if !merged.Fg.Equals(ColorGreen) {
@@ -152,7 +152,7 @@ func TestStyleMerge_TransparentNoOverride(t *testing.T) {
 }
 
 func TestStyleMerge_AttributesCombine(t *testing.T) {
-	base := NewStyle().Bold()
+	base := New().Bold()
 	overlay := Style{Fg: ColorTransparent, Bg: ColorTransparent, Attributes: AttrItalic}
 	merged := base.Merge(overlay)
 	if !HasAttribute(merged.Attributes, AttrBold) {
@@ -164,16 +164,16 @@ func TestStyleMerge_AttributesCombine(t *testing.T) {
 }
 
 func TestStyleEquals_Same(t *testing.T) {
-	s1 := NewStyle().Bold().WithFg(ColorRed)
-	s2 := NewStyle().Bold().WithFg(ColorRed)
+	s1 := New().Bold().WithFg(ColorRed)
+	s2 := New().Bold().WithFg(ColorRed)
 	if !s1.Equals(s2) {
 		t.Error("identical styles should be equal")
 	}
 }
 
 func TestStyleEquals_Different(t *testing.T) {
-	s1 := NewStyle().Bold()
-	s2 := NewStyle().Italic()
+	s1 := New().Bold()
+	s2 := New().Italic()
 	if s1.Equals(s2) {
 		t.Error("different styles should not be equal")
 	}

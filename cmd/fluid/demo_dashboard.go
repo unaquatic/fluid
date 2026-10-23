@@ -34,7 +34,7 @@ func runDashboardDemo(ctx context.Context, o DemoOptions) error {
 
 	root := r.Root()
 
-	tabs := widget.NewTabSelect([]widget.TabSelectOption{
+	tabs := widget.NewTabSelect([]widget.TabSelectItem{
 		{Name: "Overview"},
 		{Name: "Metrics"},
 		{Name: "Logs"},

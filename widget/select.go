@@ -9,8 +9,8 @@ import (
 	"github.com/unaquatic/fluid/symbol"
 )
 
-// SelectOption describes one row in a Select widget.
-type SelectOption struct {
+// SelectItem describes one row in a Select widget.
+type SelectItem struct {
 	Name        string
 	Hint        string // Displayed after Name using the description color.
 	Description string
@@ -22,7 +22,7 @@ type SelectOption struct {
 type Select struct {
 	*render.BaseRenderable
 
-	options       []SelectOption
+	options       []SelectItem
 	selectedIndex int
 	scrollOffset  int
 
@@ -49,16 +49,16 @@ type Select struct {
 	selectionIndicator  string // Reserved prefix for the selected option.
 
 	// OnSelectionChanged is called after keyboard or programmatic selection changes.
-	OnSelectionChanged func(index int, option SelectOption)
+	OnSelectionChanged func(index int, option SelectItem)
 	// OnItemSelected is called when the user activates the selected option.
-	OnItemSelected func(index int, option SelectOption)
+	OnItemSelected func(index int, option SelectItem)
 }
 
-// SelectOpt configures a Select during construction.
-type SelectOpt func(*Select)
+// SelectOption configures a Select during construction.
+type SelectOption func(*Select)
 
 // NewSelect returns a focusable selector containing options.
-func NewSelect(options []SelectOption, opts ...SelectOpt) *Select {
+func NewSelect(options []SelectItem, opts ...SelectOption) *Select {
 	s := &Select{
 		BaseRenderable:          render.NewBaseRenderable(render.WithFocusable(true)),
 		options:                 options,
@@ -89,7 +89,7 @@ func (s *Select) SelectedIndex() int { return s.selectedIndex }
 func (s *Select) OptionCount() int { return len(s.options) }
 
 // SelectedOption returns the currently selected option, or nil if none.
-func (s *Select) SelectedOption() *SelectOption {
+func (s *Select) SelectedOption() *SelectItem {
 	if s.selectedIndex < 0 || s.selectedIndex >= len(s.options) {
 		return nil
 	}
@@ -120,7 +120,7 @@ func (s *Select) SetScrollOffset(offset int) {
 }
 
 // SetOptions replaces the options list.
-func (s *Select) SetOptions(options []SelectOption) {
+func (s *Select) SetOptions(options []SelectItem) {
 	s.options = options
 	if s.selectedIndex >= len(options) {
 		s.selectedIndex = max(len(options)-1, 0)
@@ -130,7 +130,7 @@ func (s *Select) SetOptions(options []SelectOption) {
 }
 
 // Options returns the current option slice.
-func (s *Select) Options() []SelectOption { return s.options }
+func (s *Select) Options() []SelectItem { return s.options }
 
 // RenderSelf draws the select list.
 func (s *Select) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
@@ -376,69 +376,69 @@ func (s *Select) ensureVisible() {
 // Select options.
 
 // SelectWithBackgroundColor sets the background color.
-func SelectWithBackgroundColor(c style.Color) SelectOpt {
+func SelectWithBackgroundColor(c style.Color) SelectOption {
 	return func(s *Select) { s.backgroundColor = c }
 }
 
 // SelectWithTextColor sets the text color.
-func SelectWithTextColor(c style.Color) SelectOpt {
+func SelectWithTextColor(c style.Color) SelectOption {
 	return func(s *Select) { s.textColor = c }
 }
 
 // SelectWithFocusedBackgroundColor sets the focused background color.
-func SelectWithFocusedBackgroundColor(c style.Color) SelectOpt {
+func SelectWithFocusedBackgroundColor(c style.Color) SelectOption {
 	return func(s *Select) { s.focusedBackgroundColor = c }
 }
 
 // SelectWithFocusedTextColor sets the focused text color.
-func SelectWithFocusedTextColor(c style.Color) SelectOpt {
+func SelectWithFocusedTextColor(c style.Color) SelectOption {
 	return func(s *Select) { s.focusedTextColor = c }
 }
 
 // SelectWithSelectedBackgroundColor sets the selected background color.
-func SelectWithSelectedBackgroundColor(c style.Color) SelectOpt {
+func SelectWithSelectedBackgroundColor(c style.Color) SelectOption {
 	return func(s *Select) { s.selectedBackgroundColor = c }
 }
 
 // SelectWithSelectedTextColor sets the selected text color.
-func SelectWithSelectedTextColor(c style.Color) SelectOpt {
+func SelectWithSelectedTextColor(c style.Color) SelectOption {
 	return func(s *Select) { s.selectedTextColor = c }
 }
 
 // SelectWithDescriptionColor sets the description color.
-func SelectWithDescriptionColor(c style.Color) SelectOpt {
+func SelectWithDescriptionColor(c style.Color) SelectOption {
 	return func(s *Select) { s.descriptionColor = c }
 }
 
 // SelectWithHintColor colors the hint after each name with c on every row,
 // the selected one included. Without it, a hint takes the description color,
 // and the selected row's text color on that row.
-func SelectWithHintColor(c style.Color) SelectOpt {
+func SelectWithHintColor(c style.Color) SelectOption {
 	return func(s *Select) { s.hintColor = &c }
 }
 
 // SelectWithShowScrollIndicator controls whether overflow arrows are shown.
-func SelectWithShowScrollIndicator(v bool) SelectOpt {
+func SelectWithShowScrollIndicator(v bool) SelectOption {
 	return func(s *Select) { s.showScrollIndicator = v }
 }
 
 // SelectWithWrapSelection controls whether movement wraps at the list boundaries.
-func SelectWithWrapSelection(v bool) SelectOpt {
+func SelectWithWrapSelection(v bool) SelectOption {
 	return func(s *Select) { s.wrapSelection = v }
 }
 
 // SelectWithShowDescription controls whether descriptions are displayed.
-func SelectWithShowDescription(v bool) SelectOpt {
+func SelectWithShowDescription(v bool) SelectOption {
 	return func(s *Select) { s.showDescription = v }
 }
 
 // SelectWithInlineDescription renders description on the same row as the name.
-func SelectWithInlineDescription(v bool) SelectOpt {
+func SelectWithInlineDescription(v bool) SelectOption {
 	return func(s *Select) { s.inlineDescription = v }
 }
 
 // SelectWithNameWidth sets the name-column width used by inline descriptions.
-func SelectWithNameWidth(w int) SelectOpt {
+func SelectWithNameWidth(w int) SelectOption {
 	return func(s *Select) { s.nameWidth = w }
 }
 
@@ -455,52 +455,52 @@ const arrowColumnWidth = 2
 // SelectWithArrowColumn reserves a column before every option's name for the
 // selection arrow, so that the arrow never covers the name. Hints and inline
 // descriptions move with the names.
-func SelectWithArrowColumn(b bool) SelectOpt {
+func SelectWithArrowColumn(b bool) SelectOption {
 	return func(s *Select) { s.arrowColumn = b }
 }
 
 // SelectWithItemPaddingX insets the selected row background by px cells on both sides.
-func SelectWithItemPaddingX(px int) SelectOpt {
+func SelectWithItemPaddingX(px int) SelectOption {
 	return func(s *Select) { s.itemPaddingX = px }
 }
 
 // SelectWithFocusedBold uses bold text instead of a background color for the focused item.
-func SelectWithFocusedBold(b bool) SelectOpt {
+func SelectWithFocusedBold(b bool) SelectOption {
 	return func(s *Select) { s.focusedUseBold = b }
 }
 
 // SelectWithSelectionArrow controls whether the selected row starts with an arrow.
-func SelectWithSelectionArrow(b bool) SelectOpt {
+func SelectWithSelectionArrow(b bool) SelectOption {
 	return func(s *Select) { s.showSelectionArrow = b }
 }
 
 // SelectWithOnSelectionChanged sets the callback invoked after selection changes.
-func SelectWithOnSelectionChanged(fn func(int, SelectOption)) SelectOpt {
+func SelectWithOnSelectionChanged(fn func(int, SelectItem)) SelectOption {
 	return func(s *Select) { s.OnSelectionChanged = fn }
 }
 
 // SelectWithOnItemSelected sets the callback invoked when the user activates an option.
-func SelectWithOnItemSelected(fn func(int, SelectOption)) SelectOpt {
+func SelectWithOnItemSelected(fn func(int, SelectItem)) SelectOption {
 	return func(s *Select) { s.OnItemSelected = fn }
 }
 
 // SelectWithID sets the widget ID.
-func SelectWithID(id string) SelectOpt {
+func SelectWithID(id string) SelectOption {
 	return func(s *Select) { s.SetID(id) }
 }
 
 // SelectWithWidth sets the widget width.
-func SelectWithWidth(w layout.Scalar) SelectOpt {
+func SelectWithWidth(w layout.Scalar) SelectOption {
 	return func(s *Select) { s.LayoutNode().Width = w }
 }
 
 // SelectWithHeight sets the widget height.
-func SelectWithHeight(h layout.Scalar) SelectOpt {
+func SelectWithHeight(h layout.Scalar) SelectOption {
 	return func(s *Select) { s.LayoutNode().Height = h }
 }
 
 // SelectWithFlexGrow sets the flex-grow factor.
-func SelectWithFlexGrow(v int) SelectOpt {
+func SelectWithFlexGrow(v int) SelectOption {
 	return func(s *Select) { s.LayoutNode().FlexGrow = v }
 }
 
