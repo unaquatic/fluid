@@ -177,11 +177,11 @@ func parseCPR(buf []byte) (cols []int, rest []byte) {
 
 // cprColumn returns the positive column from a row;column parameter list.
 func cprColumn(params []byte) (int, bool) {
-	k := bytes.IndexByte(params, ';')
-	if k < 0 {
+	_, after, ok := bytes.Cut(params, []byte{';'})
+	if !ok {
 		return 0, false
 	}
-	c, err := strconv.Atoi(string(params[k+1:]))
+	c, err := strconv.Atoi(string(after))
 	if err != nil || c < 1 {
 		return 0, false
 	}

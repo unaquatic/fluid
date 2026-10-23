@@ -42,6 +42,7 @@ type Select struct {
 	itemPaddingX        int    // Horizontal inset for the selected row background.
 	focusedUseBold      bool   // Uses bold instead of a background to show the focused item.
 	showSelectionArrow  bool   // Draws an arrow over the selected row's first cell.
+	arrowColumn         bool   // Reserves arrowColumnWidth cells before every name for the arrow.
 	selectionIndicator  string // Reserved prefix for the selected option.
 
 	// OnSelectionChanged is called after keyboard or programmatic selection changes.
@@ -182,14 +183,18 @@ func (s *Select) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 			}
 		}
 
-		// Draw name text.
+		// Draw name text, after the arrow column when one is reserved.
+		nameX, nameW := x, w
+		if s.arrowColumn {
+			nameX, nameW = x+arrowColumnWidth, max(w-arrowColumnWidth, 0)
+		}
 		nameLen := displayWidth(opt.Name)
-		nameStr := truncateToWidth(opt.Name, w)
+		nameStr := truncateToWidth(opt.Name, nameW)
 		var nameOpts []buffer.DrawTextOption
 		if attrs != 0 {
 			nameOpts = append(nameOpts, buffer.WithAttrs(attrs))
 		}
-		buf.DrawText(nameStr, x, drawY, fg, nameOpts...)
+		buf.DrawText(nameStr, nameX, drawY, fg, nameOpts...)
 
 		// Draw the arrow last so it replaces the row's leading cell.
 		if isSelected && s.showSelectionArrow {
@@ -197,10 +202,10 @@ func (s *Select) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 		}
 
 		// Draw hint right after the name in description color.
-		if opt.Hint != "" && nameLen < w {
-			hintX := x + nameLen
+		if opt.Hint != "" && nameLen < nameW {
+			hintX := nameX + nameLen
 			hint := " " + opt.Hint
-			hint = truncateToWidth(hint, w-nameLen)
+			hint = truncateToWidth(hint, nameW-nameLen)
 			hintFg := s.descriptionColor
 			if isSelected {
 				hintFg = fg
@@ -211,9 +216,9 @@ func (s *Select) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 
 		// Draw inline description after the name column.
 		if s.inlineDescription && opt.Description != "" {
-			descX := x + s.nameWidth
+			descX := nameX + s.nameWidth
 			if nameLen > s.nameWidth {
-				descX = x + nameLen + 1
+				descX = nameX + nameLen + 1
 			}
 			if descX < x+w {
 				desc := truncateToWidth(opt.Description, x+w-descX)
@@ -422,6 +427,23 @@ func SelectWithInlineDescription(v bool) SelectOpt {
 // SelectWithNameWidth sets the name-column width used by inline descriptions.
 func SelectWithNameWidth(w int) SelectOpt {
 	return func(s *Select) { s.nameWidth = w }
+}
+
+// SetNameWidth sets the name-column width used by inline descriptions.
+func (s *Select) SetNameWidth(w int) {
+	s.nameWidth = w
+	s.RequestRender()
+}
+
+// arrowColumnWidth is the width of the column SelectWithArrowColumn reserves:
+// the arrow and a space.
+const arrowColumnWidth = 2
+
+// SelectWithArrowColumn reserves a column before every option's name for the
+// selection arrow, so that the arrow never covers the name. Hints and inline
+// descriptions move with the names.
+func SelectWithArrowColumn(b bool) SelectOpt {
+	return func(s *Select) { s.arrowColumn = b }
 }
 
 // SelectWithItemPaddingX insets the selected row background by px cells on both sides.

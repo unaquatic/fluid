@@ -66,27 +66,9 @@ When using inline mode (`InlineMode: true` in `terminal.Config`):
 - Widget backgrounds require non-transparent `BackgroundColor` to be visible, since `isInlineClearCell` trims cells with transparent bg.
 - Input areas should not have fixed heights — let them auto-size so content can expand. The `Textarea` widget has a `MeasureFunc` that reports `LineCount` as intrinsic height.
 
-## Remembered rules
+### Go 1.27+ style — IMPORTANT
 
-- Do not write ugly Go. Write idiomatic, clean Go: small focused functions, clear names, early returns instead of deep nesting, no redundant comments, no copy-paste blocks, proper error wrapping. If it reads badly, refactor it before shipping.
-- Bring Rust/TypeScript type discipline to Go: define named types instead of passing bare `string`/`int`, make illegal states unrepresentable, never use `any`/`interface{}` where a concrete type or generic works, handle every error explicitly (no silent `_`), prefer immutable values and constructor functions that return a valid object or an error.
-- Do **not** import Rust/TS *syntax* into Go: no `Result[T, E]` / `Option[T]` wrapper types, no monadic chaining, no class-style inheritance hierarchies, no `Promise`-like abstractions over goroutines. Use plain `(T, error)`, channels, and interfaces.
-
-### Complexity budget
-
-Hard limits — if a change breaks one, split it before committing:
-
-- **Function length**: ≤ 60 lines / ≤ 40 statements. Beyond that, extract helpers.
-- **Cyclomatic complexity**: ≤ 10 per function (absolute ceiling 15).
-- **Nesting depth**: ≤ 3 levels inside a function. Use early returns and guard clauses instead of `else` ladders.
-- **Parameters**: ≤ 4. Beyond that, take an options struct. No boolean flag parameters — split into two functions or use a named type.
-- **Return values**: ≤ 3 (including `error`). More means the function is doing too much.
-- **File size**: split above ~600 lines.
-- **Package deps**: no import cycles, no package importing a sibling just for one helper — duplicate the 5 lines or lift it to a shared package.
-
-### Go 1.26+ style — IMPORTANT
-
-This module targets **`go 1.26`** (`go.mod:3`) and the toolchain is Go 1.26.0. **Write modern Go. Do not write Go that looks like it was written in 2018.**
+This module targets **`go 1.27`** (`go.mod:3`) and the toolchain is Go 1.27.0. **Write modern Go. Do not write Go that looks like it was written in 2018.**
 
 Required:
 

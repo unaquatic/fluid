@@ -1,6 +1,7 @@
 package widget
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/unaquatic/fluid/buffer"
@@ -137,6 +138,56 @@ func TestSelect_Render(t *testing.T) {
 	text := buf.PlainText(true)
 	if len(text) == 0 {
 		t.Error("expected non-empty render output")
+	}
+}
+
+func TestSelect_ArrowColumn(t *testing.T) {
+	opts := []SelectOption{
+		{Name: "alpha", Description: "first"},
+		{Name: "beta", Hint: "hint"},
+	}
+	tests := []struct {
+		name      string
+		opts      []SelectOpt
+		nameWidth int
+		want      []string
+	}{
+		{
+			name: "arrow covers the name without a column",
+			want: []string{"→lpha first", "beta hint"},
+		},
+		{
+			name: "names after the column",
+			opts: []SelectOpt{SelectWithArrowColumn(true)},
+			want: []string{"→ alpha first", "  beta hint"},
+		},
+		{
+			name:      "name width set later",
+			opts:      []SelectOpt{SelectWithArrowColumn(true)},
+			nameWidth: 8,
+			want:      []string{"→ alpha   first", "  beta hint"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := NewSelect(opts, append([]SelectOpt{
+				SelectWithSelectionArrow(true),
+				SelectWithInlineDescription(true),
+				SelectWithNameWidth(6),
+			}, tt.opts...)...)
+			if tt.nameWidth > 0 {
+				s.SetNameWidth(tt.nameWidth)
+			}
+			testutil.SetupWidget(s, 20, 2)
+			buf := buffer.New(20, 2)
+			s.RenderSelf(buf, 0)
+
+			for i, line := range strings.Split(buf.PlainText(true), "\n") {
+				if got := strings.TrimRight(line, " "); got != tt.want[i] {
+					t.Errorf("row %d = %q, want %q", i, got, tt.want[i])
+				}
+			}
+		})
 	}
 }
 

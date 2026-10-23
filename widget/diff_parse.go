@@ -372,7 +372,7 @@ func BuildSplitLines(patch *StructuredPatch) (left, right []LogicalDiffLine) {
 			// Pair changes by index and pad the shorter side.
 			maxLen := max(len(added), len(removed))
 
-			for j := 0; j < maxLen; j++ {
+			for j := range maxLen {
 				if j < len(removed) {
 					left = append(left, LogicalDiffLine{
 						Content:    removed[j].Content,

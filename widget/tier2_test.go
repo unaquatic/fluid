@@ -793,7 +793,7 @@ func TestMarkdown_HorizontalRule(t *testing.T) {
 		t.Errorf("expected 'b' at (0,0), got %q", cell.Char)
 	}
 	// Row one is the thematic-break spacing.
-	for x := 0; x < 40; x++ {
+	for x := range 40 {
 		cell := buf.Cell(x, 1)
 		if cell.Char != 0 && cell.Char != ' ' {
 			t.Errorf("expected empty cell at (%d,1) inside rule gap, got %q", x, cell.Char)

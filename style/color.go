@@ -494,63 +494,45 @@ var xtermGreyLevels = [24]int{
 	128, 138, 148, 158, 168, 178, 188, 198, 208, 218, 228, 238,
 }
 
-// nearestCubeLevel returns the xtermCubeLevels index closest to v.
-func nearestCubeLevel(v int) int {
-	best, bestDist := 0, math.MaxInt
-	for i, lv := range xtermCubeLevels {
-		d := v - lv
-		if d < 0 {
-			d = -d
-		}
-		if d < bestDist {
-			best, bestDist = i, d
-		}
+// xtermColor returns the standard color of xterm palette entry i, from 16
+// through 255.
+func xtermColor(i int) Color {
+	if i >= 232 {
+		v := uint8(xtermGreyLevels[i-232])
+		return Color{R: v, G: v, B: v, A: 255}
 	}
-	return best
+	i -= 16
+	return Color{
+		R: uint8(xtermCubeLevels[i/36]),
+		G: uint8(xtermCubeLevels[i/6%6]),
+		B: uint8(xtermCubeLevels[i%6]),
+		A: 255,
+	}
 }
 
-// nearestGreyLevel returns the xtermGreyLevels index closest to v.
-func nearestGreyLevel(v int) int {
-	best, bestDist := 0, math.MaxInt
-	for i, lv := range xtermGreyLevels {
-		d := v - lv
-		if d < 0 {
-			d = -d
-		}
-		if d < bestDist {
-			best, bestDist = i, d
-		}
+// xtermOklab holds the Oklab coordinates of xterm palette entries 16 through
+// 255, indexed from entry 16.
+var xtermOklab = func() (lab [240][3]float64) {
+	for i := range lab {
+		L, a, b := xtermColor(16 + i).ToOklab()
+		lab[i] = [3]float64{L, a, b}
 	}
-	return best
-}
+	return lab
+}()
 
-// rgbTo256 returns the closer of the nearest xterm color-cube and gray-ramp
-// entries, measured by squared Euclidean RGB distance.
+// rgbTo256 returns the xterm palette entry, from 16 through 255, perceptually
+// closest to the given color by Oklab distance. Entries 0 through 15 are
+// skipped because terminal themes redefine them.
 func rgbTo256(r, g, b int) int {
-	// Find the nearest color-cube entry.
-	ri := nearestCubeLevel(r)
-	gi := nearestCubeLevel(g)
-	bi := nearestCubeLevel(b)
-	cubeR, cubeG, cubeB := xtermCubeLevels[ri], xtermCubeLevels[gi], xtermCubeLevels[bi]
-	cubeIdx := 16 + 36*ri + 6*gi + bi
-	cubeDist := sqDist(r, g, b, cubeR, cubeG, cubeB)
-
-	// Compare the nearest gray-ramp entry against the original RGB value.
-	gi2 := nearestGreyLevel((r + g + b) / 3)
-	grey := xtermGreyLevels[gi2]
-	greyIdx := 232 + gi2
-	greyDist := sqDist(r, g, b, grey, grey, grey)
-
-	if greyDist < cubeDist {
-		return greyIdx
+	L, a, bb := Color{R: uint8(r), G: uint8(g), B: uint8(b), A: 255}.ToOklab()
+	best, bestDist := 0, math.Inf(1)
+	for i, p := range xtermOklab {
+		dL, da, db := L-p[0], a-p[1], bb-p[2]
+		if d := dL*dL + da*da + db*db; d < bestDist {
+			best, bestDist = i, d
+		}
 	}
-	return cubeIdx
-}
-
-// sqDist returns the squared Euclidean distance between two RGB points.
-func sqDist(r1, g1, b1, r2, g2, b2 int) int {
-	dr, dg, db := r1-r2, g1-g2, b1-b2
-	return dr*dr + dg*dg + db*db
+	return 16 + best
 }
 
 // ansi16Colors contains the eight standard and eight bright ANSI colors.

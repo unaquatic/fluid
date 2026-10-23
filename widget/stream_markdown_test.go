@@ -28,7 +28,7 @@ func TestStreamMarkdown_ShortContent(t *testing.T) {
 
 func TestStreamMarkdown_OneBlockPerChild(t *testing.T) {
 	var sb strings.Builder
-	for i := 0; i < 25; i++ {
+	for i := range 25 {
 		sb.WriteString(fmt.Sprintf("Paragraph %d\n\n", i))
 	}
 	sb.WriteString("tail text")
@@ -55,7 +55,7 @@ func TestStreamMarkdown_IncrementalAppend(t *testing.T) {
 
 	// Supply progressively longer complete content values.
 	var content strings.Builder
-	for i := 0; i < 25; i++ {
+	for i := range 25 {
 		content.WriteString(fmt.Sprintf("Line %d\n\n", i))
 		sm.SetContent(content.String())
 	}
@@ -79,7 +79,7 @@ func TestStreamMarkdown_CodeBlockNotSplit(t *testing.T) {
 	// A fenced code block remains one MdBlockCode regardless of its line count.
 	var sb strings.Builder
 	sb.WriteString("```go\n")
-	for i := 0; i < 30; i++ {
+	for i := range 30 {
 		sb.WriteString(fmt.Sprintf("line %d\n", i))
 	}
 	sb.WriteString("```\n\ntail")
@@ -107,7 +107,7 @@ func TestStreamMarkdown_EarlyChildStableBlockCount(t *testing.T) {
 
 	// Use multiple blocks so unchanged prefix children can be observed.
 	var sb strings.Builder
-	for i := 0; i < 25; i++ {
+	for i := range 25 {
 		sb.WriteString(fmt.Sprintf("Para %d\n\n", i))
 	}
 	base := sb.String()
@@ -151,7 +151,7 @@ func TestStreamMarkdown_BlocksDistributed(t *testing.T) {
 
 	// Multiple paragraphs produce multiple block children.
 	var sb strings.Builder
-	for i := 0; i < 30; i++ {
+	for i := range 30 {
 		sb.WriteString(fmt.Sprintf("Block %d\n\n", i))
 	}
 	sm.SetContent(sb.String())

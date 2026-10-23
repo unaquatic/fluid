@@ -132,10 +132,7 @@ func (s *Sparkline) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 			if cellFraction >= 1.0 {
 				buf.SetCell(col, screenY, sparkBlocks[levels], s.fg, s.backgroundColor, 0)
 			} else if cellFraction > 0 {
-				level := max(int(cellFraction*float64(levels)), 0)
-				if level > levels {
-					level = levels
-				}
+				level := min(max(int(cellFraction*float64(levels)), 0), levels)
 				buf.SetCell(col, screenY, sparkBlocks[level], s.fg, s.backgroundColor, 0)
 			}
 		}

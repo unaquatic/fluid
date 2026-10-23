@@ -13,7 +13,7 @@ import (
 	"github.com/unaquatic/fluid/textbuf"
 )
 
-var nextNum uint64 // Accessed atomically when assigning numeric IDs.
+var nextNum atomic.Uint64 // Assigns numeric hit-grid IDs.
 
 // renderablesByNum resolves hit-grid IDs to renderables.
 //
@@ -255,7 +255,7 @@ var _ Renderable = (*BaseRenderable)(nil)
 // NewBaseRenderable returns a registered renderable with default layout and
 // rendering state.
 func NewBaseRenderable(opts ...RenderableOption) *BaseRenderable {
-	num := atomic.AddUint64(&nextNum, 1)
+	num := nextNum.Add(1)
 
 	b := &BaseRenderable{
 		num:        num,

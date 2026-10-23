@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 
@@ -13,43 +14,54 @@ import (
 	"golang.org/x/term"
 )
 
-// DetectColorMode infers terminal color support from environment variables.
+// trueColorPrograms holds lowercase TERM_PROGRAM values of 24-bit color terminals.
+var trueColorPrograms = []string{
+	"alacritty", "ghostty", "hyper", "iterm.app", "kitty",
+	"vscode", "warpterminal", "wezterm", "zed",
+}
+
+// trueColorMarkers holds environment variables set by 24-bit color terminals.
+var trueColorMarkers = []string{
+	"GHOSTTY_RESOURCES_DIR", "ITERM_SESSION_ID", "KITTY_WINDOW_ID",
+	"WARP_SESSION_ID", "WARP_TERMINAL_SESSION_UUID", "WEZTERM_PANE", "WT_SESSION",
+}
+
+// DetectColorMode infers the terminal color mode from the environment.
+// FLUID_COLOR set to "truecolor", "24bit", "256", or "16" overrides it.
 func DetectColorMode() style.ColorMode {
-	// COLORTERM explicitly advertises true-color support.
-	ct := os.Getenv("COLORTERM")
-	if ct == "truecolor" || ct == "24bit" {
+	switch strings.ToLower(os.Getenv("FLUID_COLOR")) {
+	case "truecolor", "24bit":
 		return style.ColorTrueColor
-	}
-
-	// TERM can explicitly advertise the 256-color palette.
-	term := os.Getenv("TERM")
-	if strings.Contains(term, "256color") {
+	case "256":
 		return style.Color256
+	case "16":
+		return style.Color16
 	}
+	term := strings.ToLower(os.Getenv("TERM"))
+	colorTerm := strings.ToLower(os.Getenv("COLORTERM"))
+	program := strings.ToLower(os.Getenv("TERM_PROGRAM"))
 
-	// Some terminal programs support true color without setting COLORTERM.
-	termProgram := os.Getenv("TERM_PROGRAM")
-	switch termProgram {
-	case "iTerm.app", "WezTerm", "Hyper":
+	advertised := colorTerm == "truecolor" || colorTerm == "24bit" || strings.HasSuffix(term, "-direct")
+	multiplexed := os.Getenv("TMUX") != "" || strings.HasPrefix(term, "tmux") || strings.HasPrefix(term, "screen")
+	knownTerminal := slices.Contains(trueColorPrograms, program) ||
+		slices.ContainsFunc(trueColorMarkers, func(k string) bool { return os.Getenv(k) != "" }) ||
+		strings.Contains(term, "ghostty") ||
+		strings.EqualFold(os.Getenv("TERMINAL_EMULATOR"), "jetbrains-jediterm")
+
+	switch {
+	case advertised:
 		return style.ColorTrueColor
-	}
-
-	// Windows Terminal sets WT_SESSION.
-	if os.Getenv("WT_SESSION") != "" {
-		return style.ColorTrueColor
-	}
-
-	// Kitty sets KITTY_WINDOW_ID.
-	if os.Getenv("KITTY_WINDOW_ID") != "" {
-		return style.ColorTrueColor
-	}
-
-	// Assume 256 colors for any remaining non-dumb TERM value.
-	if term != "" && term != "dumb" {
+	case multiplexed:
 		return style.Color256
+	case knownTerminal:
+		return style.ColorTrueColor
+	case strings.Contains(term, "256color"):
+		return style.Color256
+	case term == "" || term == "dumb":
+		return style.Color16
+	default:
+		return style.ColorTrueColor
 	}
-
-	return style.Color16
 }
 
 // Backend controls terminal modes and writes ANSI and xterm escape sequences.

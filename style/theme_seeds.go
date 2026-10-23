@@ -107,6 +107,13 @@ func ThemeFromSeeds(name string, seeds ThemeSeeds, dark bool) *Theme {
 		diffRemoveSurface = danger[1]
 	}
 
+	// Semantic surfaces sit one step above the diff surfaces, so a diff row
+	// stays distinct inside them.
+	semanticStep := 2
+	if dark {
+		semanticStep = 3
+	}
+
 	// Selection uses a low interactive step, with the preceding step for its
 	// inactive state.
 	selectionBg := interactive[3]
@@ -139,6 +146,11 @@ func ThemeFromSeeds(name string, seeds ThemeSeeds, dark bool) *Theme {
 		Warning: warning[10],
 		Danger:  danger[10],
 		Info:    info[10],
+
+		SuccessSurface: success[semanticStep],
+		WarningSurface: warning[semanticStep],
+		DangerSurface:  danger[semanticStep],
+		InfoSurface:    info[semanticStep],
 
 		// Filled roles use an automatically contrasting foreground.
 		OnAccent:      ChooseOnColor(accent),

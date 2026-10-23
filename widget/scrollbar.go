@@ -164,7 +164,7 @@ func (sb *ScrollBar) renderVertical(buf *buffer.Buffer, x, y, w, h int) {
 	scrollFraction := float64(sb.scrollPosition) / float64(maxScroll)
 	thumbOffset := int(scrollFraction * float64(h-thumbHeight))
 
-	for row := 0; row < thumbHeight; row++ {
+	for row := range thumbHeight {
 		buf.SetCell(barX, y+thumbOffset+row, symbol.ScrollBarVertical.Thumb, sb.thumbColor, sb.thumbColor, 0)
 	}
 }
@@ -195,7 +195,7 @@ func (sb *ScrollBar) renderHorizontal(buf *buffer.Buffer, x, y, w, h int) {
 	scrollFraction := float64(sb.scrollPosition) / float64(maxScroll)
 	thumbOffset := int(scrollFraction * float64(w-thumbWidth))
 
-	for col := 0; col < thumbWidth; col++ {
+	for col := range thumbWidth {
 		buf.SetCell(x+thumbOffset+col, barY, symbol.ScrollBarHorizontal.Thumb, sb.thumbColor, sb.thumbColor, 0)
 	}
 }
