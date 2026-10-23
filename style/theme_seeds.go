@@ -21,11 +21,16 @@ type ThemeSeeds struct {
 	// Primary.
 	Interactive Color
 
-	// Semantic colors seed status-specific ramps.
+	// Success seeds the Success role, its surface and on-color, and the
+	// surface of added diff lines.
 	Success Color
+	// Warning seeds the Warning role, its surface, and its on-color.
 	Warning Color
-	Danger  Color
-	Info    Color
+	// Danger seeds the Danger role, its surface and on-color, and the surface
+	// of removed diff lines.
+	Danger Color
+	// Info seeds the Info role, its surface, and its on-color.
+	Info Color
 }
 
 // withDefaults resolves the optional Interactive and Ink seeds.

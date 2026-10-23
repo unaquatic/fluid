@@ -13,9 +13,13 @@ import (
 
 // TreeNode contains one displayed value and its child nodes.
 type TreeNode struct {
-	Text     string
-	Value    any
+	// Text is the node's displayed text.
+	Text string
+	// Value is caller-defined data for the node.
+	Value any
+	// Children are the nodes nested under it, in order.
 	Children []*TreeNode
+	// Expanded shows Children; toggling the node flips it.
 	Expanded bool
 }
 

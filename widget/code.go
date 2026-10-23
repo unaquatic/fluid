@@ -13,9 +13,12 @@ import (
 
 // HighlightContext identifies the source and theme supplied to an OnHighlightCallback.
 type HighlightContext struct {
-	Content  string
+	// Content is the source being highlighted.
+	Content string
+	// Filetype is the source's language, as the Code widget was given it.
 	Filetype string
-	Theme    string
+	// Theme is the name of the Chroma theme, such as "monokai".
+	Theme string
 }
 
 // OnHighlightCallback transforms highlighted lines before Code stores them for rendering.
@@ -23,8 +26,10 @@ type OnHighlightCallback func(lines []textbuf.Line, ctx HighlightContext) []text
 
 // SelectionRange contains the start and end character offsets of a selection.
 type SelectionRange struct {
+	// Start is the offset where the selection begins.
 	Start int
-	End   int
+	// End is the offset where the selection ends.
+	End int
 }
 
 // Code displays selectable, scrollable source text with wrapping and syntax highlighting.

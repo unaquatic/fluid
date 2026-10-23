@@ -7,8 +7,11 @@ import (
 
 // Style combines foreground, background, and text attributes.
 type Style struct {
-	Fg         Color
-	Bg         Color
+	// Fg is the foreground color.
+	Fg Color
+	// Bg is the background color.
+	Bg Color
+	// Attributes is a bitmask of the Attr flags, such as AttrBold.
 	Attributes uint32
 }
 

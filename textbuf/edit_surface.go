@@ -7,11 +7,16 @@ import (
 // VisualCursor contains one cursor position in viewport-relative, logical, and
 // global display-width coordinates.
 type VisualCursor struct {
-	VisualRow  int // Viewport-relative row.
-	VisualCol  int // Viewport-relative display column.
-	LogicalRow int // Logical document row.
-	LogicalCol int // Logical display column.
-	Offset     int // Global display-width offset from the buffer start.
+	// VisualRow is the viewport-relative row.
+	VisualRow int
+	// VisualCol is the viewport-relative display column.
+	VisualCol int
+	// LogicalRow is the logical document row.
+	LogicalRow int
+	// LogicalCol is the logical display column.
+	LogicalCol int
+	// Offset is the global display-width offset from the buffer start.
+	Offset int
 }
 
 // EditSurface combines an EditBuffer with a viewport-aware TextSurface. It

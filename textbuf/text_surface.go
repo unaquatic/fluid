@@ -297,8 +297,10 @@ func (v *TextSurface) PlainText() string {
 
 // MeasureDimensions contains virtual-line count and maximum width.
 type MeasureDimensions struct {
+	// LineCount is the number of virtual lines.
 	LineCount int
-	MaxWidth  int
+	// MaxWidth is the display width of the widest virtual line.
+	MaxWidth int
 }
 
 // MeasureForDimensions calculates virtual-line dimensions without changing the

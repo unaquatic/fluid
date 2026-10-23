@@ -14,8 +14,10 @@ const (
 
 // Scalar is an integer layout value paired with its unit.
 type Scalar struct {
+	// Value is the number of cells, or the percentage with UnitPercent.
 	Value int
-	Unit  ScalarUnit
+	// Unit says how Value is read.
+	Unit ScalarUnit
 }
 
 // Points returns an absolute size of v cells.
@@ -187,18 +189,27 @@ const (
 // ComputedLayout contains a node's resolved absolute position and size in
 // terminal cells.
 type ComputedLayout struct {
-	X      int // The absolute x-coordinate relative to the root.
-	Y      int // The absolute y-coordinate relative to the root.
-	Width  int // The resolved width in cells.
-	Height int // The resolved height in cells.
+	// X is the absolute x-coordinate relative to the root.
+	X int
+	// Y is the absolute y-coordinate relative to the root.
+	Y int
+	// Width is the resolved width in cells.
+	Width int
+	// Height is the resolved height in cells.
+	Height int
 }
 
 // Cache contains the inputs from a node's most recent layout. A clean
 // node can reuse its subtree layout when the available dimensions match.
 type Cache struct {
-	AvailWidth  int // The available width used for the cached layout.
-	AvailHeight int // The available height used for the cached layout.
-	ParentX     int // The cached absolute x-coordinate of the node.
-	ParentY     int // The cached absolute y-coordinate of the node.
-	Valid       bool
+	// AvailWidth is the available width used for the cached layout.
+	AvailWidth int
+	// AvailHeight is the available height used for the cached layout.
+	AvailHeight int
+	// ParentX is the cached absolute x-coordinate of the node.
+	ParentX int
+	// ParentY is the cached absolute y-coordinate of the node.
+	ParentY int
+	// Valid reports whether the other fields hold a layout to compare against.
+	Valid bool
 }

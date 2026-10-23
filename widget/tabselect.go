@@ -11,7 +11,9 @@ import (
 
 // TabSelectItem contains the label and caller-defined value for one tab.
 type TabSelectItem struct {
-	Name  string
+	// Name is the tab's label.
+	Name string
+	// Value is caller-defined data for the tab.
 	Value any
 }
 

@@ -10,6 +10,7 @@ import "math"
 //
 // See https://bottosson.github.io/posts/oklab/.
 type OKLCH struct {
+	// L is lightness, C chroma, and H hue in degrees, as the type describes.
 	L, C, H float64
 }
 

@@ -10,11 +10,16 @@ import (
 
 // TableColumn describes the name and sizing policy for one table column.
 type TableColumn struct {
-	Name      string
-	Width     int // Fixed width; zero divides available width evenly.
-	MinWidth  int
-	MaxWidth  int
-	Alignment int // Zero is left, one is center, and two is right.
+	// Name is the column's header text.
+	Name string
+	// Width is the fixed width; zero divides the available width evenly.
+	Width int
+	// MinWidth is not applied when Table sizes columns.
+	MinWidth int
+	// MaxWidth is not applied when Table sizes columns.
+	MaxWidth int
+	// Alignment is zero for left, one for center, and two for right.
+	Alignment int
 }
 
 // Table is a keyboard-navigable table with an optional header and striped rows.

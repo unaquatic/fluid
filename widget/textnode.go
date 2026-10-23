@@ -11,8 +11,10 @@ var textNodeNextID atomic.Uint64
 
 // TextChild contains either plain text or a nested TextNode.
 type TextChild struct {
-	Text string    // Used when Node is nil.
-	Node *TextNode // Non-nil for a nested node.
+	// Text is the child's text, used when Node is nil.
+	Text string
+	// Node is the nested node, or nil for plain text.
+	Node *TextNode
 }
 
 // IsText reports whether the child contains text instead of a nested node.
@@ -320,10 +322,14 @@ func (n *TextNode) markDirty() {
 
 // InheritedStyle contains the effective parent style passed to child nodes.
 type InheritedStyle struct {
-	Fg         style.Color
-	Bg         style.Color
+	// Fg is the parent's effective foreground.
+	Fg style.Color
+	// Bg is the parent's effective background.
+	Bg style.Color
+	// Attributes are the parent's attribute bits, which a child adds its own to.
 	Attributes uint32
-	Link       string
+	// Link is the parent's link URL, which a child without one inherits.
+	Link string
 }
 
 // GatherChunks flattens descendant text into chunks with inherited styles resolved.

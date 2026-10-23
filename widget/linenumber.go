@@ -43,16 +43,22 @@ const (
 
 // LineSign configures text displayed before and after a line number.
 type LineSign struct {
-	Before      string      // Text before the line number, such as a bookmark marker.
-	BeforeColor style.Color // Foreground color for Before.
-	After       string      // Text after the line number, such as a diff sign.
-	AfterColor  style.Color // Foreground color for After.
+	// Before is the text before the line number, such as a bookmark marker.
+	Before string
+	// BeforeColor is the foreground color for Before.
+	BeforeColor style.Color
+	// After is the text after the line number, such as a diff sign.
+	After string
+	// AfterColor is the foreground color for After.
+	AfterColor style.Color
 }
 
 // LineColorConfig contains the gutter and content backgrounds for one logical line.
 type LineColorConfig struct {
-	Gutter  style.Color // Background behind the line number and signs.
-	Content style.Color // Background behind the target content.
+	// Gutter is the background behind the line number and signs.
+	Gutter style.Color
+	// Content is the background behind the target content.
+	Content style.Color
 }
 
 // LineNumber draws a gutter synchronized with a target renderable.

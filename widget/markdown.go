@@ -98,18 +98,30 @@ type MdStyles struct {
 	// Fg is the fallback foreground for chunks without an explicit style.
 	Fg style.Color
 
+	// Headings style heading levels H1 through H6; deeper levels use H6's.
 	Headings [6]style.Entry
 
-	Code        style.Entry
-	Link        style.Entry
-	LinkText    style.Entry
-	Strong      style.Entry
-	Emph        style.Entry
-	Quote       style.Entry
+	// Code styles inline code.
+	Code style.Entry
+	// Link styles a link's URL.
+	Link style.Entry
+	// LinkText styles a link's displayed label.
+	LinkText style.Entry
+	// Strong styles strong spans.
+	Strong style.Entry
+	// Emph styles emphasis.
+	Emph style.Entry
+	// Quote styles blockquote prose.
+	Quote style.Entry
+	// QuoteBorder styles the blockquote gutter marker.
 	QuoteBorder style.Entry
-	Bullet      style.Entry
-	ListEnum    style.Entry
-	Rule        style.Entry
+	// Bullet styles unordered list markers.
+	Bullet style.Entry
+	// ListEnum styles ordered list markers.
+	ListEnum style.Entry
+	// Rule is carried from the theme; thematic breaks draw as spacing, so the
+	// parser does not use it.
+	Rule style.Entry
 }
 
 // Heading returns the style for levels one through six and uses level six otherwise.
@@ -141,21 +153,34 @@ const (
 // MdBlock is a parsed markdown block. Blocks form a tree: container blocks
 // (List, OrderedList, Quote, ListItem) hold child blocks in Children.
 type MdBlock struct {
-	Kind        MdBlockKind
-	Level       int               // Heading level or list indentation level.
-	Prefix      []style.TextChunk // Bullet, number, or quote marker.
-	PrefixWidth int               // Terminal width of Prefix.
-	Body        []style.TextChunk // Parsed inline content before wrapping.
-	Children    []MdBlock         // Nested list items, quote contents, or other blocks.
-	Lang        string            // Fenced-code language, such as "go" or "python".
-	CodeLines   []string          // Raw code-block lines.
-	TableCells  [][]MdTableCell   // Table rows with inline cell formatting.
-	TableAligns []int             // Column alignment: -1 left, 0 center, or 1 right.
-	Loose       bool              // A list whose items blank lines part, which keep a blank row between them.
+	// Kind is the block's type, which decides the fields below it uses.
+	Kind MdBlockKind
+	// Level is the heading level or the list indentation level.
+	Level int
+	// Prefix is the bullet, number, or quote marker.
+	Prefix []style.TextChunk
+	// PrefixWidth is the terminal width of Prefix.
+	PrefixWidth int
+	// Body is the parsed inline content before wrapping.
+	Body []style.TextChunk
+	// Children are nested list items, quote contents, or other blocks.
+	Children []MdBlock
+	// Lang is the fenced-code language, such as "go" or "python".
+	Lang string
+	// CodeLines are the raw code-block lines.
+	CodeLines []string
+	// TableCells are the table rows with inline cell formatting.
+	TableCells [][]MdTableCell
+	// TableAligns holds each column's alignment: -1 left, 0 center, or 1 right.
+	TableAligns []int
+	// Loose marks a list whose items blank lines part, which keeps a blank row
+	// between them.
+	Loose bool
 }
 
 // MdTableCell holds a table cell's inline content.
 type MdTableCell struct {
+	// Chunks are the cell's styled runs of text, in order.
 	Chunks []style.TextChunk
 }
 

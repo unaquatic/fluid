@@ -76,10 +76,14 @@ const (
 
 // BorderSidesConfig selects individual border sides.
 type BorderSidesConfig struct {
-	Top    bool
-	Right  bool
+	// Top selects the top side.
+	Top bool
+	// Right selects the right side.
+	Right bool
+	// Bottom selects the bottom side.
 	Bottom bool
-	Left   bool
+	// Left selects the left side.
+	Left bool
 }
 
 // AllSides returns a configuration with every side enabled.
@@ -94,8 +98,10 @@ func NoSides() BorderSidesConfig {
 
 // Border specifies which sides to draw.
 type Border struct {
-	All   bool         // Whether every side is enabled.
-	Sides []BorderSide // Enabled sides when All is false.
+	// All reports whether every side is enabled.
+	All bool
+	// Sides are the enabled sides when All is false.
+	Sides []BorderSide
 }
 
 // BorderAll returns a Border with all sides enabled.

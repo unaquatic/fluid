@@ -11,11 +11,17 @@ import (
 
 // SelectItem describes one row in a Select widget.
 type SelectItem struct {
-	Name        string
-	Hint        string // Displayed after Name using the description color.
+	// Name is the row's displayed name.
+	Name string
+	// Hint is displayed after Name using the description color.
+	Hint string
+	// Description is shown in a column after Name with inline descriptions,
+	// otherwise on the row below.
 	Description string
-	Value       any
-	Disabled    bool // Prevents selection, for example on a section header.
+	// Value is caller-defined data for the row.
+	Value any
+	// Disabled prevents selection, for example on a section header.
+	Disabled bool
 }
 
 // Select is a keyboard-navigable list of items.
