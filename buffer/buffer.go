@@ -351,8 +351,7 @@ func (b *Buffer) setCluster(x, y int, char rune, combining string, w int, fg, bg
 	})
 }
 
-// SetCellDirect writes cell at (x, y), subject to the current clipping region
-
+// SetCellDirect writes cell at (x, y), subject to the current clipping region.
 // Transparent backgrounds preserve the existing cell's background.
 // Multi-column cells create continuations with matching styles. If the entire
 // cell does not fit within the buffer and clipping region, the write is
