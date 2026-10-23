@@ -21,14 +21,25 @@ const inlineMaxLayoutHeight = 1 << 20
 
 // Terminal control sequences used by inline output.
 const (
-	inlineBeginSync = "\x1b[?2026h"
-	inlineEndSync   = "\x1b[?2026l"
-	inlineNoWrap    = "\x1b[?7l"
-	inlineWrap      = "\x1b[?7h"
-	inlineEraseRow  = "\x1b[2K"
-	inlineResetSGR  = "\x1b[0m"
-	inlineEraseAll  = "\x1b[2J\x1b[H\x1b[3J"
+	inlineBeginSync  = "\x1b[?2026h"
+	inlineEndSync    = "\x1b[?2026l"
+	inlineNoWrap     = "\x1b[?7l"
+	inlineWrap       = "\x1b[?7h"
+	inlineEraseRow   = "\x1b[2K"
+	inlineEraseBelow = "\x1b[J"
+	inlineResetSGR   = "\x1b[0m"
+	inlineEraseAll   = "\x1b[2J\x1b[H\x1b[3J"
 )
+
+// inlineLayoutWidth returns the width inline output is laid out at for a
+// terminal termWidth columns wide. It reserves the final column, so a full row
+// cannot wrap.
+func inlineLayoutWidth(termWidth int) int {
+	if termWidth > 1 {
+		return termWidth - 1
+	}
+	return termWidth
+}
 
 // renderInlineFrame lays out content-height output, renders it, and flushes it
 // into the normal terminal screen.
@@ -42,11 +53,7 @@ func (r *Renderer) renderInlineFrame() {
 	termWidth := r.width
 	r.mu.Unlock()
 
-	// Reserve the final terminal column to prevent automatic wrapping.
-	layoutWidth := termWidth
-	if layoutWidth > 1 {
-		layoutWidth = termWidth - 1
-	}
+	layoutWidth := inlineLayoutWidth(termWidth)
 
 	// Resize the root only when width changes; content mutations already dirty
 	// the layout tree.
@@ -246,7 +253,7 @@ func (r *Renderer) inlineFullFlush(buf *buffer.Buffer, termHeight int, erase boo
 		if y > 0 {
 			out.WriteString("\r\n")
 		}
-		out.WriteString(inlineEraseRow)
+		r.eraseInlineRow(&out, buf, y, colorMode)
 		r.writeInlineRow(&out, buf, y, width, colorMode)
 	}
 
@@ -295,7 +302,7 @@ func (r *Renderer) inlineDiffFlush(buf, prev *buffer.Buffer, first, last, termHe
 		if y > first {
 			out.WriteString("\r\n")
 		}
-		out.WriteString(inlineEraseRow)
+		r.eraseInlineRow(&out, buf, y, colorMode)
 		r.writeInlineRow(&out, buf, y, buf.Width(), colorMode)
 		cursorRow = y
 	}
@@ -342,11 +349,35 @@ func inlineEraseDropped(out *bytes.Buffer, newHeight, prevHeight int) int {
 		return 0
 	}
 
+	// The rows now lie outside the frame, so they return to the terminal's
+	// default background rather than take the last cell written's.
+	out.WriteString(inlineResetSGR)
 	for range dropped {
 		out.WriteString("\r\n" + inlineEraseRow)
 	}
 	inlineMoveRows(out, -dropped)
 	return dropped
+}
+
+// eraseInlineOutput writes to out the sequences that erase the tracked inline
+// output from the normal screen, leaving the cursor where that output began.
+//
+// Rows on screen are erased in place, which keeps the scrollback above them.
+// Rows in the scrollback cannot be addressed, and a resize may have moved the
+// rows on screen, so otherwise the screen and scrollback are erased.
+func (r *Renderer) eraseInlineOutput(out *bytes.Buffer) {
+	r.mu.Lock()
+	w, h := r.width, r.height
+	r.mu.Unlock()
+
+	out.WriteString(inlineResetSGR)
+	if r.inlineViewportTop == 0 && r.inlineTermHeight == h &&
+		r.inlineCurrentBuf.Width() == inlineLayoutWidth(w) {
+		inlineMoveRows(out, -r.inlineCursorRow)
+		out.WriteString("\r" + inlineEraseBelow)
+		return
+	}
+	out.WriteString(inlineEraseAll)
 }
 
 // storeInline records the frame the terminal now shows.
@@ -492,6 +523,30 @@ func (r *Renderer) writeInlineRow(out *bytes.Buffer, buf *buffer.Buffer, y, widt
 	if curLinkID != 0 {
 		out.WriteString("\x1b]8;;\x1b\\")
 	}
+}
+
+// eraseInlineRow erases the cursor's row in the background of row y's last
+// cell. Terminals fill erased cells with the active background, and the
+// erase reaches the column that layout leaves free, so the column continues
+// the row's right edge instead of whatever the previous row left active.
+func (r *Renderer) eraseInlineRow(out *bytes.Buffer, buf *buffer.Buffer, y int, colorMode style.ColorMode) {
+	out.WriteString(buildSGR(style.Color{}, r.inlineEdgeBg(buf, y), 0, colorMode))
+	out.WriteString(inlineEraseRow)
+}
+
+// inlineEdgeBg returns the background of row y's last cell. The cursor swaps
+// the colors of the cell it inverts, so that cell's background is its
+// foreground.
+func (r *Renderer) inlineEdgeBg(buf *buffer.Buffer, y int) style.Color {
+	x := buf.Width() - 1
+	if x < 0 {
+		return style.Color{}
+	}
+	cell := buf.Cell(x, y)
+	if r.inlineCursorCell.Contains(x, y) {
+		return cell.Fg
+	}
+	return cell.Bg
 }
 
 // inlineRowsEqual reports whether the first width cells of row y match.

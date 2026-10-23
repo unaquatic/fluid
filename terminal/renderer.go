@@ -84,7 +84,8 @@ type Renderer struct {
 	//
 	// Inline output holds every row of inlineCurrentBuf in the terminal, but
 	// only rows inlineViewportTop and below remain addressable; earlier rows
-	// have scrolled into the scrollback.
+	// have scrolled into the scrollback. The alternate screen leaves them in
+	// place, so they stay valid while it is shown.
 	currentBuffer         *buffer.Buffer // The frame represented on screen.
 	nextBuffer            *buffer.Buffer // The frame currently being built.
 	invalidated           bool           // Whether the next fullscreen frame requires FullFlush.
@@ -103,6 +104,10 @@ type Renderer struct {
 
 	// Closed when Destroy completes.
 	done chan struct{}
+
+	// progressStop is closed to end the keepalive of an active progress
+	// indicator, and is nil while none is shown. Guarded by mu.
+	progressStop chan struct{}
 
 	mu sync.Mutex
 
@@ -400,13 +405,33 @@ func (r *Renderer) Destroy() {
 
 	r.Stop()
 
-	// Leave the cursor on a clean line below inline output.
+	// Inline output is erased when configured, and otherwise kept with the
+	// cursor on a clean line below it.
 	if r.config.InlineMode && r.inlineCurrentBuf != nil {
 		var out bytes.Buffer
-		inlineMoveRows(&out, r.inlineCurrentBuf.Height()-1-r.inlineCursorRow)
-		out.WriteString("\r\n")
+		if r.config.ClearOnExit {
+			r.eraseInlineOutput(&out)
+		} else {
+			inlineMoveRows(&out, r.inlineCurrentBuf.Height()-1-r.inlineCursorRow)
+			out.WriteString("\r\n")
+		}
 		r.backend.WriteOut(out.Bytes())
 	}
+
+	// Leaving the alternate screen shows the inline output it covered, with
+	// the cursor where that output left it. That output is stale, so it is
+	// erased rather than left for the shell to print over.
+	if !r.config.InlineMode && r.inlineCurrentBuf != nil && r.backend.AlternateScreen() {
+		r.backend.LeaveAlternateScreen()
+
+		var out bytes.Buffer
+		r.eraseInlineOutput(&out)
+		r.backend.WriteOut(out.Bytes())
+	}
+
+	r.mu.Lock()
+	r.clearProgressLocked()
+	r.mu.Unlock()
 
 	_ = r.backend.Restore()
 
@@ -427,6 +452,22 @@ func (r *Renderer) Destroy() {
 		r.dbg = nil
 		r.dbgFile = nil
 	}
+}
+
+// Render draws and flushes a frame now, without waiting for the event loop,
+// and takes the place of a frame RequestRender marked due. It lets a change
+// reach the terminal before a call that ends rendering, such as Destroy. It
+// does nothing unless the renderer is running.
+//
+// Call it from the event-loop goroutine, for example from an input handler or
+// through Enqueue, so that it does not race the loop's own frames.
+func (r *Renderer) Render() {
+	if r.destroyed.Load() || !r.IsRunning() {
+		return
+	}
+	// Clear before drawing so a request made during the frame remains pending.
+	r.dirty.Store(false)
+	r.renderFrame()
 }
 
 // RequestRender marks one frame due and wakes the event loop. Repeated requests
@@ -856,9 +897,61 @@ func (r *Renderer) SetBackgroundColor(ci style.ColorInput) {
 	r.RequestRender()
 }
 
-// SetTitle sets the terminal window title.
+// SetTitle sets the terminal window and tab title.
 func (r *Renderer) SetTitle(title string) {
 	r.backend.SetTitle(title)
+}
+
+// ProgressKeepalive is how often an active progress indicator is repeated.
+// Ghostty drops an indicator that goes 15 seconds without an update.
+const ProgressKeepalive = time.Second
+
+// SetProgress shows an indeterminate progress indicator on the terminal tab
+// while active is true, and clears it when active is false. An active
+// indicator is repeated every [ProgressKeepalive] until it is cleared or the
+// renderer is destroyed.
+func (r *Renderer) SetProgress(active bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if !active {
+		r.clearProgressLocked()
+		return
+	}
+	r.backend.SetProgress(true)
+	if r.progressStop != nil {
+		return
+	}
+	stop := make(chan struct{})
+	r.progressStop = stop
+	go func() {
+		ticker := time.NewTicker(ProgressKeepalive)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-ticker.C:
+				// A tick racing a clear must not show the indicator again.
+				r.mu.Lock()
+				if r.progressStop == stop {
+					r.backend.SetProgress(true)
+				}
+				r.mu.Unlock()
+			}
+		}
+	}()
+}
+
+// clearProgressLocked ends the progress keepalive and clears the indicator.
+// It does nothing when no indicator is active. The caller must hold r.mu.
+func (r *Renderer) clearProgressLocked() {
+	if r.progressStop == nil {
+		return
+	}
+	close(r.progressStop)
+	r.progressStop = nil
+	r.backend.SetProgress(false)
 }
 
 // Stats returns a snapshot of aggregate rendering statistics.

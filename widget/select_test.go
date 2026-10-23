@@ -141,6 +141,48 @@ func TestSelect_Render(t *testing.T) {
 	}
 }
 
+// TestSelect_HintColor checks that a hint color colors the hint after each
+// name on every row, the selected one included, and that without one the
+// selected row's hint takes the row's text color.
+func TestSelect_HintColor(t *testing.T) {
+	hintFg := style.ColorFromInts(112, 112, 112, 255)
+	textFg := style.ColorFromInts(180, 180, 180, 255)
+	selectedFg := style.ColorWhite
+	opts := []SelectOption{{Name: "alpha", Hint: "[default]"}, {Name: "beta", Hint: "[new]"}}
+	// The hint starts after the name and a space.
+	hintAt := func(buf *buffer.Buffer, row int, name string) style.Color {
+		return buf.Cell(len(name)+1, row).Fg
+	}
+	tests := []struct {
+		name             string
+		opts             []SelectOpt
+		selected, normal style.Color
+	}{
+		{name: "hint color", opts: []SelectOpt{SelectWithHintColor(hintFg)}, selected: hintFg, normal: hintFg},
+		{name: "description color", selected: selectedFg, normal: textFg},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := NewSelect(opts, append([]SelectOpt{
+				SelectWithTextColor(textFg),
+				SelectWithDescriptionColor(textFg),
+				SelectWithFocusedTextColor(selectedFg),
+				SelectWithSelectedTextColor(selectedFg),
+			}, tt.opts...)...)
+			s.Focus()
+			s.SetBounds(0, 0, 20, 2)
+			buf := buffer.New(20, 2)
+			s.RenderSelf(buf, 0)
+			if got := hintAt(buf, 0, "alpha"); got != tt.selected {
+				t.Errorf("selected row's hint fg = %v, want %v", got, tt.selected)
+			}
+			if got := hintAt(buf, 1, "beta"); got != tt.normal {
+				t.Errorf("other row's hint fg = %v, want %v", got, tt.normal)
+			}
+		})
+	}
+}
+
 func TestSelect_ArrowColumn(t *testing.T) {
 	opts := []SelectOption{
 		{Name: "alpha", Description: "first"},

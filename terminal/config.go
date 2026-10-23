@@ -157,6 +157,16 @@ type Config struct {
 	// render. The default is false.
 	ClearScreenOnStart bool
 
+	// ClearOnExit erases inline output when the renderer is destroyed, so the
+	// terminal looks as it did before the renderer drew it. Output that reached
+	// the scrollback, or that a resize may have moved, can only be erased with
+	// the whole screen and scrollback.
+	//
+	// The default is false, which leaves inline output in place with the cursor
+	// on a clean line below it. Quitting from the alternate screen erases the
+	// inline output it covered either way.
+	ClearOnExit bool
+
 	// BackgroundColor fills the frame before widgets render. The default is
 	// style.ColorBlack.
 	BackgroundColor style.Color
@@ -245,6 +255,7 @@ func mergeConfig(configs []Config) Config {
 	cfg.ExitOnCtrlC = user.ExitOnCtrlC
 	cfg.InlineMode = user.InlineMode
 	cfg.ClearScreenOnStart = user.ClearScreenOnStart
+	cfg.ClearOnExit = user.ClearOnExit
 	cfg.UseKittyKeyboard = user.UseKittyKeyboard
 	cfg.AltSendsEscPrefix = user.AltSendsEscPrefix
 	cfg.GatherStats = user.GatherStats

@@ -843,6 +843,50 @@ func TestGolden_MarkdownList(t *testing.T) {
 	testutil.AssertGoldenFrames(t, "markdown_list", buf, nil)
 }
 
+// TestGolden_MarkdownCodeBlockPaddingY checks that the rows above and below
+// fenced code follow MarkdownWithCodeBlockPaddingY, even when it comes before
+// MarkdownWithCodeBlockPadding, whose columns stay as they are.
+func TestGolden_MarkdownCodeBlockPaddingY(t *testing.T) {
+	md := widget.NewMarkdown("```\nx := 1\n```",
+		widget.MarkdownWithCodeBlockPaddingY(1),
+		widget.MarkdownWithCodeBlockPadding(2),
+		widget.MarkdownWithCodeBlockFit(true),
+	)
+	buf := testutil.RenderWidget(md, 14, 4)
+	testutil.AssertGoldenFrames(t, "markdown_code_padding_y", buf, nil)
+}
+
+// TestGolden_MarkdownCodeBlockNested checks that fenced code in a list item
+// or a quote starts its background under the parent's text, with the same
+// padding on both sides, as top-level code starts it at the margin.
+func TestGolden_MarkdownCodeBlockNested(t *testing.T) {
+	md := widget.NewMarkdown("```\nx := 1\n```\n\n1. Run it:\n\n   ```\n   x := 1\n   ```\n\n> Quoted:\n>\n> ```\n> x := 1\n> ```",
+		widget.MarkdownWithCodeBlockPaddingY(1),
+		widget.MarkdownWithCodeBlockPadding(2),
+		widget.MarkdownWithCodeBlockMargin(2),
+		widget.MarkdownWithCodeBlockFit(true),
+		widget.MarkdownWithProsePadding(2),
+	)
+	buf := testutil.RenderWidget(md, 24, 15)
+	testutil.AssertGoldenFrames(t, "markdown_code_nested", buf, nil)
+}
+
+// TestGolden_MarkdownBlockSpacing checks that a blank row parts every two
+// blocks, nested ones too: code blocks in a row, a list item's text and the
+// block under it, that block and the next item, and the items of a loose
+// list. The items of a tight list follow each other.
+func TestGolden_MarkdownBlockSpacing(t *testing.T) {
+	md := widget.NewMarkdown("```\na\n```\n```\nb\n```\n\n1. one\n2. two\n   ```\n   x\n   ```\n3. three\n\n- loose\n\n- list",
+		widget.MarkdownWithCodeBlockPaddingY(1),
+		widget.MarkdownWithCodeBlockPadding(2),
+		widget.MarkdownWithCodeBlockMargin(2),
+		widget.MarkdownWithCodeBlockFit(true),
+		widget.MarkdownWithProsePadding(2),
+	)
+	buf := testutil.RenderWidget(md, 20, 22)
+	testutil.AssertGoldenFrames(t, "markdown_block_spacing", buf, nil)
+}
+
 // ScrollBox golden tests.
 
 func TestGolden_ScrollBoxWithChild(t *testing.T) {

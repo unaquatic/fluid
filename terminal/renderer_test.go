@@ -339,7 +339,7 @@ func TestRenderer_SetTitle(t *testing.T) {
 
 	r.SetTitle("Test Title")
 
-	if !strings.Contains(outBuf.String(), "\x1b]2;Test Title\x07") {
+	if !strings.Contains(outBuf.String(), "\x1b]0;Test Title\x07") {
 		t.Errorf("expected title escape, got: %q", outBuf.String())
 	}
 }

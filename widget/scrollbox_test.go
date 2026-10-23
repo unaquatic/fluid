@@ -7,6 +7,7 @@ import (
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
 	"github.com/unaquatic/fluid/layout"
+	"github.com/unaquatic/fluid/render"
 	"github.com/unaquatic/fluid/style"
 	"github.com/unaquatic/fluid/testutil"
 )
@@ -180,6 +181,72 @@ func TestScrollBox_ScrollTo(t *testing.T) {
 	}
 	if sb.ScrollY() != 12 {
 		t.Errorf("expected scrollY 12, got %d", sb.ScrollY())
+	}
+}
+
+// TestScrollBox_ContentSizeIncludesTrailingMargins checks that a child's bottom
+// and right margins count as content, so a viewport at the end shows the space
+// they leave. A Gone child takes no space, margins included.
+func TestScrollBox_ContentSizeIncludesTrailingMargins(t *testing.T) {
+	gone := NewBox(BoxWithHeight(layout.Points(1)), BoxWithMarginBottom(layout.Points(5)))
+	gone.SetGone(true)
+
+	for _, tt := range []struct {
+		name          string
+		dir           layout.FlexDirection
+		children      []render.Renderable
+		width, height int // The wanted content size.
+	}{
+		{
+			name: "bottom margin",
+			dir:  layout.DirectionColumn,
+			children: []render.Renderable{NewBox(BoxWithWidth(layout.Points(4)),
+				BoxWithHeight(layout.Points(3)), BoxWithFlexShrink(0), BoxWithMarginBottom(layout.Points(1)))},
+			width: 4, height: 4,
+		},
+		{
+			name: "right margin",
+			dir:  layout.DirectionRow,
+			children: []render.Renderable{NewBox(BoxWithWidth(layout.Points(5)),
+				BoxWithHeight(layout.Points(1)), BoxWithFlexShrink(0), BoxWithMarginRight(layout.Points(2)))},
+			width: 7, height: 1,
+		},
+		{
+			name: "gone child",
+			dir:  layout.DirectionColumn,
+			children: []render.Renderable{NewBox(BoxWithWidth(layout.Points(4)),
+				BoxWithHeight(layout.Points(2)), BoxWithFlexShrink(0)), gone},
+			width: 4, height: 2,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			sb := NewScrollBox(ScrollBoxWithFlexDirection(tt.dir), ScrollBoxWithChildren(tt.children...))
+			testutil.SetupWidget(sb, 3, 1)
+			sb.OnPostLayout(0)
+
+			if sb.ContentWidth() != tt.width || sb.ContentHeight() != tt.height {
+				t.Errorf("content is %dx%d, want %dx%d", sb.ContentWidth(), sb.ContentHeight(), tt.width, tt.height)
+			}
+		})
+	}
+}
+
+// TestScrollBox_AutoScroll_BottomShowsTrailingMargin checks that following the
+// bottom edge keeps the last child's bottom margin in view.
+func TestScrollBox_AutoScroll_BottomShowsTrailingMargin(t *testing.T) {
+	last := NewBox(BoxWithHeight(layout.Points(3)), BoxWithFlexShrink(0), BoxWithMarginBottom(layout.Points(1)))
+	sb := NewScrollBox(
+		ScrollBoxWithFlexDirection(layout.DirectionColumn),
+		ScrollBoxWithAutoScroll(AutoScrollBottom),
+		ScrollBoxWithChildren(last),
+	)
+	testutil.SetupWidget(sb, 20, 2)
+	sb.OnPostLayout(0)
+
+	// Three rows and the margin leave the last row of the box and the margin
+	// in the two-row viewport.
+	if got := sb.ScrollY(); got != 2 {
+		t.Errorf("scrollY = %d, want 2", got)
 	}
 }
 
@@ -854,6 +921,73 @@ func TestScrollBox_AnchorScroll_KeyNavBackToBottomReengagesAutoScroll(t *testing
 	if !sb.IsAtBottom() {
 		t.Errorf("expected auto-scroll bottom after content growth via key nav, scrollY=%d",
 			sb.ScrollY())
+	}
+}
+
+// resizeChild sets the height of sb's child i to h, lays sb out again in a
+// vpW by vpH viewport, and runs its post-layout hook, as a frame does.
+func resizeChild(sb *ScrollBox, i, h, vpW, vpH int) {
+	child := sb.Children()[i]
+	child.LayoutNode().Height = layout.Points(h)
+	child.LayoutNode().MarkDirty()
+	sb.LayoutNode().ComputeLayout(vpW, vpH)
+	sb.UpdateFromLayout()
+	for _, c := range sb.Children() {
+		c.UpdateFromLayout()
+	}
+	sb.OnPostLayout(0)
+}
+
+func TestScrollBox_StopFollowing_GrowthExtendsBelow(t *testing.T) {
+	// The 15-cell viewport follows the bottom at y=45, the last 15 cells of
+	// child 2, which spans 30 to 60.
+	sb := newAnchorScrollBox(20, 15, 10, 20, 30)
+	if !sb.IsAtBottom() {
+		t.Fatal("expected at bottom initially")
+	}
+
+	sb.StopFollowing()
+	if !sb.UserScrolled() {
+		t.Fatal("expected StopFollowing to suspend edge following")
+	}
+
+	// Child 2 grows by ten cells below what the viewport shows.
+	resizeChild(sb, 2, 40, 20, 15)
+	if sb.ScrollY() != 45 {
+		t.Errorf("expected scrollY to stay 45 as the content grows below, got %d", sb.ScrollY())
+	}
+	if sb.IsAtBottom() || !sb.UserScrolled() {
+		t.Errorf("expected the viewport above the new bottom, not following it; scrollY=%d", sb.ScrollY())
+	}
+}
+
+func TestScrollBox_StopFollowing_ShrinkToEdgeFollowsAgain(t *testing.T) {
+	sb := newAnchorScrollBox(20, 15, 10, 20, 30)
+	sb.StopFollowing()
+	resizeChild(sb, 2, 40, 20, 15)
+
+	// Shrinking back brings the bottom edge into view at y=45 again.
+	sb.StopFollowing()
+	resizeChild(sb, 2, 30, 20, 15)
+	if sb.ScrollY() != 45 || !sb.IsAtBottom() {
+		t.Fatalf("expected scrollY=45 at the bottom after shrinking, got %d", sb.ScrollY())
+	}
+	if sb.UserScrolled() {
+		t.Fatal("expected edge following to resume at the bottom")
+	}
+
+	// New content is followed once more.
+	resizeChild(sb, 2, 50, 20, 15)
+	if !sb.IsAtBottom() {
+		t.Errorf("expected auto-scroll bottom after growth, scrollY=%d", sb.ScrollY())
+	}
+}
+
+func TestScrollBox_StopFollowing_NoAutoScroll(t *testing.T) {
+	sb := newTestScrollBox(20, 10, 20, 50)
+	sb.StopFollowing()
+	if sb.UserScrolled() {
+		t.Error("expected StopFollowing to do nothing without an auto-scroll edge")
 	}
 }
 

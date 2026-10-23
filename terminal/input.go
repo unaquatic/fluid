@@ -300,12 +300,15 @@ func (r *Renderer) watchResize() {
 			r.mu.Unlock()
 
 			if changed {
-				r.Enqueue(func() { r.processResize(w, h) })
+				// Inline layout only marks itself dirty, so the frame is
+				// requested here.
+				r.Enqueue(func() {
+					r.processResize(w, h)
+					r.RequestRender()
+				})
 			}
 		case <-r.stopChan:
 			return
 		}
 	}
-
-	r.RequestRender()
 }

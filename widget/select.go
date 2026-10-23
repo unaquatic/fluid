@@ -33,6 +33,9 @@ type Select struct {
 	selectedBackgroundColor style.Color
 	selectedTextColor       style.Color
 	descriptionColor        style.Color
+	// hintColor, when set, colors the hint after each name on every row, the
+	// selected one included.
+	hintColor *style.Color
 
 	showScrollIndicator bool
 	wrapSelection       bool
@@ -209,6 +212,9 @@ func (s *Select) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 			hintFg := s.descriptionColor
 			if isSelected {
 				hintFg = fg
+			}
+			if s.hintColor != nil {
+				hintFg = *s.hintColor
 			}
 			buf.DrawText(hint, hintX, drawY, hintFg)
 			nameLen += displayWidth(hint)
@@ -402,6 +408,13 @@ func SelectWithSelectedTextColor(c style.Color) SelectOpt {
 // SelectWithDescriptionColor sets the description color.
 func SelectWithDescriptionColor(c style.Color) SelectOpt {
 	return func(s *Select) { s.descriptionColor = c }
+}
+
+// SelectWithHintColor colors the hint after each name with c on every row,
+// the selected one included. Without it, a hint takes the description color,
+// and the selected row's text color on that row.
+func SelectWithHintColor(c style.Color) SelectOpt {
+	return func(s *Select) { s.hintColor = &c }
 }
 
 // SelectWithShowScrollIndicator controls whether overflow arrows are shown.

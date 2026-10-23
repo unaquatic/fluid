@@ -116,6 +116,7 @@ func (g *GoldmarkParser) convertBlock(node goldmarkast.Node, src []byte, s MdSty
 			Kind:     kind,
 			Level:    n.Start,
 			Children: items,
+			Loose:    !n.IsTight,
 		}, true
 
 	case *goldmarkast.Blockquote:
@@ -189,7 +190,7 @@ func (g *GoldmarkParser) convertListItem(li *goldmarkast.ListItem, src []byte, s
 	var prefix []style.TextChunk
 	var prefixWidth int
 	if listKind == MdBlockOrderedList {
-		p := "  " + intToStr(itemNum) + ". "
+		p := intToStr(itemNum) + ". "
 		prefix = []style.TextChunk{s.ListEnum.Chunk(p)}
 		prefixWidth = textbuf.StringWidth(p)
 	} else {

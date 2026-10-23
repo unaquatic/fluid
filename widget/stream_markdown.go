@@ -1,6 +1,9 @@
 package widget
 
 import (
+	"reflect"
+	"slices"
+
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/render"
@@ -25,6 +28,10 @@ type StreamMarkdown struct {
 
 	// allBlocks is reparsed whenever fullContent changes.
 	allBlocks []MdBlock
+
+	// leader leads the content, as SetLeader sets it, and trailer follows
+	// it, as SetTrailer sets it.
+	leader, trailer []style.TextChunk
 
 	// children contains one stable Markdown widget per block.
 	children []*Markdown
@@ -75,6 +82,179 @@ func (sm *StreamMarkdown) Content() string {
 	return sm.fullContent
 }
 
+// SetLeader sets text that leads the content, on its first line, as
+// PrependLeader places it, through later content updates too. Empty text
+// removes it. Only the block that the text leads is wrapped again.
+func (sm *StreamMarkdown) SetLeader(t style.StyledText) {
+	if setChunks(&sm.leader, t) {
+		sm.distributeBlocks()
+	}
+}
+
+// Leader returns the text that leads the content.
+func (sm *StreamMarkdown) Leader() style.StyledText {
+	return style.StyledText{Chunks: sm.leader}
+}
+
+// SetTrailer sets text that follows the content, on its last line when it
+// fits there, as AppendTrailer places it, through later content updates too.
+// Empty text removes it. Only the block that the text follows is wrapped
+// again.
+func (sm *StreamMarkdown) SetTrailer(t style.StyledText) {
+	if setChunks(&sm.trailer, t) {
+		sm.distributeBlocks()
+	}
+}
+
+// Trailer returns the text that follows the content.
+func (sm *StreamMarkdown) Trailer() style.StyledText {
+	return style.StyledText{Chunks: sm.trailer}
+}
+
+// setChunks sets *dst to a copy of the chunks of t, nil when there are none,
+// and reports whether that changed it.
+func setChunks(dst *[]style.TextChunk, t style.StyledText) bool {
+	chunks := t.Chunks
+	if len(chunks) == 0 {
+		chunks = nil
+	}
+	if reflect.DeepEqual(*dst, chunks) {
+		return false
+	}
+	*dst = slices.Clone(chunks)
+	return true
+}
+
+// PrependLeader returns blocks with leader before their first inline text,
+// parted from it by a space: at the start of the first paragraph, heading,
+// or list item, also of one in a list or a quote. Blocks that start with a
+// code block, table, or rule take leader as a paragraph of its own before
+// them, parted as InsertBlockSpacing parts blocks, and no blocks take it
+// alone. PrependLeader leaves blocks as they are, copying the blocks it
+// changes.
+func PrependLeader(blocks []MdBlock, leader []style.TextChunk) []MdBlock {
+	if len(leader) == 0 {
+		return blocks
+	}
+	if out, ok := prependLeader(blocks, leader); ok {
+		return out
+	}
+	para := MdBlock{Kind: MdBlockParagraph, Body: slices.Clone(leader)}
+	if len(blocks) == 0 {
+		return []MdBlock{para}
+	}
+	out := []MdBlock{para}
+	if needsSpace(para, blocks[0]) {
+		out = append(out, MdBlock{Kind: MdBlockBlank})
+	}
+	return append(out, blocks...)
+}
+
+// prependLeader adds leader before the first inline text of blocks, as
+// PrependLeader does, and reports whether blocks start with such text.
+func prependLeader(blocks []MdBlock, leader []style.TextChunk) ([]MdBlock, bool) {
+	for i, b := range blocks {
+		switch b.Kind {
+		case MdBlockBlank:
+			continue
+		case MdBlockParagraph, MdBlockHeading, MdBlockListItem:
+			// A list item's text is on its marker's line, before its nested
+			// blocks.
+			b.Body = leadBody(leader, b.Body)
+		case MdBlockList, MdBlockOrderedList, MdBlockQuote:
+			children, ok := prependLeader(b.Children, leader)
+			if !ok {
+				return blocks, false
+			}
+			b.Children = children
+		default:
+			return blocks, false
+		}
+		out := slices.Clone(blocks)
+		out[i] = b
+		return out, true
+	}
+	return blocks, false
+}
+
+// leadBody returns leader followed by a space and body, or leader alone when
+// body is empty.
+func leadBody(leader, body []style.TextChunk) []style.TextChunk {
+	if len(body) == 0 {
+		return slices.Clone(leader)
+	}
+	return slices.Concat(leader, []style.TextChunk{{Text: " "}}, body)
+}
+
+// AppendTrailer returns blocks with trailer after their last inline text,
+// parted from it by a space: at the end of the last paragraph, heading, or
+// list item, also of one in a list or a quote. Blocks that end with a code
+// block, table, or rule take trailer as a paragraph of its own after them,
+// parted as InsertBlockSpacing parts blocks, and no blocks take it alone.
+// AppendTrailer leaves blocks as they are, copying the blocks it changes.
+func AppendTrailer(blocks []MdBlock, trailer []style.TextChunk) []MdBlock {
+	if len(trailer) == 0 {
+		return blocks
+	}
+	if out, ok := appendTrailer(blocks, trailer); ok {
+		return out
+	}
+	para := MdBlock{Kind: MdBlockParagraph, Body: slices.Clone(trailer)}
+	if len(blocks) == 0 {
+		return []MdBlock{para}
+	}
+	out := slices.Clip(blocks)
+	if needsSpace(blocks[len(blocks)-1], para) {
+		out = append(out, MdBlock{Kind: MdBlockBlank})
+	}
+	return append(out, para)
+}
+
+// appendTrailer adds trailer after the last inline text of blocks, as
+// AppendTrailer does, and reports whether blocks end with such text.
+func appendTrailer(blocks []MdBlock, trailer []style.TextChunk) ([]MdBlock, bool) {
+	for i, b := range slices.Backward(blocks) {
+		switch b.Kind {
+		case MdBlockBlank:
+			continue
+		case MdBlockParagraph, MdBlockHeading:
+			b.Body = trailBody(b.Body, trailer)
+		case MdBlockListItem:
+			// The item's text comes before its nested blocks.
+			children, ok := appendTrailer(b.Children, trailer)
+			switch {
+			case ok:
+				b.Children = children
+			case slices.ContainsFunc(b.Children, func(c MdBlock) bool { return c.Kind != MdBlockBlank }):
+				return blocks, false
+			default:
+				b.Body = trailBody(b.Body, trailer)
+			}
+		case MdBlockList, MdBlockOrderedList, MdBlockQuote:
+			children, ok := appendTrailer(b.Children, trailer)
+			if !ok {
+				return blocks, false
+			}
+			b.Children = children
+		default:
+			return blocks, false
+		}
+		out := slices.Clone(blocks)
+		out[i] = b
+		return out, true
+	}
+	return blocks, false
+}
+
+// trailBody returns body followed by a space and trailer, or trailer alone
+// when body is empty.
+func trailBody(body, trailer []style.TextChunk) []style.TextChunk {
+	if len(body) == 0 {
+		return slices.Clone(trailer)
+	}
+	return slices.Concat(body, []style.TextChunk{{Text: " "}}, trailer)
+}
+
 // RenderSelf fills the background across the full content area.
 func (sm *StreamMarkdown) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 	if !sm.BackgroundColor.IsTransparent() {
@@ -82,10 +262,11 @@ func (sm *StreamMarkdown) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 	}
 }
 
-// distributeBlocks assigns one block to each child, creating children as needed.
+// distributeBlocks assigns one block to each child, creating children as needed,
+// with the leader before the first of them and the trailer after the last.
 // Children are retained when content shrinks so future updates can reuse them.
 func (sm *StreamMarkdown) distributeBlocks() {
-	allBlocks := sm.allBlocks
+	allBlocks := AppendTrailer(PrependLeader(sm.allBlocks, sm.leader), sm.trailer)
 
 	numChildren := len(allBlocks)
 	if numChildren == 0 {
@@ -186,10 +367,26 @@ func StreamMarkdownWithCodeBlockPadding(n int) StreamMarkdownOption {
 	}
 }
 
+// StreamMarkdownWithCodeBlockPaddingY sets the blank rows above and below
+// fenced blocks on each child, in place of those the padding sets.
+func StreamMarkdownWithCodeBlockPaddingY(n int) StreamMarkdownOption {
+	return func(sm *StreamMarkdown) {
+		sm.mdOpts = append(sm.mdOpts, MarkdownWithCodeBlockPaddingY(n))
+	}
+}
+
 // StreamMarkdownWithCodeBlockMargin sets fenced-block margins on each child.
 func StreamMarkdownWithCodeBlockMargin(n int) StreamMarkdownOption {
 	return func(sm *StreamMarkdown) {
 		sm.mdOpts = append(sm.mdOpts, MarkdownWithCodeBlockMargin(n))
+	}
+}
+
+// StreamMarkdownWithCodeBlockFit sets whether each child fits fenced-block
+// backgrounds to their widest line.
+func StreamMarkdownWithCodeBlockFit(v bool) StreamMarkdownOption {
+	return func(sm *StreamMarkdown) {
+		sm.mdOpts = append(sm.mdOpts, MarkdownWithCodeBlockFit(v))
 	}
 }
 
