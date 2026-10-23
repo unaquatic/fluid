@@ -5,43 +5,28 @@ import (
 	"github.com/unaquatic/fluid/textbuf"
 )
 
-// DrawTextSurface draws a TextSurface (or any Surface) into this
-// buffer at (x, y). It renders each visible virtual line, respecting the
-// view's viewport, selection, and styling.
+// DrawTextSurface draws view at (x, y), respecting its viewport, selection,
+// highlights, and styles.
 func (b *Buffer) DrawTextSurface(view textbuf.Surface, x, y int) {
 	b.drawSurfaceInternal(view, x, y)
 }
 
-// DrawEditSurface draws an EditSurface into this buffer at (x, y).
-// EditSurface implements Surface so this delegates to the same code.
+// DrawEditSurface draws an edit surface at (x, y). It accepts the Surface
+// interface so text and edit surfaces follow the same rendering path.
 func (b *Buffer) DrawEditSurface(view textbuf.Surface, x, y int) {
 	b.drawSurfaceInternal(view, x, y)
 }
 
-// drawSurfaceInternal is the shared drawing implementation for both
-// TextSurface and EditSurface.
-//
-// It handles three concerns that widgets previously implemented manually:
-//
-//  1. Per-line background fill: calls LineBackground(sourceLine) and paints
-//     a FillRect before the text when the color is non-transparent. This covers
-//     active-line highlighting and diff hunk coloring.
-//
-//  2. Line truncation with ellipsis: when Truncate() is true and a line is
-//     wider than the viewport, the last column is reserved for '…'.
-//
-//  3. Transparent background inheritance: when a chunk's background is
-//     transparent (zero value), the renderer inherits the background already
-//     present in the buffer cell (painted by FillRect or the widget's own
-//     background fill). This lets active-line and diff colors show through
-//     without every span needing to know about them.
+// drawSurfaceInternal renders viewport-adjusted virtual lines with line
+// backgrounds, highlights, selection, and optional truncation. A transparent
+// chunk inherits the destination cell's background.
 func (b *Buffer) drawSurfaceInternal(view textbuf.Surface, x, y int) {
 	virtualLines := view.VirtualLines()
 	if len(virtualLines) == 0 {
 		return
 	}
 
-	// Determine which virtual lines are visible within the buffer.
+	// Exclude virtual lines above and below the destination buffer.
 	firstVisibleLine := 0
 	if y < 0 {
 		firstVisibleLine = -y
@@ -66,10 +51,10 @@ func (b *Buffer) drawSurfaceInternal(view textbuf.Surface, x, y int) {
 		return
 	}
 
-	// Get viewport for horizontal offset and width limit.
+	// The viewport controls horizontal scrolling and the maximum line width.
 	vp := view.Viewport()
 	horizontalOffset := 0
-	viewportWidth := b.width // default: render to buffer edge
+	viewportWidth := b.width // Without a viewport, draw to the buffer edge.
 	if vp != nil {
 		if vp.X > 0 {
 			horizontalOffset = vp.X
@@ -84,7 +69,7 @@ func (b *Buffer) drawSurfaceInternal(view textbuf.Surface, x, y int) {
 	sel := view.Selection()
 	truncate := view.Truncate()
 
-	// Get line info for char offset tracking.
+	// VirtualLine currently supplies the offsets used below, so this metadata is unused.
 	lineInfo := view.CachedLineInfo()
 
 	currentY := y + firstVisibleLine
@@ -96,7 +81,7 @@ func (b *Buffer) drawSurfaceInternal(view textbuf.Surface, x, y int) {
 
 		vline := virtualLines[sliceIdx]
 
-		// --- Per-line background fill ---
+		// Paint the line background before its chunks so transparent chunks inherit it.
 		lineBg := view.LineBackground(vline.SourceLine)
 		if !lineBg.IsTransparent() {
 			b.FillRect(x, currentY, viewportWidth, 1, lineBg)
@@ -106,10 +91,10 @@ func (b *Buffer) drawSurfaceInternal(view textbuf.Surface, x, y int) {
 		globalCharPos := vline.CharOffset
 		columnInLine := 0
 
-		// Determine if this line needs truncation (wider than viewport).
+		// A truncated line reserves its final viewport column for an ellipsis.
 		needsTruncate := truncate && vline.Width > viewportWidth
 
-		// Get highlights for this virtual line's source (physical) line.
+		// Wrapped virtual lines share highlights with their source line.
 		highlights := view.LineHighlights(vline.SourceLine)
 
 		for _, vchunk := range vline.Chunks {
@@ -121,17 +106,16 @@ func (b *Buffer) drawSurfaceInternal(view textbuf.Surface, x, y int) {
 			chunkBg := vchunk.Bg
 			chunkAttrs := vchunk.Attributes
 
-			// Use defaults if colors are zero
+			// A zero foreground selects the surface default.
 			if chunkFg == (style.Color{}) {
 				chunkFg = defaultFg
 			}
 
-			// Transparent background inheritance: if the chunk has no
-			// background, leave chunkBg as zero so the per-cell logic
-			// below can inherit from the buffer (FillRect / widget bg).
+			// A zero chunk background uses the surface default when available;
+			// otherwise, the per-cell logic below inherits the destination.
 			chunkBgTransparent := chunkBg == (style.Color{})
 			if !chunkBgTransparent {
-				// Chunk has an explicit bg — use it.
+				// Preserve the chunk's explicit background.
 			} else if defaultBg != (style.Color{}) {
 				chunkBg = defaultBg
 			}
@@ -141,36 +125,36 @@ func (b *Buffer) drawSurfaceInternal(view textbuf.Surface, x, y int) {
 				cluster, rest, rw := textbuf.NextGraphemeCluster(chunkText)
 				chunkText = rest
 
-				// Skip horizontal offset
+				// Discard complete clusters before the horizontal viewport origin.
 				if columnInLine < horizontalOffset {
 					globalCharPos += rw
 					columnInLine += rw
 					continue
 				}
 
-				// Truncation: reserve last column for ellipsis
+				// Exclude the column reserved for a truncation ellipsis.
 				effectiveWidth := viewportWidth
 				if needsTruncate {
 					effectiveWidth = viewportWidth - 1
 				}
 
-				// Past viewport width limit (or wide char would overflow)
+				// Stop before a cluster that would cross the viewport boundary.
 				if columnInLine+rw > horizontalOffset+effectiveWidth {
-					// Write ellipsis if truncating
+					// Replace the last visible column with the ellipsis.
 					if needsTruncate && currentX < x+viewportWidth {
 						b.SetCell(x+viewportWidth-1, currentY, '…', chunkFg, chunkBg, chunkAttrs)
 					}
-					// Skip rest of this line
+					// No later chunk on this line can be visible.
 					chunkText = ""
 					break
 				}
 
-				// Past the right edge of the buffer
+				// Stop before a cluster that would cross the buffer boundary.
 				if currentX+rw > b.width {
 					break
 				}
 
-				// Check clipping
+				// Clipped clusters still consume source and destination columns.
 				if currentY < 0 || b.isClipped(currentX, currentY) {
 					globalCharPos += rw
 					currentX += rw
@@ -182,7 +166,7 @@ func (b *Buffer) drawSurfaceInternal(view textbuf.Surface, x, y int) {
 				finalBg := chunkBg
 				finalAttrs := chunkAttrs
 
-				// Transparent bg inheritance: read existing cell bg
+				// Inherit a background already painted by the line or widget.
 				if chunkBgTransparent && defaultBg == (style.Color{}) {
 					existing := b.Cell(currentX, currentY)
 					if existing.Bg != (style.Color{}) {
@@ -190,7 +174,7 @@ func (b *Buffer) drawSurfaceInternal(view textbuf.Surface, x, y int) {
 					}
 				}
 
-				// Apply highlight colors using source-line coordinates.
+				// Highlights use coordinates from the unwrapped source line.
 				sourceCol := vline.SourceColOffset + columnInLine
 				for _, hl := range highlights {
 					if sourceCol >= hl.Start && sourceCol < hl.End {
@@ -205,7 +189,7 @@ func (b *Buffer) drawSurfaceInternal(view textbuf.Surface, x, y int) {
 					}
 				}
 
-				// Apply selection highlighting (overrides highlights)
+				// Selection colors take precedence over line highlights.
 				if sel != nil {
 					for c := range rw {
 						if globalCharPos+c >= sel.Start && globalCharPos+c < sel.End {
@@ -225,7 +209,7 @@ func (b *Buffer) drawSurfaceInternal(view textbuf.Surface, x, y int) {
 					}
 				}
 
-				// Apply reverse attribute (bit 5)
+				// The reverse-video attribute swaps the final colors.
 				if finalAttrs&(1<<5) != 0 {
 					finalFg, finalBg = finalBg, finalFg
 				}
@@ -241,6 +225,5 @@ func (b *Buffer) drawSurfaceInternal(view textbuf.Surface, x, y int) {
 		currentY++
 	}
 
-	// Suppress unused variable warning
 	_ = lineInfo
 }

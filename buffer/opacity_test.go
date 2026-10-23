@@ -84,7 +84,7 @@ func TestOpacityStack_Clear(t *testing.T) {
 
 func TestOpacityStack_PopEmpty(t *testing.T) {
 	var s opacityStack
-	// Should not panic
+	// Popping an empty stack is a safe no-op.
 	s.Pop()
 	if !floatEq(s.Current(), 1.0) {
 		t.Error("Pop on empty stack should return 1.0")
@@ -98,7 +98,7 @@ func TestOpacityStack_ZeroOpacity(t *testing.T) {
 		t.Errorf("zero opacity = %f, want 0.0", s.Current())
 	}
 
-	// Pushing onto zero should stay zero
+	// Multiplying an effective opacity of zero keeps it at zero.
 	s.Push(0.5)
 	if !floatEq(s.Current(), 0.0) {
 		t.Errorf("0.0 * 0.5 = %f, want 0.0", s.Current())

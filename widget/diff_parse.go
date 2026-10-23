@@ -6,39 +6,33 @@ import (
 	"strings"
 )
 
-// StructuredPatch represents a parsed unified diff for a single file.
+// StructuredPatch contains the headers and hunks parsed from a unified diff.
 type StructuredPatch struct {
 	OldFileName string
 	NewFileName string
 	OldHeader   string
 	NewHeader   string
-	FileHeaders []string // raw header lines before the first hunk (diff, index, ---, +++)
+	FileHeaders []string // Raw lines before the first hunk, including diff, index, ---, and +++.
 	Hunks       []DiffHunk
 }
 
-// ---------------------------------------------------------------------------
-// DiffLayout — view-independent layout for unified & split rendering
-// ---------------------------------------------------------------------------
-
-// DiffLayout is the view-independent layout produced after parsing a diff.
-// It organises the diff into typed blocks that can be rendered in both
-// unified and split modes without redundant line-number tracking or
-// change-block pairing. The block sequence mirrors git diff output.
+// DiffLayout is a view-independent sequence of parsed diff blocks.
+// Both unified and split renderers consume the same sequence and line numbers.
 type DiffLayout struct {
 	Blocks     []DiffBlock
-	MaxLineNum int // largest source line number across all blocks
+	MaxLineNum int // Largest old-file or new-file line number in Blocks.
 }
 
 // DiffBlockKind classifies a block in the diff layout.
 type DiffBlockKind int
 
 const (
-	DiffBlockFullWidth DiffBlockKind = iota // File header or hunk header (spans full width)
-	DiffBlockContext                        // Unchanged context line (same on both sides)
-	DiffBlockChange                         // Change block: consecutive removes then adds
+	DiffBlockFullWidth DiffBlockKind = iota // File or hunk header spanning both split panes.
+	DiffBlockContext                        // Unchanged line displayed on both sides.
+	DiffBlockChange                         // Consecutive removed lines followed by added lines.
 )
 
-// DiffBlock represents one logical element in the diff layout.
+// DiffBlock contains one logical element in a DiffLayout.
 //
 //   - DiffBlockFullWidth: Text is the header line, Type is diffHeader or diffHunk.
 //   - DiffBlockContext:   Text is the line content, OldLineNum/NewLineNum are set.
@@ -46,20 +40,20 @@ const (
 type DiffBlock struct {
 	Kind DiffBlockKind
 
-	// Shared by FullWidth and Context:
-	Text string       // display text
-	Type diffLineType // line classification
+	// Text and Type describe full-width and context blocks.
+	Text string       // Text displayed for the block.
+	Type diffLineType // Classification used to select colors.
 
-	// Context only:
-	OldLineNum int // line number in old file
-	NewLineNum int // line number in new file
+	// Context blocks carry a line number for each file.
+	OldLineNum int // Line number in the old file.
+	NewLineNum int // Line number in the new file.
 
-	// Change only:
-	Removes []DiffLine // removed lines (old file side)
-	Adds    []DiffLine // added lines (new file side)
+	// Change blocks separate old-file removals from new-file additions.
+	Removes []DiffLine
+	Adds    []DiffLine
 }
 
-// DiffLine represents a single line within a change block.
+// DiffLine contains one changed line and its source-file line number.
 type DiffLine struct {
 	Content string
 	LineNum int
@@ -71,21 +65,21 @@ type DiffHunk struct {
 	OldLines int
 	NewStart int
 	NewLines int
-	Header   string // the @@ line
+	Header   string // Complete @@ hunk-header line.
 	Lines    []HunkLine
 }
 
 // HunkLine is a single line within a hunk.
 type HunkLine struct {
-	Content string       // line content without the prefix character
-	Type    diffLineType // diffAdded, diffRemoved, or diffContext
+	Content string       // Line content without its diff prefix.
+	Type    diffLineType // One of diffAdded, diffRemoved, or diffContext.
 }
 
-// hunkHeaderRe matches @@ -old,oldlen +new,newlen @@ ...
+// hunkHeaderRe captures old and new ranges from a unified-diff hunk header.
 var hunkHeaderRe = regexp.MustCompile(`^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@(.*)$`)
 
-// ParsePatch parses a unified diff string into a StructuredPatch.
-// Returns nil if the input doesn't look like a unified diff.
+// ParsePatch parses unified-diff headers and hunks from text.
+// Text before the first valid hunk is retained in FileHeaders.
 func ParsePatch(text string) *StructuredPatch {
 	lines := strings.Split(text, "\n")
 	if len(lines) == 0 {
@@ -95,12 +89,11 @@ func ParsePatch(text string) *StructuredPatch {
 	patch := &StructuredPatch{}
 	i := 0
 
-	// Collect all lines before the first hunk header as file headers.
-	// This captures diff, index, ---, +++ and any other preamble lines.
+	// Retain the complete preamble before the first valid hunk header.
 	for i < len(lines) && !hunkHeaderRe.MatchString(lines[i]) {
 		patch.FileHeaders = append(patch.FileHeaders, lines[i])
 
-		// Also extract --- / +++ file names.
+		// Extract old and new names while preserving their raw header lines.
 		if strings.HasPrefix(lines[i], "---") {
 			parts := strings.SplitN(lines[i], " ", 2)
 			if len(parts) > 1 {
@@ -116,7 +109,7 @@ func ParsePatch(text string) *StructuredPatch {
 		i++
 	}
 
-	// Parse hunks
+	// Parse each recognized hunk and skip unrelated lines between hunks.
 	for i < len(lines) {
 		line := lines[i]
 		matches := hunkHeaderRe.FindStringSubmatch(line)
@@ -141,11 +134,11 @@ func ParsePatch(text string) *StructuredPatch {
 
 		i++
 
-		// Parse hunk lines
+		// Classify prefixed lines until the next hunk header or end of input.
 		for i < len(lines) {
 			l := lines[i]
 			if len(l) == 0 {
-				// Empty line in diff means context line with no content
+				// Treat an unprefixed empty line as empty context.
 				hunk.Lines = append(hunk.Lines, HunkLine{Content: "", Type: diffContext})
 				i++
 				continue
@@ -165,15 +158,15 @@ func ParsePatch(text string) *StructuredPatch {
 			case ' ':
 				hunk.Lines = append(hunk.Lines, HunkLine{Content: content, Type: diffContext})
 			case '\\':
-				// "\ No newline at end of file" — skip
+				// Ignore the standard "No newline at end of file" marker.
 				i++
 				continue
 			default:
-				// Hit next hunk header or non-diff content
+				// Leave the current hunk when the next header starts.
 				if hunkHeaderRe.MatchString(l) {
 					goto nextHunk
 				}
-				// Treat as context
+				// Preserve other unprefixed content as context.
 				hunk.Lines = append(hunk.Lines, HunkLine{Content: l, Type: diffContext})
 			}
 			i++
@@ -185,11 +178,7 @@ func ParsePatch(text string) *StructuredPatch {
 	return patch
 }
 
-// ---------------------------------------------------------------------------
-// BuildDiffLayout
-// ---------------------------------------------------------------------------
-
-// BuildDiffLayout produces a view-independent layout from a StructuredPatch.
+// BuildDiffLayout produces a view-independent layout from patch.
 // The resulting DiffLayout can drive both unified and split renderers:
 //
 //   - Unified: iterate blocks sequentially; for DiffBlockChange emit all
@@ -210,7 +199,7 @@ func BuildDiffLayout(patch *StructuredPatch) *DiffLayout {
 		}
 	}
 
-	// File headers as full-width blocks.
+	// File headers span the full view width.
 	for _, h := range patch.FileHeaders {
 		layout.Blocks = append(layout.Blocks, DiffBlock{
 			Kind: DiffBlockFullWidth,
@@ -220,7 +209,7 @@ func BuildDiffLayout(patch *StructuredPatch) *DiffLayout {
 	}
 
 	for _, hunk := range patch.Hunks {
-		// Hunk header.
+		// Each hunk header also spans the full view width.
 		layout.Blocks = append(layout.Blocks, DiffBlock{
 			Kind: DiffBlockFullWidth,
 			Text: hunk.Header,
@@ -250,7 +239,7 @@ func BuildDiffLayout(patch *StructuredPatch) *DiffLayout {
 				continue
 			}
 
-			// Collect consecutive removed then added lines as a change block.
+			// Group adjacent removals and additions for split-view pairing.
 			var removes []DiffLine
 			var adds []DiffLine
 
@@ -285,25 +274,21 @@ func BuildDiffLayout(patch *StructuredPatch) *DiffLayout {
 	return layout
 }
 
-// ---------------------------------------------------------------------------
-// Legacy helpers (kept for API compatibility)
-// ---------------------------------------------------------------------------
-
-// LogicalDiffLine represents a fully-resolved line for display in the diff widget.
+// LogicalDiffLine contains one flattened display line from a parsed diff.
 type LogicalDiffLine struct {
-	Content     string       // display text
-	Type        diffLineType // diffAdded, diffRemoved, diffContext, diffHeader, diffHunk
-	OldLineNum  int          // 0 = not applicable
-	NewLineNum  int          // 0 = not applicable
-	HideLineNum bool         // true for padding lines in split view
+	Content     string       // Display text.
+	Type        diffLineType // Classification used to select colors.
+	OldLineNum  int          // Zero when not applicable.
+	NewLineNum  int          // Zero when not applicable.
+	HideLineNum bool         // True for padding rows in split view.
 }
 
-// BuildUnifiedLines produces a flat list of logical lines from a structured patch.
+// BuildUnifiedLines flattens patch hunks into sequential logical lines.
 func BuildUnifiedLines(patch *StructuredPatch) []LogicalDiffLine {
 	var result []LogicalDiffLine
 
 	for _, hunk := range patch.Hunks {
-		// Add hunk header
+		// Emit each hunk header before its content.
 		result = append(result, LogicalDiffLine{
 			Content: hunk.Header,
 			Type:    diffHunk,
@@ -339,10 +324,10 @@ func BuildUnifiedLines(patch *StructuredPatch) []LogicalDiffLine {
 	return result
 }
 
-// BuildSplitLines produces left and right line lists for a side-by-side diff view.
+// BuildSplitLines flattens patch into aligned old-file and new-file line slices.
 func BuildSplitLines(patch *StructuredPatch) (left, right []LogicalDiffLine) {
 	for _, hunk := range patch.Hunks {
-		// Add hunk header to both sides
+		// Repeat hunk headers on both sides.
 		headerLine := LogicalDiffLine{
 			Content: hunk.Header,
 			Type:    diffHunk,
@@ -353,7 +338,7 @@ func BuildSplitLines(patch *StructuredPatch) (left, right []LogicalDiffLine) {
 		oldLine := hunk.OldStart
 		newLine := hunk.NewStart
 
-		// Collect change blocks (consecutive - and + lines)
+		// Process each adjacent removal/addition group as one change block.
 		i := 0
 		for i < len(hunk.Lines) {
 			hl := hunk.Lines[i]
@@ -373,7 +358,7 @@ func BuildSplitLines(patch *StructuredPatch) (left, right []LogicalDiffLine) {
 				continue
 			}
 
-			// Collect consecutive removed and added lines as a change block
+			// Collect removals followed by additions.
 			var removed, added []HunkLine
 			for i < len(hunk.Lines) && hunk.Lines[i].Type == diffRemoved {
 				removed = append(removed, hunk.Lines[i])
@@ -384,7 +369,7 @@ func BuildSplitLines(patch *StructuredPatch) (left, right []LogicalDiffLine) {
 				i++
 			}
 
-			// Pair up removed (left) and added (right), padding the shorter side
+			// Pair changes by index and pad the shorter side.
 			maxLen := max(len(added), len(removed))
 
 			for j := 0; j < maxLen; j++ {

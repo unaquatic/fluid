@@ -16,8 +16,8 @@ import (
 type DiffViewMode int
 
 const (
-	DiffUnified DiffViewMode = iota // Unified diff view
-	DiffSplit                       // Side-by-side split view
+	DiffUnified DiffViewMode = iota // One sequential column.
+	DiffSplit                       // Old and new content in side-by-side columns.
 )
 
 // diffLineType classifies a parsed diff line.
@@ -29,33 +29,30 @@ const (
 	diffRemoved
 	diffHeader
 	diffHunk
-	diffEmpty // padding line in split view
+	diffEmpty // Padding row in split view.
 )
 
-// Diff displays a unified or split diff with color-coded lines, line numbers,
-// scrolling, and optional syntax highlighting + inline word diff.
+// Diff displays a scrollable unified patch in sequential or side-by-side form.
+// It supports line numbers, syntax highlighting, signs, and line backgrounds.
 //
-// Architecture: Diff is a compositor that delegates rendering to child widgets:
-//   - Code widget(s) handle text rendering (tabs, wrapping, syntax highlighting)
-//   - LineNumber widget(s) handle gutter rendering (line numbers, signs, per-line bg)
+// Diff composes Code widgets for text with LineNumber widgets for gutters.
 //
-// Unified view:  LineNumber → Code (100% width)
-// Split view:    LineNumber → Code (50%) │ LineNumber → Code (50%)
+// Unified view uses one gutter and Code pane. Split view uses one pair per side.
 type Diff struct {
 	*render.BaseRenderable
 
-	patch       string // raw unified diff text
+	patch       string // Raw unified diff text.
 	viewMode    DiffViewMode
-	filetype    string            // language for syntax highlighting
-	theme       string            // theme name
-	wrapMode    *WrapMode         // nil means inherit Code default (WrapWord)
-	highlighter SyntaxHighlighter // nil means use default (ChromaHighlighter)
+	filetype    string            // Language used for syntax highlighting.
+	theme       string            // Chroma theme name.
+	wrapMode    *WrapMode         // Nil uses Code's default WrapWord mode.
+	highlighter SyntaxHighlighter // Nil uses Code's default Chroma highlighter.
 
 	showLineNumbers bool
-	inlineHighlight bool // word-level inline diff highlighting
-	showSigns       bool // show +/- signs in gutter
-	gutterSeparator bool // show vertical separator between gutter and content
-	splitSeparator  rune // separator character between split panels
+	inlineHighlight bool // Enables character-level change highlighting.
+	showSigns       bool // Displays plus and minus signs in gutters.
+	gutterSeparator bool // Separates the gutter from content with a vertical rule.
+	splitSeparator  rune // Separates the two split panes.
 
 	// Colors
 	addedBg       style.Color
@@ -71,7 +68,7 @@ type Diff struct {
 	signRemovedFg style.Color
 	separatorFg   style.Color
 
-	// Inline highlight colors
+	// Inline colors apply to changed portions within added and removed lines.
 	inlineAddedBg   style.Color
 	inlineRemovedBg style.Color
 
@@ -79,9 +76,9 @@ type Diff struct {
 	scrollY int
 	scrollX int
 
-	// Parsed state
+	// parsed and layout are rebuilt from patch when needsRebuild is true.
 	parsed *StructuredPatch
-	layout *DiffLayout // view-independent layout (drives both unified & split)
+	layout *DiffLayout
 
 	// Child widgets
 	leftCode  *Code
@@ -89,17 +86,17 @@ type Diff struct {
 	leftSide  *LineNumber
 	rightSide *LineNumber
 
-	// Split view: total visual rows after wrapping (cached from last render).
+	// splitVisualCount caches the wrapped split-view height from the last render.
 	splitVisualCount int
 
-	// Rebuilt state
+	// needsRebuild marks parsed state and child widgets as stale.
 	needsRebuild bool
 }
 
 // DiffOption configures a Diff widget.
 type DiffOption func(*Diff)
 
-// NewDiff creates a Diff widget.
+// NewDiff returns a unified Diff for patch unless options select another view.
 func NewDiff(patch string, opts ...DiffOption) *Diff {
 	d := &Diff{
 		BaseRenderable: render.NewBaseRenderable(
@@ -137,10 +134,7 @@ func NewDiff(patch string, opts ...DiffOption) *Diff {
 		opt(d)
 	}
 
-	// Set up mouse scroll handler.
-	// Only stop propagation if the scroll actually moved; when at a
-	// boundary (top/bottom) let the event bubble to the parent so an
-	// enclosing ScrollBox can scroll instead.
+	// Let scroll events bubble at an edge so an enclosing ScrollBox can move.
 	d.OnMouseScrollHandler = func(e *input.MouseEvent) {
 		if e.Scroll != nil {
 			oldY := d.scrollY
@@ -154,7 +148,7 @@ func NewDiff(patch string, opts ...DiffOption) *Diff {
 
 	d.rebuild()
 
-	// Set up intrinsic measurement so the layout engine can auto-size.
+	// Report patch height to containers that auto-size this widget.
 	d.LayoutNode().Measure = func(
 		width int, widthMode layout.MeasureMode,
 		height int, heightMode layout.MeasureMode,
@@ -175,11 +169,9 @@ func NewDiff(patch string, opts ...DiffOption) *Diff {
 	return d
 }
 
-// ---------------------------------------------------------------------------
-// Content Management
-// ---------------------------------------------------------------------------
+// Content and view configuration.
 
-// SetPatch sets the diff patch content.
+// SetPatch replaces the patch, resets scrolling, and rebuilds the view.
 func (d *Diff) SetPatch(patch string) {
 	if d.patch == patch {
 		return
@@ -195,7 +187,7 @@ func (d *Diff) SetPatch(patch string) {
 // Patch returns the current patch.
 func (d *Diff) Patch() string { return d.patch }
 
-// SetViewMode sets the view mode.
+// SetViewMode changes the presentation mode and resets scrolling.
 func (d *Diff) SetViewMode(mode DiffViewMode) {
 	if d.viewMode == mode {
 		return
@@ -211,7 +203,7 @@ func (d *Diff) SetViewMode(mode DiffViewMode) {
 // ViewMode returns the current view mode.
 func (d *Diff) ViewMode() DiffViewMode { return d.viewMode }
 
-// SetFiletype sets the language for syntax highlighting within diff.
+// SetFiletype sets the language used to highlight diff content.
 func (d *Diff) SetFiletype(ft string) {
 	if d.filetype == ft {
 		return
@@ -250,9 +242,7 @@ func (d *Diff) LineCount() int {
 	return 0
 }
 
-// ---------------------------------------------------------------------------
-// Scroll (implements ScrollInfoProvider)
-// ---------------------------------------------------------------------------
+// Scrolling.
 
 // ScrollY returns the vertical scroll offset.
 func (d *Diff) ScrollY() int { return d.scrollY }
@@ -260,7 +250,7 @@ func (d *Diff) ScrollY() int { return d.scrollY }
 // ScrollX returns the horizontal scroll offset.
 func (d *Diff) ScrollX() int { return d.scrollX }
 
-// SetScrollY sets the vertical scroll offset (clamped).
+// SetScrollY sets the vertical scroll offset, clamped to the current content.
 func (d *Diff) SetScrollY(v int) {
 	maxY := d.MaxScrollY()
 	if v < 0 {
@@ -271,7 +261,7 @@ func (d *Diff) SetScrollY(v int) {
 	}
 	if d.scrollY != v {
 		d.scrollY = v
-		// Propagate to child Code widgets
+		// Keep child panes aligned with the compositor.
 		if d.leftCode != nil {
 			d.leftCode.SetScrollY(v)
 		}
@@ -282,7 +272,7 @@ func (d *Diff) SetScrollY(v int) {
 	}
 }
 
-// SetScrollX sets the horizontal scroll offset (clamped).
+// SetScrollX sets a non-negative horizontal offset on both content panes.
 func (d *Diff) SetScrollX(v int) {
 	if v < 0 {
 		v = 0
@@ -318,15 +308,14 @@ func (d *Diff) handleScroll(deltaX, deltaY int) {
 	d.SetScrollX(d.scrollX + deltaX)
 }
 
-// OnResize invalidates state when size changes.
+// OnResize marks width-dependent diff state for rebuilding.
 func (d *Diff) OnResize(width, height int) {
 	d.needsRebuild = true
 }
 
-// RenderSelf orchestrates child widget rendering.
-// Diff manually positions and renders its Code + LineNumber children
-// rather than relying on the layout pipeline, ensuring correct behavior
-// both in production and in test scenarios.
+// RenderSelf positions and draws the active diff view.
+// Diff renders its Code and LineNumber children manually because pane widths
+// and wrapped row pairing depend on the final viewport size.
 func (d *Diff) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 	if d.needsRebuild {
 		d.rebuild()
@@ -348,7 +337,7 @@ func (d *Diff) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 	}
 }
 
-// renderUnifiedView renders the unified view: one LineNumber+Code pair at full width.
+// renderUnifiedView draws one full-width gutter and content pane.
 func (d *Diff) renderUnifiedView(buf *buffer.Buffer, x, y, w, h int, deltaTime float64) {
 	if d.leftCode == nil || d.leftSide == nil {
 		return
@@ -357,37 +346,33 @@ func (d *Diff) renderUnifiedView(buf *buffer.Buffer, x, y, w, h int, deltaTime f
 	gutterW := d.leftSide.ComputedWidth()
 	contentW := max(w-gutterW, 1)
 
-	// Position Code first so wrapping is computed at the correct width
-	// before LineNumber queries VisualLineCount / LogicalLineForVisualLine.
+	// Size Code first so LineNumber observes wrapping at the final content width.
 	d.positionWidget(d.leftCode, x+gutterW, y, contentW, h)
 
-	// Position and render gutter (LineNumber)
+	// Draw the gutter before content overlays its row backgrounds and text.
 	d.positionWidget(d.leftSide, x, y, gutterW, h)
 	d.leftSide.RenderSelf(buf, deltaTime)
 
-	// Render content (Code)
 	d.leftCode.RenderSelf(buf, deltaTime)
 }
 
-// renderSplitView renders the split view from DiffLayout blocks.
-// Headers/hunks span the full width; context and change blocks are rendered
-// in two columns with a separator. Wrapping is computed at render time when
-// the actual width is known.
+// renderSplitView draws headers across the viewport and content in paired panes.
+// It wraps each side at render time using the final pane widths.
 func (d *Diff) renderSplitView(buf *buffer.Buffer, x, y, w, h int, deltaTime float64) {
 	if d.layout == nil || len(d.layout.Blocks) == 0 {
 		return
 	}
 
-	// Determine effective wrap mode.
+	// Match Code's default wrap mode when no explicit mode was configured.
 	effectiveWrap := WrapWord
 	if d.wrapMode != nil {
 		effectiveWrap = *d.wrapMode
 	}
 
-	// Compute gutter width from pre-computed max line number.
+	// Use one gutter width for both panes.
 	gutterW := d.computeSplitGutterWidth()
 
-	// Layout: left_gutter | left_content | separator(1) | right_gutter | right_content
+	// Divide the viewport into gutter/content pairs around one separator column.
 	halfW := max((w-1)/2, 1)
 	rightHalfW := w - halfW - 1
 	leftContentW := halfW - gutterW
@@ -399,25 +384,24 @@ func (d *Diff) renderSplitView(buf *buffer.Buffer, x, y, w, h int, deltaTime flo
 		rightContentW = 1
 	}
 	fullContentW := max(
-		// for full-width header rows
+		// Full-width header rows use only the left gutter.
 		w-gutterW, 1)
 
 	sepX := x + halfW
 	rightX := sepX + 1
 
-	// Draw separator column for the full viewport height.
-	// Full-width rows will overwrite this.
+	// Draw the separator once; full-width header rows overwrite it as needed.
 	for row := range h {
 		buf.SetCell(sepX, y+row, d.splitSeparator, d.separatorFg, style.ColorTransparent, 0)
 	}
 
 	visualRow := 0
-	emptyLine := wrappedLine{} // empty line for padding rows
+	emptyLine := wrappedLine{} // Pads the shorter side of paired changes.
 
 	for _, block := range d.layout.Blocks {
 		switch block.Kind {
 		case DiffBlockFullWidth:
-			// Header/hunk: wrap at full width, render spanning both columns.
+			// Headers and hunk markers span both content panes.
 			fg := d.splitFgForType(block.Type)
 			lines := splitWrapText(block.Text, fullContentW, effectiveWrap, fg, style.ColorTransparent)
 
@@ -433,7 +417,7 @@ func (d *Diff) renderSplitView(buf *buffer.Buffer, x, y, w, h int, deltaTime flo
 			}
 
 		case DiffBlockContext:
-			// Context: same content on both sides.
+			// Context rows repeat the unchanged content on both sides.
 			bg := d.splitBgForType(diffContext)
 			fg := d.splitFgForType(diffContext)
 
@@ -447,7 +431,7 @@ func (d *Diff) renderSplitView(buf *buffer.Buffer, x, y, w, h int, deltaTime flo
 				if screenRow >= 0 && screenRow < h {
 					ry := y + screenRow
 
-					// Left gutter + content
+					// Draw the old-file side.
 					lType := diffContext
 					if j > 0 {
 						lType = diffEmpty
@@ -466,10 +450,10 @@ func (d *Diff) renderSplitView(buf *buffer.Buffer, x, y, w, h int, deltaTime flo
 					}
 					d.renderSplitLine(buf, x+gutterW, ry, leftContentW, ll, llBg)
 
-					// Separator
+					// Restore the separator if row content painted over it.
 					buf.SetCell(sepX, ry, d.splitSeparator, d.separatorFg, style.ColorTransparent, 0)
 
-					// Right gutter + content
+					// Draw the new-file side.
 					rNum := 0
 					if j == 0 {
 						rNum = block.NewLineNum
@@ -488,11 +472,11 @@ func (d *Diff) renderSplitView(buf *buffer.Buffer, x, y, w, h int, deltaTime flo
 			}
 
 		case DiffBlockChange:
-			// Pair removes (left) with adds (right), padding the shorter side.
+			// Pair removed and added lines by index, padding the shorter side.
 			pairLen := max(len(block.Adds), len(block.Removes))
 
 			for j := 0; j < pairLen; j++ {
-				// Determine left side (removed or empty).
+				// The old-file side contains a removed line or padding.
 				var leftContent string
 				var leftLineNum int
 				leftType := diffEmpty
@@ -502,7 +486,7 @@ func (d *Diff) renderSplitView(buf *buffer.Buffer, x, y, w, h int, deltaTime flo
 					leftType = diffRemoved
 				}
 
-				// Determine right side (added or empty).
+				// The new-file side contains an added line or padding.
 				var rightContent string
 				var rightLineNum int
 				rightType := diffEmpty
@@ -527,7 +511,7 @@ func (d *Diff) renderSplitView(buf *buffer.Buffer, x, y, w, h int, deltaTime flo
 					if screenRow >= 0 && screenRow < h {
 						ry := y + screenRow
 
-						// Left gutter + content
+						// Draw the old-file side.
 						lHide := leftType == diffEmpty || k > 0
 						lNum := 0
 						if k == 0 {
@@ -548,10 +532,10 @@ func (d *Diff) renderSplitView(buf *buffer.Buffer, x, y, w, h int, deltaTime flo
 						}
 						d.renderSplitLine(buf, x+gutterW, ry, leftContentW, ll, llBg)
 
-						// Separator
+						// Restore the pane separator.
 						buf.SetCell(sepX, ry, d.splitSeparator, d.separatorFg, style.ColorTransparent, 0)
 
-						// Right gutter + content
+						// Draw the new-file side.
 						rHide := rightType == diffEmpty || k > 0
 						rNum := 0
 						if k == 0 {
@@ -581,12 +565,9 @@ func (d *Diff) renderSplitView(buf *buffer.Buffer, x, y, w, h int, deltaTime flo
 	d.splitVisualCount = visualRow
 }
 
-// ---------------------------------------------------------------------------
-// Split View Rendering Helpers
-// ---------------------------------------------------------------------------
+// Split-view rendering helpers.
 
-// computeSplitGutterWidth returns the gutter width for split view based on
-// the pre-computed max line number and whether signs are shown.
+// computeSplitGutterWidth returns the width needed for numbers, padding, and signs.
 func (d *Diff) computeSplitGutterWidth() int {
 	maxNum := 0
 	if d.layout != nil {
@@ -595,11 +576,11 @@ func (d *Diff) computeSplitGutterWidth() int {
 
 	digits := max(len(strconv.Itoa(maxNum)), 2)
 
-	w := digits + 1 // digits + leading pad
+	w := digits + 1 // One leading padding column.
 	if d.showSigns {
-		w += 3 // " + " sign area
+		w += 3 // Width of " + " or " - ".
 	} else {
-		w += 1 // trailing space
+		w += 1 // One trailing padding column.
 	}
 	return w
 }
@@ -632,7 +613,7 @@ func (d *Diff) splitBgForType(lt diffLineType) style.Color {
 	}
 }
 
-// renderSplitGutter draws one gutter cell (line number + optional sign).
+// renderSplitGutter draws one gutter row with an optional line number and sign.
 func (d *Diff) renderSplitGutter(buf *buffer.Buffer, bx, by, gutterW, lineNum int, hideNum bool, lt diffLineType, bg style.Color) {
 	// Fill background.
 	if !bg.IsTransparent() {
@@ -645,7 +626,7 @@ func (d *Diff) renderSplitGutter(buf *buffer.Buffer, bx, by, gutterW, lineNum in
 	}
 	numFieldW := gutterW - signW
 
-	// Line number (right-aligned in numFieldW).
+	// Right-align the line number before the sign field.
 	if d.showLineNumbers && !hideNum && lineNum > 0 {
 		numStr := strconv.Itoa(lineNum)
 		startCol := max(numFieldW-len(numStr), 0)
@@ -654,7 +635,7 @@ func (d *Diff) renderSplitGutter(buf *buffer.Buffer, bx, by, gutterW, lineNum in
 		}
 	}
 
-	// Sign.
+	// Draw a fixed-width sign field for added, removed, or empty rows.
 	if d.showSigns {
 		sign := "   "
 		signFg := style.ColorTransparent
@@ -669,16 +650,14 @@ func (d *Diff) renderSplitGutter(buf *buffer.Buffer, bx, by, gutterW, lineNum in
 		for i, r := range sign {
 			fg := signFg
 			if fg.A == 0 {
-				fg = d.lineNumFg // use dim color for empty sign area
+				fg = d.lineNumFg // Use the gutter color for an empty sign field.
 			}
 			buf.SetCell(bx+numFieldW+i, by, r, fg, bg, 0)
 		}
 	}
 }
 
-// renderSplitLine draws a wrappedLine (from the shared wrapping infrastructure)
-// into the buffer at the given position and width. Each chunk carries its own
-// fg/bg/attributes. A fallback bg is used for the full-row background fill.
+// renderSplitLine draws one wrapped line and fills unused cells with fallbackBg.
 func (d *Diff) renderSplitLine(buf *buffer.Buffer, bx, by, width int, line wrappedLine, fallbackBg style.Color) {
 	if !fallbackBg.IsTransparent() {
 		buf.FillRect(bx, by, width, 1, fallbackBg)
@@ -689,9 +668,7 @@ func (d *Diff) renderSplitLine(buf *buffer.Buffer, bx, by, width int, line wrapp
 	}
 }
 
-// splitWrapText wraps text for split view rendering using the shared wrapping
-// infrastructure from text.go (wrapSegmentsWord / wrapSegmentsChar).
-// Tabs are expanded to spaces since Diff doesn't use TextSurface.
+// splitWrapText applies the shared Text wrapping functions to one diff line.
 func splitWrapText(text string, width int, mode WrapMode, fg, bg style.Color) []wrappedLine {
 	segments := []styledSegment{{text: text, fg: fg, bg: bg}}
 
@@ -709,7 +686,7 @@ func splitWrapText(text string, width int, mode WrapMode, fg, bg style.Color) []
 	}
 }
 
-// positionWidget sets a child widget's position and size for manual rendering.
+// positionWidget applies a computed rectangle to a manually rendered child.
 func (d *Diff) positionWidget(w render.Renderable, x, y, width, height int) {
 	ln := w.LayoutNode()
 	ln.Computed.X = x
@@ -719,15 +696,13 @@ func (d *Diff) positionWidget(w render.Renderable, x, y, width, height int) {
 	w.UpdateFromLayout()
 }
 
-// ---------------------------------------------------------------------------
-// Rebuild: parse patch and create/update child widgets
-// ---------------------------------------------------------------------------
+// Parsed-state and child-widget rebuilding.
 
 func (d *Diff) rebuild() {
-	// Remove existing children
+	// Discard child widgets tied to the previous parsed layout.
 	d.removeChildren()
 
-	// Parse patch and build view-independent layout once.
+	// Parse once, then build the children required by the selected view.
 	d.parsed = nil
 	d.layout = nil
 	if d.patch != "" {
@@ -757,10 +732,6 @@ func (d *Diff) removeChildren() {
 	d.rightCode = nil
 }
 
-// ---------------------------------------------------------------------------
-// Unified View
-// ---------------------------------------------------------------------------
-
 func (d *Diff) buildUnifiedView() {
 	d.LayoutNode().FlexDirection = layout.DirectionColumn
 
@@ -768,9 +739,7 @@ func (d *Diff) buildUnifiedView() {
 		return
 	}
 
-	// Flatten DiffLayout blocks into sequential display lines.
-	// The block structure naturally produces the standard git unified-diff
-	// order: for change blocks all removes are emitted before all adds.
+	// Flatten blocks in unified-diff order, with removals before additions.
 	var contentLines []string
 	lineColors := make(map[int]LineColorConfig)
 	lineSigns := make(map[int]LineSign)
@@ -781,13 +750,13 @@ func (d *Diff) buildUnifiedView() {
 	for _, block := range d.layout.Blocks {
 		switch block.Kind {
 		case DiffBlockFullWidth:
-			// File header or hunk header — no line number.
+			// File and hunk headers do not display source line numbers.
 			contentLines = append(contentLines, block.Text)
 			hideLineNums[lineIndex] = true
 			lineIndex++
 
 		case DiffBlockContext:
-			// Context line — show new-side line number.
+			// Context rows display their new-file line number.
 			contentLines = append(contentLines, block.Text)
 			if !d.contextBg.IsTransparent() {
 				lineColors[lineIndex] = LineColorConfig{
@@ -799,7 +768,7 @@ func (d *Diff) buildUnifiedView() {
 			lineIndex++
 
 		case DiffBlockChange:
-			// Removes first, then adds (standard unified diff order).
+			// Emit all removals before additions in each change block.
 			for _, rm := range block.Removes {
 				contentLines = append(contentLines, rm.Content)
 				lineColors[lineIndex] = LineColorConfig{
@@ -831,7 +800,7 @@ func (d *Diff) buildUnifiedView() {
 
 	content := strings.Join(contentLines, "\n")
 
-	// Create Code widget
+	// Create the unified content pane.
 	codeOpts := []CodeOption{
 		CodeWithFiletype(d.filetype),
 		CodeWithTheme(d.theme),
@@ -850,7 +819,7 @@ func (d *Diff) buildUnifiedView() {
 	}
 	d.leftCode = NewCode(content, codeOpts...)
 
-	// Build per-line bg for Code (content area colors)
+	// Give Code the content-area background for each logical line.
 	codeLineColors := make(map[int]style.Color)
 	for idx, lc := range lineColors {
 		if !lc.Content.IsTransparent() {
@@ -859,23 +828,22 @@ func (d *Diff) buildUnifiedView() {
 	}
 	d.leftCode.SetLineColors(codeLineColors)
 
-	// If signs not shown, clear them
+	// Omit sign metadata entirely when gutter signs are disabled.
 	if !d.showSigns {
 		lineSigns = nil
 	}
 
-	// Create LineNumber widget wrapping the Code
-	// Minimum gutter width: 3 digits + sign area (3 when showSigns, 1 otherwise)
+	// Reserve at least three digits plus the sign or trailing-space field.
 	minGutterW := 3
 	if d.showSigns {
-		minGutterW += 3 // " + " sign area
+		minGutterW += 3 // Width of " + " or " - ".
 	} else {
-		minGutterW += 1 // trailing space
+		minGutterW += 1 // One trailing padding column.
 	}
 
 	d.leftSide = NewLineNumber(d.leftCode,
 		LineNumberWithFg(d.lineNumFg),
-		LineNumberWithOffset(0), // we use custom lineNumbers map
+		LineNumberWithOffset(0), // lineNumbers supplies every displayed number.
 		LineNumberWithMinWidth(minGutterW),
 		LineNumberWithShow(d.showLineNumbers),
 		LineNumberWithLineColors(lineColors),
@@ -894,51 +862,43 @@ func (d *Diff) buildUnifiedView() {
 	d.Add(d.leftSide)
 }
 
-// ---------------------------------------------------------------------------
-// Split View
-// ---------------------------------------------------------------------------
-
 func (d *Diff) buildSplitView() {
 	d.LayoutNode().FlexDirection = layout.DirectionRow
 	d.splitVisualCount = 0
 }
 
-// ---------------------------------------------------------------------------
-// Inline Word Diff
-// ---------------------------------------------------------------------------
-
-// inlineDiffSegment represents a segment with diff status.
+// inlineDiffSegment contains text and whether it differs from the opposite side.
 type inlineDiffSegment struct {
 	text    string
 	changed bool
 }
 
-// computeInlineDiff compares two strings and returns segments marked as changed/unchanged.
+// computeInlineDiff splits two strings into their common prefix, changed middle, and common suffix.
 func computeInlineDiff(oldText, newText string) (oldSegs, newSegs []inlineDiffSegment) {
 	oldRunes := []rune(oldText)
 	newRunes := []rune(newText)
 
-	// Find common prefix
+	// Find the longest shared rune prefix.
 	prefixLen := 0
 	for prefixLen < len(oldRunes) && prefixLen < len(newRunes) && oldRunes[prefixLen] == newRunes[prefixLen] {
 		prefixLen++
 	}
 
-	// Find common suffix
+	// Find the longest shared suffix that does not overlap the prefix.
 	suffixLen := 0
 	for suffixLen < len(oldRunes)-prefixLen && suffixLen < len(newRunes)-prefixLen &&
 		oldRunes[len(oldRunes)-1-suffixLen] == newRunes[len(newRunes)-1-suffixLen] {
 		suffixLen++
 	}
 
-	// Common prefix
+	// Emit the shared prefix on both sides.
 	if prefixLen > 0 {
 		prefix := string(oldRunes[:prefixLen])
 		oldSegs = append(oldSegs, inlineDiffSegment{text: prefix, changed: false})
 		newSegs = append(newSegs, inlineDiffSegment{text: prefix, changed: false})
 	}
 
-	// Changed middle
+	// Mark the unmatched middle portions as changed.
 	oldMiddle := string(oldRunes[prefixLen : len(oldRunes)-suffixLen])
 	newMiddle := string(newRunes[prefixLen : len(newRunes)-suffixLen])
 	if len(oldMiddle) > 0 {
@@ -948,7 +908,7 @@ func computeInlineDiff(oldText, newText string) (oldSegs, newSegs []inlineDiffSe
 		newSegs = append(newSegs, inlineDiffSegment{text: newMiddle, changed: true})
 	}
 
-	// Common suffix
+	// Emit the shared suffix on both sides.
 	if suffixLen > 0 {
 		suffix := string(oldRunes[len(oldRunes)-suffixLen:])
 		oldSegs = append(oldSegs, inlineDiffSegment{text: suffix, changed: false})
@@ -958,9 +918,7 @@ func computeInlineDiff(oldText, newText string) (oldSegs, newSegs []inlineDiffSe
 	return oldSegs, newSegs
 }
 
-// ---------------------------------------------------------------------------
-// Diff Options
-// ---------------------------------------------------------------------------
+// Diff options.
 
 // DiffWithViewMode sets the view mode.
 func DiffWithViewMode(mode DiffViewMode) DiffOption {
@@ -977,17 +935,17 @@ func DiffWithTheme(name string) DiffOption {
 	return func(d *Diff) { d.theme = name }
 }
 
-// DiffWithShowLineNumbers enables/disables line numbers.
+// DiffWithShowLineNumbers controls whether gutters display line numbers.
 func DiffWithShowLineNumbers(v bool) DiffOption {
 	return func(d *Diff) { d.showLineNumbers = v }
 }
 
-// DiffWithInlineHighlight enables/disables word-level inline diff.
+// DiffWithInlineHighlight controls character-level highlighting within changed lines.
 func DiffWithInlineHighlight(v bool) DiffOption {
 	return func(d *Diff) { d.inlineHighlight = v }
 }
 
-// DiffWithShowSigns enables/disables +/- signs in gutter.
+// DiffWithShowSigns controls whether gutters display plus and minus signs.
 func DiffWithShowSigns(v bool) DiffOption {
 	return func(d *Diff) { d.showSigns = v }
 }
@@ -1027,13 +985,12 @@ func DiffWithHeight(s layout.Scalar) DiffOption {
 	return func(d *Diff) { d.LayoutNode().Height = s }
 }
 
-// DiffWithFlexGrow sets flex grow.
+// DiffWithFlexGrow sets the flex-grow factor.
 func DiffWithFlexGrow(v int) DiffOption {
 	return func(d *Diff) { d.LayoutNode().FlexGrow = v }
 }
 
-// DiffWithWrapMode sets the wrap mode for the Code widgets inside the diff.
-// When nil (default), Code inherits its own default (WrapWord).
+// DiffWithWrapMode sets the content wrapping mode; the default is WrapWord.
 func DiffWithWrapMode(m WrapMode) DiffOption {
 	return func(d *Diff) { d.wrapMode = &m }
 }

@@ -1,24 +1,23 @@
 package style
 
-// TextAttributes bitmask constants.
-// The lower 8 bits store text decoration flags.
-// The upper 24 bits can store a link ID.
+// Text attribute values use the low eight bits for decoration flags and the
+// upper 24 bits for a link ID.
 const (
 	AttrNone          uint32 = 0
-	AttrBold          uint32 = 1 << 0 // 1
-	AttrDim           uint32 = 1 << 1 // 2
-	AttrItalic        uint32 = 1 << 2 // 4
-	AttrUnderline     uint32 = 1 << 3 // 8
-	AttrBlink         uint32 = 1 << 4 // 16
-	AttrInverse       uint32 = 1 << 5 // 32
-	AttrHidden        uint32 = 1 << 6 // 64
-	AttrStrikethrough uint32 = 1 << 7 // 128
+	AttrBold          uint32 = 1 << 0
+	AttrDim           uint32 = 1 << 1
+	AttrItalic        uint32 = 1 << 2
+	AttrUnderline     uint32 = 1 << 3
+	AttrBlink         uint32 = 1 << 4
+	AttrInverse       uint32 = 1 << 5
+	AttrHidden        uint32 = 1 << 6
+	AttrStrikethrough uint32 = 1 << 7
 
 	AttributeBaseBits uint32 = 8
 	AttributeBaseMask uint32 = 0xFF
 )
 
-// AttributeOptions provides named booleans for building a text attribute bitmask.
+// AttributeOptions selects text decorations for CreateTextAttributes.
 type AttributeOptions struct {
 	Bold          bool
 	Dim           bool
@@ -30,7 +29,7 @@ type AttributeOptions struct {
 	Strikethrough bool
 }
 
-// CreateTextAttributes builds a bitmask from named booleans.
+// CreateTextAttributes returns the decoration bitmask selected by opts.
 func CreateTextAttributes(opts AttributeOptions) uint32 {
 	var attr uint32
 	if opts.Bold {
@@ -60,22 +59,22 @@ func CreateTextAttributes(opts AttributeOptions) uint32 {
 	return attr
 }
 
-// GetBaseAttributes extracts the lower 8 attribute bits.
+// GetBaseAttributes returns the decoration bits from attr.
 func GetBaseAttributes(attr uint32) uint32 {
 	return attr & AttributeBaseMask
 }
 
-// AttributesWithLink packs a link ID into the upper 24 bits, preserving the lower 8 attribute bits.
+// AttributesWithLink combines baseAttrs with linkID in the upper 24 bits.
 func AttributesWithLink(baseAttrs uint32, linkID uint32) uint32 {
 	return (baseAttrs & AttributeBaseMask) | (linkID << AttributeBaseBits)
 }
 
-// GetLinkID extracts the link ID from the upper 24 bits.
+// GetLinkID returns the link ID stored in attr.
 func GetLinkID(attr uint32) uint32 {
 	return attr >> AttributeBaseBits
 }
 
-// HasAttribute checks if a specific flag is set in the attribute bitmask.
+// HasAttribute reports whether attr contains any bit in flag.
 func HasAttribute(attr, flag uint32) bool {
 	return attr&flag != 0
 }

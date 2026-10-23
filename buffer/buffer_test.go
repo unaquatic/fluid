@@ -17,7 +17,7 @@ func TestNew(t *testing.T) {
 		t.Errorf("Height() = %d, want 5", b.Height())
 	}
 
-	// All cells should be CellClear
+	// New initializes every cell to CellClear.
 	for y := range 5 {
 		for x := range 10 {
 			c := b.Cell(x, y)
@@ -71,7 +71,7 @@ func TestSetCell_GetCell(t *testing.T) {
 
 func TestSetCell_WideChar(t *testing.T) {
 	b := New(10, 1)
-	b.SetCell(2, 0, '\u4e16', style.ColorWhite, style.ColorBlack, 0) // '世'
+	b.SetCell(2, 0, '\u4e16', style.ColorWhite, style.ColorBlack, 0) // 世
 
 	c := b.Cell(2, 0)
 	if c.Char != '\u4e16' {
@@ -81,23 +81,21 @@ func TestSetCell_WideChar(t *testing.T) {
 		t.Errorf("wide char cell Width = %d, want 2", c.Width)
 	}
 
-	// Continuation cell
+	// The wide character occupies the following cell as a continuation.
 	cont := b.Cell(3, 0)
 	if !cont.IsContinuation() {
 		t.Error("cell after wide char should be continuation")
 	}
 }
 
-// TestSetCell_WideChar_LastColumn verifies that SetCell silently drops a wide
-// character whose continuation cell would fall outside the buffer. Before the
-// fix, SetCell stored Width=2 at the last column without a continuation cell;
-// InlineFlush then emitted a 2-column rune making the row 1 column wider than
-// the buffer and triggering terminal auto-wrap.
+// TestSetCell_WideChar_LastColumn verifies that SetCell discards a wide
+// character whose continuation would lie outside the buffer. A stranded head
+// would make the terminal advance beyond the row and trigger automatic wrap.
 func TestSetCell_WideChar_LastColumn(t *testing.T) {
-	b := New(5, 1) // columns 0-4; last valid column is 4
+	b := New(5, 1) // Valid columns are 0 through 4.
 
-	// Place a wide char at column 3 (fits — continuation at 4).
-	b.SetCell(3, 0, '\u4e16', style.ColorWhite, style.ColorBlack, 0) // '世'
+	// A wide character at column 3 fits because its continuation occupies column 4.
+	b.SetCell(3, 0, '\u4e16', style.ColorWhite, style.ColorBlack, 0) // 世
 	if b.Cell(3, 0).Width != 2 {
 		t.Errorf("col 3: expected Width=2, got %d", b.Cell(3, 0).Width)
 	}
@@ -105,31 +103,31 @@ func TestSetCell_WideChar_LastColumn(t *testing.T) {
 		t.Error("col 4 should be continuation of the wide char at col 3")
 	}
 
-	// Now try placing a wide char at column 4 (last column — no room for continuation).
+	// A wide character at column 4 has no room for its continuation.
 	b.SetCell(4, 0, '\u4e16', style.ColorWhite, style.ColorBlack, 0)
-	// The continuation cell at col 5 is out of bounds; the write must be dropped.
-	// Column 4 should still be the continuation cell from the previous write.
+	// Discarding the write preserves the existing continuation in column 4.
 	if !b.Cell(4, 0).IsContinuation() {
 		t.Errorf("col 4: wide char at last column should be dropped; cell should "+
 			"remain a continuation cell (Width=%d)", b.Cell(4, 0).Width)
 	}
 }
 
-// TestSetCellBlended_WideChar_LastColumn mirrors TestSetCell_WideChar_LastColumn
-// for the blended variant.
+// TestSetCellBlended_WideChar_LastColumn verifies the same boundary behavior
+// for blended writes.
 func TestSetCellBlended_WideChar_LastColumn(t *testing.T) {
-	b := New(3, 1) // columns 0-2; last valid column is 2
+	b := New(3, 1) // Valid columns are 0 through 2.
 
-	// Wide char at col 2 must be dropped.
+	// Column 2 has no room for a continuation cell.
 	b.SetCellBlended(2, 0, '\u4e16', style.ColorWhite, style.ColorBlack, 0)
-	// Column 2 should remain CellClear (default after New).
+	// The discarded write leaves column 2 clear.
 	c := b.Cell(2, 0)
 	if c.Width == 2 {
 		t.Error("SetCellBlended: wide char at last column should be dropped, got Width=2")
 	}
 }
 
-// TestSetCellDirect_WideCell_LastColumn mirrors the above for SetCellDirect.
+// TestSetCellDirect_WideCell_LastColumn verifies the same boundary behavior
+// for direct writes.
 func TestSetCellDirect_WideCell_LastColumn(t *testing.T) {
 	b := New(3, 1)
 
@@ -138,6 +136,167 @@ func TestSetCellDirect_WideCell_LastColumn(t *testing.T) {
 	c := b.Cell(2, 0)
 	if c.Width == 2 {
 		t.Error("SetCellDirect: wide cell at last column should be dropped, got Width=2")
+	}
+}
+
+// TestSetGraphemeCluster_SpacingMark verifies that a cluster containing a
+// spacing mark claims every column it renders. If its width came only from the
+// first rune, the terminal would advance farther than the buffer records.
+func TestSetGraphemeCluster_SpacingMark(t *testing.T) {
+	b := New(10, 1)
+	b.SetGraphemeCluster(2, 0, "\u0E01\u0E33", style.ColorWhite, style.ColorBlack, 0) // กำ
+
+	c := b.Cell(2, 0)
+	if c.Char != '\u0E01' {
+		t.Errorf("Char = %q, want '\u0E01'", c.Char)
+	}
+	if c.Combining != "\u0E33" {
+		t.Errorf("Combining = %q, want %q", c.Combining, "\u0E33")
+	}
+	if c.Width != 2 {
+		t.Errorf("Width = %d, want 2", c.Width)
+	}
+	if !b.Cell(3, 0).IsContinuation() {
+		t.Error("cell after spacing-mark cluster should be a continuation")
+	}
+}
+
+// TestDrawClusters_ColumnAccounting verifies that the columns claimed by a row
+// equal the columns the terminal advances while flushing it. A mismatch would
+// desynchronize the renderer's cursor position.
+//
+// The terminal advances by each emitted code point's width, so the test sums
+// those widths independently of the stored cluster width.
+func TestDrawClusters_ColumnAccounting(t *testing.T) {
+	tests := []struct {
+		name string
+		text string
+	}{
+		{"ascii", "the quick brown fox"},
+		{"cjk", "\u4e16\u754c mixed \u4e2d\u6587"},
+		{"thai spacing marks", "\u0E23\u0E32\u0E04\u0E32 100 \u0E1A\u0E32\u0E17 \u0E04\u0E33\u0E19\u0E27\u0E13"},
+		{"thai nonspacing marks", "\u0E17\u0E35\u0E48\u0E19\u0E35\u0E48 here"},
+		{"bom", "\ufeffleading BOM"},
+		{"emoji", "ok \U0001F680 done"},
+	}
+
+	const width = 40
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := New(width, 1)
+			b.Clear(style.ColorTransparent)
+			b.DrawClusters(tt.text, 0, 0, width, style.ColorWhite, style.ColorTransparent, 0, nil)
+
+			claimed, advanced := 0, 0
+			for x := range width {
+				c := b.Cell(x, 0)
+				if c.IsContinuation() {
+					continue
+				}
+				claimed += int(c.Width)
+				ch := c.Char
+				if ch == 0 {
+					ch = ' '
+				}
+				advanced += textbuf.RuneWidth(ch)
+				for _, r := range c.Combining {
+					advanced += textbuf.RuneWidth(r)
+				}
+			}
+			if claimed != width {
+				t.Errorf("cells claim %d columns, want %d", claimed, width)
+			}
+			if advanced != width {
+				t.Errorf("flushed row advances %d columns, want %d", advanced, width)
+			}
+		})
+	}
+}
+
+// TestDetachWide_OverdrawKeepsRowWidth covers drawing over half of a wide
+// character. A stranded continuation makes the flushed row one column short
+// and a stranded head makes it one column long; either desynchronises the
+// renderer's cursor and strands garbage in rows the diff never repaints.
+func TestDetachWide_OverdrawKeepsRowWidth(t *testing.T) {
+	const width = 10
+	fg, bg := style.ColorWhite, style.ColorBlack
+
+	// Continuation cells emit nothing because their head already advanced over them.
+	advanced := func(b *Buffer) int {
+		n := 0
+		for x := range width {
+			c := b.Cell(x, 0)
+			if c.Width == -1 {
+				continue
+			}
+			n += textbuf.RuneWidth(c.Char)
+			for _, r := range c.Combining {
+				n += textbuf.RuneWidth(r)
+			}
+		}
+		return n
+	}
+
+	tests := []struct {
+		name      string
+		overdraw  func(b *Buffer)
+		wantAt4   rune
+		wantAt5   rune
+		wantWidth int
+	}{
+		{
+			name:      "overwrite head",
+			overdraw:  func(b *Buffer) { b.SetCell(4, 0, 'X', fg, bg, 0) },
+			wantAt4:   'X',
+			wantAt5:   ' ',
+			wantWidth: 1,
+		},
+		{
+			name:      "overwrite continuation",
+			overdraw:  func(b *Buffer) { b.SetCell(5, 0, 'X', fg, bg, 0) },
+			wantAt4:   ' ',
+			wantAt5:   'X',
+			wantWidth: 1,
+		},
+		{
+			name:      "fill over head",
+			overdraw:  func(b *Buffer) { b.FillRect(0, 0, 5, 1, bg) },
+			wantAt4:   ' ',
+			wantAt5:   ' ',
+			wantWidth: 1,
+		},
+		{
+			name:      "blend over continuation",
+			overdraw:  func(b *Buffer) { b.SetCellBlended(5, 0, 'X', fg, bg, 0) },
+			wantAt4:   ' ',
+			wantAt5:   'X',
+			wantWidth: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := New(width, 1)
+			b.Clear(style.ColorTransparent)
+			for x := range width {
+				b.SetCell(x, 0, ' ', fg, bg, 0)
+			}
+			b.SetCell(4, 0, '\u4e16', fg, bg, 0) // The head is at 4 and its continuation at 5.
+			tt.overdraw(b)
+
+			if got := b.Cell(4, 0).Char; got != tt.wantAt4 {
+				t.Errorf("cell 4 Char = %q, want %q", got, tt.wantAt4)
+			}
+			if got := b.Cell(5, 0).Char; got != tt.wantAt5 {
+				t.Errorf("cell 5 Char = %q, want %q", got, tt.wantAt5)
+			}
+			if got := b.Cell(4, 0).Width; got != tt.wantWidth {
+				t.Errorf("cell 4 Width = %d, want %d", got, tt.wantWidth)
+			}
+			if got := advanced(b); got != width {
+				t.Errorf("flushed row advances %d columns, want %d", got, width)
+			}
+		})
 	}
 }
 
@@ -159,7 +318,7 @@ func TestGetCell_OOB(t *testing.T) {
 
 func TestSetCell_OOB(t *testing.T) {
 	b := New(5, 5)
-	// Should be a no-op, not panic
+	// Out-of-bounds writes must be safe no-ops.
 	b.SetCell(-1, 0, 'X', style.ColorWhite, style.ColorBlack, 0)
 	b.SetCell(5, 0, 'X', style.ColorWhite, style.ColorBlack, 0)
 	b.SetCell(0, 5, 'X', style.ColorWhite, style.ColorBlack, 0)
@@ -194,7 +353,7 @@ func TestDrawText(t *testing.T) {
 
 func TestDrawText_WithWideChars(t *testing.T) {
 	b := New(20, 1)
-	b.DrawText("\u4e16\u754c", 0, 0, style.ColorWhite) // "世界"
+	b.DrawText("\u4e16\u754c", 0, 0, style.ColorWhite) // 世界
 
 	c0 := b.Cell(0, 0)
 	if c0.Char != '\u4e16' || c0.Width != 2 {
@@ -240,13 +399,11 @@ func TestDrawText_WithSelection(t *testing.T) {
 	}
 	b.DrawText("Hello", 0, 0, style.ColorWhite, WithSelection(sel))
 
-	// Char at index 0 should not be selected
 	c0 := b.Cell(0, 0)
 	if c0.Bg.Equals(style.ColorBlue) {
 		t.Error("char 0 should not be selected")
 	}
 
-	// Chars at index 1,2 should be selected
 	c1 := b.Cell(1, 0)
 	if !c1.Bg.Equals(style.ColorBlue) {
 		t.Errorf("char 1 should be selected, Bg = %v", c1.Bg)
@@ -256,7 +413,6 @@ func TestDrawText_WithSelection(t *testing.T) {
 		t.Errorf("char 2 should be selected, Bg = %v", c2.Bg)
 	}
 
-	// Char at index 3 should not be selected
 	c3 := b.Cell(3, 0)
 	if c3.Bg.Equals(style.ColorBlue) {
 		t.Error("char 3 should not be selected")
@@ -280,13 +436,11 @@ func TestFillRect(t *testing.T) {
 	b := New(10, 10)
 	b.FillRect(2, 2, 3, 3, style.ColorGreen)
 
-	// Inside rect
 	c := b.Cell(3, 3)
 	if !c.Bg.Equals(style.ColorGreen) {
 		t.Errorf("inside FillRect Bg = %v, want Green", c.Bg)
 	}
 
-	// Outside rect
 	c2 := b.Cell(0, 0)
 	if c2.Bg.Equals(style.ColorGreen) {
 		t.Error("outside FillRect should not be Green")
@@ -303,7 +457,7 @@ func TestDrawHLine(t *testing.T) {
 			t.Errorf("cell (%d,0) = %q, want '-'", x, c.Char)
 		}
 	}
-	// Before
+	// The line does not affect the preceding cell.
 	c := b.Cell(1, 0)
 	if c.Char == '-' {
 		t.Error("cell before line should not be '-'")
@@ -333,37 +487,31 @@ func TestDrawBox(t *testing.T) {
 		ShouldFill:      true,
 	})
 
-	// Top-left corner
 	c := b.Cell(0, 0)
 	if c.Char != style.SingleChars.TopLeft {
 		t.Errorf("top-left = %q, want %q", c.Char, style.SingleChars.TopLeft)
 	}
 
-	// Top-right corner
 	c = b.Cell(9, 0)
 	if c.Char != style.SingleChars.TopRight {
 		t.Errorf("top-right = %q, want %q", c.Char, style.SingleChars.TopRight)
 	}
 
-	// Bottom-left corner
 	c = b.Cell(0, 4)
 	if c.Char != style.SingleChars.BottomLeft {
 		t.Errorf("bottom-left = %q, want %q", c.Char, style.SingleChars.BottomLeft)
 	}
 
-	// Bottom-right corner
 	c = b.Cell(9, 4)
 	if c.Char != style.SingleChars.BottomRight {
 		t.Errorf("bottom-right = %q, want %q", c.Char, style.SingleChars.BottomRight)
 	}
 
-	// Top edge (horizontal)
 	c = b.Cell(5, 0)
 	if c.Char != style.SingleChars.Horizontal {
 		t.Errorf("top edge = %q, want %q", c.Char, style.SingleChars.Horizontal)
 	}
 
-	// Left edge (vertical)
 	c = b.Cell(0, 2)
 	if c.Char != style.SingleChars.Vertical {
 		t.Errorf("left edge = %q, want %q", c.Char, style.SingleChars.Vertical)
@@ -383,7 +531,7 @@ func TestDrawBox_WithTitle(t *testing.T) {
 		TitleAlignment:  "left",
 	})
 
-	// Title should start at x=2 (padding=2)
+	// DrawBox reserves two columns between the left edge and the title.
 	c := b.Cell(2, 0)
 	if c.Char != 'T' {
 		t.Errorf("title first char = %q, want 'T'", c.Char)
@@ -402,13 +550,13 @@ func TestResize(t *testing.T) {
 		t.Errorf("after Resize: %d x %d, want 10 x 10", b.Width(), b.Height())
 	}
 
-	// Old data should be gone
+	// Resize discards the previous cells.
 	c := b.Cell(2, 2)
 	if c.Char != ' ' {
 		t.Error("after Resize cells should be cleared")
 	}
 
-	// Stacks should be cleared
+	// Resize also restores full opacity.
 	if b.CurrentOpacity() != 1.0 {
 		t.Error("after Resize opacity should be 1.0")
 	}
@@ -434,15 +582,13 @@ func TestPlainText(t *testing.T) {
 
 func TestPlainText_WithWideChars(t *testing.T) {
 	b := New(10, 1)
-	b.DrawText("A\u4e16B", 0, 0, style.ColorWhite) // "A世B"
+	b.DrawText("A\u4e16B", 0, 0, style.ColorWhite) // A世B
 
 	got := b.PlainText()
-	// Wide char occupies 2 cells. "A" + "世" (2 cells) + "B" = 4 display cells used
-	// Remaining cells are spaces
+	// PlainText omits the continuation cell but retains trailing empty cells.
 	if len(got) < 3 {
 		t.Errorf("PlainText should contain at least 'A世B', got %q", got)
 	}
-	// Check first few chars
 	runes := []rune(got)
 	if runes[0] != 'A' || runes[1] != '\u4e16' || runes[2] != 'B' {
 		t.Errorf("PlainText runes = %v, want [A 世 B ...]", runes[:3])
@@ -459,8 +605,8 @@ func TestLines(t *testing.T) {
 		t.Fatalf("Lines() returned %d lines, want 1", len(lines))
 	}
 
-	// Should have at least 2 spans (different fg colors)
-	// plus possibly a trailing space span
+	// The foreground color change creates a second span; trailing spaces can
+	// create another span.
 	if len(lines[0].Spans) < 2 {
 		t.Errorf("expected at least 2 spans, got %d", len(lines[0].Spans))
 	}
@@ -470,13 +616,13 @@ func TestScissorRect_BlocksWrite(t *testing.T) {
 	b := New(10, 10)
 	b.PushScissorRect(2, 2, 3, 3)
 
-	// Inside clip region: should work
+	// The clipping region permits the first write.
 	b.SetCell(3, 3, 'Y', style.ColorWhite, style.ColorBlack, 0)
 	if b.Cell(3, 3).Char != 'Y' {
 		t.Error("cell inside scissor should be written")
 	}
 
-	// Outside clip region: should be blocked
+	// The clipping region rejects the second write.
 	b.SetCell(0, 0, 'N', style.ColorWhite, style.ColorBlack, 0)
 	if b.Cell(0, 0).Char == 'N' {
 		t.Error("cell outside scissor should be blocked")
@@ -484,7 +630,7 @@ func TestScissorRect_BlocksWrite(t *testing.T) {
 
 	b.PopScissorRect()
 
-	// After pop, should work everywhere
+	// Popping the only clipping region restores unrestricted drawing.
 	b.SetCell(0, 0, 'A', style.ColorWhite, style.ColorBlack, 0)
 	if b.Cell(0, 0).Char != 'A' {
 		t.Error("after PopScissorRect, write should work")
@@ -498,7 +644,7 @@ func TestOpacity_AffectsCells(t *testing.T) {
 	b.SetCell(0, 0, 'A', style.ColorWhite, style.ColorBlack, 0)
 
 	c := b.Cell(0, 0)
-	// White fg has A=255, with opacity 0.5 it should be ~128
+	// Half opacity reduces each initially opaque alpha channel to about 128.
 	if c.Fg.A < 125 || c.Fg.A > 130 {
 		t.Errorf("Fg.A = %d, want ~128", c.Fg.A)
 	}
@@ -530,7 +676,7 @@ func TestCopyFrom_DifferentSize(t *testing.T) {
 	b := New(10, 10)
 	b.SetCell(0, 0, 'Z', style.ColorWhite, style.ColorBlack, 0)
 
-	b.CopyFrom(a) // different size, should be no-op
+	b.CopyFrom(a) // Mismatched dimensions make CopyFrom a no-op.
 	c := b.Cell(0, 0)
 	if c.Char != 'Z' {
 		t.Error("CopyFrom with mismatched sizes should be no-op")
@@ -615,10 +761,6 @@ func floatEq2(a, b float32) bool {
 	return d < 1e-6
 }
 
-// ---------------------------------------------------------------------------
-// Border draw test helpers
-// ---------------------------------------------------------------------------
-
 func getChar(b *Buffer, x, y int) rune {
 	if x < 0 || x >= b.width || y < 0 || y >= b.height {
 		return 0
@@ -633,10 +775,6 @@ func getBg(b *Buffer, x, y int) style.Color {
 	return b.cells[y*b.width+x].Bg
 }
 
-// ---------------------------------------------------------------------------
-// DrawBorder tests
-// ---------------------------------------------------------------------------
-
 func TestDrawBorder_AllSides_Single(t *testing.T) {
 	buf := New(10, 5)
 	buf.DrawBorder(BorderDrawOptions{
@@ -650,7 +788,6 @@ func TestDrawBorder_AllSides_Single(t *testing.T) {
 		ShouldFill:      true,
 	})
 
-	// Corners
 	if c := getChar(buf, 0, 0); c != style.SingleChars.TopLeft {
 		t.Errorf("top-left = %q, want %q", c, style.SingleChars.TopLeft)
 	}
@@ -664,35 +801,31 @@ func TestDrawBorder_AllSides_Single(t *testing.T) {
 		t.Errorf("bottom-right = %q, want %q", c, style.SingleChars.BottomRight)
 	}
 
-	// Top edge
 	for x := 1; x < 9; x++ {
 		if c := getChar(buf, x, 0); c != style.SingleChars.Horizontal {
 			t.Errorf("top edge (%d,0) = %q, want %q", x, c, style.SingleChars.Horizontal)
 		}
 	}
 
-	// Bottom edge
 	for x := 1; x < 9; x++ {
 		if c := getChar(buf, x, 4); c != style.SingleChars.Horizontal {
 			t.Errorf("bottom edge (%d,4) = %q, want %q", x, c, style.SingleChars.Horizontal)
 		}
 	}
 
-	// Left edge
 	for y := 1; y < 4; y++ {
 		if c := getChar(buf, 0, y); c != style.SingleChars.Vertical {
 			t.Errorf("left edge (0,%d) = %q, want %q", y, c, style.SingleChars.Vertical)
 		}
 	}
 
-	// Right edge
 	for y := 1; y < 4; y++ {
 		if c := getChar(buf, 9, y); c != style.SingleChars.Vertical {
 			t.Errorf("right edge (9,%d) = %q, want %q", y, c, style.SingleChars.Vertical)
 		}
 	}
 
-	// Interior should be filled
+	// The configured background fills the interior.
 	bg := getBg(buf, 5, 2)
 	if !bg.Equals(style.ColorBlack) {
 		t.Errorf("interior bg = %v, want Black", bg)
@@ -772,7 +905,7 @@ func TestDrawBorder_TopOnly(t *testing.T) {
 		},
 	})
 
-	// Top edge should be horizontal (no corners since left/right are off)
+	// Without vertical sides, the top border contains no corner runes.
 	for x := range 10 {
 		c := getChar(buf, x, 0)
 		if c != style.SingleChars.Horizontal {
@@ -780,7 +913,7 @@ func TestDrawBorder_TopOnly(t *testing.T) {
 		}
 	}
 
-	// No left/right/bottom edges (should remain default space)
+	// Disabled sides remain untouched.
 	if c := getChar(buf, 0, 2); c != ' ' {
 		t.Errorf("no left edge expected, got %q", c)
 	}
@@ -800,7 +933,7 @@ func TestDrawBorder_LeftRight(t *testing.T) {
 		},
 	})
 
-	// Left edge (full height since no top/bottom)
+	// With no horizontal sides, both vertical sides span the full height.
 	for y := range 5 {
 		c := getChar(buf, 0, y)
 		if c != style.SingleChars.Vertical {
@@ -808,7 +941,6 @@ func TestDrawBorder_LeftRight(t *testing.T) {
 		}
 	}
 
-	// Right edge
 	for y := range 5 {
 		c := getChar(buf, 9, y)
 		if c != style.SingleChars.Vertical {
@@ -816,7 +948,7 @@ func TestDrawBorder_LeftRight(t *testing.T) {
 		}
 	}
 
-	// No top/bottom (should remain default space)
+	// Cells between the vertical sides remain untouched.
 	if c := getChar(buf, 5, 0); c != ' ' {
 		t.Errorf("no top edge expected at (5,0), got %q", c)
 	}
@@ -833,7 +965,7 @@ func TestDrawBorder_NoSides(t *testing.T) {
 		},
 	})
 
-	// Nothing should be drawn (should remain default space)
+	// With every side disabled, DrawBorder leaves the buffer untouched.
 	if c := getChar(buf, 0, 0); c != ' ' {
 		t.Errorf("no border: (0,0) should be empty, got %q", c)
 	}
@@ -853,7 +985,7 @@ func TestDrawBorder_WithFill(t *testing.T) {
 		ShouldFill:      true,
 	})
 
-	// Interior (1,1) to (8,3) should have bg color
+	// The enabled borders leave an interior from (1,1) through (8,3).
 	bg := getBg(buf, 5, 2)
 	if !bg.Equals(bgColor) {
 		t.Errorf("interior bg = %v, want %v", bg, bgColor)
@@ -871,11 +1003,9 @@ func TestDrawBorder_Offset(t *testing.T) {
 		},
 	})
 
-	// Top-left corner at (5,3)
 	if c := getChar(buf, 5, 3); c != style.SingleChars.TopLeft {
 		t.Errorf("offset top-left = %q, want %q", c, style.SingleChars.TopLeft)
 	}
-	// Bottom-right corner at (12,6)
 	if c := getChar(buf, 12, 6); c != style.SingleChars.BottomRight {
 		t.Errorf("offset bottom-right = %q, want %q", c, style.SingleChars.BottomRight)
 	}
@@ -883,7 +1013,7 @@ func TestDrawBorder_Offset(t *testing.T) {
 
 func TestDrawBorder_ZeroDimensions(t *testing.T) {
 	buf := New(10, 10)
-	// Should not panic
+	// Zero dimensions make DrawBorder a safe no-op.
 	buf.DrawBorder(BorderDrawOptions{
 		X: 0, Y: 0, Width: 0, Height: 0,
 		BorderConfig: BorderConfig{
@@ -893,10 +1023,6 @@ func TestDrawBorder_ZeroDimensions(t *testing.T) {
 		},
 	})
 }
-
-// ---------------------------------------------------------------------------
-// Title tests
-// ---------------------------------------------------------------------------
 
 func TestDrawBorder_TitleLeft(t *testing.T) {
 	buf := New(20, 5)
@@ -911,7 +1037,7 @@ func TestDrawBorder_TitleLeft(t *testing.T) {
 		TitleAlignment: layout.TextAlignLeft,
 	})
 
-	// Title should start at x=1 (just after left corner)
+	// A left-aligned title begins immediately after the left corner.
 	if c := getChar(buf, 1, 0); c != 'T' {
 		t.Errorf("title left: (1,0) = %q, want 'T'", c)
 	}
@@ -939,7 +1065,7 @@ func TestDrawBorder_TitleCenter(t *testing.T) {
 		TitleAlignment: layout.TextAlignCenter,
 	})
 
-	// maxWidth = 20-2 = 18, titleLen = 2, startX = 1 + (18-2)/2 = 1+8 = 9
+	// The 18-column interior centers the two-column title at x=9.
 	if c := getChar(buf, 9, 0); c != 'H' {
 		t.Errorf("title center: (9,0) = %q, want 'H'", c)
 	}
@@ -961,7 +1087,7 @@ func TestDrawBorder_TitleRight(t *testing.T) {
 		TitleAlignment: layout.TextAlignRight,
 	})
 
-	// maxWidth = 18, titleLen = 2, startX = 1 + 18 - 2 = 17
+	// The 18-column interior right-aligns the two-column title at x=17.
 	if c := getChar(buf, 17, 0); c != 'O' {
 		t.Errorf("title right: (17,0) = %q, want 'O'", c)
 	}
@@ -971,7 +1097,7 @@ func TestDrawBorder_TitleRight(t *testing.T) {
 }
 
 func TestDrawBorder_TitleTruncation(t *testing.T) {
-	buf := New(6, 4) // inner title width = 6-2 = 4
+	buf := New(6, 4) // The title has four columns between the corners.
 	buf.DrawBorder(BorderDrawOptions{
 		X: 0, Y: 0, Width: 6, Height: 4,
 		BorderConfig: BorderConfig{
@@ -983,7 +1109,7 @@ func TestDrawBorder_TitleTruncation(t *testing.T) {
 		TitleAlignment: layout.TextAlignLeft,
 	})
 
-	// Only first 4 chars should fit
+	// Only the first four title runes fit between the corners.
 	expected := "TooL"
 	for i, ch := range expected {
 		c := getChar(buf, 1+i, 0)
@@ -991,7 +1117,7 @@ func TestDrawBorder_TitleTruncation(t *testing.T) {
 			t.Errorf("truncated title: (%d,0) = %q, want %q", 1+i, c, ch)
 		}
 	}
-	// Next cell should be the border, not 'o'
+	// The right corner must not be replaced by the truncated title.
 	if c := getChar(buf, 5, 0); c == 'o' {
 		t.Error("title should have been truncated")
 	}
@@ -1003,22 +1129,18 @@ func TestDrawBorder_TitleNoTopBorder(t *testing.T) {
 		X: 0, Y: 0, Width: 20, Height: 5,
 		BorderConfig: BorderConfig{
 			Style:  style.BorderSingle,
-			Border: style.BorderSides(style.SideLeft, style.SideRight, style.SideBottom), // no top
+			Border: style.BorderSides(style.SideLeft, style.SideRight, style.SideBottom), // The top side is disabled.
 			Color:  style.ColorWhite,
 		},
 		Title:          "Skip",
 		TitleAlignment: layout.TextAlignLeft,
 	})
 
-	// Title should NOT be drawn since there's no top border
+	// A title requires an enabled top border.
 	if c := getChar(buf, 1, 0); c == 'S' {
 		t.Error("title should not be drawn without top border")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// InnerRect tests
-// ---------------------------------------------------------------------------
 
 func TestInnerRect_AllSides(t *testing.T) {
 	r := InnerRect(0, 0, 10, 8, style.AllSides())
@@ -1056,7 +1178,7 @@ func TestInnerRect_Offset(t *testing.T) {
 }
 
 func TestInnerRect_TooSmall(t *testing.T) {
-	// Width=2, with left+right borders leaves 0 inner width
+	// Opposing borders consume both available rows and columns.
 	r := InnerRect(0, 0, 2, 2, style.AllSides())
 	if r.Width != 0 || r.Height != 0 {
 		t.Errorf("InnerRect too small = %+v, want Width=0 Height=0", r)
@@ -1064,7 +1186,7 @@ func TestInnerRect_TooSmall(t *testing.T) {
 }
 
 func TestInnerRect_TooSmallClamps(t *testing.T) {
-	// Width=1 with left+right gives -1 which should clamp to 0
+	// Borders larger than the box clamp the interior dimensions to zero.
 	r := InnerRect(0, 0, 1, 1, style.AllSides())
 	if r.Width < 0 || r.Height < 0 {
 		t.Errorf("InnerRect should not have negative dimensions: %+v", r)
@@ -1075,5 +1197,67 @@ func TestInnerRect_SingleSide(t *testing.T) {
 	r := InnerRect(0, 0, 10, 8, style.BorderSidesConfig{Top: true})
 	if r.X != 0 || r.Y != 1 || r.Width != 10 || r.Height != 7 {
 		t.Errorf("InnerRect(Top only) = %+v, want {0 1 10 7}", r)
+	}
+}
+
+// TestDetachWide_RespectsScissor verifies that repairing a wide pair does not
+// modify a cell outside the clipping region, where it could erase an adjacent
+// widget's glyph.
+//
+// A stranded head or continuation is safe because the terminal renderer emits
+// it as a space and preserves the row's recorded width.
+func TestDetachWide_RespectsScissor(t *testing.T) {
+	tests := []struct {
+		name    string
+		scissor []int // x, y, w, h
+		drawAt  int
+		checkAt int
+	}{
+		{
+			// The clip contains the continuation at 5 but not its head at 4.
+			name:    "head outside the clip",
+			scissor: []int{5, 0, 5, 1},
+			drawAt:  5,
+			checkAt: 4,
+		},
+		{
+			// The clip contains the head at 4 but not its continuation at 5.
+			name:    "continuation outside the clip",
+			scissor: []int{0, 0, 5, 1},
+			drawAt:  4,
+			checkAt: 5,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := New(10, 1)
+			b.Clear(style.ColorTransparent)
+			b.SetCell(4, 0, '\u4e16', style.ColorWhite, style.ColorBlack, 0)
+			before := b.Cell(tt.checkAt, 0)
+
+			b.PushScissorRect(tt.scissor[0], tt.scissor[1], tt.scissor[2], tt.scissor[3])
+			b.SetCell(tt.drawAt, 0, 'X', style.ColorWhite, style.ColorBlack, 0)
+			b.PopScissorRect()
+
+			if got := b.Cell(tt.checkAt, 0); got != before {
+				t.Errorf("cell %d lies outside the scissor but was modified: Char=%q Width=%d",
+					tt.checkAt, got.Char, got.Width)
+			}
+		})
+	}
+}
+
+// TestDetachWide_UnclippedStillRepairs verifies that an unrestricted write
+// repairs the other half of a wide pair.
+func TestDetachWide_UnclippedStillRepairs(t *testing.T) {
+	b := New(10, 1)
+	b.Clear(style.ColorTransparent)
+	b.SetCell(4, 0, '\u4e16', style.ColorWhite, style.ColorBlack, 0)
+
+	b.SetCell(4, 0, 'X', style.ColorWhite, style.ColorBlack, 0)
+
+	if b.Cell(5, 0).IsContinuation() {
+		t.Error("continuation should have been blanked when nothing clips it")
 	}
 }

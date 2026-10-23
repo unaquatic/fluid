@@ -6,10 +6,6 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// ---------------------------------------------------------------------------
-// Test helpers
-// ---------------------------------------------------------------------------
-
 func setupExtmarks(text string) (*EditBuffer, *EditSurface, *ExtmarksController) {
 	tb := NewTextBuffer()
 	eb := NewEditBuffer(tb)
@@ -18,10 +14,6 @@ func setupExtmarks(text string) (*EditBuffer, *EditSurface, *ExtmarksController)
 	ec := NewExtmarksController(eb, ev)
 	return eb, ev, ec
 }
-
-// ---------------------------------------------------------------------------
-// Creation and basic operations
-// ---------------------------------------------------------------------------
 
 func TestExtmarks_Create(t *testing.T) {
 	_, _, ec := setupExtmarks("Hello World")
@@ -99,10 +91,6 @@ func TestExtmarks_Metadata(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Delete
-// ---------------------------------------------------------------------------
-
 func TestExtmarks_Delete(t *testing.T) {
 	_, _, ec := setupExtmarks("Hello World")
 	defer ec.Destroy()
@@ -126,10 +114,6 @@ func TestExtmarks_DeleteNonExistent(t *testing.T) {
 		t.Error("expected false for non-existent ID")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Query helpers
-// ---------------------------------------------------------------------------
 
 func TestExtmarks_GetVirtual(t *testing.T) {
 	_, _, ec := setupExtmarks("Hello World")
@@ -158,7 +142,7 @@ func TestExtmarks_GetAtOffset(t *testing.T) {
 	if len(at7) != 1 {
 		t.Errorf("expected 1 at offset 7, got %d", len(at7))
 	}
-	at5 := ec.AtOffset(5) // end is exclusive
+	at5 := ec.AtOffset(5) // End offsets are exclusive.
 	if len(at5) != 0 {
 		t.Errorf("expected 0 at offset 5 (exclusive), got %d", len(at5))
 	}
@@ -176,17 +160,13 @@ func TestExtmarks_Clear(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Type registry
-// ---------------------------------------------------------------------------
-
 func TestExtmarks_TypeRegistry(t *testing.T) {
 	_, _, ec := setupExtmarks("Hello World")
 	defer ec.Destroy()
 
 	id1 := ec.RegisterType("ghost-text")
 	id2 := ec.RegisterType("completion")
-	id3 := ec.RegisterType("ghost-text") // same name
+	id3 := ec.RegisterType("ghost-text") // Re-register the same name.
 
 	if id1 == id2 {
 		t.Error("different names should get different IDs")
@@ -212,7 +192,7 @@ func TestExtmarks_GetAllForTypeID(t *testing.T) {
 	tid := ec.RegisterType("test")
 	ec.Create(ExtmarkOptions{Start: 0, End: 5, TypeID: tid})
 	ec.Create(ExtmarkOptions{Start: 6, End: 11, TypeID: tid})
-	ec.Create(ExtmarkOptions{Start: 0, End: 3, TypeID: 0}) // default type
+	ec.Create(ExtmarkOptions{Start: 0, End: 3, TypeID: 0}) // Default type.
 
 	byType := ec.AllForTypeID(tid)
 	if len(byType) != 2 {
@@ -220,18 +200,14 @@ func TestExtmarks_GetAllForTypeID(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Position adjustment — insertion
-// ---------------------------------------------------------------------------
-
 func TestExtmarks_InsertShiftsAfter(t *testing.T) {
 	eb, _, ec := setupExtmarks("Hello World")
 	defer ec.Destroy()
 
-	// Mark "World" [6,11)
+	// Track "World" at [6,11).
 	id := ec.Create(ExtmarkOptions{Start: 6, End: 11})
 
-	// Insert "X" at cursor 0 (before the extmark)
+	// Insert one column before the extmark.
 	eb.SetCursor(0, 0)
 	eb.InsertChar('X')
 
@@ -239,7 +215,7 @@ func TestExtmarks_InsertShiftsAfter(t *testing.T) {
 	if em == nil {
 		t.Fatal("extmark should still exist")
 	}
-	// "X" has width 1, so the extmark should shift by 1
+	// The one-column insertion shifts both endpoints by one.
 	if em.Start != 7 || em.End != 12 {
 		t.Errorf("expected [7,12), got [%d,%d)", em.Start, em.End)
 	}
@@ -249,10 +225,10 @@ func TestExtmarks_InsertInside(t *testing.T) {
 	eb, _, ec := setupExtmarks("Hello World")
 	defer ec.Destroy()
 
-	// Mark "Hello" [0,5)
+	// Track "Hello" at [0,5).
 	id := ec.Create(ExtmarkOptions{Start: 0, End: 5})
 
-	// Insert at col 3 (inside "Hello")
+	// Insert inside the tracked range at column three.
 	eb.SetCursor(0, 3)
 	eb.InsertChar('X')
 
@@ -260,7 +236,7 @@ func TestExtmarks_InsertInside(t *testing.T) {
 	if em == nil {
 		t.Fatal("extmark should still exist")
 	}
-	// Insertion inside: start unchanged, end grows
+	// An internal insertion extends only the end.
 	if em.Start != 0 || em.End != 6 {
 		t.Errorf("expected [0,6), got [%d,%d)", em.Start, em.End)
 	}
@@ -302,29 +278,25 @@ func TestExtmarks_NewLineShifts(t *testing.T) {
 
 	id := ec.Create(ExtmarkOptions{Start: 6, End: 11})
 
-	// Insert newline at col 5 (between "Hello" and " World")
+	// Insert a newline at global offset five.
 	eb.SetCursor(0, 5)
 	eb.NewLine()
 
 	em := ec.Get(id)
-	// Newline at offset 5 shifts everything after by +1
+	// The newline shifts later endpoints by one offset.
 	if em.Start != 7 || em.End != 12 {
 		t.Errorf("expected [7,12), got [%d,%d)", em.Start, em.End)
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Position adjustment — deletion
-// ---------------------------------------------------------------------------
-
 func TestExtmarks_DeleteShiftsAfter(t *testing.T) {
 	eb, _, ec := setupExtmarks("Hello World")
 	defer ec.Destroy()
 
-	// Mark "World" [6,11)
+	// Track "World" at [6,11).
 	id := ec.Create(ExtmarkOptions{Start: 6, End: 11})
 
-	// Delete first char
+	// Delete one column before the tracked range.
 	eb.SetCursor(0, 1)
 	eb.DeleteCharBackward()
 
@@ -338,13 +310,13 @@ func TestExtmarks_DeleteRemovesContained(t *testing.T) {
 	eb, _, ec := setupExtmarks("Hello World")
 	defer ec.Destroy()
 
-	// Mark "lo" [3,5)
+	// Track "lo" at [3,5).
 	id := ec.Create(ExtmarkOptions{Start: 3, End: 5})
 
-	// Delete "Hello" (5 chars)
+	// Delete the range containing the entire extmark.
 	eb.DeleteRange(0, 0, 0, 5)
 
-	// Extmark was entirely within deleted range
+	// A fully deleted extmark is removed.
 	em := ec.Get(id)
 	if em != nil {
 		t.Error("expected extmark to be removed when fully deleted")
@@ -355,10 +327,10 @@ func TestExtmarks_DeleteShrinks(t *testing.T) {
 	eb, _, ec := setupExtmarks("Hello World")
 	defer ec.Destroy()
 
-	// Mark "Hello World" [0,11)
+	// Track the complete text at [0,11).
 	id := ec.Create(ExtmarkOptions{Start: 0, End: 11})
 
-	// Delete "lo W" [3,7)
+	// Delete the internal range "lo W" at [3,7).
 	eb.DeleteRange(0, 3, 0, 7)
 
 	em := ec.Get(id)
@@ -374,40 +346,35 @@ func TestExtmarks_DeleteLine(t *testing.T) {
 	eb, _, ec := setupExtmarks("Line1\nLine2\nLine3")
 	defer ec.Destroy()
 
-	// Mark "Line2" — offset: "Line1\n" = 6, so "Line2" = [6,11)
+	// Track "Line2" at [6,11), after "Line1\n".
 	id := ec.Create(ExtmarkOptions{Start: 6, End: 11})
 
-	// Position cursor on Line2 and delete it
+	// Delete the tracked logical line.
 	eb.SetCursor(1, 0)
 	eb.DeleteLine()
 
 	em := ec.Get(id)
-	// "Line2\n" = 6 chars deleted, extmark was entirely within
+	// Deleting "Line2\n" removes the complete extmark.
 	if em != nil {
 		t.Error("expected extmark to be removed with deleted line")
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Virtual extmark — cursor skipping
-// ---------------------------------------------------------------------------
-
 func TestExtmarks_CursorSkipsVirtualLeft(t *testing.T) {
 	eb, ev, ec := setupExtmarks("ABCDE")
 	defer ec.Destroy()
 
-	// Make "BCD" [1,4) virtual
+	// Mark "BCD" at [1,4) as virtual.
 	ec.Create(ExtmarkOptions{Start: 1, End: 4, Virtual: true})
 
-	// Position cursor at offset 4 (after the virtual range)
+	// Start at the range's exclusive end.
 	eb.SetCursor(0, 4)
 	vc := ev.VisualCursor()
 	if vc.Offset != 4 {
 		t.Fatalf("setup: expected offset 4, got %d", vc.Offset)
 	}
 
-	// Move left should skip over [1,4) and land at offset 1 (the boundary
-	// right before the virtual range, not one further at offset 0).
+	// Moving left crosses the complete range and stops at its start.
 	eb.MoveCursorLeft()
 	vc = ev.VisualCursor()
 	if vc.Offset != 1 {
@@ -419,20 +386,20 @@ func TestExtmarks_CursorSkipsVirtualRight(t *testing.T) {
 	eb, ev, ec := setupExtmarks("ABCDE")
 	defer ec.Destroy()
 
-	// Make "BCD" [1,4) virtual
+	// Mark "BCD" at [1,4) as virtual.
 	ec.Create(ExtmarkOptions{Start: 1, End: 4, Virtual: true})
 
-	// Position cursor at offset 0
+	// Start before the virtual range.
 	eb.SetCursor(0, 0)
 
-	// First right: lands at boundary offset 1 (right before virtual range)
+	// The first move reaches the range start.
 	eb.MoveCursorRight()
 	vc := ev.VisualCursor()
 	if vc.Offset != 1 {
 		t.Errorf("expected offset 1 (boundary) after first right, got %d", vc.Offset)
 	}
 
-	// Second right: from boundary, skips over [1,4) to offset 4
+	// The second move skips to the range end.
 	eb.MoveCursorRight()
 	vc = ev.VisualCursor()
 	if vc.Offset != 4 {
@@ -444,13 +411,13 @@ func TestExtmarks_CursorNoSkipNonVirtual(t *testing.T) {
 	eb, ev, ec := setupExtmarks("ABCDE")
 	defer ec.Destroy()
 
-	// Non-virtual extmark
+	// A nonvirtual extmark does not affect cursor movement.
 	ec.Create(ExtmarkOptions{Start: 1, End: 4, Virtual: false})
 
 	eb.SetCursor(0, 0)
 	eb.MoveCursorRight()
 	vc := ev.VisualCursor()
-	// Should move to offset 1 normally (no skipping for non-virtual)
+	// One right movement advances normally to offset one.
 	if vc.Offset != 1 {
 		t.Errorf("expected offset 1, got %d", vc.Offset)
 	}
@@ -460,13 +427,13 @@ func TestExtmarks_BackspaceDeletesVirtual(t *testing.T) {
 	eb, ev, ec := setupExtmarks("ABCDE")
 	defer ec.Destroy()
 
-	// Make "BCD" [1,4) virtual
+	// Mark "BCD" at [1,4) as virtual.
 	id := ec.Create(ExtmarkOptions{Start: 1, End: 4, Virtual: true})
 
-	// Position cursor at offset 4 (end of virtual range)
+	// Place the cursor at the range end.
 	eb.SetCursor(0, 4)
 
-	// Backspace should delete the entire virtual extmark
+	// Backspace at the end removes the complete virtual range.
 	eb.DeleteCharBackward()
 
 	text := eb.Text()
@@ -489,13 +456,13 @@ func TestExtmarks_ForwardDeleteVirtual(t *testing.T) {
 	eb, ev, ec := setupExtmarks("ABCDE")
 	defer ec.Destroy()
 
-	// Make "BCD" [1,4) virtual
+	// Mark "BCD" at [1,4) as virtual.
 	id := ec.Create(ExtmarkOptions{Start: 1, End: 4, Virtual: true})
 
-	// Position cursor at offset 1 (start of virtual range)
+	// Place the cursor at the range start.
 	eb.SetCursor(0, 1)
 
-	// Forward delete at start should delete entire virtual
+	// Forward delete at the start removes the complete virtual range.
 	eb.DeleteChar()
 
 	text := eb.Text()
@@ -513,17 +480,13 @@ func TestExtmarks_ForwardDeleteVirtual(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Undo / Redo
-// ---------------------------------------------------------------------------
-
 func TestExtmarks_UndoRestoresState(t *testing.T) {
 	eb, _, ec := setupExtmarks("Hello World")
 	defer ec.Destroy()
 
 	id := ec.Create(ExtmarkOptions{Start: 6, End: 11})
 
-	// Insert shifts extmark
+	// Insertion shifts the tracked range.
 	eb.SetCursor(0, 0)
 	eb.InsertChar('X')
 
@@ -532,7 +495,7 @@ func TestExtmarks_UndoRestoresState(t *testing.T) {
 		t.Fatalf("after insert: expected [7,12), got [%d,%d)", em.Start, em.End)
 	}
 
-	// Undo should restore extmark position
+	// Undo restores its original endpoints.
 	eb.Undo()
 
 	em = ec.Get(id)
@@ -554,7 +517,7 @@ func TestExtmarks_RedoRestoresState(t *testing.T) {
 	eb.InsertChar('X')
 
 	eb.Undo()
-	// Now redo
+	// Redo reapplies the endpoint shift.
 	eb.Redo()
 
 	em := ec.Get(id)
@@ -572,7 +535,7 @@ func TestExtmarks_UndoWithoutHistory(t *testing.T) {
 
 	ec.Create(ExtmarkOptions{Start: 0, End: 5})
 
-	// Undo with no edit history should be a no-op
+	// Undo without edit history reports false.
 	ok := eb.Undo()
 	if ok {
 		t.Error("undo should return false with empty history")
@@ -580,38 +543,34 @@ func TestExtmarks_UndoWithoutHistory(t *testing.T) {
 }
 
 func TestExtmarks_UndoHighlightsMatchRestoredText(t *testing.T) {
-	// Regression: updateHighlights was called before doUndo restored the
-	// text, so per-line highlights were mapped against wrong line widths.
-	// After inserting on line 0 and undoing, highlights on line 1 would
-	// shift left by the inserted width.
+	// Undo must restore text before remapping global extmarks to line highlights.
 	eb, _, ec := setupExtmarks("AB\nCD")
 	defer ec.Destroy()
 
 	fg := style.ColorFromHex("#FF0000")
 
-	// Extmark on "CD" — line 1, offsets [3,5)  (AB=2, \n=1, CD starts at 3)
+	// Track "CD" at [3,5), after "AB\n".
 	ec.Create(ExtmarkOptions{Start: 3, End: 5, Fg: &fg})
 
 	tb := ec.editBuffer.TextBuffer()
 
-	// Before edit: line 1 highlight should span [0,2) within the line.
+	// The initial line-local highlight spans [0,2).
 	hls := tb.LineHighlights(1)
 	if len(hls) != 1 || hls[0].Start != 0 || hls[0].End != 2 {
 		t.Fatalf("before edit: expected line 1 highlight [0,2), got %v", hls)
 	}
 
-	// Insert "X" at start of line 0 → text becomes "XAB\nCD"
+	// Insert X before the first line.
 	eb.SetCursor(0, 0)
 	eb.InsertChar('X')
 
-	// Extmark shifted to [4,6), line 1 highlight should still be [0,2).
+	// Global endpoints shift while line-local endpoints remain [0,2).
 	hls = tb.LineHighlights(1)
 	if len(hls) != 1 || hls[0].Start != 0 || hls[0].End != 2 {
 		t.Fatalf("after insert: expected line 1 highlight [0,2), got %v", hls)
 	}
 
-	// Undo → text returns to "AB\nCD", extmark returns to [3,5).
-	// Line 1 highlight must be [0,2) — NOT shifted.
+	// Undo restores both text and the original line-local highlight.
 	eb.Undo()
 
 	hls = tb.LineHighlights(1)
@@ -624,7 +583,7 @@ func TestExtmarks_UndoHighlightsMatchRestoredText(t *testing.T) {
 }
 
 func TestExtmarks_RedoHighlightsMatchRestoredText(t *testing.T) {
-	// Same issue as undo but for redo path.
+	// Redo also restores text before remapping highlights.
 	eb, _, ec := setupExtmarks("AB\nCD")
 	defer ec.Destroy()
 
@@ -633,14 +592,13 @@ func TestExtmarks_RedoHighlightsMatchRestoredText(t *testing.T) {
 
 	tb := ec.editBuffer.TextBuffer()
 
-	// Insert, undo, then redo.
+	// Reapply one insertion through undo and redo.
 	eb.SetCursor(0, 0)
 	eb.InsertChar('X')
 	eb.Undo()
 	eb.Redo()
 
-	// After redo text is "XAB\nCD", extmark at [4,6).
-	// Line 1 highlight should be [0,2).
+	// The restored global range [4,6) still maps to line-local [0,2).
 	hls := tb.LineHighlights(1)
 	if len(hls) != 1 {
 		t.Fatalf("after redo: expected 1 highlight on line 1, got %d", len(hls))
@@ -651,25 +609,22 @@ func TestExtmarks_RedoHighlightsMatchRestoredText(t *testing.T) {
 }
 
 func TestExtmarks_BackspaceAtStartNoDesync(t *testing.T) {
-	// Regression: overrideDeleteCharBackward called saveSnapshot before
-	// checking if the deletion would actually happen. At offset 0,
-	// doDeleteCharBackward is a no-op (no saveUndo), creating an orphan
-	// extmarks snapshot that desynchronized the undo stacks.
+	// A no-op backspace must not add an extmark snapshot without a matching text
+	// snapshot.
 	eb, _, ec := setupExtmarks("AB")
 	defer ec.Destroy()
 
 	id := ec.Create(ExtmarkOptions{Start: 0, End: 2})
 
-	// Type a character so there's one real undo entry.
+	// Create one real text and extmark history entry.
 	eb.SetCursor(0, 2)
-	eb.InsertChar('X') // text "ABX", extmark [0,2)
+	eb.InsertChar('X') // Text becomes "ABX"; extmark remains [0,2).
 
-	// Backspace at offset 0 — should be a no-op, must NOT push an
-	// orphan extmarks snapshot.
+	// Backspace at offset zero is a no-op for both histories.
 	eb.SetCursor(0, 0)
 	eb.DeleteCharBackward()
 
-	// Undo should revert the InsertChar, NOT apply a stale extmark snapshot.
+	// Undo now restores the matching insertion snapshot.
 	eb.Undo()
 
 	em := ec.Get(id)
@@ -685,21 +640,21 @@ func TestExtmarks_BackspaceAtStartNoDesync(t *testing.T) {
 }
 
 func TestExtmarks_DeleteCharAtEndNoDesync(t *testing.T) {
-	// Same issue as backspace-at-start but for forward delete at end of buffer.
+	// A no-op forward delete also leaves both histories synchronized.
 	eb, _, ec := setupExtmarks("AB")
 	defer ec.Destroy()
 
 	id := ec.Create(ExtmarkOptions{Start: 0, End: 2})
 
-	// Type a character.
+	// Create one real text and extmark history entry.
 	eb.SetCursor(0, 0)
-	eb.InsertChar('X') // text "XAB", extmark [1,3)
+	eb.InsertChar('X') // Text becomes "XAB"; extmark shifts to [1,3).
 
-	// Forward delete at end of buffer — should be a no-op.
+	// Forward delete at the buffer end is a no-op for both histories.
 	eb.SetCursor(0, 3)
 	eb.DeleteChar()
 
-	// Undo should revert the InsertChar cleanly.
+	// Undo restores the matching insertion snapshot.
 	eb.Undo()
 
 	em := ec.Get(id)
@@ -715,25 +670,24 @@ func TestExtmarks_DeleteCharAtEndNoDesync(t *testing.T) {
 }
 
 func TestExtmarks_UndoRestoresTypeIndex(t *testing.T) {
-	// Regression: restoreSnapshot did not rebuild extmarksByType, so
-	// AllForTypeID returned stale results after undo.
+	// Undo rebuilds the secondary type index from restored extmarks.
 	eb, _, ec := setupExtmarks("Hello")
 	defer ec.Destroy()
 
 	typeID := ec.RegisterType("test")
 	ec.Create(ExtmarkOptions{Start: 0, End: 5, TypeID: typeID})
 
-	// Verify the type index works before any edits.
+	// Confirm the type index before editing.
 	if len(ec.AllForTypeID(typeID)) != 1 {
 		t.Fatal("expected 1 extmark for typeID before edit")
 	}
 
-	// Edit then undo.
+	// Shift the range and restore it through undo.
 	eb.SetCursor(0, 0)
 	eb.InsertChar('X')
 	eb.Undo()
 
-	// After undo the type index must still return the extmark.
+	// The rebuilt index returns the restored range.
 	ems := ec.AllForTypeID(typeID)
 	if len(ems) != 1 {
 		t.Fatalf("expected 1 extmark for typeID after undo, got %d", len(ems))
@@ -764,10 +718,6 @@ func TestExtmarks_RedoRestoresTypeIndex(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Highlights
-// ---------------------------------------------------------------------------
-
 func TestExtmarks_HighlightsApplied(t *testing.T) {
 	_, _, ec := setupExtmarks("Hello World")
 	defer ec.Destroy()
@@ -778,7 +728,7 @@ func TestExtmarks_HighlightsApplied(t *testing.T) {
 		Fg: &fg,
 	})
 
-	// Check that the TextBuffer has highlights
+	// A styled extmark creates a TextBuffer highlight.
 	tb := ec.editBuffer.TextBuffer()
 	hls := tb.LineHighlights(0)
 	if len(hls) == 0 {
@@ -817,10 +767,6 @@ func TestExtmarks_NoHighlightWithoutColors(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// SetText / ReplaceText / Clear — extmarks cleared
-// ---------------------------------------------------------------------------
-
 func TestExtmarks_SetTextClearsExtmarks(t *testing.T) {
 	eb, _, ec := setupExtmarks("Hello World")
 	defer ec.Destroy()
@@ -857,18 +803,14 @@ func TestExtmarks_ClearClearsExtmarks(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// DeleteSelectedText
-// ---------------------------------------------------------------------------
-
 func TestExtmarks_DeleteSelectedText(t *testing.T) {
 	_, ev, ec := setupExtmarks("Hello World")
 	defer ec.Destroy()
 
-	// Mark "World" [6,11)
+	// Track "World" at [6,11).
 	id := ec.Create(ExtmarkOptions{Start: 6, End: 11})
 
-	// Select "Hello" [0,5) and delete it
+	// Delete the separate selection "Hello" at [0,5).
 	bg := style.ColorBlue
 	ev.SetSelection(&TextSelection{Start: 0, End: 5, BgColor: &bg})
 	ev.DeleteSelectedText()
@@ -877,15 +819,11 @@ func TestExtmarks_DeleteSelectedText(t *testing.T) {
 	if em == nil {
 		t.Fatal("extmark should survive deletion of other text")
 	}
-	// After deleting 5 chars at offset 0, "World" shifts from [6,11) to [1,6)
+	// Removing five columns shifts "World" to [1,6).
 	if em.Start != 1 || em.End != 6 {
 		t.Errorf("expected [1,6), got [%d,%d)", em.Start, em.End)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Destroy
-// ---------------------------------------------------------------------------
 
 func TestExtmarks_Destroy(t *testing.T) {
 	eb, _, ec := setupExtmarks("Hello World")
@@ -893,14 +831,14 @@ func TestExtmarks_Destroy(t *testing.T) {
 	ec.Create(ExtmarkOptions{Start: 0, End: 5})
 	ec.Destroy()
 
-	// After destroy, operations should fall through to default behavior
+	// After destruction, EditBuffer uses its default implementation.
 	eb.SetCursor(0, 5)
 	eb.InsertChar('!')
 	if eb.Text() != "Hello! World" {
 		t.Errorf("expected normal behavior after destroy, got %q", eb.Text())
 	}
 
-	// Accessing destroyed controller should return nil/empty
+	// A destroyed controller exposes no extmarks.
 	if ec.Get(1) != nil {
 		t.Error("Get should return nil on destroyed controller")
 	}
@@ -912,21 +850,17 @@ func TestExtmarks_Destroy(t *testing.T) {
 func TestExtmarks_DestroyIdempotent(t *testing.T) {
 	_, _, ec := setupExtmarks("Hello")
 	ec.Destroy()
-	ec.Destroy() // should not panic
+	ec.Destroy() // Repeated destruction is a safe no-op.
 }
-
-// ---------------------------------------------------------------------------
-// Multi-line extmarks
-// ---------------------------------------------------------------------------
 
 func TestExtmarks_MultiLineInsert(t *testing.T) {
 	eb, _, ec := setupExtmarks("Line1\nLine2\nLine3")
 	defer ec.Destroy()
 
-	// "Line3" starts at offset 12 (5+1+5+1=12)
+	// Track "Line3" at offset 12 after two lines and newlines.
 	id := ec.Create(ExtmarkOptions{Start: 12, End: 17})
 
-	// Insert at start of Line1
+	// Insert one column at the document start.
 	eb.SetCursor(0, 0)
 	eb.InsertText("X")
 
@@ -940,10 +874,10 @@ func TestExtmarks_MultiLineDelete(t *testing.T) {
 	eb, _, ec := setupExtmarks("Line1\nLine2\nLine3")
 	defer ec.Destroy()
 
-	// "Line3" starts at offset 12
+	// Track "Line3" at [12,17).
 	id := ec.Create(ExtmarkOptions{Start: 12, End: 17})
 
-	// Delete "Line1\n" (6 chars)
+	// Delete the six-offset prefix "Line1\n".
 	eb.DeleteRange(0, 0, 1, 0)
 
 	em := ec.Get(id)
@@ -954,10 +888,6 @@ func TestExtmarks_MultiLineDelete(t *testing.T) {
 		t.Errorf("expected [6,11), got [%d,%d)", em.Start, em.End)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// ExtmarksHistory
-// ---------------------------------------------------------------------------
 
 func TestExtmarksHistory_Basic(t *testing.T) {
 	h := &ExtmarksHistory{}
@@ -995,7 +925,7 @@ func TestExtmarksHistory_ClearOnSave(t *testing.T) {
 	m2 := map[int]Extmark{1: {ID: 1, Start: 1, End: 6}}
 
 	h.SaveSnapshot(m1, 2)
-	// Simulate undo
+	// Move the first snapshot into redo.
 	snap := h.Undo()
 	h.PushRedo(ExtmarksSnapshot{extmarks: cloneExtmarks(m2), nextID: 2})
 
@@ -1003,7 +933,7 @@ func TestExtmarksHistory_ClearOnSave(t *testing.T) {
 		t.Error("should be able to redo")
 	}
 
-	// New save should clear redo
+	// Saving a new branch clears redo history.
 	h.SaveSnapshot(snap.extmarks, snap.nextID)
 	if h.CanRedo() {
 		t.Error("redo should be cleared after new save")
@@ -1029,7 +959,7 @@ func TestCloneExtmarks_DeepCopiesColors(t *testing.T) {
 
 	dst := cloneExtmarks(src)
 
-	// Pointers must differ (independent allocations).
+	// Cloned colors use independent pointers.
 	if dst[1].Fg == src[1].Fg {
 		t.Error("cloneExtmarks should allocate a new Fg pointer")
 	}
@@ -1037,7 +967,7 @@ func TestCloneExtmarks_DeepCopiesColors(t *testing.T) {
 		t.Error("cloneExtmarks should allocate a new Bg pointer")
 	}
 
-	// Values must be equal.
+	// Cloned colors preserve channel values.
 	if *dst[1].Fg != *src[1].Fg {
 		t.Error("cloned Fg value should match original")
 	}
@@ -1045,7 +975,7 @@ func TestCloneExtmarks_DeepCopiesColors(t *testing.T) {
 		t.Error("cloned Bg value should match original")
 	}
 
-	// Mutating the source must not affect the clone.
+	// Source mutations do not affect cloned colors.
 	src[1].Fg.R = 0
 	if dst[1].Fg.R == 0 {
 		t.Error("mutating source Fg should not affect clone")
@@ -1059,7 +989,7 @@ func TestExtmarks_UndoPreservesColors(t *testing.T) {
 	fg := style.ColorFromHex("#FF0000")
 	ec.Create(ExtmarkOptions{Start: 0, End: 5, Fg: &fg})
 
-	// Edit to push an undo entry, then undo.
+	// Create and restore one history entry.
 	eb.InsertChar('X')
 	eb.Undo()
 
@@ -1071,8 +1001,7 @@ func TestExtmarks_UndoPreservesColors(t *testing.T) {
 		t.Fatal("Fg should not be nil after undo")
 	}
 
-	// The restored color must match the original value but be an
-	// independent pointer (not aliased with the local `fg` variable).
+	// Restored color values match without aliasing the original pointer.
 	if *em.Fg != fg {
 		t.Errorf("Fg value mismatch after undo: got %v, want %v", *em.Fg, fg)
 	}
@@ -1080,10 +1009,6 @@ func TestExtmarks_UndoPreservesColors(t *testing.T) {
 		t.Error("restored Fg should be an independent pointer, not the original")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Edge cases
-// ---------------------------------------------------------------------------
 
 func TestExtmarks_InsertAtExactStart(t *testing.T) {
 	eb, _, ec := setupExtmarks("Hello")
@@ -1095,8 +1020,7 @@ func TestExtmarks_InsertAtExactStart(t *testing.T) {
 	eb.InsertChar('X')
 
 	em := ec.Get(id)
-	// Insertion at the exact start: the extmark starts at insertOffset,
-	// so start should shift
+	// Insertion at the exact start shifts both endpoints.
 	if em.Start != 1 || em.End != 6 {
 		t.Errorf("expected [1,6), got [%d,%d)", em.Start, em.End)
 	}
@@ -1108,12 +1032,12 @@ func TestExtmarks_SetCursorByOffsetSkipsVirtual(t *testing.T) {
 
 	ec.Create(ExtmarkOptions{Start: 1, End: 4, Virtual: true})
 
-	// Position at offset 0, then set offset to 2 (inside virtual)
+	// Move forward from zero into the virtual range.
 	eb.SetCursor(0, 0)
 	eb.SetCursorByOffset(2)
 
 	vc := ev.VisualCursor()
-	// Should have skipped to end of virtual range (4)
+	// Forward movement clamps to the range end.
 	if vc.Offset != 4 {
 		t.Errorf("expected offset 4 (skipped virtual), got %d", vc.Offset)
 	}
@@ -1125,40 +1049,31 @@ func TestExtmarks_SetCursorByOffsetSkipsVirtualBackward(t *testing.T) {
 
 	ec.Create(ExtmarkOptions{Start: 1, End: 4, Virtual: true})
 
-	// Position at offset 4, then set offset to 2 (inside virtual, going backward)
+	// Move backward from four into the virtual range.
 	eb.SetCursor(0, 4)
 	eb.SetCursorByOffset(2)
 
 	vc := ev.VisualCursor()
-	// Should have skipped to start of virtual range (1), not start-1 (0)
+	// Backward movement clamps to the range start.
 	if vc.Offset != 1 {
 		t.Errorf("expected offset 1 (skipped virtual backward), got %d", vc.Offset)
 	}
 }
 
-// ---------------------------------------------------------------------------
-// DeleteLine with non-ASCII / multi-byte characters
-// ---------------------------------------------------------------------------
-
 func TestExtmarks_DeleteLine_MultiByteChars(t *testing.T) {
-	// "café" uses multi-byte UTF-8 (é = 2 bytes) but display-width 4.
-	// Line layout in offset space:
-	//   Line 0: "café"  offsets [0,4)   width 4
-	//   newline          offset 4       width 1
-	//   Line 1: "日本語" offsets [5,11)  width 6 (each CJK char = 2)
-	//   newline          offset 11      width 1
-	//   Line 2: "end"   offsets [12,15) width 3
+	// Display-width offsets differ from UTF-8 bytes: "café" spans [0,4),
+	// "日本語" spans [5,11), and "end" spans [12,15).
 	eb, _, ec := setupExtmarks("café\n日本語\nend")
 	defer ec.Destroy()
 
-	// Place extmark on "end" — offsets [12,15)
+	// Track "end" at [12,15).
 	id := ec.Create(ExtmarkOptions{Start: 12, End: 15})
 
-	// Delete line 1 ("日本語") — removes offsets [5,12): 6 for content + 1 for newline = 7
+	// Deleting "日本語\n" removes seven display-width offsets at [5,12).
 	eb.SetCursor(1, 0)
 	eb.DeleteLine()
 
-	// "end" extmark should shift from [12,15) to [5,8)
+	// The later range shifts backward to [5,8).
 	em := ec.Get(id)
 	if em == nil {
 		t.Fatal("expected extmark to survive deletion of different line")
@@ -1169,19 +1084,18 @@ func TestExtmarks_DeleteLine_MultiByteChars(t *testing.T) {
 }
 
 func TestExtmarks_DeleteLine_LastLine_MultiByteChars(t *testing.T) {
-	// Deleting the last line when there are multiple lines removes the
-	// preceding newline + the line content.
+	// Deleting a final logical line also removes its preceding newline.
 	eb, _, ec := setupExtmarks("café\n日本語")
 	defer ec.Destroy()
 
-	// Place extmark on "café" — offsets [0,4)
+	// Track "café" at [0,4).
 	id := ec.Create(ExtmarkOptions{Start: 0, End: 4})
 
-	// Delete line 1 ("日本語", the last line) — removes preceding \n + content = 1 + 6 = 7
+	// Delete the final seven-offset newline and CJK line.
 	eb.SetCursor(1, 0)
 	eb.DeleteLine()
 
-	// "café" extmark should be unchanged at [0,4)
+	// The preceding extmark remains unchanged.
 	em := ec.Get(id)
 	if em == nil {
 		t.Fatal("expected extmark to survive deletion of different line")
@@ -1192,17 +1106,17 @@ func TestExtmarks_DeleteLine_LastLine_MultiByteChars(t *testing.T) {
 }
 
 func TestExtmarks_DeleteLine_OnlyLine_MultiByteChars(t *testing.T) {
-	// Single line: content is cleared but the line remains (empty).
+	// Deleting the sole line clears it while preserving one empty line.
 	eb, _, ec := setupExtmarks("日本語")
 	defer ec.Destroy()
 
-	// Extmark on the full content — offsets [0,6)
+	// Track the complete six-column content.
 	id := ec.Create(ExtmarkOptions{Start: 0, End: 6})
 
 	eb.SetCursor(0, 0)
 	eb.DeleteLine()
 
-	// Extmark was entirely within the deleted content — should be removed
+	// Clearing the tracked content removes its extmark.
 	em := ec.Get(id)
 	if em != nil {
 		t.Error("expected extmark to be removed when only line is cleared")
@@ -1215,10 +1129,10 @@ func TestExtmarks_DisplayWidthOfText(t *testing.T) {
 		expected int
 	}{
 		{"hello", 5},
-		{"hello\nworld", 11}, // 5 + 1 + 5
+		{"hello\nworld", 11}, // Two five-column lines and one newline.
 		{"\n", 1},
 		{"", 0},
-		{"a\nb\nc", 5}, // 1+1+1+1+1
+		{"a\nb\nc", 5}, // Three columns and two newlines.
 	}
 	for _, tt := range tests {
 		got := DisplayWidthOfText(tt.input)

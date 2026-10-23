@@ -2,13 +2,12 @@ package terminal
 
 import "time"
 
-// FrameStats holds per-frame timing data for profiling. Populated after
-// each RootRenderable.Render call when GatherStats is enabled. Access the
-// latest values via RootRenderable.LastFrameStats.
+// FrameStats contains timings and counts from the most recent frame. Fields
+// not measured by a rendering path remain zero.
 type FrameStats struct {
 	// Lifecycle is time spent calling OnUpdate on registered widgets.
 	Lifecycle time.Duration
-	// Update is time spent in the update pass (dirty propagation).
+	// Update is reserved for a distinct update-pass duration.
 	Update time.Duration
 	// Layout is time spent computing the flexbox layout.
 	Layout time.Duration
@@ -16,11 +15,11 @@ type FrameStats struct {
 	Sync time.Duration
 	// Commands is time spent building the render command list.
 	Commands time.Duration
-	// Render is time spent executing render commands (all widget RenderSelf calls).
+	// Render is time spent executing widget render commands.
 	Render time.Duration
 	// BufClear is time spent clearing the cell buffer before rendering.
 	BufClear time.Duration
-	// Flush is the total flush time (diff + write).
+	// Flush is the total time spent building and writing terminal output.
 	Flush time.Duration
 	// FlushBuild is time spent diffing the buffer and building escape sequences.
 	FlushBuild time.Duration
@@ -28,10 +27,10 @@ type FrameStats struct {
 	FlushWrite time.Duration
 	// Total is the wall-clock time for the entire frame.
 	Total time.Duration
-	// CmdCount is the number of render commands executed this frame.
+	// CmdCount is the number of render commands executed.
 	CmdCount int
-	// NodeCount is the total visible nodes traversed during the update pass.
+	// NodeCount is the number of visible nodes visited during position sync.
 	NodeCount int
-	// FlushBytes is the number of bytes written to the terminal this frame.
+	// FlushBytes is the number of terminal-output bytes written.
 	FlushBytes int
 }

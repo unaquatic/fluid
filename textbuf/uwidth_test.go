@@ -2,10 +2,6 @@ package textbuf
 
 import "testing"
 
-// ---------------------------------------------------------------------------
-// RuneWidth
-// ---------------------------------------------------------------------------
-
 func TestRuneWidth_ASCII(t *testing.T) {
 	tests := []struct {
 		r    rune
@@ -87,10 +83,6 @@ func TestRuneWidth_VariationSelector(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// StringWidth — grapheme-cluster aware
-// ---------------------------------------------------------------------------
-
 func TestStringWidth_ASCII(t *testing.T) {
 	if got := StringWidth("Hello, World!"); got != 13 {
 		t.Errorf("StringWidth(ASCII) = %d, want 13", got)
@@ -110,7 +102,7 @@ func TestStringWidth_Emoji(t *testing.T) {
 }
 
 func TestStringWidth_EmojiZWJ(t *testing.T) {
-	// Family emoji (ZWJ sequence): 👨‍👩‍👧‍👦
+	// A ZWJ family sequence forms one two-column cluster.
 	family := "👨\u200D👩\u200D👧\u200D👦"
 	if got := StringWidth(family); got != 2 {
 		t.Errorf("StringWidth(ZWJ family) = %d, want 2", got)
@@ -132,7 +124,7 @@ func TestStringWidth_SkinTone(t *testing.T) {
 }
 
 func TestStringWidth_VS16(t *testing.T) {
-	// ☺ (U+263A) + VS16 (U+FE0F) → emoji presentation → width 2
+	// VS16 selects two-column emoji presentation for U+263A.
 	smiley := "\u263A\uFE0F"
 	if got := StringWidth(smiley); got != 2 {
 		t.Errorf("StringWidth(VS16) = %d, want 2", got)
@@ -140,7 +132,7 @@ func TestStringWidth_VS16(t *testing.T) {
 }
 
 func TestStringWidth_CombiningMarks(t *testing.T) {
-	// e + combining acute accent (U+0301)
+	// A combining acute accent adds no width to its base.
 	accented := "e\u0301"
 	if got := StringWidth(accented); got != 1 {
 		t.Errorf("StringWidth(combining mark) = %d, want 1", got)
@@ -148,7 +140,7 @@ func TestStringWidth_CombiningMarks(t *testing.T) {
 }
 
 func TestStringWidth_Mixed(t *testing.T) {
-	// H(1) + i(1) + 中(2) + 😀(2) = 6
+	// Two ASCII cells and two wide cells total six columns.
 	if got := StringWidth("Hi中😀"); got != 6 {
 		t.Errorf("StringWidth(mixed) = %d, want 6", got)
 	}
@@ -160,9 +152,28 @@ func TestStringWidth_Empty(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// NextGraphemeCluster
-// ---------------------------------------------------------------------------
+func TestStringWidth_SpacingMark(t *testing.T) {
+	// GB9a joins spacing marks to a cluster while their columns still contribute.
+	tests := []struct {
+		name string
+		s    string
+		want int
+	}{
+		{"thai sara am", "\u0E01\u0E33", 2},                 // กำ
+		{"thai tone then sara am", "\u0E15\u0E48\u0E33", 2}, // The tone mark is nonspacing.
+		{"thai nonspacing only", "\u0E17\u0E35\u0E48", 1},   // ที่
+		{"thai word", "\u0E04\u0E33\u0E19\u0E27\u0E13", 5},  // คำนวณ
+		{"lao vowel am", "\u0E81\u0EB3", 2},
+		{"devanagari matra", "\u0915\u093E", 2}, // का
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := StringWidth(tt.s); got != tt.want {
+				t.Errorf("StringWidth(%q) = %d, want %d", tt.s, got, tt.want)
+			}
+		})
+	}
+}
 
 func TestNextGraphemeCluster_ASCII(t *testing.T) {
 	c, rest, w := NextGraphemeCluster("abc")
@@ -226,10 +237,6 @@ func TestNextGraphemeCluster_Empty(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// GraphemeClusterCount
-// ---------------------------------------------------------------------------
-
 func TestGraphemeClusterCount_ASCII(t *testing.T) {
 	if got := GraphemeClusterCount("abc"); got != 3 {
 		t.Errorf("GraphemeClusterCount(\"abc\") = %d, want 3", got)
@@ -237,7 +244,7 @@ func TestGraphemeClusterCount_ASCII(t *testing.T) {
 }
 
 func TestGraphemeClusterCount_CombiningMark(t *testing.T) {
-	// "é" = e + U+0301 → one cluster
+	// A base and combining acute accent form one cluster.
 	if got := GraphemeClusterCount("e\u0301"); got != 1 {
 		t.Errorf("GraphemeClusterCount(\"e\\u0301\") = %d, want 1", got)
 	}
@@ -257,7 +264,7 @@ func TestGraphemeClusterCount_Flag(t *testing.T) {
 }
 
 func TestGraphemeClusterCount_Mixed(t *testing.T) {
-	// H + i + 中 + 😀 = 4 clusters
+	// Two ASCII, one CJK, and one emoji character form four clusters.
 	if got := GraphemeClusterCount("Hi中😀"); got != 4 {
 		t.Errorf("GraphemeClusterCount(mixed) = %d, want 4", got)
 	}
@@ -269,12 +276,8 @@ func TestGraphemeClusterCount_Empty(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Edge cases
-// ---------------------------------------------------------------------------
-
 func TestStringWidth_MultipleFlags(t *testing.T) {
-	// Two flag sequences: 🇺🇸🇯🇵 → 2 + 2 = 4
+	// Two flag clusters occupy two columns each.
 	flags := "🇺🇸🇯🇵"
 	if got := StringWidth(flags); got != 4 {
 		t.Errorf("StringWidth(two flags) = %d, want 4", got)
@@ -282,8 +285,7 @@ func TestStringWidth_MultipleFlags(t *testing.T) {
 }
 
 func TestStringWidth_ThreeRI(t *testing.T) {
-	// Three regional indicators: first two pair up (width 2), third is standalone (width 2)
-	// 🇺 🇸 🇯 → pair(🇺🇸) + single(🇯) = 2 + 2 = 4
+	// Three regional indicators form one pair and one standalone cluster.
 	three := "\U0001F1FA\U0001F1F8\U0001F1EF"
 	if got := StringWidth(three); got != 4 {
 		t.Errorf("StringWidth(3 RI) = %d, want 4", got)
@@ -291,7 +293,7 @@ func TestStringWidth_ThreeRI(t *testing.T) {
 }
 
 func TestStringWidth_MultipleCombining(t *testing.T) {
-	// a + two combining marks → still width 1
+	// Multiple combining marks add no width to their base.
 	s := "a\u0300\u0301"
 	if got := StringWidth(s); got != 1 {
 		t.Errorf("StringWidth(multi-combining) = %d, want 1", got)

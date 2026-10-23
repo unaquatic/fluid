@@ -29,34 +29,26 @@ func TestDefaultDark_PopulatesEveryRole(t *testing.T) {
 		{"Warning", th.Warning},
 		{"Danger", th.Danger},
 		{"Info", th.Info},
-		{"MarkdownLink", th.MarkdownLink},
-		{"MarkdownBullet", th.MarkdownBullet},
-		{"MarkdownQuoteFg", th.MarkdownQuoteFg},
-		{"MarkdownQuoteBd", th.MarkdownQuoteBd},
-		{"MarkdownRule", th.MarkdownRule},
 		{"CodeFg", th.CodeFg},
 		{"CodeBg", th.CodeBg},
 	}
 	for _, chk := range checks {
-		// A role is considered populated when it's not the zero value of
-		// Color (which is fully transparent). We allow Bg/Surface/CodeBg
-		// to collapse to the same value; just require they're opaque so
-		// widgets that fill them don't emit ColorTransparent.
+		// Every directly consumed color role must be opaque.
 		if chk.c.A == 0 {
 			t.Errorf("role %s should not be fully transparent", chk.name)
 		}
 	}
-	for i, hc := range th.MarkdownHeading {
-		if hc.A == 0 {
-			t.Errorf("MarkdownHeading[%d] should not be fully transparent", i)
-		}
-	}
-	// Core code palette should be populated so widgets can derive a
-	// Chroma style without the caller having to fill every field.
-	codeChecks := []struct {
+	// Styled roles require an opaque foreground.
+	entries := []struct {
 		name string
-		c    Color
+		e    Entry
 	}{
+		{"MarkdownLink", th.MarkdownLink},
+		{"MarkdownBullet", th.MarkdownBullet},
+		{"MarkdownQuote", th.MarkdownQuote},
+		{"MarkdownQuoteBorder", th.MarkdownQuoteBorder},
+		{"MarkdownRule", th.MarkdownRule},
+		// Core syntax roles must be usable without caller-supplied fallbacks.
 		{"Code.Keyword", th.Code.Keyword},
 		{"Code.Type", th.Code.Type},
 		{"Code.Function", th.Code.Function},
@@ -68,18 +60,20 @@ func TestDefaultDark_PopulatesEveryRole(t *testing.T) {
 		{"Code.Decorator", th.Code.Decorator},
 		{"Code.Error", th.Code.Error},
 	}
-	for _, chk := range codeChecks {
-		if chk.c.A == 0 {
+	for _, chk := range entries {
+		if chk.e.Fg.A == 0 {
 			t.Errorf("role %s should not be fully transparent", chk.name)
+		}
+	}
+	for i, h := range th.MarkdownHeading {
+		if h.Fg.A == 0 {
+			t.Errorf("MarkdownHeading[%d] should not be fully transparent", i)
 		}
 	}
 }
 
 func TestDefaultDark_CodeBgMatchesSurface(t *testing.T) {
-	// The chat UI relies on CodeBg blending with Surface so code blocks
-	// don't show a visible chip. Guard that invariant. ThemeFromSeeds
-	// sets CodeBg = Surface explicitly, so this is a constructor
-	// contract rather than a coincidence.
+	// Default code blocks share the panel surface instead of drawing a separate chip.
 	th := DefaultDark()
 	if !th.CodeBg.Equals(th.Surface) {
 		t.Errorf("expected CodeBg == Surface for default dark theme; got %v vs %v", th.CodeBg, th.Surface)
@@ -87,9 +81,7 @@ func TestDefaultDark_CodeBgMatchesSurface(t *testing.T) {
 }
 
 func TestResolvers_InheritWhenUnset(t *testing.T) {
-	// A theme that only fills the "legacy" fields should resolve every
-	// new role to its parent. This guards that inheritance is wired up
-	// the way the doc comments promise.
+	// Transparent optional roles inherit from their documented fallback roles.
 	th := &Theme{
 		Bg:           ColorFromInts(10, 10, 10, 255),
 		Surface:      ColorFromInts(20, 20, 20, 255),
@@ -105,7 +97,7 @@ func TestResolvers_InheritWhenUnset(t *testing.T) {
 		Warning:      ColorBrightYellow,
 		Danger:       ColorBrightRed,
 		Info:         ColorBrightCyan,
-		MarkdownLink: ColorBrightBlue,
+		MarkdownLink: Entry{Fg: ColorBrightBlue, Attrs: AttrUnderline},
 	}
 
 	cases := []struct {
@@ -116,33 +108,46 @@ func TestResolvers_InheritWhenUnset(t *testing.T) {
 		{"ResolveInteractive→Accent", th.ResolveInteractive(), th.Accent},
 		{"ResolveInteractiveStrong→AccentStrong", th.ResolveInteractiveStrong(), th.AccentStrong},
 		{"ResolveTextBase→TextStrong", th.ResolveTextBase(), th.TextStrong},
-		{"ResolveTextLink→MarkdownLink", th.ResolveTextLink(), th.MarkdownLink},
+		{"ResolveTextLink→MarkdownLink", th.ResolveTextLink(), th.MarkdownLink.Fg},
 		{"ResolveSurfaceRaised→SurfaceAlt", th.ResolveSurfaceRaised(), th.SurfaceAlt},
 		{"ResolveBorderFocus→Accent", th.ResolveBorderFocus(), th.Accent},
 		{"ResolveDiffAddFg→Success", th.ResolveDiffAddFg(), th.Success},
 		{"ResolveDiffRemoveFg→Danger", th.ResolveDiffRemoveFg(), th.Danger},
-		{"ResolveMarkdownText→TextStrong", th.ResolveMarkdownText(), th.TextStrong},
-		{"ResolveMarkdownCode→CodeFg (zero)", th.ResolveMarkdownCode(), th.CodeFg},
-		{"ResolveMarkdownStrong→TextStrong", th.ResolveMarkdownStrong(), th.TextStrong},
-		{"ResolveMarkdownEmph→TextWeak", th.ResolveMarkdownEmph(), th.TextWeak},
-		{"ResolveMarkdownListEnum→MarkdownBullet", th.ResolveMarkdownListEnum(), th.MarkdownBullet},
-		{"ResolveMarkdownImage→MarkdownLink", th.ResolveMarkdownImage(), th.MarkdownLink},
 	}
 	for _, tc := range cases {
 		if !tc.got.Equals(tc.want) {
 			t.Errorf("%s: got %v want %v", tc.name, tc.got, tc.want)
 		}
 	}
+
+	// A zero Entry inherits its fallback colors and attributes together.
+	entryCases := []struct {
+		name string
+		got  Entry
+		want Entry
+	}{
+		{"ResolveMarkdownText→TextStrong", th.ResolveMarkdownText(), Entry{Fg: th.TextStrong}},
+		{"ResolveMarkdownCode→CodeFg (zero)", th.ResolveMarkdownCode(), Entry{Fg: th.CodeFg, Bg: th.CodeBg}},
+		{"ResolveMarkdownStrong→TextStrong bold", th.ResolveMarkdownStrong(), Entry{Fg: th.TextStrong, Attrs: AttrBold}},
+		{"ResolveMarkdownEmph→TextWeak italic", th.ResolveMarkdownEmph(), Entry{Fg: th.TextWeak, Attrs: AttrItalic}},
+		{"ResolveMarkdownListEnum→MarkdownBullet", th.ResolveMarkdownListEnum(), th.ResolveMarkdownBullet()},
+		{"ResolveMarkdownImage→MarkdownLink", th.ResolveMarkdownImage(), th.MarkdownLink},
+		{"ResolveMarkdownHeading→bold body", th.ResolveMarkdownHeading(1), Entry{Fg: th.TextStrong, Attrs: AttrBold}},
+	}
+	for _, tc := range entryCases {
+		if tc.got != tc.want {
+			t.Errorf("%s: got %+v want %+v", tc.name, tc.got, tc.want)
+		}
+	}
 }
 
 func TestResolvers_PreferExplicitFields(t *testing.T) {
-	// When a field is set explicitly, resolvers must return it rather
-	// than the parent role.
+	// Explicit role values take precedence over inherited fallbacks.
 	th := DefaultDark()
 	th.Interactive = ColorFromInts(1, 2, 3, 255)
 	th.TextBase = ColorFromInts(4, 5, 6, 255)
 	th.DiffAddFg = ColorFromInts(7, 8, 9, 255)
-	th.MarkdownEmph = ColorFromInts(10, 11, 12, 255)
+	th.MarkdownEmph = Entry{Fg: ColorFromInts(10, 11, 12, 255)}
 
 	if !th.ResolveInteractive().Equals(th.Interactive) {
 		t.Errorf("Interactive: resolver did not prefer explicit field")
@@ -153,15 +158,14 @@ func TestResolvers_PreferExplicitFields(t *testing.T) {
 	if !th.ResolveDiffAddFg().Equals(th.DiffAddFg) {
 		t.Errorf("DiffAddFg: resolver did not prefer explicit field")
 	}
-	if !th.ResolveMarkdownEmph().Equals(th.MarkdownEmph) {
+	if th.ResolveMarkdownEmph() != th.MarkdownEmph {
 		t.Errorf("MarkdownEmph: resolver did not prefer explicit field")
 	}
 }
 
 func TestResolveSelection_DerivedFromInteractive(t *testing.T) {
-	// With no SelectionBg set, ResolveSelectionBg must derive a
-	// tint from Interactive (or its fallback) blended with Surface,
-	// and SelectionFg must pick a contrasting on-color.
+	// An unset selection derives its background from Interactive and Surface,
+	// then chooses a black-or-white foreground.
 	th := &Theme{
 		Surface:     ColorFromInts(20, 20, 20, 255),
 		Bg:          ColorFromInts(20, 20, 20, 255),
@@ -172,13 +176,12 @@ func TestResolveSelection_DerivedFromInteractive(t *testing.T) {
 	if bg.A == 0 {
 		t.Fatal("ResolveSelectionBg should produce an opaque color")
 	}
-	// The derived bg is a 70% surface blend of a saturated blue, so
-	// it should sit perceptibly between Surface and Interactive.
+	// The derived background differs from both endpoints of the blend.
 	if bg.Equals(th.Surface) || bg.Equals(th.Interactive) {
 		t.Errorf("derived SelectionBg should differ from both Surface and Interactive; got %v", bg)
 	}
 	fg := th.ResolveSelectionFg()
-	// Against a dim tint near #161830, white wins auto-contrast.
+	// The resulting dark tint selects white text.
 	if !fg.Equals(ColorWhite) {
 		t.Errorf("expected white fg on dim selection, got %v (bg=%v)", fg, bg)
 	}
@@ -197,8 +200,7 @@ func TestResolveSelection_PreferExplicit(t *testing.T) {
 }
 
 func TestResolveSelectionInactive_DarkerThanActive(t *testing.T) {
-	// The inactive tint must be strictly darker than the active one
-	// so a focused/defocused pair reads as a dimming, not a shift.
+	// The inactive state dims the active selection toward the dark background.
 	th := DefaultDark()
 	active := th.ResolveSelectionBg()
 	inactive := th.ResolveSelectionInactiveBg()
@@ -225,4 +227,3 @@ func TestChooseOnColor(t *testing.T) {
 		}
 	}
 }
-

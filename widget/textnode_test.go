@@ -6,9 +6,7 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// ---------------------------------------------------------------------------
-// TextNode construction basics
-// ---------------------------------------------------------------------------
+// TextNode construction.
 
 func TestNewTextNode(t *testing.T) {
 	n := NewTextNode()
@@ -44,9 +42,7 @@ func TestTextNode_WithOptions(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// PlainText
-// ---------------------------------------------------------------------------
+// Plain-text flattening.
 
 func TestTextNode_PlainText(t *testing.T) {
 	node := NewTextNode()
@@ -73,9 +69,7 @@ func TestTextNode_NestedPlainText(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// GatherChunks — simple
-// ---------------------------------------------------------------------------
+// Basic chunk gathering.
 
 func defaultInherited() InheritedStyle {
 	return InheritedStyle{Fg: style.ColorWhite, Bg: style.ColorTransparent}
@@ -113,12 +107,10 @@ func TestTextNode_GatherChunks_WithFg(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// GatherChunks — inheritance and overrides
-// ---------------------------------------------------------------------------
+// Style inheritance and overrides.
 
 func TestTextNode_GatherChunks_Inheritance(t *testing.T) {
-	// Parent: red fg; Child: no fg override -> should inherit red
+	// A child without a foreground inherits red from its parent.
 	root := NewTextNode(TextNodeWithFg(style.ColorRed))
 	child := NewTextNode()
 	child.AddString("inherited")
@@ -134,7 +126,7 @@ func TestTextNode_GatherChunks_Inheritance(t *testing.T) {
 }
 
 func TestTextNode_GatherChunks_Override(t *testing.T) {
-	// Parent: red fg; Child: blue fg -> should override to blue
+	// A child foreground overrides its parent's red.
 	root := NewTextNode(TextNodeWithFg(style.ColorRed))
 	child := NewTextNode(TextNodeWithFg(style.ColorBlue))
 	child.AddString("overridden")
@@ -170,7 +162,7 @@ func TestTextNode_StyleInheritance_Fg(t *testing.T) {
 }
 
 func TestTextNode_AttributesMerge(t *testing.T) {
-	// Parent: bold; Child: italic; Result: bold | italic
+	// Child attributes combine with inherited parent attributes.
 	root := NewTextNode(TextNodeWithAttributes(style.AttrBold))
 	child := NewTextNode(TextNodeWithAttributes(style.AttrItalic))
 	child.AddString("merged")
@@ -203,12 +195,10 @@ func TestTextNode_LinkInheritance(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// GatherChunks — nested / complex
-// ---------------------------------------------------------------------------
+// Nested chunk gathering.
 
 func TestTextNode_GatherChunks_Nested(t *testing.T) {
-	// Build: "Hello <b>bold <i>bolditalic</i></b> world"
+	// Build plain, bold, nested bold-italic, and plain spans.
 	root := NewTextNode()
 	root.AddString("Hello ")
 
@@ -222,7 +212,7 @@ func TestTextNode_GatherChunks_Nested(t *testing.T) {
 
 	chunks := root.GatherChunks(defaultInherited())
 
-	// Expect: "Hello " (plain), "bold " (bold), "bolditalic" (bold+italic), " world" (plain)
+	// Each flattened chunk must retain the effective attributes at its depth.
 	if len(chunks) != 4 {
 		t.Fatalf("expected 4 chunks, got %d", len(chunks))
 	}
@@ -271,8 +261,7 @@ func TestTextNode_MultipleChildren(t *testing.T) {
 }
 
 func TestTextNode_DeepNesting(t *testing.T) {
-	// root(red) > bold > italic > "styled"
-	// Result: red fg, bold|italic
+	// Nested emphasis inherits red and combines bold with italic.
 	root := NewTextNode(TextNodeWithFg(style.ColorRed))
 	bold := NewBoldNode()
 	italic := NewItalicNode()
@@ -296,7 +285,7 @@ func TestTextNode_DeepNesting(t *testing.T) {
 }
 
 func TestTextNode_ComplexTree(t *testing.T) {
-	// "Hello <b>bold <i>bold-italic</i></b> world"
+	// Build mixed text through the convenience constructors.
 	root := NewTextNode()
 	root.AddString("Hello ")
 
@@ -329,9 +318,7 @@ func TestTextNode_ComplexTree(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Text Modifier Nodes
-// ---------------------------------------------------------------------------
+// Styled-node constructors.
 
 func TestNewBoldNode(t *testing.T) {
 	n := NewBoldNode(StringChild("bold"))
@@ -446,7 +433,7 @@ func TestTextNode_LineBreak(t *testing.T) {
 	root.AddString("line 2")
 
 	chunks := root.GatherChunks(defaultInherited())
-	// Should produce: "line 1", "\n", "line 2"
+	// The line-break node contributes a newline between its siblings.
 	if len(chunks) != 3 {
 		t.Fatalf("expected 3 chunks, got %d", len(chunks))
 	}
@@ -473,9 +460,7 @@ func TestTextNode_WithLineBreak_PlainText(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Tree manipulation
-// ---------------------------------------------------------------------------
+// Tree manipulation.
 
 func TestTextNode_AddChildren(t *testing.T) {
 	n := NewTextNode()
@@ -617,9 +602,7 @@ func TestTextNode_ReplaceChildren(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Dirty tracking
-// ---------------------------------------------------------------------------
+// Dirty tracking.
 
 func TestTextNode_DirtyTracking(t *testing.T) {
 	root := NewTextNode()
@@ -644,7 +627,7 @@ func TestTextNode_DirtyPropagation(t *testing.T) {
 		t.Error("expected clean after ClearDirty")
 	}
 
-	// Modify child attribute
+	// A descendant style mutation dirties its ancestors.
 	child.SetAttributes(style.AttrItalic)
 	if !root.IsDirty() {
 		t.Error("expected root dirty after child modification")
@@ -652,7 +635,7 @@ func TestTextNode_DirtyPropagation(t *testing.T) {
 }
 
 func TestTextNode_DirtyBubbles_ViaOwnerText(t *testing.T) {
-	// Use ownerText interface to verify dirty bubbling reaches the Text widget
+	// Root ownership propagates descendant mutations to Text.
 	var dirtyCalled bool
 	mock := &mockOwnerText{onDirty: func() { dirtyCalled = true }}
 
@@ -671,7 +654,7 @@ func TestTextNode_DirtyBubbles_ViaOwnerText(t *testing.T) {
 	}
 }
 
-// mockOwnerText implements the ownerText interface for testing.
+// mockOwnerText records TextNode dirty notifications.
 type mockOwnerText struct {
 	onDirty func()
 }

@@ -1,21 +1,21 @@
 package input
 
-// PasteEvent represents pasted text from the terminal (bracketed paste mode).
+// PasteEvent contains text received through terminal bracketed paste mode.
 type PasteEvent struct {
-	Text string // The pasted text (ANSI stripped)
+	Text string // The pasted text after ANSI escape sequences are removed.
 
 	propagationStopped bool
 	defaultPrevented   bool
 }
 
-// StopPropagation stops propagation.
+// StopPropagation prevents the event from reaching later propagation targets.
 func (e *PasteEvent) StopPropagation() { e.propagationStopped = true }
 
-// PreventDefault prevents default handling.
+// PreventDefault prevents the event's default behavior.
 func (e *PasteEvent) PreventDefault() { e.defaultPrevented = true }
 
-// PropagationStopped returns true if propagation was stopped.
+// PropagationStopped reports whether StopPropagation was called.
 func (e *PasteEvent) PropagationStopped() bool { return e.propagationStopped }
 
-// DefaultPrevented returns true if default was prevented.
+// DefaultPrevented reports whether PreventDefault was called.
 func (e *PasteEvent) DefaultPrevented() bool { return e.defaultPrevented }

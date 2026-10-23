@@ -10,9 +10,7 @@ import (
 	"github.com/unaquatic/fluid/widget"
 )
 
-// ---------------------------------------------------------------------------
-// Box border golden tests — plain text
-// ---------------------------------------------------------------------------
+// Box border golden tests.
 
 func TestGolden_BoxSingleBorder(t *testing.T) {
 	box := widget.NewBox(
@@ -80,9 +78,7 @@ func TestGolden_BoxPartialBorder_TopBottom(t *testing.T) {
 	testutil.AssertGolden(t, "box_partial_border_top_bottom", buf)
 }
 
-// ---------------------------------------------------------------------------
-// Box with background fill golden tests
-// ---------------------------------------------------------------------------
+// Box background golden tests.
 
 func TestGolden_BoxFilled(t *testing.T) {
 	box := widget.NewBox(
@@ -91,13 +87,11 @@ func TestGolden_BoxFilled(t *testing.T) {
 		widget.BoxWithBorderStyle(style.BorderSingle),
 	)
 	buf := testutil.RenderWidget(box, 8, 4)
-	// Plain text won't show bg color, but the border shape is captured
+	// Plain output captures border geometry but not cell backgrounds.
 	testutil.AssertGolden(t, "box_filled_with_border", buf)
 }
 
-// ---------------------------------------------------------------------------
-// Text wrapping golden tests — plain text
-// ---------------------------------------------------------------------------
+// Text wrapping golden tests.
 
 func TestGolden_TextWrapNone(t *testing.T) {
 	txt := widget.NewText("Hello World, this is a long line of text")
@@ -137,9 +131,7 @@ func TestGolden_TextWrapWordLongWord(t *testing.T) {
 	testutil.AssertGolden(t, "text_wrap_word_long", buf)
 }
 
-// ---------------------------------------------------------------------------
-// TextNode styled golden tests — styled format
-// ---------------------------------------------------------------------------
+// Styled TextNode golden tests.
 
 func TestGolden_StyledBoldText(t *testing.T) {
 	txt := widget.NewText("")
@@ -192,14 +184,10 @@ func TestGolden_StyledTextWithLineBreak(t *testing.T) {
 	testutil.AssertGoldenStyled(t, "styled_text_line_break", buf)
 }
 
-// ---------------------------------------------------------------------------
-// Box margin golden tests — plain text
-// ---------------------------------------------------------------------------
+// Box margin golden tests.
 
-// TestGolden_BoxMarginRight_RowChildren verifies that BoxWithMarginRight
-// creates visible horizontal spacing between row children.
-// Layout: row container 20x1, child A (width 4, margin-right 3), child B (width 4)
-// Expected: "AAAA   BBBB         " — 3-cell gap from margin-right
+// TestGolden_BoxMarginRight_RowChildren verifies spacing between row children.
+// A four-cell child with a three-cell right margin precedes another four-cell child.
 func TestGolden_BoxMarginRight_RowChildren(t *testing.T) {
 	container := widget.NewBox(
 		widget.BoxWithWidth(layout.Points(20)),
@@ -244,10 +232,7 @@ func TestGolden_BoxMarginRight_RowChildren(t *testing.T) {
 	testutil.AssertGolden(t, "box_margin_right_row", buf)
 }
 
-// TestGolden_BoxMarginLeft_RowChildren verifies that BoxWithMarginLeft
-// offsets the first child from the container's left edge.
-// Layout: row container 20x1, child (width 4, margin-left 3)
-// Expected: "   CCCC             " — 3-cell offset from margin-left
+// TestGolden_BoxMarginLeft_RowChildren verifies a child's offset from the left edge.
 func TestGolden_BoxMarginLeft_RowChildren(t *testing.T) {
 	container := widget.NewBox(
 		widget.BoxWithWidth(layout.Points(20)),
@@ -276,10 +261,7 @@ func TestGolden_BoxMarginLeft_RowChildren(t *testing.T) {
 	testutil.AssertGolden(t, "box_margin_left_row", buf)
 }
 
-// TestGolden_BoxMarginTop_ColumnChildren verifies that BoxWithMarginTop
-// offsets a child from the top in a column container.
-// Layout: column container 10x5, child (height 1, margin-top 2)
-// Expected: 2 blank rows, then "Hello" on row 2
+// TestGolden_BoxMarginTop_ColumnChildren verifies a two-row top margin.
 func TestGolden_BoxMarginTop_ColumnChildren(t *testing.T) {
 	container := widget.NewBox(
 		widget.BoxWithWidth(layout.Points(10)),
@@ -306,10 +288,7 @@ func TestGolden_BoxMarginTop_ColumnChildren(t *testing.T) {
 	testutil.AssertGolden(t, "box_margin_top_column", buf)
 }
 
-// TestGolden_BoxMarginBottom_ColumnChildren verifies that BoxWithMarginBottom
-// creates spacing between stacked column children.
-// Layout: column container 10x5, child1 (height 1, margin-bottom 2), child2 (height 1)
-// Expected: "First" on row 0, blank rows 1-2, "Second" on row 3
+// TestGolden_BoxMarginBottom_ColumnChildren verifies spacing between column children.
 func TestGolden_BoxMarginBottom_ColumnChildren(t *testing.T) {
 	container := widget.NewBox(
 		widget.BoxWithWidth(layout.Points(10)),
@@ -345,10 +324,7 @@ func TestGolden_BoxMarginBottom_ColumnChildren(t *testing.T) {
 	testutil.AssertGolden(t, "box_margin_bottom_column", buf)
 }
 
-// TestGolden_BoxMarginRight_ColumnStretch verifies that MarginRight on a child
-// in a column container (with AlignStretch) shrinks the child's width.
-// Layout: column container 20x3, stretch child with margin-right 5, contains "Hello"
-// Expected: "Hello" rendered only in the first 15 columns (20 - 5 margin)
+// TestGolden_BoxMarginRight_ColumnStretch verifies that a right margin reduces stretched width.
 func TestGolden_BoxMarginRight_ColumnStretch(t *testing.T) {
 	container := widget.NewBox(
 		widget.BoxWithWidth(layout.Points(20)),
@@ -377,11 +353,9 @@ func TestGolden_BoxMarginRight_ColumnStretch(t *testing.T) {
 	testutil.AssertGolden(t, "box_margin_right_column_stretch", buf)
 }
 
-// TestGolden_BoxMarginRight_MatchesLayoutNode verifies that BoxWithMarginRight
-// produces the same layout as the old LayoutNode().MarginRight = ... pattern.
-// This is a regression test to confirm the refactoring is correct.
+// TestGolden_BoxMarginRight_MatchesLayoutNode compares the option with direct layout configuration.
 func TestGolden_BoxMarginRight_MatchesLayoutNode(t *testing.T) {
-	// Build tree using BoxWithMarginRight (new way)
+	// Build one tree through the Box option.
 	container1 := widget.NewBox(
 		widget.BoxWithWidth(layout.Points(20)),
 		widget.BoxWithHeight(layout.Points(1)),
@@ -411,7 +385,7 @@ func TestGolden_BoxMarginRight_MatchesLayoutNode(t *testing.T) {
 	txtA1.RenderSelf(buf1, 0)
 	childB1.RenderSelf(buf1, 0)
 
-	// Build tree using LayoutNode().MarginRight (old way)
+	// Build the equivalent tree through its LayoutNode.
 	container2 := widget.NewBox(
 		widget.BoxWithWidth(layout.Points(20)),
 		widget.BoxWithHeight(layout.Points(1)),
@@ -441,7 +415,7 @@ func TestGolden_BoxMarginRight_MatchesLayoutNode(t *testing.T) {
 	txtA2.RenderSelf(buf2, 0)
 	childB2.RenderSelf(buf2, 0)
 
-	// Both should produce identical output
+	// Both configuration paths must render identically.
 	golden1 := testutil.GoldenText(buf1)
 	golden2 := testutil.GoldenText(buf2)
 	if golden1 != golden2 {
@@ -451,7 +425,7 @@ func TestGolden_BoxMarginRight_MatchesLayoutNode(t *testing.T) {
 			golden1, golden2)
 	}
 
-	// Also compare computed positions
+	// Their computed child positions must also match.
 	if childB1.X() != childB2.X() {
 		t.Errorf("childB X position differs: BoxWithMarginRight=%d, LayoutNode=%d",
 			childB1.X(), childB2.X())
@@ -460,9 +434,7 @@ func TestGolden_BoxMarginRight_MatchesLayoutNode(t *testing.T) {
 	testutil.AssertGolden(t, "box_margin_right_matches_layout_node", buf1)
 }
 
-// TestGolden_BoxCombinedMargins verifies that multiple directional margins
-// work together correctly on the same box.
-// Layout: column container 20x5, child has margin-left 2, margin-right 3, margin-top 1
+// TestGolden_BoxCombinedMargins verifies independent margins on three sides.
 func TestGolden_BoxCombinedMargins(t *testing.T) {
 	container := widget.NewBox(
 		widget.BoxWithWidth(layout.Points(20)),
@@ -493,9 +465,7 @@ func TestGolden_BoxCombinedMargins(t *testing.T) {
 	testutil.AssertGolden(t, "box_combined_margins", buf)
 }
 
-// ---------------------------------------------------------------------------
-// Layout composition golden tests — plain text
-// ---------------------------------------------------------------------------
+// Layout composition golden tests.
 
 func TestGolden_BoxWithTextChildren(t *testing.T) {
 	box := widget.NewBox(
@@ -609,9 +579,7 @@ func TestGolden_NestedBoxesWithBorders(t *testing.T) {
 	testutil.AssertGolden(t, "nested_boxes_with_borders", buf)
 }
 
-// ---------------------------------------------------------------------------
-// Input widget golden tests — plain text
-// ---------------------------------------------------------------------------
+// Input golden tests.
 
 func TestGolden_InputEmpty(t *testing.T) {
 	inp := widget.NewInput()
@@ -631,9 +599,7 @@ func TestGolden_InputWithPlaceholder(t *testing.T) {
 	testutil.AssertGolden(t, "input_placeholder", buf)
 }
 
-// ---------------------------------------------------------------------------
-// CharFill golden tests
-// ---------------------------------------------------------------------------
+// CharFill golden tests.
 
 func TestGolden_CharFillBlock(t *testing.T) {
 	cf := widget.NewCharFill('#', style.ColorWhite, style.ColorTransparent)
@@ -653,9 +619,7 @@ func TestGolden_CharFillHLine(t *testing.T) {
 	testutil.AssertGolden(t, "charfill_hline", buf)
 }
 
-// ---------------------------------------------------------------------------
-// Gauge golden tests
-// ---------------------------------------------------------------------------
+// Gauge golden tests.
 
 func TestGolden_GaugeEmpty(t *testing.T) {
 	g := widget.NewGauge(widget.GaugeWithValue(0), widget.GaugeWithShowLabel(false))
@@ -681,9 +645,7 @@ func TestGolden_GaugeWithLabel(t *testing.T) {
 	testutil.AssertGolden(t, "gauge_with_label", buf)
 }
 
-// ---------------------------------------------------------------------------
-// Sparkline golden tests
-// ---------------------------------------------------------------------------
+// Sparkline golden tests.
 
 func TestGolden_SparklineBasic(t *testing.T) {
 	data := []float64{1, 3, 7, 2, 5, 8, 4, 6}
@@ -699,9 +661,7 @@ func TestGolden_SparklineTall(t *testing.T) {
 	testutil.AssertGolden(t, "sparkline_tall", buf)
 }
 
-// ---------------------------------------------------------------------------
-// List golden tests
-// ---------------------------------------------------------------------------
+// List golden tests.
 
 func TestGolden_ListBasic(t *testing.T) {
 	items := []widget.ListItem{
@@ -727,9 +687,7 @@ func TestGolden_ListScrolled(t *testing.T) {
 	testutil.AssertGolden(t, "list_scrolled", buf)
 }
 
-// ---------------------------------------------------------------------------
-// Select golden tests
-// ---------------------------------------------------------------------------
+// Select golden tests.
 
 func TestGolden_SelectBasic(t *testing.T) {
 	options := []widget.SelectOption{
@@ -752,9 +710,7 @@ func TestGolden_SelectWithDescription(t *testing.T) {
 	testutil.AssertGolden(t, "select_with_description", buf)
 }
 
-// ---------------------------------------------------------------------------
-// TabSelect golden tests
-// ---------------------------------------------------------------------------
+// TabSelect golden tests.
 
 func TestGolden_TabSelectBasic(t *testing.T) {
 	options := []widget.TabSelectOption{
@@ -767,9 +723,7 @@ func TestGolden_TabSelectBasic(t *testing.T) {
 	testutil.AssertGolden(t, "tabselect_basic", buf)
 }
 
-// ---------------------------------------------------------------------------
-// Table golden tests
-// ---------------------------------------------------------------------------
+// Table golden tests.
 
 func TestGolden_TableBasic(t *testing.T) {
 	columns := []widget.TableColumn{
@@ -800,9 +754,7 @@ func TestGolden_TableStriped(t *testing.T) {
 	testutil.AssertGolden(t, "table_striped", buf)
 }
 
-// ---------------------------------------------------------------------------
-// Tree golden tests
-// ---------------------------------------------------------------------------
+// Tree golden tests.
 
 func TestGolden_TreeBasic(t *testing.T) {
 	root := []*widget.TreeNode{
@@ -830,9 +782,7 @@ func TestGolden_TreeCollapsed(t *testing.T) {
 	testutil.AssertGolden(t, "tree_collapsed", buf)
 }
 
-// ---------------------------------------------------------------------------
-// ScrollBar golden tests
-// ---------------------------------------------------------------------------
+// ScrollBar golden tests.
 
 func TestGolden_ScrollBarVertical(t *testing.T) {
 	sb := widget.NewScrollBar()
@@ -855,9 +805,7 @@ func TestGolden_ScrollBarHorizontal(t *testing.T) {
 	testutil.AssertGolden(t, "scrollbar_horizontal", buf)
 }
 
-// ---------------------------------------------------------------------------
-// Textarea golden tests
-// ---------------------------------------------------------------------------
+// Textarea golden tests.
 
 func TestGolden_TextareaEmpty(t *testing.T) {
 	ta := widget.NewTextarea()
@@ -872,9 +820,7 @@ func TestGolden_TextareaWithContent(t *testing.T) {
 	testutil.AssertGolden(t, "textarea_with_content", buf)
 }
 
-// ---------------------------------------------------------------------------
-// Code golden tests
-// ---------------------------------------------------------------------------
+// Code golden tests.
 
 func TestGolden_CodeBasic(t *testing.T) {
 	c := widget.NewCode("func main() {\n\tfmt.Println(\"hello\")\n}",
@@ -883,9 +829,7 @@ func TestGolden_CodeBasic(t *testing.T) {
 	testutil.AssertGolden(t, "code_basic", buf)
 }
 
-// ---------------------------------------------------------------------------
-// Markdown golden tests
-// ---------------------------------------------------------------------------
+// Markdown golden tests.
 
 func TestGolden_MarkdownHeading(t *testing.T) {
 	md := widget.NewMarkdown("# Hello\n\nSome text here.")
@@ -899,15 +843,13 @@ func TestGolden_MarkdownList(t *testing.T) {
 	testutil.AssertGolden(t, "markdown_list", buf)
 }
 
-// ---------------------------------------------------------------------------
-// ScrollBox golden tests (container — renders children)
-// ---------------------------------------------------------------------------
+// ScrollBox golden tests.
 
 func TestGolden_ScrollBoxWithChild(t *testing.T) {
 	txt := widget.NewText("Line 1\nLine 2\nLine 3\nLine 4\nLine 5")
 	sbox := widget.NewScrollBox(widget.ScrollBoxWithChildren(txt))
 
-	// Setup parent and child together
+	// Lay out the parent and child before rendering the container.
 	testutil.SetupWidgetTree(sbox, 15, 3, txt)
 	buf := buffer.New(15, 3)
 	txt.RenderSelf(buf, 0)

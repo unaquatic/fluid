@@ -9,38 +9,27 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// ---------------------------------------------------------------------------
-// ControlState
-// ---------------------------------------------------------------------------
-
-// ControlState represents the current lifecycle state of the terminal.
-// The terminal progresses through these states as it is started, paused,
-// suspended, and stopped. Widgets and external code can inspect the state
-// to decide whether rendering is active.
+// ControlState identifies the renderer's lifecycle state.
 type ControlState int
 
 const (
-	// StateIdle is the initial state before the terminal has been started.
+	// StateIdle means terminal setup has not started.
 	StateIdle ControlState = iota
-	// StateAutoStarted means the terminal is in auto mode: it renders only
-	// when the scene is marked dirty via RequestRender.
+	// StateAutoStarted renders only while a frame is requested.
 	StateAutoStarted
-	// StateExplicitStarted means the terminal is running a continuous
-	// render loop at the configured frame rate.
+	// StateExplicitStarted renders whenever the event loop wakes, regardless of
+	// whether the scene was dirty.
 	StateExplicitStarted
-	// StateExplicitPaused means the render loop is still alive but
-	// skipping frames. Resume with Resume().
+	// StateExplicitPaused keeps the event loop alive without rendering frames.
 	StateExplicitPaused
-	// StateExplicitSuspended means the terminal has been restored to its
-	// original state and the render loop is paused. Used for shelling out
-	// to external commands.
+	// StateExplicitSuspended means terminal modes are restored and rendering is
+	// suspended.
 	StateExplicitSuspended
-	// StateExplicitStopped means the render loop has exited. The terminal
-	// cannot be restarted.
+	// StateExplicitStopped means the render loop has exited.
 	StateExplicitStopped
 )
 
-// String returns the name of the state.
+// String returns s's name.
 func (s ControlState) String() string {
 	switch s {
 	case StateIdle:
@@ -60,62 +49,44 @@ func (s ControlState) String() string {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Kitty keyboard flag constants (re-exported for convenience)
-// ---------------------------------------------------------------------------
-
+// Selected Kitty keyboard flags re-exported from package input.
 const (
 	KittyFlagDisambiguate  = input.KittyFlagDisambiguate
 	KittyFlagAlternateKeys = input.KittyFlagAlternateKeys
 )
 
-// ---------------------------------------------------------------------------
-// CursorStyle
-// ---------------------------------------------------------------------------
-
-// CursorStyle represents the terminal cursor shape. The terminal translates
-// these into DECSCUSR escape sequences when flushing each frame.
+// CursorStyle identifies a terminal cursor shape.
 type CursorStyle = string
 
 const (
-	// CursorBlock renders the cursor as a solid filled rectangle.
+	// CursorBlock is a rectangular cursor.
 	CursorBlock CursorStyle = "block"
-	// CursorLine renders the cursor as a thin vertical bar (I-beam).
+	// CursorLine is a thin vertical cursor.
 	CursorLine CursorStyle = "line"
-	// CursorUnderline renders the cursor as a horizontal line under the
-	// character.
+	// CursorUnderline is a horizontal cursor below the cell content.
 	CursorUnderline CursorStyle = "underline"
 )
 
-// ---------------------------------------------------------------------------
-// MousePointerStyle
-// ---------------------------------------------------------------------------
-
-// MousePointerStyle represents the mouse pointer shape. Terminals that
-// support the OSC 22 sequence will change the pointer icon accordingly.
+// MousePointerStyle identifies a pointer shape for terminals supporting OSC 22.
 type MousePointerStyle = string
 
 const (
 	// MousePointerDefault is the standard arrow pointer.
 	MousePointerDefault MousePointerStyle = "default"
-	// MousePointerPointer is the hand/link pointer (for clickable elements).
+	// MousePointerPointer is a hand pointer for clickable elements.
 	MousePointerPointer MousePointerStyle = "pointer"
-	// MousePointerText is the I-beam pointer (for text selection areas).
+	// MousePointerText is an I-beam pointer for text.
 	MousePointerText MousePointerStyle = "text"
-	// MousePointerCrosshair is the crosshair pointer (for precision targeting).
+	// MousePointerCrosshair is a crosshair pointer.
 	MousePointerCrosshair MousePointerStyle = "crosshair"
-	// MousePointerMove is the four-way arrow pointer (for draggable elements).
+	// MousePointerMove is a four-way pointer for draggable elements.
 	MousePointerMove MousePointerStyle = "move"
-	// MousePointerNotAllowed is the circle-slash pointer (for disabled areas).
+	// MousePointerNotAllowed marks a disabled interaction.
 	MousePointerNotAllowed MousePointerStyle = "not-allowed"
 )
 
-// ---------------------------------------------------------------------------
-// CursorStyleOptions
-// ---------------------------------------------------------------------------
-
-// CursorStyleOptions configures cursor appearance. All fields are optional
-// pointers; nil means "keep the current value".
+// CursorStyleOptions contains optional cursor and pointer changes. A nil field
+// preserves its current value.
 type CursorStyleOptions struct {
 	// Style overrides the cursor shape (block, line, or underline).
 	Style *CursorStyle
@@ -123,158 +94,114 @@ type CursorStyleOptions struct {
 	Blinking *bool
 	// Color overrides the cursor color.
 	Color *style.Color
-	// Cursor overrides the mouse pointer style (e.g. pointer, text, move).
+	// Cursor overrides the mouse pointer style.
 	Cursor *MousePointerStyle
 }
 
-// ---------------------------------------------------------------------------
-// CursorState
-// ---------------------------------------------------------------------------
-
-// CursorState represents the full state of the terminal cursor at a given
-// frame. The terminal computes this from SetCursorPosition and
-// SetCursorStyleOptions calls made by the focused widget, then applies the
-// corresponding escape sequences during flush.
+// CursorState contains the terminal cursor state for a frame.
 type CursorState struct {
-	// X, Y is the cursor position (0-indexed, absolute terminal coords).
+	// X and Y are zero-based absolute terminal coordinates.
 	X, Y int
-	// Visible controls whether the cursor is shown. Widgets without text
-	// input typically set this to false.
+	// Visible controls whether the cursor is shown.
 	Visible bool
-	// Style is the cursor shape (block, line, or underline).
+	// Style is the cursor shape.
 	Style CursorStyle
 	// Blinking controls whether the cursor blinks.
 	Blinking bool
-	// Color is the cursor's color. A zero value uses the terminal default.
+	// Color is the cursor color. A zero value selects the terminal default.
 	Color style.Color
 }
 
-// ---------------------------------------------------------------------------
-// Config
-// ---------------------------------------------------------------------------
-
-// Config configures the terminal.
+// Config controls terminal setup, rendering, input, and diagnostics.
 type Config struct {
-	// Stdin is the input reader used for keyboard and mouse events.
-	// Default: os.Stdin.
+	// Stdin receives terminal input. The default is os.Stdin.
 	Stdin io.Reader
 
-	// Stdout is the output writer used for rendering terminal escape
-	// sequences and content. Default: os.Stdout.
+	// Stdout receives terminal output. The default is os.Stdout.
 	Stdout io.Writer
 
-	// TargetFPS is the desired frame rate for the render loop. The terminal
-	// sleeps between frames to approximate this rate. Actual FPS may be
-	// lower under heavy load. Default: 30.
+	// TargetFPS records the desired render-loop rate. It is currently not used by
+	// the event loop. The default is 30.
 	TargetFPS int
 
-	// MaxFPS caps the maximum frame rate. Even when frames are requested
-	// rapidly (e.g. via RequestRender), the terminal will not exceed this
-	// rate. Default: 60.
+	// MaxFPS records the desired render-rate limit. It is currently not enforced.
+	// The default is 60.
 	MaxFPS int
 
-	// UseMouse enables mouse click and scroll event tracking via terminal
-	// escape sequences. When false, no mouse events are delivered to
-	// widgets. Default: true.
+	// UseMouse enables click, drag, and scroll reporting. The default is true.
 	UseMouse bool
 
-	// EnableMouseMovement enables mouse motion tracking in addition to
-	// clicks and scrolls. Generates events on every cursor move, which
-	// increases terminal I/O. Only takes effect when UseMouse is true.
-	// Default: false.
+	// EnableMouseMovement enables reporting for motion without a pressed button.
+	// It applies only when UseMouse is true and defaults to false.
 	EnableMouseMovement bool
 
-	// Fullscreen uses the alternate screen buffer with a fixed viewport
-	// that fills the entire terminal. The original terminal content is
-	// restored when the terminal exits. Mutually exclusive with InlineMode.
-	// Default: true.
+	// Fullscreen uses the alternate screen. InlineMode overrides it to false. The
+	// default is true.
 	Fullscreen bool
 
-	// AutoFocus automatically focuses the widget under the mouse pointer
-	// when a click is detected. When false, focus must be managed manually
-	// via FocusRenderable. Default: true.
+	// AutoFocus focuses a focusable renderable on mouse down. The default is true.
 	AutoFocus bool
 
-	// ExitOnCtrlC intercepts Ctrl+C and triggers a clean shutdown of the
-	// terminal. When false, Ctrl+C is delivered as a normal key event.
-	// Default: true.
+	// ExitOnCtrlC destroys the renderer after an unprevented Control-C event. The
+	// default is true.
 	ExitOnCtrlC bool
 
-	// InlineMode enables inline rendering mode. Instead of using the
-	// alternate screen and a fixed-size viewport, content is rendered
-	// inline in the normal terminal buffer. The height is determined by
-	// the widget tree, while the width tracks the terminal width (minus
-	// a 1-column right margin to prevent auto-wrap).
+	// InlineMode renders in the normal screen and scrollback instead of the
+	// alternate screen. Content determines height; terminal width minus a
+	// one-column wrap margin determines width.
 	//
-	// When content fits on screen, previous output is erased line-by-line
-	// and rewritten (like Ink's log-update). When content exceeds the
-	// terminal height, the terminal is cleared and all content is rewritten
-	// from scratch (like Ink's clearTerminal).
-	//
-	// When InlineMode is true, Fullscreen is forced to false.
-	// Default: false.
+	// Changed rows are updated in place while content fits. Overflow triggers a
+	// complete screen and scrollback rewrite. The default is false.
 	InlineMode bool
 
-	// ClearScreenOnStart clears the terminal screen and scrollback before
-	// the first render. When false, previous terminal output is preserved
-	// and the inline content appears below the shell prompt, matching the
-	// behavior of tools like Claude Code.
-	// Only applies when InlineMode is true. Default: false.
+	// ClearScreenOnStart clears the screen and scrollback before the first inline
+	// render. The default is false.
 	ClearScreenOnStart bool
 
-	// BackgroundColor fills the entire buffer each frame before widgets
-	// render. Transparent regions of the widget tree will show this color.
-	// Default: style.ColorBlack.
+	// BackgroundColor fills the frame before widgets render. The default is
+	// style.ColorBlack.
 	BackgroundColor style.Color
 
-	// UseKittyKeyboard enables the Kitty keyboard protocol, which provides
-	// unambiguous key reporting including modifier keys, key release events,
-	// and distinguishing between e.g. Enter vs Ctrl+M. Requires a
-	// Kitty-compatible terminal (Kitty, WezTerm, Ghostty, etc.).
-	// Default: false.
+	// UseKittyKeyboard enables Kitty keyboard protocol parsing and terminal mode.
+	// The default is false.
 	UseKittyKeyboard bool
 
-	// KittyKeyboardFlags controls which Kitty keyboard protocol features
-	// are enabled. Flags are bitwise-OR'd together.
+	// KittyKeyboardFlags is the bitwise union of enabled Kitty features.
 	// Default: KittyFlagDisambiguate | KittyFlagAlternateKeys.
 	KittyKeyboardFlags uint
 
-	// AltSendsEscPrefix tells the input parser that the terminal sends
-	// Alt/Option as an ESC prefix rather than setting the high bit. Enable
-	// this when the terminal uses emacs-style ESC b/f for Alt+Arrow word
-	// navigation (e.g. macOS Terminal.app, xterm altSendsEscape). Allows
-	// the parser to infer Shift from double-ESC + unmodified nav keys
-	// (ESC ESC [ D → Shift+Alt+Left). Default: false.
+	// AltSendsEscPrefix enables the parser heuristic for terminals that encode
+	// Alt navigation with ESC prefixes. The default is false.
 	AltSendsEscPrefix bool
 
-	// PostProcessFns are functions called after each render pass, receiving
-	// the fully rendered buffer and the frame's delta time. Use these for
-	// effects like scanlines, vignettes, or debug overlays.
+	// PostProcessFns run after widget rendering and before terminal flushing.
 	PostProcessFns []func(buf *buffer.Buffer, deltaTime float64)
 
-	// OnDestroy is called once when the terminal is destroyed, after the
-	// terminal has been restored to its original state. Use it for final
-	// cleanup (e.g. flushing logs, closing connections).
+	// OnDestroy runs after terminal restoration and scene destruction.
 	OnDestroy func()
 
-	// GatherStats enables per-frame collection of terminal statistics
-	// (frame time, layout time, render time, flush time). Access the
-	// collected data via Terminal.Stats(). Default: false.
+	// GatherStats enables per-frame timing statistics. The default is false.
 	GatherStats bool
 
-	// DebugLog, when non-empty, enables per-frame diagnostic logging to
-	// the given file path (e.g. "logs/fluid.log"). The directory must
-	// exist. Each line is a tab-separated record:
+	// WidthProbe controls startup measurement of terminal cell widths. The
+	// default is WidthProbeOff.
+	WidthProbe WidthProbe
+
+	// WidthProbeSamples contains strings measured by WidthProbeAuto.
+	WidthProbeSamples []string
+
+	// DebugLog enables frame diagnostics at the given path. Its parent directory
+	// must exist. Records use these tab-separated forms:
 	//
 	//   frame  <n>  <total_ms>ms
 	//   render  full|partial  buf=<w>x<h>  dirty=<n>  clear=<µs>  exec=<µs>
 	//   flush   full|diff|overflow  rows=<h>  bytes=<n>  build=<µs>  write=<µs>
 	//
-	// Only meaningful in inline mode. Default: "" (disabled).
+	// Debug logging applies only to inline mode and is disabled by default.
 	DebugLog string
 }
 
-// DefaultConfig returns a Config with sensible defaults.
+// DefaultConfig returns the default terminal configuration.
 func DefaultConfig() Config {
 	return Config{
 		Stdin:               os.Stdin,
@@ -292,7 +219,7 @@ func DefaultConfig() Config {
 	}
 }
 
-// mergeConfig merges user config over defaults.
+// mergeConfig overlays the first supplied configuration on DefaultConfig.
 func mergeConfig(configs []Config) Config {
 	cfg := DefaultConfig()
 
@@ -325,6 +252,10 @@ func mergeConfig(configs []Config) Config {
 	cfg.UseKittyKeyboard = user.UseKittyKeyboard
 	cfg.AltSendsEscPrefix = user.AltSendsEscPrefix
 	cfg.GatherStats = user.GatherStats
+	if user.WidthProbe.Valid() {
+		cfg.WidthProbe = user.WidthProbe
+	}
+	cfg.WidthProbeSamples = user.WidthProbeSamples
 
 	if cfg.InlineMode {
 		cfg.Fullscreen = false

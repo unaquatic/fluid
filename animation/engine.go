@@ -5,13 +5,8 @@ import (
 	"sync"
 )
 
-// ---------------------------------------------------------------------------
-// RendererLike is the minimal interface used by the engine to request live
-// rendering. We use an interface to avoid a circular import on render.
-// ---------------------------------------------------------------------------
-
-// RendererLike is the minimal interface the engine needs from a renderer.
-// It allows requesting continuous rendering while animations are active.
+// RendererLike provides the live-rendering reference count used by TimelineEngine.
+// This narrow interface avoids importing the render package.
 type RendererLike interface {
 	// RequestLive increments the renderer's live-rendering reference count.
 	RequestLive()
@@ -19,29 +14,20 @@ type RendererLike interface {
 	DropLive()
 }
 
-// ---------------------------------------------------------------------------
-// TimelineEngine
-// ---------------------------------------------------------------------------
-
-// TimelineEngine manages all active timelines and drives them from the
-// renderer's frame callback.
+// TimelineEngine stores registered timelines and advances them on renderer frames.
 type TimelineEngine struct {
 	timelines []*Timeline
 	renderer  RendererLike
 	attached  bool
-	liveHeld  bool // true if we've called RequestLive
+	liveHeld  bool // Whether this engine currently holds one live-rendering reference.
 	mu        sync.Mutex
 }
 
-// Global engine instance.
+// engine is the package-wide timeline registry used by the package functions.
 var engine = &TimelineEngine{}
 
-// ---------------------------------------------------------------------------
-// Attach / Detach
-// ---------------------------------------------------------------------------
-
-// Attach binds the engine to a renderer. The renderer calls
-// engine.Update(deltaTime) each frame.
+// Attach binds the package engine to renderer.
+// The renderer must call Update with each frame's elapsed time.
 func Attach(renderer RendererLike) {
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
@@ -49,7 +35,7 @@ func Attach(renderer RendererLike) {
 	engine.attached = true
 }
 
-// Detach unbinds the engine from the renderer.
+// Detach releases any live-rendering reference and unbinds the renderer.
 func Detach() {
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
@@ -61,17 +47,12 @@ func Detach() {
 	engine.attached = false
 }
 
-// ---------------------------------------------------------------------------
-// Register / Unregister
-// ---------------------------------------------------------------------------
-
-// Register adds a timeline to the engine for automatic updates.
-// Synced timelines (driven by a parent) are not registered.
+// Register adds tl to the package engine unless it is already registered.
 func Register(tl *Timeline) {
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
 
-	// Avoid duplicates
+	// A timeline receives at most one update per engine frame.
 	if slices.Contains(engine.timelines, tl) {
 		return
 	}
@@ -80,7 +61,7 @@ func Register(tl *Timeline) {
 	engine.updateLiveState()
 }
 
-// Unregister removes a timeline from the engine.
+// Unregister removes the first registration of tl, if present.
 func Unregister(tl *Timeline) {
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
@@ -102,16 +83,11 @@ func Clear() {
 	engine.updateLiveState()
 }
 
-// ---------------------------------------------------------------------------
-// Update
-// ---------------------------------------------------------------------------
-
-// Update advances all registered, non-synced timelines by deltaTime seconds.
-// Called by the renderer each frame.
+// Update advances each registered, unsynchronized timeline by deltaTime seconds.
+// It then removes completed timelines and updates live-rendering state.
 func Update(deltaTime float64) {
 	engine.mu.Lock()
-	// Copy the slice so timelines can call Register/Unregister during Update
-	// without deadlocking.
+	// Release the engine lock before timeline callbacks can register or unregister timelines.
 	tls := make([]*Timeline, len(engine.timelines))
 	copy(tls, engine.timelines)
 	engine.mu.Unlock()
@@ -123,7 +99,7 @@ func Update(deltaTime float64) {
 		tl.Update(deltaTime)
 	}
 
-	// Remove completed timelines
+	// Compact the registry in place after callbacks and property updates finish.
 	engine.mu.Lock()
 	n := 0
 	for _, tl := range engine.timelines {
@@ -137,23 +113,15 @@ func Update(deltaTime float64) {
 	engine.mu.Unlock()
 }
 
-// ---------------------------------------------------------------------------
-// Convenience constructor
-// ---------------------------------------------------------------------------
-
-// CreateTimeline creates a Timeline, registers it with the global engine,
-// and auto-plays unless Autoplay is explicitly false.
+// CreateTimeline returns a new Timeline registered with the package engine.
+// Playback state follows NewTimeline's autoplay rules.
 func CreateTimeline(opts ...TimelineOptions) *Timeline {
 	tl := NewTimeline(opts...)
 	Register(tl)
 	return tl
 }
 
-// ---------------------------------------------------------------------------
-// Queries
-// ---------------------------------------------------------------------------
-
-// ActiveCount returns the number of registered timelines.
+// ActiveCount returns the number of registered timelines, including paused timelines.
 func ActiveCount() int {
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
@@ -167,12 +135,8 @@ func IsAttached() bool {
 	return engine.attached
 }
 
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
-// updateLiveState requests or drops live rendering based on whether there
-// are active playing timelines. Must be called with engine.mu held.
+// updateLiveState holds one live-rendering reference while any timeline is playing.
+// The caller must hold e.mu.
 func (e *TimelineEngine) updateLiveState() {
 	if e.renderer == nil {
 		return
@@ -195,7 +159,8 @@ func (e *TimelineEngine) updateLiveState() {
 	}
 }
 
-// ResetEngine resets the global engine state. Intended for tests only.
+// ResetEngine releases live rendering and clears all package engine state.
+// It is intended for tests.
 func ResetEngine() {
 	engine.mu.Lock()
 	defer engine.mu.Unlock()

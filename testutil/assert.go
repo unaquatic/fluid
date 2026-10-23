@@ -8,11 +8,9 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// ---------------------------------------------------------------------------
-// Cell assertion helpers
-// ---------------------------------------------------------------------------
+// Cell assertions.
 
-// AssertCell asserts that the cell at (x, y) has the expected character.
+// AssertCell reports a test error unless the cell at (x, y) contains char.
 func AssertCell(t *testing.T, buf *buffer.Buffer, x, y int, char rune) {
 	t.Helper()
 	cell := buf.Cell(x, y)
@@ -21,7 +19,7 @@ func AssertCell(t *testing.T, buf *buffer.Buffer, x, y int, char rune) {
 	}
 }
 
-// AssertCellFg asserts the cell character and foreground color.
+// AssertCellFg reports test errors unless the cell at (x, y) has char and fg.
 func AssertCellFg(t *testing.T, buf *buffer.Buffer, x, y int, char rune, fg style.Color) {
 	t.Helper()
 	cell := buf.Cell(x, y)
@@ -33,7 +31,8 @@ func AssertCellFg(t *testing.T, buf *buffer.Buffer, x, y int, char rune, fg styl
 	}
 }
 
-// AssertCellStyle asserts the cell character, fg, bg, and attributes.
+// AssertCellStyle reports test errors unless the cell at (x, y) matches
+// char, fg, bg, and the exact attribute bitmask.
 func AssertCellStyle(t *testing.T, buf *buffer.Buffer, x, y int, char rune, fg, bg style.Color, attrs uint32) {
 	t.Helper()
 	cell := buf.Cell(x, y)
@@ -51,7 +50,8 @@ func AssertCellStyle(t *testing.T, buf *buffer.Buffer, x, y int, char rune, fg, 
 	}
 }
 
-// AssertCellAttrs asserts the cell character and that specific attribute bits are set.
+// AssertCellAttrs reports test errors unless the cell at (x, y) contains char
+// and every bit in attrs. Additional attribute bits are allowed.
 func AssertCellAttrs(t *testing.T, buf *buffer.Buffer, x, y int, char rune, attrs uint32) {
 	t.Helper()
 	cell := buf.Cell(x, y)
@@ -63,12 +63,10 @@ func AssertCellAttrs(t *testing.T, buf *buffer.Buffer, x, y int, char rune, attr
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Row / text assertion helpers
-// ---------------------------------------------------------------------------
+// Row text and assertions.
 
-// RowText extracts the plain text characters from row y (0-indexed).
-// Trailing spaces are trimmed.
+// RowText returns row y as plain text with trailing spaces removed.
+// It treats zero-value cells as spaces.
 func RowText(buf *buffer.Buffer, y int) string {
 	var sb strings.Builder
 	w := buf.Width()
@@ -83,7 +81,7 @@ func RowText(buf *buffer.Buffer, y int) string {
 	return strings.TrimRight(sb.String(), " ")
 }
 
-// AssertRow asserts that row y contains the expected text (trailing spaces trimmed).
+// AssertRow reports a test error unless RowText for y equals expected.
 func AssertRow(t *testing.T, buf *buffer.Buffer, y int, expected string) {
 	t.Helper()
 	got := RowText(buf, y)
@@ -92,7 +90,7 @@ func AssertRow(t *testing.T, buf *buffer.Buffer, y int, expected string) {
 	}
 }
 
-// AssertRowContains asserts that row y contains the expected substring.
+// AssertRowContains reports a test error unless RowText for y contains substr.
 func AssertRowContains(t *testing.T, buf *buffer.Buffer, y int, substr string) {
 	t.Helper()
 	got := RowText(buf, y)

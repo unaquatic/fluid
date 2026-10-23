@@ -5,10 +5,6 @@ import (
 	"unicode/utf8"
 )
 
-// ---------------------------------------------------------------------------
-// Border presets
-// ---------------------------------------------------------------------------
-
 func TestSingleCharsAreValid(t *testing.T) {
 	if SingleChars.TopLeft != '┌' {
 		t.Errorf("TopLeft = %q, want '┌'", SingleChars.TopLeft)
@@ -60,10 +56,6 @@ func TestHeavyCharsAreThick(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Bar levels
-// ---------------------------------------------------------------------------
-
 func TestBarNineLevelsLength(t *testing.T) {
 	if len(BarNineLevels) != 9 {
 		t.Fatalf("BarNineLevels length = %d, want 9", len(BarNineLevels))
@@ -75,10 +67,6 @@ func TestBarNineLevelsLength(t *testing.T) {
 		t.Errorf("BarNineLevels[8] = %q, want '█'", BarNineLevels[8])
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Block / Quadrants
-// ---------------------------------------------------------------------------
 
 func TestQuadrantCharsLength(t *testing.T) {
 	if len(QuadrantChars) != 16 {
@@ -98,24 +86,16 @@ func TestFullBlock(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// GrayscaleRamp
-// ---------------------------------------------------------------------------
-
 func TestGrayscaleRampNonEmpty(t *testing.T) {
 	if len(GrayscaleRamp) == 0 {
 		t.Fatal("GrayscaleRamp is empty")
 	}
-	// First char should be space (lowest intensity)
+	// The lowest-density ramp character is a space.
 	runes := []rune(GrayscaleRamp)
 	if runes[0] != ' ' {
 		t.Errorf("GrayscaleRamp[0] = %q, want ' '", runes[0])
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Scrollbar sets
-// ---------------------------------------------------------------------------
 
 func TestScrollBarVerticalThumb(t *testing.T) {
 	if ScrollBarVertical.Thumb != '█' {
@@ -128,10 +108,6 @@ func TestScrollBarHorizontalThumb(t *testing.T) {
 		t.Errorf("ScrollBarHorizontal.Thumb = %q, want '▀'", ScrollBarHorizontal.Thumb)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Shade / Gauge
-// ---------------------------------------------------------------------------
 
 func TestShadeConstants(t *testing.T) {
 	if ShadeLight != '░' {
@@ -151,10 +127,6 @@ func TestGaugeConstants(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Line constants
-// ---------------------------------------------------------------------------
-
 func TestLineConstants(t *testing.T) {
 	if Horizontal != '─' {
 		t.Errorf("Horizontal = %q, want '─'", Horizontal)
@@ -163,10 +135,6 @@ func TestLineConstants(t *testing.T) {
 		t.Errorf("Vertical = %q, want '│'", Vertical)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Markers
-// ---------------------------------------------------------------------------
 
 func TestMarkerConstants(t *testing.T) {
 	if BulletFilled != '●' {
@@ -194,10 +162,6 @@ func TestTreeIndicators(t *testing.T) {
 		t.Errorf("TreeCollapsed = %q, want \"▶\"", TreeCollapsed)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// DOT
-// ---------------------------------------------------------------------------
 
 func TestDOT(t *testing.T) {
 	if DOT != '·' {

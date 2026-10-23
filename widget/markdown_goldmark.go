@@ -15,19 +15,19 @@ import (
 	"github.com/unaquatic/fluid/textbuf"
 )
 
-// GoldmarkParser implements MarkdownParser using goldmark (CommonMark).
-// It supports GFM extensions: tables and strikethrough.
+// GoldmarkParser implements MarkdownParser with Goldmark's CommonMark parser
+// and GitHub Flavored Markdown extensions.
 type GoldmarkParser struct {
 	parser goldmarkparser.Parser
 }
 
-// NewGoldmarkParser creates a GoldmarkParser with GFM extensions.
+// NewGoldmarkParser returns a parser with GitHub Flavored Markdown extensions.
 func NewGoldmarkParser() *GoldmarkParser {
 	gm := goldmark.New(goldmark.WithExtensions(goldmarkext.GFM))
 	return &GoldmarkParser{parser: gm.Parser()}
 }
 
-// Parse converts markdown content into a tree of MdBlocks.
+// Parse converts Markdown source into spaced MdBlock trees.
 func (g *GoldmarkParser) Parse(content string, styles MdStyles) []MdBlock {
 	src := []byte(content)
 	tree := g.parser.Parse(goldmarktext.NewReader(src))
@@ -35,11 +35,9 @@ func (g *GoldmarkParser) Parse(content string, styles MdStyles) []MdBlock {
 	return InsertBlockSpacing(blocks)
 }
 
-// ---------------------------------------------------------------------------
-// AST Walking — Block Level
-// ---------------------------------------------------------------------------
+// Block-level AST conversion.
 
-// walkChildren converts all direct children of node into MdBlocks.
+// walkChildren converts node's direct children into MdBlock values.
 func (g *GoldmarkParser) walkChildren(node goldmarkast.Node, src []byte, s MdStyles) []MdBlock {
 	var blocks []MdBlock
 	for child := node.FirstChild(); child != nil; child = child.NextSibling() {
@@ -50,29 +48,28 @@ func (g *GoldmarkParser) walkChildren(node goldmarkast.Node, src []byte, s MdSty
 	return blocks
 }
 
-// convertBlock converts a single goldmark AST node into an MdBlock.
+// convertBlock converts one supported Goldmark block node.
 func (g *GoldmarkParser) convertBlock(node goldmarkast.Node, src []byte, s MdStyles) (MdBlock, bool) {
 	switch n := node.(type) {
 	case *goldmarkast.Heading:
-		fg := s.HeadingColor(n.Level)
-		chunks := g.inlineChunks(n, src, 0, s)
+		chunks := g.inlineChunks(n, src, style.Entry{}, s)
 		return MdBlock{
 			Kind:  MdBlockHeading,
 			Level: n.Level,
-			Body:  []style.TextChunk{{Text: chunksText(chunks), Fg: &fg, Attributes: style.AttrBold}},
+			Body:  []style.TextChunk{s.Heading(n.Level).Chunk(chunksText(chunks))},
 		}, true
 
 	case *goldmarkast.Paragraph:
 		return MdBlock{
 			Kind: MdBlockParagraph,
-			Body: g.inlineChunks(n, src, 0, s),
+			Body: g.inlineChunks(n, src, style.Entry{}, s),
 		}, true
 
 	case *goldmarkast.FencedCodeBlock:
 		lang := ""
 		if n.Info != nil {
 			lang = strings.TrimSpace(string(n.Info.Segment.Value(src)))
-			// Strip anything after a space (e.g. "go title=foo")
+			// Use only the language portion of an info string such as "go title=foo".
 			if idx := strings.IndexByte(lang, ' '); idx > 0 {
 				lang = lang[:idx]
 			}
@@ -114,17 +111,14 @@ func (g *GoldmarkParser) convertBlock(node goldmarkast.Node, src []byte, s MdSty
 		}, true
 
 	case *goldmarkast.Blockquote:
-		// Recurse into blockquote children to build a tree.
+		// Preserve nested block structure within a blockquote.
 		var children []MdBlock
 		for bqChild := n.FirstChild(); bqChild != nil; bqChild = bqChild.NextSibling() {
 			if blk, ok := g.convertBlock(bqChild, src, s); ok {
-				// Apply quote styling to paragraph body chunks.
+				// Quote paragraph text inherits the quote style.
 				if blk.Kind == MdBlockParagraph {
 					for i := range blk.Body {
-						blk.Body[i].Attributes |= style.AttrItalic
-						if blk.Body[i].Fg == nil {
-							blk.Body[i].Fg = &s.QuoteFg
-						}
+						blk.Body[i] = s.Quote.Apply(blk.Body[i])
 					}
 				}
 				children = append(children, blk)
@@ -132,7 +126,7 @@ func (g *GoldmarkParser) convertBlock(node goldmarkast.Node, src []byte, s MdSty
 		}
 		return MdBlock{
 			Kind:        MdBlockQuote,
-			Prefix:      []style.TextChunk{{Text: string(symbol.Vertical) + " ", Fg: &s.QuoteBorder}},
+			Prefix:      []style.TextChunk{s.QuoteBorder.Chunk(string(symbol.Vertical) + " ")},
 			PrefixWidth: 2,
 			Children:    children,
 		}, true
@@ -148,7 +142,7 @@ func (g *GoldmarkParser) convertBlock(node goldmarkast.Node, src []byte, s MdSty
 			for cell := row.FirstChild(); cell != nil; cell = cell.NextSibling() {
 				if c, ok := cell.(*goldmarkextast.TableCell); ok {
 					cells = append(cells, MdTableCell{
-						Chunks: g.inlineChunks(c, src, 0, s),
+						Chunks: g.inlineChunks(c, src, style.Entry{}, s),
 					})
 					if len(aligns) < len(cells) {
 						a := -1
@@ -171,7 +165,7 @@ func (g *GoldmarkParser) convertBlock(node goldmarkast.Node, src []byte, s MdSty
 		}, true
 
 	default:
-		// Unknown block — try to recurse into children and return first match.
+		// Recover the first supported descendant of an unhandled wrapper node.
 		for child := node.FirstChild(); child != nil; child = child.NextSibling() {
 			if blk, ok := g.convertBlock(child, src, s); ok {
 				return blk, true
@@ -181,23 +175,22 @@ func (g *GoldmarkParser) convertBlock(node goldmarkast.Node, src []byte, s MdSty
 	}
 }
 
-// convertListItem builds an MdBlockListItem with its prefix and child blocks.
+// convertListItem returns a list item with its marker, first body, and nested blocks.
 func (g *GoldmarkParser) convertListItem(li *goldmarkast.ListItem, src []byte, s MdStyles, listKind MdBlockKind, itemNum int) MdBlock {
-	// Build prefix.
+	// Build the ordered number or unordered bullet marker.
 	var prefix []style.TextChunk
 	var prefixWidth int
 	if listKind == MdBlockOrderedList {
 		p := "  " + intToStr(itemNum) + ". "
-		prefix = []style.TextChunk{{Text: p, Fg: &s.BulletFg}}
+		prefix = []style.TextChunk{s.ListEnum.Chunk(p)}
 		prefixWidth = textbuf.StringWidth(p)
 	} else {
 		p := string(symbol.BulletFilled) + " "
-		prefix = []style.TextChunk{{Text: p, Fg: &s.BulletFg}}
+		prefix = []style.TextChunk{s.Bullet.Chunk(p)}
 		prefixWidth = len(p)
 	}
 
-	// First paragraph becomes the Body (rendered on the same line as prefix).
-	// Remaining children (more paragraphs, code blocks, nested lists) go into Children.
+	// Render the first text block beside the marker and retain later blocks as children.
 	var body []style.TextChunk
 	var children []MdBlock
 	first := true
@@ -205,12 +198,12 @@ func (g *GoldmarkParser) convertListItem(li *goldmarkast.ListItem, src []byte, s
 	for liChild := li.FirstChild(); liChild != nil; liChild = liChild.NextSibling() {
 		if first {
 			if p, ok := liChild.(*goldmarkast.Paragraph); ok {
-				body = g.inlineChunks(p, src, 0, s)
+				body = g.inlineChunks(p, src, style.Entry{}, s)
 				first = false
 				continue
 			}
 			if tb, ok := liChild.(*goldmarkast.TextBlock); ok {
-				body = g.inlineChunks(tb, src, 0, s)
+				body = g.inlineChunks(tb, src, style.Entry{}, s)
 				first = false
 				continue
 			}
@@ -229,15 +222,10 @@ func (g *GoldmarkParser) convertListItem(li *goldmarkast.ListItem, src []byte, s
 	}
 }
 
-// codeTabWidth is the number of spaces a tab expands to inside rendered
-// code blocks. Matches textbuf.TextBuffer's default tab width so Markdown
-// code blocks line up with standalone widget.Code views.
+// codeTabWidth matches TextBuffer's default so Markdown and Code align tabs equally.
 const codeTabWidth = 4
 
-// extractLines reads the text lines from a code block node.
-// Tabs are expanded to spaces because the Markdown renderer paints chunks
-// directly via buffer.SetGraphemeCluster, which would otherwise drop the
-// tab character (its grapheme width is 0).
+// extractLines returns code-block lines with tabs expanded for direct chunk rendering.
 func (g *GoldmarkParser) extractLines(n goldmarkast.Node, src []byte) []string {
 	type hasLines interface {
 		Lines() *goldmarktext.Segments
@@ -256,8 +244,7 @@ func (g *GoldmarkParser) extractLines(n goldmarkast.Node, src []byte) []string {
 	return out
 }
 
-// expandCodeTabs expands tab characters to codeTabWidth spaces. Used for
-// code block lines before they reach the renderer.
+// expandCodeTabs replaces each tab with codeTabWidth spaces.
 func expandCodeTabs(line string) string {
 	if !strings.ContainsRune(line, '\t') {
 		return line
@@ -265,78 +252,65 @@ func expandCodeTabs(line string) string {
 	return strings.ReplaceAll(line, "\t", strings.Repeat(" ", codeTabWidth))
 }
 
-// ---------------------------------------------------------------------------
-// AST Walking — Inline Level
-// ---------------------------------------------------------------------------
+// Inline AST conversion.
 
-func (g *GoldmarkParser) inlineChunks(parent goldmarkast.Node, src []byte, attrs uint32, s MdStyles) []style.TextChunk {
+// inlineChunks flattens an inline subtree while merging inherited styles.
+// Nested styles combine, so bold inline code retains code colors and gains bold.
+func (g *GoldmarkParser) inlineChunks(parent goldmarkast.Node, src []byte, in style.Entry, s MdStyles) []style.TextChunk {
 	var chunks []style.TextChunk
 	for child := parent.FirstChild(); child != nil; child = child.NextSibling() {
 		switch n := child.(type) {
 		case *goldmarkast.Text:
-			chunks = append(chunks, style.TextChunk{
-				Text: string(n.Segment.Value(src)), Attributes: attrs,
-			})
+			chunks = append(chunks, in.Chunk(string(n.Segment.Value(src))))
 			if n.SoftLineBreak() {
-				chunks = append(chunks, style.TextChunk{Text: " ", Attributes: attrs})
+				chunks = append(chunks, in.Chunk(" "))
 			}
 
 		case *goldmarkast.String:
-			chunks = append(chunks, style.TextChunk{
-				Text: string(n.Value), Attributes: attrs,
-			})
+			chunks = append(chunks, in.Chunk(string(n.Value)))
 
 		case *goldmarkast.CodeSpan:
-			chunks = append(chunks, style.TextChunk{
-				Text: string(n.Text(src)), Fg: &s.CodeFg, Bg: &s.CodeBg, Attributes: attrs,
-			})
+			chunks = append(chunks, in.Merge(s.Code).Chunk(string(n.Text(src))))
 
 		case *goldmarkast.Emphasis:
-			childAttrs := attrs
+			e := s.Strong
 			if n.Level == 1 {
-				childAttrs |= style.AttrItalic
-			} else {
-				childAttrs |= style.AttrBold
+				e = s.Emph
 			}
-			chunks = append(chunks, g.inlineChunks(n, src, childAttrs, s)...)
+			chunks = append(chunks, g.inlineChunks(n, src, in.Merge(e), s)...)
 
 		case *goldmarkast.Link:
-			linkChunks := g.inlineChunks(n, src, attrs|style.AttrUnderline, s)
 			url := string(n.Destination)
+			linkChunks := g.inlineChunks(n, src, in.Merge(s.LinkText), s)
 			for i := range linkChunks {
-				linkChunks[i].Fg = &s.LinkFg
 				linkChunks[i].Link = url
 			}
 			chunks = append(chunks, linkChunks...)
 
 		case *goldmarkextast.Strikethrough:
-			chunks = append(chunks, g.inlineChunks(n, src, attrs|style.AttrStrikethrough, s)...)
+			struck := in
+			struck.Attrs |= style.AttrStrikethrough
+			chunks = append(chunks, g.inlineChunks(n, src, struck, s)...)
 
 		case *goldmarkast.AutoLink:
 			url := string(n.URL(src))
-			chunks = append(chunks, style.TextChunk{
-				Text: url, Fg: &s.LinkFg, Attributes: attrs | style.AttrUnderline, Link: url,
-			})
+			c := in.Merge(s.Link).Chunk(url)
+			c.Link = url
+			chunks = append(chunks, c)
 
 		case *goldmarkast.RawHTML:
 			segs := n.Segments
-			for i := 0; i < segs.Len(); i++ {
+			for i := range segs.Len() {
 				seg := segs.At(i)
-				chunks = append(chunks, style.TextChunk{
-					Text: string(seg.Value(src)), Attributes: attrs,
-				})
+				chunks = append(chunks, in.Chunk(string(seg.Value(src))))
 			}
 
 		default:
-			chunks = append(chunks, g.inlineChunks(child, src, attrs, s)...)
+			chunks = append(chunks, g.inlineChunks(child, src, in, s)...)
 		}
 	}
 	return chunks
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 func chunksText(chunks []style.TextChunk) string {
 	var sb strings.Builder

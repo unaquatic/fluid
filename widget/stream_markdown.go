@@ -1,48 +1,48 @@
 package widget
 
 import (
+	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/render"
 	"github.com/unaquatic/fluid/style"
 )
 
-// StreamMarkdown is a drop-in replacement for Markdown that splits streamed
-// content across multiple child Markdown widgets. The full content is parsed
-// centrally into []MdBlock, then each block is assigned to its own child
-// Markdown widget via SetBlocks. Children whose block hasn't changed skip
-// re-wrap, keeping per-frame cost proportional to the actively-growing
-// tail block.
+// StreamMarkdown renders incrementally changing Markdown through stable child widgets.
+// It parses the full content once per update and assigns each block to one Markdown
+// child. Unchanged children retain their wrapped output, so only changed blocks rewrap.
 type StreamMarkdown struct {
 	*render.BaseRenderable
 
-	// Content tracking
+	// BackgroundColor fills the entire widget behind its content.
+	BackgroundColor style.Color
+
+	// fullContent is the source most recently supplied to SetContent.
 	fullContent string
 
-	// Central parser + styles (derived from mdOpts at construction)
+	// parser and styles match the options used to construct child widgets.
 	parser MarkdownParser
 	styles MdStyles
 
-	// Parsed blocks for the full content (re-parsed each SetContent)
+	// allBlocks is reparsed whenever fullContent changes.
 	allBlocks []MdBlock
 
-	// Child widgets
-	children []*Markdown // one per block chunk
+	// children contains one stable Markdown widget per block.
+	children []*Markdown
 
-	// Options to apply to each child Markdown widget
+	// mdOpts is applied to every child created after construction.
 	mdOpts []MarkdownOption
 }
 
 // StreamMarkdownOption configures a StreamMarkdown widget.
 type StreamMarkdownOption func(*StreamMarkdown)
 
-// NewStreamMarkdown creates a StreamMarkdown widget.
+// NewStreamMarkdown returns a column container for incrementally updated Markdown.
 func NewStreamMarkdown(opts ...StreamMarkdownOption) *StreamMarkdown {
 	sm := &StreamMarkdown{
 		BaseRenderable: render.NewBaseRenderable(),
 	}
 
-	// Column layout — no gap because MdBlockBlank entries in the block
-	// list already provide inter-block spacing.
+	// MdBlockBlank values provide spacing, so the child layout needs no gap.
 	sm.LayoutNode().FlexDirection = layout.DirectionColumn
 	sm.LayoutNode().AlignItems = layout.AlignStretch
 
@@ -50,8 +50,7 @@ func NewStreamMarkdown(opts ...StreamMarkdownOption) *StreamMarkdown {
 		opt(sm)
 	}
 
-	// Derive parser and styles from a template Markdown widget so we
-	// parse with the same colors/options the children will render with.
+	// Derive parsing state from the same options that each child receives.
 	tmpl := NewMarkdown("", sm.mdOpts...)
 	sm.parser = tmpl.parser
 	sm.styles = tmpl.mdStyles()
@@ -59,12 +58,9 @@ func NewStreamMarkdown(opts ...StreamMarkdownOption) *StreamMarkdown {
 	return sm
 }
 
-// ---------------------------------------------------------------------------
-// Public API (matches Markdown's interface used by chat.go)
-// ---------------------------------------------------------------------------
+// StreamMarkdown content.
 
-// SetContent sets the full markdown content. Parses it into blocks
-// centrally, splits the block list, and distributes slices to children.
+// SetContent parses and distributes the complete Markdown source.
 func (sm *StreamMarkdown) SetContent(content string) {
 	if sm.fullContent == content && len(sm.children) > 0 {
 		return
@@ -79,14 +75,15 @@ func (sm *StreamMarkdown) Content() string {
 	return sm.fullContent
 }
 
-// ---------------------------------------------------------------------------
-// Block distribution
-// ---------------------------------------------------------------------------
+// RenderSelf fills the background across the full content area.
+func (sm *StreamMarkdown) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+	if !sm.BackgroundColor.IsTransparent() {
+		buf.FillRect(sm.X(), sm.Y(), sm.Width(), sm.Height(), sm.BackgroundColor)
+	}
+}
 
-// distributeBlocks assigns one block per child Markdown widget, adding
-// children as needed (never removed). Each child's SetBlocks short-circuits
-// if its block is unchanged, so only the tail child re-wraps during
-// streaming updates.
+// distributeBlocks assigns one block to each child, creating children as needed.
+// Children are retained when content shrinks so future updates can reuse them.
 func (sm *StreamMarkdown) distributeBlocks() {
 	allBlocks := sm.allBlocks
 
@@ -95,12 +92,12 @@ func (sm *StreamMarkdown) distributeBlocks() {
 		numChildren = 1
 	}
 
-	// Add children as needed.
+	// Grow the stable child pool to fit the current block count.
 	for len(sm.children) < numChildren {
 		sm.addChild(sm.newChild())
 	}
 
-	// One block per child.
+	// Clear retained children that have no corresponding block in this update.
 	for i := 0; i < numChildren; i++ {
 		if i < len(allBlocks) {
 			sm.children[i].SetBlocks(allBlocks[i : i+1])
@@ -110,7 +107,7 @@ func (sm *StreamMarkdown) distributeBlocks() {
 	}
 }
 
-// newChild creates a new Markdown widget with the configured options.
+// newChild returns a full-width Markdown configured with the shared child options.
 func (sm *StreamMarkdown) newChild() *Markdown {
 	opts := make([]MarkdownOption, len(sm.mdOpts))
 	copy(opts, sm.mdOpts)
@@ -118,15 +115,13 @@ func (sm *StreamMarkdown) newChild() *Markdown {
 	return NewMarkdown("", opts...)
 }
 
-// addChild adds a Markdown widget as a child of this StreamMarkdown.
+// addChild records child and adds it to the render tree.
 func (sm *StreamMarkdown) addChild(child *Markdown) {
 	sm.children = append(sm.children, child)
 	sm.Add(child)
 }
 
-// ---------------------------------------------------------------------------
-// Options
-// ---------------------------------------------------------------------------
+// StreamMarkdown options.
 
 // StreamMarkdownWithOpts sets the MarkdownOption list applied to each child.
 func StreamMarkdownWithOpts(opts ...MarkdownOption) StreamMarkdownOption {
@@ -148,43 +143,65 @@ func StreamMarkdownWithID(id string) StreamMarkdownOption {
 	return func(sm *StreamMarkdown) { sm.SetID(id) }
 }
 
-// StreamMarkdownWithFg is a convenience that adds MarkdownWithFg to child opts.
+// StreamMarkdownWithFg sets the foreground color on each child Markdown widget.
 func StreamMarkdownWithFg(c style.Color) StreamMarkdownOption {
 	return func(sm *StreamMarkdown) {
 		sm.mdOpts = append(sm.mdOpts, MarkdownWithFg(c))
 	}
 }
 
-// StreamMarkdownWithBg is a convenience that adds MarkdownWithBg to child opts.
-// Setting an explicit bg avoids the default ColorTransparent, which causes
-// the diff flusher to skip emitting the SGR background for text cells and
-// lets the terminal's own default bg show through (visible as a lighter
-// seam under the text compared to the container's fill).
+// StreamMarkdownWithBg sets the widget and child Markdown backgrounds.
 func StreamMarkdownWithBg(c style.Color) StreamMarkdownOption {
 	return func(sm *StreamMarkdown) {
+		sm.BackgroundColor = c
 		sm.mdOpts = append(sm.mdOpts, MarkdownWithBg(c))
 	}
 }
 
-// StreamMarkdownWithCodeFg is a convenience that adds MarkdownWithCodeFg to
-// child opts.
+// StreamMarkdownWithCodeFg sets the inline and fallback code foreground on each child.
 func StreamMarkdownWithCodeFg(c style.Color) StreamMarkdownOption {
 	return func(sm *StreamMarkdown) {
 		sm.mdOpts = append(sm.mdOpts, MarkdownWithCodeFg(c))
 	}
 }
 
-// StreamMarkdownWithCodeBg is a convenience that adds MarkdownWithCodeBg to
-// child opts.
+// StreamMarkdownWithCodeBg sets the inline and fenced code background on each child.
 func StreamMarkdownWithCodeBg(c style.Color) StreamMarkdownOption {
 	return func(sm *StreamMarkdown) {
 		sm.mdOpts = append(sm.mdOpts, MarkdownWithCodeBg(c))
 	}
 }
 
-// StreamMarkdownWithTheme applies the theme to every child Markdown widget
-// (current and future). Later StreamMarkdownWith... options can still
-// override individual fields on top.
+// StreamMarkdownWithCodeBlockBg sets only the fenced-block background on each child.
+func StreamMarkdownWithCodeBlockBg(c style.Color) StreamMarkdownOption {
+	return func(sm *StreamMarkdown) {
+		sm.mdOpts = append(sm.mdOpts, MarkdownWithCodeBlockBg(c))
+	}
+}
+
+// StreamMarkdownWithCodeBlockPadding sets fenced-block padding on each child.
+func StreamMarkdownWithCodeBlockPadding(n int) StreamMarkdownOption {
+	return func(sm *StreamMarkdown) {
+		sm.mdOpts = append(sm.mdOpts, MarkdownWithCodeBlockPadding(n))
+	}
+}
+
+// StreamMarkdownWithCodeBlockMargin sets fenced-block margins on each child.
+func StreamMarkdownWithCodeBlockMargin(n int) StreamMarkdownOption {
+	return func(sm *StreamMarkdown) {
+		sm.mdOpts = append(sm.mdOpts, MarkdownWithCodeBlockMargin(n))
+	}
+}
+
+// StreamMarkdownWithProsePadding sets prose padding on each child.
+func StreamMarkdownWithProsePadding(n int) StreamMarkdownOption {
+	return func(sm *StreamMarkdown) {
+		sm.mdOpts = append(sm.mdOpts, MarkdownWithProsePadding(n))
+	}
+}
+
+// StreamMarkdownWithTheme applies t to children created by NewStreamMarkdown.
+// Options applied after it can override individual theme values.
 func StreamMarkdownWithTheme(t *style.Theme) StreamMarkdownOption {
 	return func(sm *StreamMarkdown) {
 		sm.mdOpts = append(sm.mdOpts, MarkdownWithTheme(t))

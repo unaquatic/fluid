@@ -5,10 +5,7 @@ import (
 	"testing"
 )
 
-// ---------------------------------------------------------------------------
-// Mock renderable for testing
-// ---------------------------------------------------------------------------
-
+// mockSelectableRenderable provides fixed geometry and selection text.
 type mockSelectableRenderable struct {
 	x, y, w, h   int
 	selectedText string
@@ -20,12 +17,8 @@ func (m *mockSelectableRenderable) Width() int           { return m.w }
 func (m *mockSelectableRenderable) Height() int          { return m.h }
 func (m *mockSelectableRenderable) SelectedText() string { return m.selectedText }
 
-// Compile-time check
+// Verify that mockSelectableRenderable implements SelectableRenderable.
 var _ SelectableRenderable = (*mockSelectableRenderable)(nil)
-
-// ---------------------------------------------------------------------------
-// New
-// ---------------------------------------------------------------------------
 
 func TestNew(t *testing.T) {
 	sel := NewSelection()
@@ -49,14 +42,9 @@ func TestNew(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Start / Update / Clear lifecycle
-// ---------------------------------------------------------------------------
-
 func TestStartUpdateClear(t *testing.T) {
 	sel := NewSelection()
 
-	// Start
 	sel.Start(5, 10)
 	if !sel.IsActive() {
 		t.Error("selection should be active after Start")
@@ -74,7 +62,7 @@ func TestStartUpdateClear(t *testing.T) {
 		t.Errorf("focus = %v, want (5,10)", sel.Focus())
 	}
 
-	// Update
+	// Update moves only the focus endpoint.
 	sel.Update(20, 15)
 	if sel.Anchor() != (Point{5, 10}) {
 		t.Errorf("anchor should not change on Update, got %v", sel.Anchor())
@@ -83,7 +71,6 @@ func TestStartUpdateClear(t *testing.T) {
 		t.Errorf("focus = %v, want (20,15)", sel.Focus())
 	}
 
-	// Clear
 	sel.Clear()
 	if sel.IsActive() {
 		t.Error("selection should not be active after Clear")
@@ -108,10 +95,6 @@ func TestStartUpdateClear(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Bounds: top-left to bottom-right
-// ---------------------------------------------------------------------------
-
 func TestBounds_TopLeftToBottomRight(t *testing.T) {
 	sel := NewSelection()
 	sel.Start(5, 3)
@@ -122,10 +105,6 @@ func TestBounds_TopLeftToBottomRight(t *testing.T) {
 		t.Errorf("bounds = %+v, want {5 3 10 5}", b)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Bounds: bottom-right to top-left (reverse) → still normalized
-// ---------------------------------------------------------------------------
 
 func TestBounds_BottomRightToTopLeft(t *testing.T) {
 	sel := NewSelection()
@@ -138,10 +117,6 @@ func TestBounds_BottomRightToTopLeft(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Bounds: single point
-// ---------------------------------------------------------------------------
-
 func TestBounds_SinglePoint(t *testing.T) {
 	sel := NewSelection()
 	sel.Start(7, 4)
@@ -151,10 +126,6 @@ func TestBounds_SinglePoint(t *testing.T) {
 		t.Errorf("bounds = %+v, want {7 4 0 0}", b)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Bounds: horizontal line
-// ---------------------------------------------------------------------------
 
 func TestBounds_HorizontalLine(t *testing.T) {
 	sel := NewSelection()
@@ -167,10 +138,6 @@ func TestBounds_HorizontalLine(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Bounds: vertical line
-// ---------------------------------------------------------------------------
-
 func TestBounds_VerticalLine(t *testing.T) {
 	sel := NewSelection()
 	sel.Start(5, 2)
@@ -182,10 +149,6 @@ func TestBounds_VerticalLine(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// SetFocus
-// ---------------------------------------------------------------------------
-
 func TestSetFocus(t *testing.T) {
 	sel := NewSelection()
 	sel.Start(0, 0)
@@ -195,10 +158,6 @@ func TestSetFocus(t *testing.T) {
 		t.Errorf("focus = %v, want (42,17)", sel.Focus())
 	}
 }
-
-// ---------------------------------------------------------------------------
-// State setters
-// ---------------------------------------------------------------------------
 
 func TestStateSetters(t *testing.T) {
 	sel := NewSelection()
@@ -231,10 +190,6 @@ func TestStateSetters(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Renderable tracking
-// ---------------------------------------------------------------------------
-
 func TestRenderableTracking(t *testing.T) {
 	sel := NewSelection()
 
@@ -258,23 +213,19 @@ func TestRenderableTracking(t *testing.T) {
 		t.Error("touched renderables don't match")
 	}
 
-	// Verify returned slices are copies
+	// Mutating the returned slice must not change the tracked list.
 	selected[0] = nil
 	if sel.SelectedRenderables()[0] == nil {
 		t.Error("SelectedRenderables should return a copy")
 	}
 }
 
-// ---------------------------------------------------------------------------
-// SelectedText: multiple renderables sorted by reading order
-// ---------------------------------------------------------------------------
-
 func TestGetSelectedText_ReadingOrder(t *testing.T) {
 	sel := NewSelection()
 	sel.Start(0, 0)
 	sel.Update(50, 50)
 
-	// Create renderables in non-sorted order
+	// Supply renderables out of reading order.
 	r1 := &mockSelectableRenderable{x: 10, y: 5, w: 10, h: 1, selectedText: "second"}
 	r2 := &mockSelectableRenderable{x: 0, y: 0, w: 10, h: 1, selectedText: "first"}
 	r3 := &mockSelectableRenderable{x: 0, y: 10, w: 10, h: 1, selectedText: "third"}
@@ -289,10 +240,6 @@ func TestGetSelectedText_ReadingOrder(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// SelectedText: empty renderables
-// ---------------------------------------------------------------------------
-
 func TestGetSelectedText_Empty(t *testing.T) {
 	sel := NewSelection()
 	text := sel.SelectedText()
@@ -300,10 +247,6 @@ func TestGetSelectedText_Empty(t *testing.T) {
 		t.Errorf("text = %q, want empty", text)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// SelectedText: renderables with no text
-// ---------------------------------------------------------------------------
 
 func TestGetSelectedText_NoText(t *testing.T) {
 	sel := NewSelection()
@@ -317,14 +260,10 @@ func TestGetSelectedText_NoText(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// SelectedText: non-selectable interface items
-// ---------------------------------------------------------------------------
-
 func TestGetSelectedText_NonSelectableItems(t *testing.T) {
 	sel := NewSelection()
 	r1 := &mockSelectableRenderable{x: 0, y: 0, w: 10, h: 1, selectedText: "hello"}
-	// A plain string doesn't implement SelectableRenderable
+	// Values that do not implement SelectableRenderable contribute no text.
 	sel.UpdateSelectedRenderables([]any{r1, "not a renderable"})
 
 	text := sel.SelectedText()
@@ -332,10 +271,6 @@ func TestGetSelectedText_NonSelectableItems(t *testing.T) {
 		t.Errorf("text = %q, want %q", text, "hello")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// SelectedText: same Y, different X → left-to-right
-// ---------------------------------------------------------------------------
 
 func TestGetSelectedText_SameRow(t *testing.T) {
 	sel := NewSelection()
@@ -349,16 +284,12 @@ func TestGetSelectedText_SameRow(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// ConvertGlobalToLocal: selection fully inside renderable
-// ---------------------------------------------------------------------------
-
 func TestConvertGlobalToLocal_FullyInside(t *testing.T) {
 	sel := NewSelection()
 	sel.Start(12, 7)
 	sel.Update(18, 9)
 
-	// Renderable at (10, 5) with size 20x10
+	// Map into a 20 by 10 renderable whose absolute origin is (10,5).
 	lb := ConvertGlobalToLocal(sel, 10, 5, 20, 10)
 	if lb == nil {
 		t.Fatal("expected non-nil LocalSelectionBounds")
@@ -366,96 +297,76 @@ func TestConvertGlobalToLocal_FullyInside(t *testing.T) {
 	if !lb.IsActive {
 		t.Error("expected IsActive = true")
 	}
-	// anchor local: (12-10, 7-5) = (2, 2)
+	// The local anchor is (12-10, 7-5) = (2,2).
 	if lb.AnchorX != 2 || lb.AnchorY != 2 {
 		t.Errorf("anchor = (%d,%d), want (2,2)", lb.AnchorX, lb.AnchorY)
 	}
-	// focus local: (18-10, 9-5) = (8, 4)
+	// The local focus is (18-10, 9-5) = (8,4).
 	if lb.FocusX != 8 || lb.FocusY != 4 {
 		t.Errorf("focus = (%d,%d), want (8,4)", lb.FocusX, lb.FocusY)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// ConvertGlobalToLocal: selection partially overlaps → clamped
-// ---------------------------------------------------------------------------
 
 func TestConvertGlobalToLocal_PartialOverlap(t *testing.T) {
 	sel := NewSelection()
 	sel.Start(0, 0)
 	sel.Update(15, 8)
 
-	// Renderable at (10, 5) with size 20x10
+	// Map into a 20 by 10 renderable whose absolute origin is (10,5).
 	lb := ConvertGlobalToLocal(sel, 10, 5, 20, 10)
 	if lb == nil {
 		t.Fatal("expected non-nil LocalSelectionBounds")
 	}
-	// anchor local: (0-10, 0-5) = (-10, -5) → clamped to (0, 0)
+	// The negative local anchor clamps to the top-left cell.
 	if lb.AnchorX != 0 || lb.AnchorY != 0 {
 		t.Errorf("anchor = (%d,%d), want (0,0)", lb.AnchorX, lb.AnchorY)
 	}
-	// focus local: (15-10, 8-5) = (5, 3)
+	// The local focus is (15-10, 8-5) = (5,3).
 	if lb.FocusX != 5 || lb.FocusY != 3 {
 		t.Errorf("focus = (%d,%d), want (5,3)", lb.FocusX, lb.FocusY)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// ConvertGlobalToLocal: selection beyond renderable right/bottom → clamped
-// ---------------------------------------------------------------------------
 
 func TestConvertGlobalToLocal_ClampedMax(t *testing.T) {
 	sel := NewSelection()
 	sel.Start(5, 3)
 	sel.Update(100, 100)
 
-	// Renderable at (0, 0) with size 10x5
+	// Map into a 10 by 5 renderable at the terminal origin.
 	lb := ConvertGlobalToLocal(sel, 0, 0, 10, 5)
 	if lb == nil {
 		t.Fatal("expected non-nil LocalSelectionBounds")
 	}
-	// anchor local: (5, 3) — within bounds
+	// The anchor already lies within the renderable.
 	if lb.AnchorX != 5 || lb.AnchorY != 3 {
 		t.Errorf("anchor = (%d,%d), want (5,3)", lb.AnchorX, lb.AnchorY)
 	}
-	// focus local: (100, 100) → clamped to (9, 4)
+	// The focus clamps to the bottom-right cell (9,4).
 	if lb.FocusX != 9 || lb.FocusY != 4 {
 		t.Errorf("focus = (%d,%d), want (9,4)", lb.FocusX, lb.FocusY)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// ConvertGlobalToLocal: no intersection → nil
-// ---------------------------------------------------------------------------
 
 func TestConvertGlobalToLocal_NoIntersection(t *testing.T) {
 	sel := NewSelection()
 	sel.Start(0, 0)
 	sel.Update(5, 5)
 
-	// Renderable at (20, 20) — completely outside
+	// A renderable at (20,20) does not intersect this selection.
 	lb := ConvertGlobalToLocal(sel, 20, 20, 10, 10)
 	if lb != nil {
 		t.Errorf("expected nil, got %+v", lb)
 	}
 }
 
-// ---------------------------------------------------------------------------
-// ConvertGlobalToLocal: selection not active → nil
-// ---------------------------------------------------------------------------
-
 func TestConvertGlobalToLocal_Inactive(t *testing.T) {
 	sel := NewSelection()
-	// not started, not active
+	// A new selection is inactive.
 	lb := ConvertGlobalToLocal(sel, 0, 0, 10, 10)
 	if lb != nil {
 		t.Error("expected nil for inactive selection")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// ConvertGlobalToLocal: nil selection → nil
-// ---------------------------------------------------------------------------
 
 func TestConvertGlobalToLocal_Nil(t *testing.T) {
 	lb := ConvertGlobalToLocal(nil, 0, 0, 10, 10)
@@ -463,10 +374,6 @@ func TestConvertGlobalToLocal_Nil(t *testing.T) {
 		t.Error("expected nil for nil selection")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// ConvertGlobalToLocal: zero-size renderable → nil
-// ---------------------------------------------------------------------------
 
 func TestConvertGlobalToLocal_ZeroSize(t *testing.T) {
 	sel := NewSelection()
@@ -479,57 +386,45 @@ func TestConvertGlobalToLocal_ZeroSize(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// ConvertGlobalToLocal: reverse selection (focus < anchor)
-// ---------------------------------------------------------------------------
-
 func TestConvertGlobalToLocal_ReverseSelection(t *testing.T) {
 	sel := NewSelection()
 	sel.Start(15, 8)
 	sel.Update(5, 3)
 
-	// Renderable at (3, 2) with size 20x10
+	// Map into a 20 by 10 renderable whose absolute origin is (3,2).
 	lb := ConvertGlobalToLocal(sel, 3, 2, 20, 10)
 	if lb == nil {
 		t.Fatal("expected non-nil LocalSelectionBounds")
 	}
-	// anchor local: (15-3, 8-2) = (12, 6)
+	// The local anchor is (15-3, 8-2) = (12,6).
 	if lb.AnchorX != 12 || lb.AnchorY != 6 {
 		t.Errorf("anchor = (%d,%d), want (12,6)", lb.AnchorX, lb.AnchorY)
 	}
-	// focus local: (5-3, 3-2) = (2, 1)
+	// The local focus is (5-3, 3-2) = (2,1).
 	if lb.FocusX != 2 || lb.FocusY != 1 {
 		t.Errorf("focus = (%d,%d), want (2,1)", lb.FocusX, lb.FocusY)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// ConvertGlobalToLocal: edge intersection (touching)
-// ---------------------------------------------------------------------------
 
 func TestConvertGlobalToLocal_EdgeTouch(t *testing.T) {
 	sel := NewSelection()
 	sel.Start(0, 0)
 	sel.Update(10, 10)
 
-	// Renderable starts exactly at the selection's right/bottom edge
+	// Inclusive selection endpoints intersect a renderable beginning at (10,10).
 	lb := ConvertGlobalToLocal(sel, 10, 10, 5, 5)
 	if lb == nil {
 		t.Fatal("expected non-nil for edge-touching renderable")
 	}
-	// anchor: (0-10, 0-10) = clamped to (0, 0)
+	// The anchor clamps to the renderable's top-left cell.
 	if lb.AnchorX != 0 || lb.AnchorY != 0 {
 		t.Errorf("anchor = (%d,%d), want (0,0)", lb.AnchorX, lb.AnchorY)
 	}
-	// focus: (10-10, 10-10) = (0, 0)
+	// The focus maps directly to the top-left cell.
 	if lb.FocusX != 0 || lb.FocusY != 0 {
 		t.Errorf("focus = (%d,%d), want (0,0)", lb.FocusX, lb.FocusY)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// sortByReadingOrder
-// ---------------------------------------------------------------------------
 
 func TestSortByReadingOrder(t *testing.T) {
 	r1 := &mockSelectableRenderable{x: 10, y: 5}
@@ -557,7 +452,7 @@ func TestSortByReadingOrder_MixedTypes(t *testing.T) {
 
 	sorted := sortByReadingOrder([]any{nonRenderable, r1})
 
-	// r1 should come first, non-renderable at end
+	// Selectable values sort before values without geometry.
 	if _, ok := sorted[0].(SelectableRenderable); !ok {
 		t.Error("SelectableRenderable should sort before non-renderable")
 	}
@@ -570,15 +465,11 @@ func TestSortByReadingOrder_Empty(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Thread safety: concurrent Start/Update/Clear
-// ---------------------------------------------------------------------------
-
 func TestConcurrentAccess(t *testing.T) {
 	sel := NewSelection()
 	var wg sync.WaitGroup
 
-	// Start multiple goroutines doing Start/Update/Clear concurrently
+	// Exercise state reads and writes concurrently.
 	for i := range 100 {
 		wg.Add(3)
 		go func(x int) {
@@ -602,7 +493,7 @@ func TestConcurrentAccess(t *testing.T) {
 	}
 
 	wg.Wait()
-	// Just verifying no data race / panic occurred
+	// The race detector verifies synchronization.
 }
 
 func TestConcurrentGetSelectedText(t *testing.T) {
@@ -623,10 +514,6 @@ func TestConcurrentGetSelectedText(t *testing.T) {
 	wg.Wait()
 }
 
-// ---------------------------------------------------------------------------
-// ConvertGlobalToLocal: concurrent access
-// ---------------------------------------------------------------------------
-
 func TestConvertGlobalToLocal_Concurrent(t *testing.T) {
 	sel := NewSelection()
 	sel.Start(5, 5)
@@ -641,14 +528,10 @@ func TestConvertGlobalToLocal_Concurrent(t *testing.T) {
 	wg.Wait()
 }
 
-// ---------------------------------------------------------------------------
-// Full drag lifecycle simulation
-// ---------------------------------------------------------------------------
-
 func TestDragLifecycle(t *testing.T) {
 	sel := NewSelection()
 
-	// Mouse down → start selection
+	// Mouse down starts an active drag.
 	sel.Start(5, 10)
 	sel.SetActive(true)
 	sel.SetDragging(true)
@@ -658,7 +541,7 @@ func TestDragLifecycle(t *testing.T) {
 		t.Fatal("state after start is incorrect")
 	}
 
-	// Mouse drag → update
+	// Mouse movement updates the focus and ends the initial state.
 	sel.Update(15, 12)
 	sel.SetStart(false)
 
@@ -671,7 +554,7 @@ func TestDragLifecycle(t *testing.T) {
 		t.Errorf("bounds = %+v, want width=10 height=2", b)
 	}
 
-	// Mouse up → stop dragging but keep active
+	// Mouse up ends dragging but retains the active selection.
 	sel.SetDragging(false)
 
 	if !sel.IsActive() {
@@ -681,7 +564,7 @@ func TestDragLifecycle(t *testing.T) {
 		t.Error("should not be dragging after mouse up")
 	}
 
-	// Check text extraction still works while active
+	// Text remains available after dragging ends.
 	r := &mockSelectableRenderable{x: 5, y: 10, w: 10, h: 3, selectedText: "selected text"}
 	sel.UpdateSelectedRenderables([]any{r})
 	text := sel.SelectedText()
@@ -689,26 +572,22 @@ func TestDragLifecycle(t *testing.T) {
 		t.Errorf("text = %q, want %q", text, "selected text")
 	}
 
-	// Explicit clear
+	// Explicit clearing ends the selection.
 	sel.Clear()
 	if sel.IsActive() {
 		t.Error("should not be active after Clear")
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Clamp helper
-// ---------------------------------------------------------------------------
-
 func TestClamp(t *testing.T) {
 	tests := []struct {
 		v, lo, hi, want int
 	}{
-		{5, 0, 10, 5},   // within range
-		{-1, 0, 10, 0},  // below
-		{15, 0, 10, 10}, // above
-		{0, 0, 0, 0},    // all same
-		{5, 5, 5, 5},    // all same at v
+		{5, 0, 10, 5},   // Within the range.
+		{-1, 0, 10, 0},  // Below the minimum.
+		{15, 0, 10, 10}, // Above the maximum.
+		{0, 0, 0, 0},    // All values are zero.
+		{5, 5, 5, 5},    // The range contains one value.
 	}
 
 	for _, tt := range tests {

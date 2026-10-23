@@ -1,13 +1,12 @@
 package buffer
 
-// opacityStack manages a stack of opacity multipliers.
-// Each push multiplies with the current effective opacity.
-// E.g., pushing 0.5 then 0.5 yields effective 0.25.
+// opacityStack stores cumulative opacity multipliers. Each value is the
+// product of its multiplier and all values below it.
 type opacityStack struct {
 	values []float32
 }
 
-// Push pushes an opacity multiplier (0.0-1.0) onto the stack.
+// Push adds an opacity multiplier clamped to [0, 1].
 func (s *opacityStack) Push(opacity float32) {
 	if opacity < 0 {
 		opacity = 0
@@ -34,8 +33,7 @@ func (s *opacityStack) Clear() {
 	s.values = s.values[:0]
 }
 
-// Current returns the effective opacity (product of all stacked values).
-// Returns 1.0 if the stack is empty.
+// Current returns the effective opacity, or 1 if the stack is empty.
 func (s *opacityStack) Current() float32 {
 	if len(s.values) == 0 {
 		return 1.0

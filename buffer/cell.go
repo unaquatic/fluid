@@ -5,16 +5,14 @@ import (
 	"github.com/unaquatic/fluid/textbuf"
 )
 
-// Cell represents a single terminal cell.
+// Cell stores one terminal cell or one part of a multi-column grapheme cluster.
 type Cell struct {
-	Char      rune   // Primary Unicode codepoint (0 = empty)
-	Combining string // Zero-width combining codepoints that follow Char
-	//                       (ZWJ sequences, skin-tone modifiers, etc.).
-	//                       Emitted to the terminal immediately after Char.
-	Fg         style.Color // Foreground color
-	Bg         style.Color // Background color
-	Attributes uint32      // Lower 8 bits: style flags; upper bits: link ID
-	Width      int8        // 1 = normal, 2 = wide char first cell, -1 = wide char continuation
+	Char       rune        // The first code point; zero represents an empty cell.
+	Combining  string      // Subsequent code points in the same grapheme cluster.
+	Fg         style.Color // The foreground color.
+	Bg         style.Color // The background color.
+	Attributes uint32      // The low 8 bits are style flags; the upper bits are a link ID.
+	Width      int         // A head's column width, or a continuation's negative offset to its head.
 }
 
 // CellClear is the default empty cell.
@@ -25,7 +23,7 @@ var CellClear = Cell{
 	Width: 1,
 }
 
-// NewCell creates a cell with auto-computed width from the rune.
+// NewCell returns a cell whose width is derived from char.
 func NewCell(char rune, fg, bg style.Color, attrs uint32) Cell {
 	w := RuneWidth(char)
 	return Cell{
@@ -33,26 +31,26 @@ func NewCell(char rune, fg, bg style.Color, attrs uint32) Cell {
 		Fg:         fg,
 		Bg:         bg,
 		Attributes: attrs,
-		Width:      int8(w),
+		Width:      w,
 	}
 }
 
-// IsWide returns true if this cell is the first cell of a wide character.
+// IsWide reports whether c is the head of a multi-column character.
 func (c Cell) IsWide() bool {
-	return c.Width == 2
+	return c.Width > 1
 }
 
-// IsContinuation returns true if this cell is a continuation of a wide character.
+// IsContinuation reports whether c continues a multi-column character.
 func (c Cell) IsContinuation() bool {
-	return c.Width == -1
+	return c.Width < 0
 }
 
-// IsEmpty returns true if the cell has no visible character.
+// IsEmpty reports whether c contains no visible character.
 func (c Cell) IsEmpty() bool {
 	return c.Char == 0 || c.Char == ' '
 }
 
-// Equals performs deep equality comparison.
+// Equals reports whether c and other have equal content and style.
 func (c Cell) Equals(other Cell) bool {
 	return c.Char == other.Char &&
 		c.Combining == other.Combining &&
@@ -74,8 +72,8 @@ func (c Cell) WithBg(bg style.Color) Cell {
 	return c
 }
 
-// RuneWidth returns the display width of a rune (0, 1, or 2).
-// Delegates to textbuf.RuneWidth — the canonical implementation.
+// RuneWidth returns the number of terminal columns occupied by r. It treats a
+// zero rune as a one-column empty cell.
 func RuneWidth(r rune) int {
 	if r == 0 {
 		return 1
@@ -83,19 +81,18 @@ func RuneWidth(r rune) int {
 	return textbuf.RuneWidth(r)
 }
 
-// isColorWithAlpha returns true if the color has non-opaque alpha.
+// isColorWithAlpha reports whether c is not fully opaque.
 func isColorWithAlpha(c style.Color) bool {
 	return c.A < 255
 }
 
-// BlendCell composites src over dst.
-// Uses perceptual alpha blending for background and foreground colors.
+// BlendCell composites src over dst using perceptual alpha blending.
 func BlendCell(dst, src Cell) Cell {
 	hasBgAlpha := isColorWithAlpha(src.Bg)
 	hasFgAlpha := isColorWithAlpha(src.Fg)
 
 	if !hasBgAlpha && !hasFgAlpha {
-		// Fully opaque overlay: just return src
+		// An opaque source completely replaces the destination.
 		return src
 	}
 
@@ -118,7 +115,7 @@ func BlendCell(dst, src Cell) Cell {
 
 	var finalFg style.Color
 	if preserveChar {
-		// Blend overlay bg into destination fg
+		// Tint the preserved character with the source background.
 		finalFg = style.ColorBlendPerceptual(src.Bg, dst.Fg)
 	} else {
 		if hasFgAlpha {
@@ -135,7 +132,7 @@ func BlendCell(dst, src Cell) Cell {
 		finalAttrs = src.Attributes
 	}
 
-	// When overlay background is fully transparent, preserve destination background alpha
+	// A transparent source background preserves the destination alpha.
 	finalBgAlpha := blendedBg.A
 	if src.Bg.A == 0 {
 		finalBgAlpha = dst.Bg.A

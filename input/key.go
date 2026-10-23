@@ -5,11 +5,7 @@ import (
 	"unicode/utf8"
 )
 
-// ---------------------------------------------------------------------------
-// KeyEventType
-// ---------------------------------------------------------------------------
-
-// KeyEventType distinguishes press, release, and repeat.
+// KeyEventType identifies a key press, release, or repeat event.
 type KeyEventType int
 
 const (
@@ -18,7 +14,7 @@ const (
 	KeyRepeat
 )
 
-// String returns a human-readable name for the key event type.
+// String returns the key event type's name.
 func (t KeyEventType) String() string {
 	switch t {
 	case KeyPress:
@@ -32,11 +28,7 @@ func (t KeyEventType) String() string {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Modifier
-// ---------------------------------------------------------------------------
-
-// Modifier represents a keyboard modifier key.
+// Modifier identifies a keyboard modifier.
 type Modifier int
 
 const (
@@ -46,13 +38,9 @@ const (
 	ModMeta
 )
 
-// ---------------------------------------------------------------------------
-// Key Name Constants
-// ---------------------------------------------------------------------------
-
 const (
 	KeyReturn    = "return"
-	KeyEnter     = "return" // alias
+	KeyEnter     = "return" // KeyEnter is an alias for KeyReturn.
 	KeyEscape    = "escape"
 	KeyTab       = "tab"
 	KeyBackspace = "backspace"
@@ -81,41 +69,38 @@ const (
 	KeyF12       = "f12"
 )
 
-// ---------------------------------------------------------------------------
-// KeyEvent
-// ---------------------------------------------------------------------------
-
-// KeyEvent represents a keyboard input event.
+// KeyEvent describes one keyboard input event.
 type KeyEvent struct {
-	Name     string       // Key name: "a", "space", "return", "escape", "up", "f1", "tab", etc.
-	Text     string       // Printable text: "a", " ", etc. Empty for non-printable keys (arrows, function keys, etc.)
-	Ctrl     bool         // Ctrl modifier
-	Shift    bool         // Shift modifier
-	Alt      bool         // Alt/Meta modifier
-	Meta     bool         // Meta modifier (distinct from Alt on some systems)
-	Raw      string       // Raw input escape sequence
-	Type     KeyEventType // press, release, repeat
-	Code     string       // Key code (for Kitty protocol)
-	Source   string       // "raw" or "kitty"
-	Repeated bool         // Whether key is auto-repeated
+	Name     string       // The canonical key name, such as "a", "return", "up", or "f1".
+	Text     string       // Printable input text, or empty for a non-printable key.
+	Ctrl     bool         // Whether Control was held.
+	Shift    bool         // Whether Shift was held.
+	Alt      bool         // Whether Alt was held.
+	Meta     bool         // Whether a distinct Meta, Super, or Command key was held.
+	Raw      string       // The original terminal input sequence.
+	Type     KeyEventType // The key's press, release, or repeat state.
+	Code     string       // The Kitty keyboard protocol code point, when available.
+	Source   string       // The parser source, either "raw" or "kitty".
+	Repeated bool         // Whether this is an automatic key repeat.
 
 	propagationStopped bool
 	defaultPrevented   bool
 }
 
-// StopPropagation stops the event from reaching further handlers.
+// StopPropagation prevents the event from reaching later propagation targets.
 func (e *KeyEvent) StopPropagation() { e.propagationStopped = true }
 
-// PreventDefault prevents renderable handlers from processing.
+// PreventDefault prevents the event's default renderable behavior.
 func (e *KeyEvent) PreventDefault() { e.defaultPrevented = true }
 
-// PropagationStopped returns true if propagation was stopped.
+// PropagationStopped reports whether StopPropagation was called.
 func (e *KeyEvent) PropagationStopped() bool { return e.propagationStopped }
 
-// DefaultPrevented returns true if default was prevented.
+// DefaultPrevented reports whether PreventDefault was called.
 func (e *KeyEvent) DefaultPrevented() bool { return e.defaultPrevented }
 
-// String returns a human-readable form, e.g. "ctrl+shift+a".
+// String returns the key combination in canonical modifier order, such as
+// "ctrl+shift+a".
 func (e *KeyEvent) String() string {
 	var parts []string
 	if e.Ctrl {
@@ -134,7 +119,8 @@ func (e *KeyEvent) String() string {
 	return strings.Join(parts, "+")
 }
 
-// Matches checks if the event matches a key name and optional modifiers.
+// Matches reports whether the event has name and exactly the supplied
+// modifiers.
 func (e *KeyEvent) Matches(name string, modifiers ...Modifier) bool {
 	if e.Name != name {
 		return false
@@ -160,13 +146,11 @@ func (e *KeyEvent) Matches(name string, modifiers ...Modifier) bool {
 		e.Meta == wantMeta
 }
 
-// IsRune returns true if this event represents a printable character
-// without Ctrl, Alt, or Meta modifiers.
+// IsRune reports whether the event represents printable text without Control,
+// Alt, or Meta.
 //
-// When the Text field is populated (as done by the parser), it is the
-// authoritative signal. When Text is empty (e.g. manually constructed
-// events in tests), the method falls back to checking whether Name is
-// a single rune — preserving backwards compatibility.
+// A non-empty Text field identifies printable input. For events constructed
+// without Text, IsRune falls back to a Name containing exactly one rune.
 func (e *KeyEvent) IsRune() bool {
 	if e.Ctrl || e.Alt || e.Meta {
 		return false
@@ -174,12 +158,12 @@ func (e *KeyEvent) IsRune() bool {
 	if len(e.Text) > 0 {
 		return true
 	}
-	// Fallback for events constructed without Text.
+	// Support manually constructed events that predate the Text field.
 	return utf8.RuneCountInString(e.Name) == 1
 }
 
-// Rune returns the rune if IsRune(), else 0.
-// Prefers the Text field when available, falling back to Name.
+// Rune returns the first rune in Text, or in Name when Text is empty. It
+// returns zero when IsRune reports false.
 func (e *KeyEvent) Rune() rune {
 	if !e.IsRune() {
 		return 0

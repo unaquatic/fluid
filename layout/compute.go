@@ -2,29 +2,22 @@ package layout
 
 import "math"
 
-// ComputeLayout runs the flexbox algorithm starting from this node.
-// availableWidth and availableHeight define the viewport (typically terminal size).
+// ComputeLayout resolves the dirty subtree rooted at n within the available
+// width and height.
 //
-// When the tree is clean (no MarkDirty since the last layout), the entire
-// flexbox computation is skipped — O(1) instead of O(N). This is critical
-// for large trees (thousands of nodes) where layout can take 100-200ms.
+// A clean root returns without traversing the tree. During layout, each node
+// clears its own dirty flag before measuring descendants. If a measurement
+// marks the tree dirty again, ComputeLayout repeats until the root remains
+// clean.
 //
-// Each node clears its own dirty flag after being processed (no recursive
-// clearDirty). The loop handles the case where a MeasureFunc re-dirties
-// the tree during layout: the node is re-laid out.
-//
-// IMPORTANT: All tree mutations (AddChild, SetContent, MarkDirty, etc.)
-// must happen on the same goroutine that calls ComputeLayout. The
-// renderer's event loop enforces this — see Renderer.Enqueue().
+// Callers must perform tree mutations and layout on the same goroutine.
 func (n *LayoutNode) ComputeLayout(availableWidth, availableHeight int) {
 	for n.dirty {
 		n.layoutFlexContainer(availableWidth, availableHeight, 0, 0)
 	}
 }
 
-// --- Helper Functions ---
-
-// safeResolve resolves a scalar, returning 0 for Auto/Undefined.
+// safeResolve resolves s and returns zero when s is automatic or undefined.
 func safeResolve(s Scalar, parentDim int) int {
 	v, ok := s.Resolve(parentDim)
 	if !ok {
@@ -33,7 +26,7 @@ func safeResolve(s Scalar, parentDim int) int {
 	return v
 }
 
-// resolveMargins resolves all four margin scalars for a node.
+// resolveMargins resolves node's margins against the parent dimensions.
 func resolveMargins(node *LayoutNode, parentW, parentH int) (top, right, bottom, left int) {
 	top = safeResolve(node.MarginTop, parentH)
 	right = safeResolve(node.MarginRight, parentW)
@@ -42,7 +35,7 @@ func resolveMargins(node *LayoutNode, parentW, parentH int) (top, right, bottom,
 	return
 }
 
-// resolvePaddings resolves all four padding scalars for a node.
+// resolvePaddings resolves node's paddings against the parent dimensions.
 func resolvePaddings(node *LayoutNode, parentW, parentH int) (top, right, bottom, left int) {
 	top = safeResolve(node.PaddingTop, parentH)
 	right = safeResolve(node.PaddingRight, parentW)
@@ -51,7 +44,7 @@ func resolvePaddings(node *LayoutNode, parentW, parentH int) (top, right, bottom
 	return
 }
 
-// clampSize applies min/max constraints to a size value.
+// clampSize restricts size to the inclusive range [min, max].
 func clampSize(size, min, max int) int {
 	if size < min {
 		size = min
@@ -62,6 +55,5 @@ func clampSize(size, min, max int) int {
 	return size
 }
 
-// maxInt is a sentinel for "no max constraint". We use a large value
-// instead of math.MaxInt to avoid overflow during arithmetic.
+// maxInt represents an absent maximum while leaving room for layout arithmetic.
 const maxInt = math.MaxInt32

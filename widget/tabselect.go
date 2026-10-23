@@ -9,7 +9,7 @@ import (
 	"github.com/unaquatic/fluid/symbol"
 )
 
-// TabSelectOption represents a single tab option.
+// TabSelectOption contains the label and caller-defined value for one tab.
 type TabSelectOption struct {
 	Name  string
 	Value any
@@ -21,8 +21,8 @@ type TabSelect struct {
 
 	options       []TabSelectOption
 	selectedIndex int
-	tabWidth      int  // fixed tab width (0 = auto)
-	showUnderline bool // show underline on selected tab
+	tabWidth      int  // Fixed tab width; zero distributes available width.
+	showUnderline bool // Reserves a second row for the tab underline.
 
 	textColor         style.Color
 	selectedTextColor style.Color
@@ -31,15 +31,16 @@ type TabSelect struct {
 	separatorColor    style.Color
 	backgroundColor   style.Color
 
-	// Event callbacks
+	// OnSelectionChanged is called after the selected tab changes.
 	OnSelectionChanged func(index int)
-	OnItemSelected     func(index int)
+	// OnItemSelected is called when the user activates the selected tab.
+	OnItemSelected func(index int)
 }
 
 // TabSelectOpt configures a TabSelect during construction.
 type TabSelectOpt func(*TabSelect)
 
-// NewTabSelect creates a TabSelect widget.
+// NewTabSelect returns a focusable horizontal selector containing options.
 func NewTabSelect(options []TabSelectOption, opts ...TabSelectOpt) *TabSelect {
 	ts := &TabSelect{
 		BaseRenderable:    render.NewBaseRenderable(render.WithFocusable(true)),
@@ -53,7 +54,7 @@ func NewTabSelect(options []TabSelectOption, opts ...TabSelectOpt) *TabSelect {
 		backgroundColor:   style.ColorTransparent,
 	}
 
-	// Default height: 1 row (2 if underline)
+	// Reserve one row initially; underline mode adds a second row below.
 	ts.LayoutNode().Height = layout.Points(1)
 
 	for _, opt := range opts {
@@ -70,7 +71,7 @@ func NewTabSelect(options []TabSelectOption, opts ...TabSelectOpt) *TabSelect {
 // SelectedIndex returns the currently selected tab index.
 func (ts *TabSelect) SelectedIndex() int { return ts.selectedIndex }
 
-// SetSelectedIndex sets the selected tab index.
+// SetSelectedIndex selects the index after clamping it to the options range.
 func (ts *TabSelect) SetSelectedIndex(idx int) {
 	if idx < 0 {
 		idx = 0
@@ -107,15 +108,15 @@ func (ts *TabSelect) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 	x := ts.X()
 	y := ts.Y()
 
-	// Fill background
+	// Paint the selector background before tab-specific backgrounds.
 	if !ts.backgroundColor.IsTransparent() {
 		buf.FillRect(x, y, w, h, ts.backgroundColor)
 	}
 
-	// Calculate tab widths
+	// Divide the viewport among the tabs and their separators.
 	tabWidths := ts.calculateTabWidths(w)
 
-	// Draw tabs
+	// Render tabs left to right until the viewport is full.
 	cx := x
 	for i, opt := range ts.options {
 		if cx >= x+w {
@@ -125,7 +126,7 @@ func (ts *TabSelect) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 		tw := tabWidths[i]
 		isSelected := i == ts.selectedIndex
 
-		// Determine colors
+		// Apply the selected colors to the active tab.
 		fg := ts.textColor
 		bg := ts.backgroundColor
 		if isSelected {
@@ -140,7 +141,7 @@ func (ts *TabSelect) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 			buf.FillRect(cx, y, tw, 1, bg)
 		}
 
-		// Draw tab text (centered)
+		// Truncate and center the tab label within its allocated width.
 		name := opt.Name
 		nameWidth := ts.StringWidth(name)
 		if nameWidth > tw {
@@ -150,7 +151,7 @@ func (ts *TabSelect) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 		textX := cx + (tw-nameWidth)/2
 		buf.DrawText(name, textX, y, fg)
 
-		// Draw underline for selected tab
+		// Use a heavy underline for the selected tab and a light rule elsewhere.
 		if ts.showUnderline && h >= 2 {
 			if isSelected {
 				for ux := cx; ux < cx+tw; ux++ {
@@ -165,7 +166,7 @@ func (ts *TabSelect) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 
 		cx += tw
 
-		// Draw separator between tabs
+		// Separate adjacent tabs in both rows.
 		if i < len(ts.options)-1 && cx < x+w {
 			buf.SetCell(cx, y, symbol.Vertical, ts.separatorColor, ts.backgroundColor, 0)
 			if ts.showUnderline && h >= 2 {
@@ -176,7 +177,7 @@ func (ts *TabSelect) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 	}
 }
 
-// HandleKeyPress processes keyboard input.
+// HandleKeyPress moves or activates the selected tab for a supported key event.
 func (ts *TabSelect) HandleKeyPress(e *input.KeyEvent) bool {
 	if e.Type == input.KeyRelease || len(ts.options) == 0 {
 		return false
@@ -224,19 +225,19 @@ func (ts *TabSelect) HandleKeyPress(e *input.KeyEvent) bool {
 	return handled
 }
 
-// calculateTabWidths distributes available width among tabs.
+// calculateTabWidths divides the available width among tabs.
 func (ts *TabSelect) calculateTabWidths(totalWidth int) []int {
 	n := len(ts.options)
 	if n == 0 {
 		return nil
 	}
 
-	// Account for separators
+	// Exclude one separator column between each pair of tabs.
 	separatorSpace := n - 1
 	availableWidth := totalWidth - separatorSpace
 
 	if ts.tabWidth > 0 {
-		// Fixed tab width
+		// A configured width applies equally to every tab.
 		widths := make([]int, n)
 		for i := range widths {
 			widths[i] = ts.tabWidth
@@ -244,7 +245,7 @@ func (ts *TabSelect) calculateTabWidths(totalWidth int) []int {
 		return widths
 	}
 
-	// Distribute evenly
+	// Give remainder columns to the leftmost tabs.
 	baseWidth := availableWidth / n
 	remainder := availableWidth % n
 
@@ -259,14 +260,14 @@ func (ts *TabSelect) calculateTabWidths(totalWidth int) []int {
 	return widths
 }
 
-// --- TabSelect Options ---
+// TabSelect options.
 
-// TabSelectWithTabWidth sets fixed tab width.
+// TabSelectWithTabWidth sets a fixed width for every tab; zero uses even distribution.
 func TabSelectWithTabWidth(w int) TabSelectOpt {
 	return func(ts *TabSelect) { ts.tabWidth = w }
 }
 
-// TabSelectWithShowUnderline enables/disables underline.
+// TabSelectWithShowUnderline controls whether the selector renders an underline row.
 func TabSelectWithShowUnderline(v bool) TabSelectOpt {
 	return func(ts *TabSelect) { ts.showUnderline = v }
 }
@@ -296,12 +297,12 @@ func TabSelectWithBackgroundColor(c style.Color) TabSelectOpt {
 	return func(ts *TabSelect) { ts.backgroundColor = c }
 }
 
-// TabSelectWithOnSelectionChanged sets the selection changed callback.
+// TabSelectWithOnSelectionChanged sets the callback invoked after selection changes.
 func TabSelectWithOnSelectionChanged(fn func(int)) TabSelectOpt {
 	return func(ts *TabSelect) { ts.OnSelectionChanged = fn }
 }
 
-// TabSelectWithOnItemSelected sets the item selected callback.
+// TabSelectWithOnItemSelected sets the callback invoked when the user activates a tab.
 func TabSelectWithOnItemSelected(fn func(int)) TabSelectOpt {
 	return func(ts *TabSelect) { ts.OnItemSelected = fn }
 }

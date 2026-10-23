@@ -11,23 +11,21 @@ import (
 	"github.com/unaquatic/fluid/textbuf"
 )
 
-// WrapMode is an alias for textbuf.WrapMode. The canonical definition
-// lives in the textbuf package; these re-exports let widget callers
-// continue to reference widget.WrapNone / WrapChar / WrapWord.
+// WrapMode aliases textbuf.WrapMode for widget text APIs.
 type WrapMode = textbuf.WrapMode
 
 const (
-	WrapNone = textbuf.WrapNone // No wrapping
-	WrapChar = textbuf.WrapChar // Wrap at character boundaries
-	WrapWord = textbuf.WrapWord // Wrap at word boundaries
+	WrapNone = textbuf.WrapNone // Preserves logical lines without wrapping.
+	WrapChar = textbuf.WrapChar // Wraps at grapheme-cluster boundaries.
+	WrapWord = textbuf.WrapWord // Wraps at whitespace boundaries when possible.
 )
 
-// wrappedLine holds a single line after word/char wrapping.
+// wrappedLine contains one line produced by the local wrapping helpers.
 type wrappedLine struct {
-	chunks []wrappedChunk // styled chunks for this line
+	chunks []wrappedChunk
 }
 
-// lineWidth returns the display width of this line.
+// lineWidth returns the terminal width of the line.
 func (wl wrappedLine) lineWidth() int {
 	w := 0
 	for _, c := range wl.chunks {
@@ -36,7 +34,7 @@ func (wl wrappedLine) lineWidth() int {
 	return w
 }
 
-// wrappedChunk is a segment of a wrapped line with uniform styling.
+// wrappedChunk contains adjacent wrapped text with one style.
 type wrappedChunk struct {
 	text       string
 	fg         style.Color
@@ -44,8 +42,7 @@ type wrappedChunk struct {
 	attributes uint32
 }
 
-// styledSegment is a piece of text with uniform styling, used during wrapping.
-// Unlike wrappedChunk, this is an intermediate type used in the wrapping pipeline.
+// styledSegment contains unwrapped text with one style.
 type styledSegment struct {
 	text       string
 	fg         style.Color
@@ -53,14 +50,12 @@ type styledSegment struct {
 	attributes uint32
 }
 
-// Text displays styled text with word/char wrapping.
+// Text displays styled, selectable text with wrapping, truncation, and scrolling.
 //
-// Text supports two modes of content:
-//  1. Direct content via SetContent(string) or SetContent(StyledText)
-//  2. TextNode children via AddNode() for inline formatting (<span>, <b>, <i>, <u>, <a>, <br>)
+// Content can come directly from SetContent or SetStyledContent, or it can be
+// assembled from a TextNode tree through AddNode and AddText.
 //
-// When TextNode children are present and no manual content has been set,
-// the styled text is rebuilt from the TextNode tree on each render.
+// Direct content takes precedence over TextNode children.
 type Text struct {
 	*render.BaseRenderable
 
@@ -74,15 +69,15 @@ type Text struct {
 	selectionBg style.Color
 	selectionFg *style.Color
 
-	// Scroll offsets
+	// scrollX and scrollY are offsets in the rendered TextSurface.
 	scrollX int
 	scrollY int
 
-	// TextNode tree for inline text modifiers
+	// rootTextNode supplies content until a direct content setter is called.
 	rootTextNode     *TextNode
-	hasManualContent bool // true when SetContent was called explicitly
+	hasManualContent bool
 
-	// Internal: TextBuffer + TextSurface (shared measurement & rendering)
+	// textBuf and textSurface provide shared measurement and rendering.
 	textBuf     *textbuf.TextBuffer
 	textSurface *textbuf.TextSurface
 
@@ -92,8 +87,8 @@ type Text struct {
 // TextOption configures a Text widget during construction.
 type TextOption func(*Text)
 
-// NewText creates a Text widget with a plain string content.
-// Pass "" for TextNode-only mode (content built from the node tree).
+// NewText returns a Text widget with plain content.
+// An empty content string leaves the TextNode tree as the content source.
 func NewText(content string, opts ...TextOption) *Text {
 	t := newTextBase(opts...)
 	if content != "" {
@@ -104,7 +99,7 @@ func NewText(content string, opts ...TextOption) *Text {
 	return t
 }
 
-// NewStyledText creates a Text widget with pre-styled content.
+// NewStyledText returns a Text widget with pre-styled content.
 func NewStyledText(content style.StyledText, opts ...TextOption) *Text {
 	t := newTextBase(opts...)
 	t.content = content
@@ -113,7 +108,7 @@ func NewStyledText(content style.StyledText, opts ...TextOption) *Text {
 	return t
 }
 
-// newTextBase allocates and configures the shared Text scaffolding.
+// newTextBase creates the shared state used by both Text constructors.
 func newTextBase(opts ...TextOption) *Text {
 	tb := textbuf.NewTextBuffer()
 	tv := textbuf.NewTextSurface(tb)
@@ -129,7 +124,7 @@ func newTextBase(opts ...TextOption) *Text {
 		textSurface:    tv,
 	}
 
-	// Initialize root TextNode eagerly
+	// Every Text has a stable root for later TextNode additions.
 	t.rootTextNode = NewTextNode(TextNodeWithID(t.ID() + "-root"))
 	t.rootTextNode.ownerText = t
 
@@ -139,28 +134,28 @@ func newTextBase(opts ...TextOption) *Text {
 	return t
 }
 
-// finishInit completes Text initialization after content is set.
+// finishInit connects configured content and styles to the text pipeline.
 func (t *Text) finishInit() {
-	// Sync settings to TextSurface
+	// Apply widget configuration to TextBuffer and TextSurface.
 	t.textSurface.SetWrapMode(t.wrapMode)
 	t.textSurface.SetTruncate(t.truncate)
 	t.textBuf.SetDefaultFg(t.fg)
 	t.textBuf.SetDefaultBg(t.bg)
 	t.textBuf.SetExpandTabs(true)
 
-	// Sync initial content to TextBuffer
+	// Populate TextBuffer before the first measurement.
 	t.syncContentToTextBuffer()
 
 	if t.selectable_ {
 		t.SetSelectable(true)
 	}
 
-	// Set up intrinsic measurement via TextSurface.
+	// Measure with the same TextSurface used for rendering.
 	t.LayoutNode().Measure = func(
 		width int, widthMode layout.MeasureMode,
 		height int, heightMode layout.MeasureMode,
 	) layout.MeasureResult {
-		// Ensure TextNode tree is flushed to content before measuring.
+		// Include pending TextNode changes in intrinsic dimensions.
 		t.ensureWrapped()
 		availW := width
 		if widthMode == layout.MeasureUndefined {
@@ -181,7 +176,7 @@ func (t *Text) finishInit() {
 				measuredH = m.LineCount
 			}
 		}
-		// For empty text, report 0x0 so parent can collapse
+		// Let containers collapse an empty Text widget.
 		if len(t.content.Chunks) == 0 {
 			measuredW = 0
 			measuredH = 0
@@ -200,12 +195,9 @@ func (t *Text) finishInit() {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Content Management
-// ---------------------------------------------------------------------------
+// Content management.
 
-// SetContent sets the text content from a plain string.
-// This sets manual content mode, overriding any TextNode children.
+// SetContent replaces the content with a plain string and disables TextNode content.
 func (t *Text) SetContent(content string) {
 	t.content = style.NewStyledText(style.Plain(content))
 	t.hasManualContent = true
@@ -214,8 +206,7 @@ func (t *Text) SetContent(content string) {
 	t.RequestRender()
 }
 
-// SetStyledContent sets the text content from a StyledText value.
-// This sets manual content mode, overriding any TextNode children.
+// SetStyledContent replaces the content with styled text and disables TextNode content.
 func (t *Text) SetStyledContent(content style.StyledText) {
 	t.content = content
 	t.hasManualContent = true
@@ -224,10 +215,8 @@ func (t *Text) SetStyledContent(content style.StyledText) {
 	t.RequestRender()
 }
 
-// SetStyledContentQuiet sets the text content without requesting a render.
-// Use this when updating content from within a render callback (e.g.
-// RenderBeforeHook) where a render is already in progress. Calling
-// RequestRender from within a render creates an infinite render loop.
+// SetStyledContentQuiet replaces styled content without requesting another render.
+// Use it from a render hook where a render is already in progress.
 func (t *Text) SetStyledContentQuiet(content style.StyledText) {
 	t.content = content
 	t.hasManualContent = true
@@ -239,7 +228,7 @@ func (t *Text) Content() style.StyledText {
 	return t.content
 }
 
-// PlainText returns the plain text string.
+// PlainText returns the content without styling.
 func (t *Text) PlainText() string {
 	return t.content.PlainText()
 }
@@ -256,11 +245,9 @@ func (t *Text) LineCount() int {
 	return t.textSurface.VirtualLineCount()
 }
 
-// ---------------------------------------------------------------------------
-// TextNode Tree Integration
-// ---------------------------------------------------------------------------
+// TextNode integration.
 
-// textNodeDirtied is called by the root TextNode when its tree changes.
+// textNodeDirtied schedules a rebuild while the node tree remains the content source.
 func (t *Text) textNodeDirtied() {
 	if !t.hasManualContent {
 		t.linesDirty = true
@@ -268,7 +255,7 @@ func (t *Text) textNodeDirtied() {
 	}
 }
 
-// TextNode returns the root TextNode for adding inline children.
+// TextNode returns the root node used to assemble inline content.
 func (t *Text) TextNode() *TextNode {
 	return t.rootTextNode
 }
@@ -293,7 +280,7 @@ func (t *Text) ClearNodes() {
 	t.rootTextNode.Clear()
 }
 
-// rebuildFromTextNodes rebuilds the StyledText content from the TextNode tree.
+// rebuildFromTextNodes flattens the current TextNode tree into styled content.
 func (t *Text) rebuildFromTextNodes() {
 	inherited := InheritedStyle{
 		Fg:         t.fg,
@@ -309,9 +296,7 @@ func (t *Text) rebuildFromTextNodes() {
 	t.rootTextNode.ClearDirty()
 }
 
-// ---------------------------------------------------------------------------
-// Scroll
-// ---------------------------------------------------------------------------
+// Scrolling.
 
 // ScrollX returns the horizontal scroll offset.
 func (t *Text) ScrollX() int { return t.scrollX }
@@ -319,7 +304,7 @@ func (t *Text) ScrollX() int { return t.scrollX }
 // ScrollY returns the vertical scroll offset.
 func (t *Text) ScrollY() int { return t.scrollY }
 
-// SetScrollX sets the horizontal scroll offset (clamped to valid range).
+// SetScrollX sets the horizontal scroll offset, clamped to the scrollable range.
 func (t *Text) SetScrollX(v int) {
 	maxX := t.MaxScrollX()
 	if v < 0 {
@@ -334,7 +319,7 @@ func (t *Text) SetScrollX(v int) {
 	}
 }
 
-// SetScrollY sets the vertical scroll offset (clamped to valid range).
+// SetScrollY sets the vertical scroll offset, clamped to the scrollable range.
 func (t *Text) SetScrollY(v int) {
 	maxY := t.MaxScrollY()
 	if v < 0 {
@@ -386,9 +371,7 @@ func (t *Text) ScrollHeight() int {
 	return t.textSurface.VirtualLineCount()
 }
 
-// ---------------------------------------------------------------------------
-// Rendering
-// ---------------------------------------------------------------------------
+// Text rendering.
 
 // RenderSelf draws the text content into the buffer.
 func (t *Text) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
@@ -400,20 +383,20 @@ func (t *Text) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 
 	t.ensureWrapped()
 
-	// Sync viewport (scroll + dimensions)
+	// Apply widget dimensions and scroll offsets to TextSurface.
 	t.textSurface.SetViewportSize(w, h)
 	if vp := t.textSurface.Viewport(); vp != nil {
 		vp.Y = t.scrollY
 		vp.X = t.scrollX
 	}
 
-	// Convert screen selection → text buffer selection
+	// Convert the global screen selection to local text coordinates.
 	t.syncSelection()
 
 	buf.DrawTextSurface(t.textSurface, t.X(), t.Y())
 }
 
-// syncSelection converts global screen selection to a TextSurface render.
+// syncSelection applies the global screen selection to TextSurface.
 func (t *Text) syncSelection() {
 	t.textSurface.ResetSelection()
 	if !t.Selectable() {
@@ -431,13 +414,13 @@ func (t *Text) syncSelection() {
 	t.textSurface.SetLocalSelection(localSel.AnchorX, localSel.AnchorY, localSel.FocusX, localSel.FocusY, &bg, t.selectionFg)
 }
 
-// isInSelection checks if a position is within the selection bounds.
+// isInSelection reports whether a visual coordinate lies within sel.
 func isInSelection(x, y int, sel *render.LocalSelectionBounds) bool {
 	if sel == nil || !sel.IsActive {
 		return false
 	}
 
-	// Normalize anchor/focus to start/end
+	// Normalize endpoints to visual document order.
 	startY, startX := sel.AnchorY, sel.AnchorX
 	endY, endX := sel.FocusY, sel.FocusX
 	if startY > endY || (startY == endY && startX > endX) {
@@ -459,7 +442,7 @@ func isInSelection(x, y int, sel *render.LocalSelectionBounds) bool {
 	return true
 }
 
-// SelectedText returns the text within the current render.
+// SelectedText returns the text covered by the active selection in this widget.
 func (t *Text) SelectedText() string {
 	sel := t.Context().Selection()
 	if sel == nil || !sel.IsActive() {
@@ -473,7 +456,7 @@ func (t *Text) SelectedText() string {
 
 	t.ensureWrapped()
 
-	// Get all virtual lines for selection extraction
+	// Temporarily expose all virtual lines while extracting selected text.
 	origVP := t.textSurface.Viewport()
 	totalVLines := t.textSurface.VirtualLineCount()
 	if totalVLines > 0 {
@@ -485,7 +468,7 @@ func (t *Text) SelectedText() string {
 
 	allVLines := t.textSurface.VirtualLines()
 
-	// Restore viewport
+	// Restore the rendering viewport after extraction.
 	if origVP != nil {
 		t.textSurface.SetViewportSize(origVP.Width, origVP.Height)
 		if vp := t.textSurface.Viewport(); vp != nil {
@@ -514,7 +497,7 @@ func (t *Text) SelectedText() string {
 	return sb.String()
 }
 
-// HasSelection returns true if there's an active selection intersecting this widget.
+// HasSelection reports whether an active selection intersects this widget.
 func (t *Text) HasSelection() bool {
 	sel := t.Context().Selection()
 	if sel == nil || !sel.IsActive() {
@@ -524,21 +507,16 @@ func (t *Text) HasSelection() bool {
 	return localSel != nil && localSel.IsActive
 }
 
-// ---------------------------------------------------------------------------
-// Wrapping Engine (chunk-aware)
-// ---------------------------------------------------------------------------
+// Text-buffer conversion and wrapping helpers.
 
-// ensureWrapped recomputes wrapped lines if dirty or width changed.
-// syncContentToTextBuffer converts the current StyledText content into
-// TextBuffer Lines. This is the bridge between the widget's content
-// model and the shared TextSurface measurement/rendering path.
+// syncContentToTextBuffer converts styled content into logical TextBuffer lines.
 func (t *Text) syncContentToTextBuffer() {
 	if len(t.content.Chunks) == 0 {
 		t.textBuf.Clear()
 		return
 	}
 
-	// Split chunks on hard newlines to get logical lines
+	// Split hard newlines before TextSurface applies visual wrapping.
 	hardLines := t.splitChunksIntoHardLines()
 	tbLines := make([]textbuf.Line, len(hardLines))
 	for i, segments := range hardLines {
@@ -561,7 +539,7 @@ func (t *Text) ensureWrapped() {
 		return
 	}
 
-	// If using TextNode children (no manual content), rebuild from the tree
+	// Rebuild node-backed content only while no direct content has been set.
 	if !t.hasManualContent && t.rootTextNode != nil && t.rootTextNode.ChildrenCount() > 0 {
 		t.rebuildFromTextNodes()
 	}
@@ -570,9 +548,7 @@ func (t *Text) ensureWrapped() {
 	t.linesDirty = false
 }
 
-// splitChunksIntoHardLines splits the content chunks on newline boundaries,
-// producing a slice of "hard lines", each being a slice of styledSegments.
-// Each segment preserves its original chunk's styling.
+// splitChunksIntoHardLines splits styled content at explicit newline boundaries.
 func (t *Text) splitChunksIntoHardLines() [][]styledSegment {
 	var result [][]styledSegment
 	var currentLine []styledSegment
@@ -588,14 +564,14 @@ func (t *Text) splitChunksIntoHardLines() [][]styledSegment {
 		if chunk.Bg != nil {
 			bg = *chunk.Bg
 		}
-		// Merge attributes: chunk-specific OR'd with widget defaults
+		// Chunk attributes add to the widget defaults.
 		attrs = attrs | chunk.Attributes
 
-		// Split chunk text on newlines
+		// Preserve style across every hard-line fragment of the chunk.
 		parts := strings.Split(chunk.Text, "\n")
 		for i, part := range parts {
 			if i > 0 {
-				// Newline boundary: flush current line, start new one
+				// A newline completes the current logical line, including an empty one.
 				result = append(result, currentLine)
 				currentLine = nil
 			}
@@ -610,7 +586,7 @@ func (t *Text) splitChunksIntoHardLines() [][]styledSegment {
 		}
 	}
 
-	// Always append the last line (even if empty, representing a trailing newline)
+	// Retain the final empty line after a trailing newline.
 	result = append(result, currentLine)
 	return result
 }
@@ -629,7 +605,7 @@ func segmentsToWrappedLine(segments []styledSegment) wrappedLine {
 	return wrappedLine{chunks: chunks}
 }
 
-// wrapSegmentsChar wraps styled segments at character (grapheme cluster) boundaries.
+// wrapSegmentsChar wraps styled segments at grapheme-cluster boundaries.
 func wrapSegmentsChar(segments []styledSegment, maxWidth int) []wrappedLine {
 	var result []wrappedLine
 	var currentChunks []wrappedChunk
@@ -646,14 +622,14 @@ func wrapSegmentsChar(segments []styledSegment, maxWidth int) []wrappedLine {
 			cluster, rest, rw := textbuf.NextGraphemeCluster(remaining)
 			remaining = rest
 			if currentWidth+rw > maxWidth {
-				// Flush current chunk text to line
+				// Finish the current styled chunk before breaking the line.
 				if sb.Len() > 0 {
 					currentChunks = append(currentChunks, wrappedChunk{
 						text: sb.String(), fg: fg, bg: bg, attributes: attrs,
 					})
 					sb.Reset()
 				}
-				// Emit completed line
+				// Start a new line with the current grapheme cluster.
 				result = append(result, wrappedLine{chunks: currentChunks})
 				currentChunks = nil
 				currentWidth = 0
@@ -661,7 +637,7 @@ func wrapSegmentsChar(segments []styledSegment, maxWidth int) []wrappedLine {
 			sb.WriteString(cluster)
 			currentWidth += rw
 		}
-		// Flush remaining text in this segment
+		// Preserve any remaining segment text on the current line.
 		if sb.Len() > 0 {
 			currentChunks = append(currentChunks, wrappedChunk{
 				text: sb.String(), fg: fg, bg: bg, attributes: attrs,
@@ -669,7 +645,7 @@ func wrapSegmentsChar(segments []styledSegment, maxWidth int) []wrappedLine {
 		}
 	}
 
-	// Emit last line
+	// Emit the final partially filled line.
 	if len(currentChunks) > 0 {
 		result = append(result, wrappedLine{chunks: currentChunks})
 	}
@@ -681,7 +657,7 @@ func wrapSegmentsChar(segments []styledSegment, maxWidth int) []wrappedLine {
 	return result
 }
 
-// styledWord is a "word" composed of multiple segments (to preserve style boundaries).
+// styledWord groups text through its trailing whitespace while preserving styles.
 type styledWord struct {
 	parts []styledSegment
 	width int
@@ -689,7 +665,7 @@ type styledWord struct {
 
 // wrapSegmentsWord wraps styled segments at word boundaries.
 func wrapSegmentsWord(segments []styledSegment, maxWidth int) []wrappedLine {
-	// Split segments into styled words (groups of non-space + trailing space)
+	// Group non-space clusters with the whitespace that follows them.
 	words := splitSegmentsIntoWords(segments)
 
 	var result []wrappedLine
@@ -700,9 +676,8 @@ func wrapSegmentsWord(segments []styledSegment, maxWidth int) []wrappedLine {
 		wordWidth := word.width
 
 		if currentWidth == 0 {
-			// First word on line
+			// A long first word falls back to grapheme wrapping.
 			if wordWidth > maxWidth {
-				// Word too long, char-wrap it
 				charWrapped := wrapSegmentsChar(word.parts, maxWidth)
 				result = append(result, charWrapped...)
 				continue
@@ -717,12 +692,12 @@ func wrapSegmentsWord(segments []styledSegment, maxWidth int) []wrappedLine {
 		}
 
 		if currentWidth+wordWidth > maxWidth {
-			// Flush current line
+			// Move this word to a fresh line.
 			result = append(result, wrappedLine{chunks: currentChunks})
 			currentChunks = nil
 			currentWidth = 0
 
-			// Trim leading whitespace from the word for the new line
+			// Do not carry separator whitespace onto the new line.
 			trimmedParts := trimLeadingWhitespace(word.parts)
 			trimmedWidth := 0
 			for _, p := range trimmedParts {
@@ -764,27 +739,26 @@ func wrapSegmentsWord(segments []styledSegment, maxWidth int) []wrappedLine {
 	return result
 }
 
-// splitSegmentsIntoWords splits styled segments into "words" where each word is
-// a group of non-space characters followed by trailing space (preserving styles).
+// splitSegmentsIntoWords groups non-space graphemes with their trailing whitespace.
 func splitSegmentsIntoWords(segments []styledSegment) []styledWord {
-	// styledCluster is a grapheme cluster with style info.
+	// styledCluster is one indivisible display unit with its source style.
 	type styledCluster struct {
 		text       string
-		baseRune   rune // first rune (used for space detection)
+		baseRune   rune // First rune used for whitespace detection.
 		width      int
 		fg         style.Color
 		bg         style.Color
 		attributes uint32
 	}
 
-	// Flatten all segments into a sequence of styled grapheme clusters
+	// Flatten segments so style boundaries do not affect word detection.
 	var allClusters []styledCluster
 	for _, seg := range segments {
 		remaining := seg.text
 		for len(remaining) > 0 {
 			cluster, rest, cw := textbuf.NextGraphemeCluster(remaining)
 			remaining = rest
-			// Decode first rune for word-break detection
+			// Unicode whitespace classification needs one representative rune.
 			var base rune
 			for _, r := range cluster {
 				base = r
@@ -801,18 +775,18 @@ func splitSegmentsIntoWords(segments []styledSegment) []styledWord {
 		return nil
 	}
 
-	// Split into words: each "word" is non-space clusters + trailing spaces
+	// Include trailing whitespace in each word to preserve source spacing.
 	var words []styledWord
 	i := 0
 	for i < len(allClusters) {
 		var wordClusters []styledCluster
 
-		// Consume non-space clusters
+		// Consume the visible word body.
 		for i < len(allClusters) && !unicode.IsSpace(allClusters[i].baseRune) {
 			wordClusters = append(wordClusters, allClusters[i])
 			i++
 		}
-		// Consume trailing spaces
+		// Attach separator whitespace to that body.
 		for i < len(allClusters) && unicode.IsSpace(allClusters[i].baseRune) {
 			wordClusters = append(wordClusters, allClusters[i])
 			i++
@@ -822,7 +796,7 @@ func splitSegmentsIntoWords(segments []styledSegment) []styledWord {
 			continue
 		}
 
-		// Group consecutive clusters with same style into segments
+		// Rebuild minimal styled segments for this word.
 		var parts []styledSegment
 		var sb strings.Builder
 		curFg := wordClusters[0].fg
@@ -871,15 +845,15 @@ func trimLeadingWhitespace(parts []styledSegment) []styledSegment {
 		if trimmed != result[i].text {
 			result[i].text = trimmed
 			if len(trimmed) > 0 {
-				break // Only trim until we hit non-space
+				break // Stop after reaching visible text.
 			}
-			// This segment was all whitespace, continue to next
+			// Continue through segments containing only whitespace.
 		} else {
-			break // No whitespace to trim
+			break // The first visible segment needs no change.
 		}
 	}
 
-	// Remove fully-empty segments from the front
+	// Drop segments emptied by trimming.
 	for len(result) > 0 && len(result[0].text) == 0 {
 		result = result[1:]
 	}
@@ -887,7 +861,7 @@ func trimLeadingWhitespace(parts []styledSegment) []styledSegment {
 	return result
 }
 
-// splitWords splits a string into words preserving spaces as part of the preceding word.
+// splitWords groups each run of non-space text with the whitespace that follows it.
 func splitWords(s string) []string {
 	var words []string
 	var current strings.Builder
@@ -915,16 +889,14 @@ func splitWords(s string) []string {
 	return words
 }
 
-// OnResize invalidates wrapped lines cache when size changes.
+// OnResize updates the TextSurface viewport dimensions.
 func (t *Text) OnResize(width, height int) {
 	t.textSurface.SetViewportSize(width, height)
 }
 
-// ---------------------------------------------------------------------------
-// Setters
-// ---------------------------------------------------------------------------
+// Text appearance and wrapping.
 
-// SetFg sets the foreground color and invalidates the cache.
+// SetFg sets the default foreground and schedules content synchronization.
 func (t *Text) SetFg(c style.Color) {
 	t.fg = c
 	t.linesDirty = true
@@ -934,7 +906,7 @@ func (t *Text) SetFg(c style.Color) {
 	t.RequestRender()
 }
 
-// SetBg sets the background color and invalidates the cache.
+// SetBg sets the default background and schedules content synchronization.
 func (t *Text) SetBg(c style.Color) {
 	t.bg = c
 	t.linesDirty = true
@@ -944,7 +916,7 @@ func (t *Text) SetBg(c style.Color) {
 	t.RequestRender()
 }
 
-// SetAttributes sets the text attributes and invalidates the cache.
+// SetAttributes sets default text attributes and schedules content synchronization.
 func (t *Text) SetAttributes(a uint32) {
 	t.attributes = a
 	t.linesDirty = true
@@ -954,7 +926,7 @@ func (t *Text) SetAttributes(a uint32) {
 	t.RequestRender()
 }
 
-// SetWrapMode sets the wrap mode and invalidates the cache.
+// SetWrapMode sets the wrap mode and schedules content synchronization.
 func (t *Text) SetWrapMode(m WrapMode) {
 	t.wrapMode = m
 	t.linesDirty = true
@@ -978,13 +950,13 @@ func (t *Text) Bg() style.Color { return t.bg }
 // Attributes returns the text attributes bitmask.
 func (t *Text) Attributes() uint32 { return t.attributes }
 
-// WrapModeValue returns the current wrap mode.
+// WrapModeValue returns the configured wrap mode.
 func (t *Text) WrapModeValue() WrapMode { return t.wrapMode }
 
 // Truncate returns whether truncation is enabled.
 func (t *Text) Truncate() bool { return t.truncate }
 
-// --- Text Options ---
+// Text options.
 
 // TextWithFg sets the foreground color.
 func TextWithFg(c style.Color) TextOption {
@@ -1006,12 +978,12 @@ func TextWithWrapMode(m WrapMode) TextOption {
 	return func(t *Text) { t.wrapMode = m }
 }
 
-// TextWithTruncate enables truncation.
+// TextWithTruncate controls whether overflowing lines are truncated.
 func TextWithTruncate(v bool) TextOption {
 	return func(t *Text) { t.truncate = v }
 }
 
-// TextWithSelectable makes the text selectable.
+// TextWithSelectable controls whether selections can start in the text.
 func TextWithSelectable(v bool) TextOption {
 	return func(t *Text) { t.selectable_ = v }
 }
@@ -1041,12 +1013,12 @@ func TextWithHeight(s layout.Scalar) TextOption {
 	return func(t *Text) { t.LayoutNode().Height = s }
 }
 
-// TextWithFlexGrow sets flex grow.
+// TextWithFlexGrow sets the flex-grow factor.
 func TextWithFlexGrow(v int) TextOption {
 	return func(t *Text) { t.LayoutNode().FlexGrow = v }
 }
 
-// TextWithFlexShrink sets flex shrink.
+// TextWithFlexShrink sets the flex-shrink factor.
 func TextWithFlexShrink(v int) TextOption {
 	return func(t *Text) { t.LayoutNode().FlexShrink = v }
 }

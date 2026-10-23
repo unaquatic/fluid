@@ -23,8 +23,7 @@ func TestNewCell_NormalChar(t *testing.T) {
 }
 
 func TestNewCell_WideChar(t *testing.T) {
-	// CJK character (wide)
-	c := NewCell('\u4e16', style.ColorWhite, style.ColorBlack, 0) // '世'
+	c := NewCell('\u4e16', style.ColorWhite, style.ColorBlack, 0) // 世 is a wide CJK character.
 	if c.Width != 2 {
 		t.Errorf("expected Width=2 for CJK char, got %d", c.Width)
 	}
@@ -93,7 +92,7 @@ func TestCell_WithFg(t *testing.T) {
 	if !c2.Fg.Equals(style.ColorRed) {
 		t.Errorf("WithFg: expected Red, got %v", c2.Fg)
 	}
-	// Original unchanged
+	// WithFg returns a copy and leaves the receiver unchanged.
 	if !c.Fg.Equals(style.ColorWhite) {
 		t.Error("WithFg should not modify original")
 	}
@@ -118,9 +117,9 @@ func TestRuneWidth(t *testing.T) {
 		{'A', 1},
 		{'z', 1},
 		{' ', 1},
-		{'\u4e16', 2}, // CJK '世'
-		{'\uff21', 2}, // Fullwidth 'Ａ'
-		{0, 1},        // null rune treated as width 1
+		{'\u4e16', 2}, // CJK character 世.
+		{'\uff21', 2}, // Full-width character Ａ.
+		{0, 1},        // A zero rune represents a one-column empty cell.
 	}
 	for _, tt := range tests {
 		if got := RuneWidth(tt.r); got != tt.want {

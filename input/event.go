@@ -4,11 +4,7 @@ import (
 	"sync"
 )
 
-// ---------------------------------------------------------------------------
-// Event interface
-// ---------------------------------------------------------------------------
-
-// Event is the common interface for all event types.
+// Event controls propagation and default handling for an input event.
 type Event interface {
 	StopPropagation()
 	PreventDefault()
@@ -16,18 +12,14 @@ type Event interface {
 	DefaultPrevented() bool
 }
 
-// Compile-time interface checks.
+// Verify that each input event implements Event.
 var (
 	_ Event = (*KeyEvent)(nil)
 	_ Event = (*MouseEvent)(nil)
 	_ Event = (*PasteEvent)(nil)
 )
 
-// ---------------------------------------------------------------------------
-// EventType
-// ---------------------------------------------------------------------------
-
-// EventType tags event categories for the bus.
+// EventType identifies a terminal event category.
 type EventType int
 
 const (
@@ -37,22 +29,13 @@ const (
 	EventResize
 )
 
-// ---------------------------------------------------------------------------
-// ResizeEvent
-// ---------------------------------------------------------------------------
-
-// ResizeEvent signals a terminal size change.
+// ResizeEvent reports new terminal dimensions in cells.
 type ResizeEvent struct {
 	Width  int
 	Height int
 }
 
-// ---------------------------------------------------------------------------
-// TerminalEvent
-// ---------------------------------------------------------------------------
-
-// TerminalEvent wraps any event type with its EventType tag.
-// Used for channel-based delivery via the EventBus.
+// TerminalEvent contains one event payload identified by Type.
 type TerminalEvent struct {
 	Type   EventType
 	Key    *KeyEvent
@@ -61,41 +44,32 @@ type TerminalEvent struct {
 	Resize *ResizeEvent
 }
 
-// ---------------------------------------------------------------------------
-// HandlerID
-// ---------------------------------------------------------------------------
-
-// HandlerID uniquely identifies a subscription registered via On or Once.
-// Pass it to Off to unsubscribe. Zero is never a valid ID.
+// HandlerID identifies a subscription created by On or Once. Its zero value
+// does not identify a subscription.
 type HandlerID uint64
 
-// ---------------------------------------------------------------------------
-// EventBus
-// ---------------------------------------------------------------------------
-
-// handlerEntry pairs a unique ID with its callback.
+// handlerEntry associates a subscription ID with its callback.
 type handlerEntry struct {
 	id uint64
 	fn func(TerminalEvent)
 }
 
-// EventBus provides goroutine-safe pub/sub for events.
-// Subscriptions are identified by HandlerID — no reflection needed for Off.
+// EventBus dispatches events to subscribers. Its methods are safe for
+// concurrent use.
 type EventBus struct {
 	mu       sync.RWMutex
 	handlers map[EventType][]handlerEntry
 	nextID   uint64
 }
 
-// NewEventBus creates a new EventBus.
+// NewEventBus returns an EventBus with no subscriptions.
 func NewEventBus() *EventBus {
 	return &EventBus{
 		handlers: make(map[EventType][]handlerEntry),
 	}
 }
 
-// On subscribes a handler to an event type and returns a HandlerID
-// that can be passed to Off to unsubscribe.
+// On subscribes handler to eventType and returns its subscription ID.
 func (b *EventBus) On(eventType EventType, handler func(TerminalEvent)) HandlerID {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -105,8 +79,8 @@ func (b *EventBus) On(eventType EventType, handler func(TerminalEvent)) HandlerI
 	return HandlerID(id)
 }
 
-// Off unsubscribes the handler identified by the given HandlerID.
-// It is safe to call Off with an already-removed or zero ID (no-op).
+// Off removes the subscription identified by id. It does nothing if id is zero
+// or no longer registered.
 func (b *EventBus) Off(id HandlerID) {
 	if id == 0 {
 		return
@@ -125,8 +99,8 @@ func (b *EventBus) Off(id HandlerID) {
 	}
 }
 
-// Once subscribes a handler that fires only once, then removes itself.
-// Returns the HandlerID so the caller can cancel before it fires if needed.
+// Once subscribes handler and removes the subscription after the callback
+// returns. The returned ID can cancel the subscription before it runs.
 func (b *EventBus) Once(eventType EventType, handler func(TerminalEvent)) HandlerID {
 	var id HandlerID
 	id = b.On(eventType, func(ev TerminalEvent) {
@@ -136,11 +110,10 @@ func (b *EventBus) Once(eventType EventType, handler func(TerminalEvent)) Handle
 	return id
 }
 
-// Emit dispatches an event to all handlers of the matching type.
-// Handlers are called in subscription order.
+// Emit calls a snapshot of the matching subscribers in subscription order.
 func (b *EventBus) Emit(event TerminalEvent) {
 	b.mu.RLock()
-	// Copy the slice so handlers can call On/Off without deadlocking.
+	// Release the lock before callbacks so they can modify subscriptions.
 	entries := b.handlers[event.Type]
 	handlers := make([]func(TerminalEvent), len(entries))
 	for i, e := range entries {
@@ -153,10 +126,10 @@ func (b *EventBus) Emit(event TerminalEvent) {
 	}
 }
 
-// Clear removes all handlers from all event types.
+// Clear removes every subscription.
 func (b *EventBus) Clear() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.handlers = make(map[EventType][]handlerEntry)
-	// Note: nextID is intentionally not reset so IDs remain globally unique.
+	// Do not reuse IDs that callers may still retain.
 }

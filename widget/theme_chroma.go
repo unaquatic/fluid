@@ -7,137 +7,117 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// ChromaStyleFromTheme builds a *chroma.Style whose colors come from the
-// given Theme's CodePalette. The result can be plugged into a
-// ChromaHighlighter via NewChromaHighlighterWithStyle so syntax
-// highlighting stays in harmony with the rest of the UI palette.
+// ChromaStyleFromTheme returns a Chroma style derived from t's code palette.
+// Use the result with NewChromaHighlighterWithStyle to keep syntax colors
+// consistent with the rest of the UI theme.
 //
-// When a CodePalette field is unset (zero-alpha Color), a sensible parent
-// role is used (see the OrInherit calls below). That way callers can
-// specify just a handful of roles and still get full coverage.
+// Unset code colors inherit from related theme roles, so a partially specified
+// code palette still produces a complete syntax style.
 //
-// Chroma's inheritance tree means we only need to paint ~15 top-level
-// token types; the library propagates them to every child (e.g.
-// KeywordDeclaration inherits from Keyword, LiteralStringDouble from
-// LiteralString, CommentMultiline from Comment, etc.).
+// Chroma propagates these entries through its token hierarchy. For example,
+// KeywordDeclaration inherits Keyword and LiteralStringDouble inherits LiteralString.
 func ChromaStyleFromTheme(t *style.Theme) *chroma.Style {
 	c := t.Code
 
-	variable := style.OrInherit(c.Variable, t.TextStrong)
+	variable := c.Variable.Or(style.Entry{Fg: t.TextStrong})
 
 	entries := chroma.StyleEntries{
-		// Base — sets the fallback fg/bg for tokens that don't inherit
-		// a more specific color. The Background entry's bg feeds into
-		// what Chroma reports as the theme bg, but we also override
-		// per-token bg to t.CodeBg in resolveTokenStyle, so this is
-		// mostly cosmetic.
-		chroma.Background: bgSpec(variable, t.CodeBg),
-		chroma.Text:       variable.ToHex(),
-		chroma.Other:      variable.ToHex(),
+		// Base entries provide fallbacks for tokens without a more specific style.
+		// resolveTokenStyle still applies t.CodeBg as each token's background.
+		chroma.Background: spec(variable.WithBg(t.CodeBg)),
+		chroma.Text:       spec(variable),
+		chroma.Other:      spec(variable),
 
-		// Errors — leaf token types, no inheritance subtree.
-		chroma.Error: join(c.Error.ToHex(), attrsToChromaSpec(c.ErrorAttrs)),
+		// Error is a leaf token type.
+		chroma.Error: spec(c.Error),
 
-		// Keywords — all KeywordXxx inherit from Keyword.
-		chroma.Keyword:         join(c.Keyword.ToHex(), attrsToChromaSpec(c.KeywordAttrs)),
-		chroma.KeywordConstant: join(c.Constant.ToHex(), attrsToChromaSpec(c.ConstantAttrs)),
-		chroma.KeywordType:     join(c.Type.ToHex(), attrsToChromaSpec(c.TypeAttrs)),
+		// Specific keyword token types inherit Keyword unless overridden here.
+		chroma.Keyword:         spec(c.Keyword),
+		chroma.KeywordConstant: spec(c.Constant),
+		chroma.KeywordType:     spec(c.Type),
+		chroma.KeywordPseudo:   spec(c.Primitive.Or(c.Constant)),
 
-		// Names — Name is the parent of most identifiers.
-		chroma.Name:                variable.ToHex(),
-		chroma.NameBuiltin:         c.Builtin.ToHex(),
-		chroma.NameBuiltinPseudo:   c.Builtin.ToHex(),
-		chroma.NameFunction:        join(c.Function.ToHex(), attrsToChromaSpec(c.FunctionAttrs)),
-		chroma.NameClass:           join(c.Type.ToHex(), attrsToChromaSpec(c.TypeAttrs)),
-		chroma.NameConstant:        join(c.Constant.ToHex(), attrsToChromaSpec(c.ConstantAttrs)),
-		chroma.NameDecorator:       c.Decorator.ToHex(),
-		chroma.NameException:       c.Error.ToHex(),
-		chroma.NameNamespace:       c.Type.ToHex(),
-		chroma.NameOther:           variable.ToHex(),
-		chroma.NameTag:             style.OrInherit(c.Tag, c.Keyword).ToHex(),
-		chroma.NameAttribute:       style.OrInherit(c.Attribute, variable).ToHex(),
-		chroma.NameLabel:           c.Decorator.ToHex(),
-		chroma.NameVariable:        variable.ToHex(),
-		chroma.NameVariableClass:   variable.ToHex(),
-		chroma.NameVariableGlobal:  variable.ToHex(),
-		chroma.NameVariableInstance: variable.ToHex(),
+		// Name is the parent style for most identifiers.
+		chroma.Name:                 spec(variable),
+		chroma.NameBuiltin:          spec(c.Builtin),
+		chroma.NameBuiltinPseudo:    spec(c.Builtin),
+		chroma.NameFunction:         spec(c.Function),
+		chroma.NameClass:            spec(c.Type),
+		chroma.NameConstant:         spec(c.Constant),
+		chroma.NameDecorator:        spec(c.Decorator),
+		chroma.NameException:        spec(c.Error),
+		chroma.NameNamespace:        spec(c.Type),
+		chroma.NameOther:            spec(c.Object.Or(variable)),
+		chroma.NameProperty:         spec(c.Property.Or(variable)),
+		chroma.NameTag:              spec(c.Tag.Or(c.Keyword)),
+		chroma.NameAttribute:        spec(c.Attribute.Or(variable)),
+		chroma.NameLabel:            spec(c.Decorator),
+		chroma.NameVariable:         spec(variable),
+		chroma.NameVariableClass:    spec(variable),
+		chroma.NameVariableGlobal:   spec(variable),
+		chroma.NameVariableInstance: spec(variable),
 
-		// Literals — String and Number have deep subtrees that inherit.
-		chroma.LiteralString:       join(c.String.ToHex(), attrsToChromaSpec(c.StringAttrs)),
-		chroma.LiteralStringEscape: style.OrInherit(c.StringEscape, c.Number).ToHex(),
-		chroma.LiteralNumber:       c.Number.ToHex(),
-		chroma.LiteralDate:         c.Number.ToHex(),
+		// String and Number styles propagate to their literal subtypes.
+		chroma.LiteralString:       spec(c.String),
+		chroma.LiteralStringEscape: spec(c.StringEscape.Or(c.Number)),
+		chroma.LiteralStringRegex:  spec(c.Regex.Or(c.String)),
+		chroma.LiteralNumber:       spec(c.Number),
+		chroma.LiteralDate:         spec(c.Number),
 
 		// Operators
-		chroma.Operator:     join(c.Operator.ToHex(), attrsToChromaSpec(c.OperatorAttrs)),
-		chroma.OperatorWord: join(c.Keyword.ToHex(), attrsToChromaSpec(c.KeywordAttrs)),
+		chroma.Operator:     spec(c.Operator),
+		chroma.OperatorWord: spec(c.Keyword),
 
 		// Punctuation
-		chroma.Punctuation: join(c.Punctuation.ToHex(), attrsToChromaSpec(c.PunctuationAttrs)),
+		chroma.Punctuation: spec(c.Punctuation),
 
 		// Comments
-		chroma.Comment:        join(c.Comment.ToHex(), attrsToChromaSpec(c.CommentAttrs)),
-		chroma.CommentPreproc: style.OrInherit(c.Preproc, c.Comment).ToHex(),
+		chroma.Comment:        spec(c.Comment),
+		chroma.CommentPreproc: spec(c.Preproc.Or(c.Comment)),
 
-		// Generic (mostly diff output and markdown-as-code)
-		chroma.GenericInserted: style.OrInherit(c.DiffAdded, t.Success).ToHex(),
-		chroma.GenericDeleted:  style.OrInherit(c.DiffRemoved, t.Danger).ToHex(),
-		chroma.GenericEmph:     "italic",
-		chroma.GenericStrong:   "bold",
-		chroma.GenericHeading:  t.MarkdownHeading[0].ToHex() + " bold",
-		chroma.GenericError:    c.Error.ToHex(),
-		chroma.GenericOutput:   t.TextMuted.ToHex(),
-		chroma.GenericPrompt:   t.TextWeak.ToHex(),
-		chroma.GenericTraceback: c.Error.ToHex(),
+		// Generic token types primarily style diff and Markdown-like source.
+		chroma.GenericInserted:  spec(c.DiffAdded.Or(style.Entry{Fg: t.Success})),
+		chroma.GenericDeleted:   spec(c.DiffRemoved.Or(style.Entry{Fg: t.Danger})),
+		chroma.GenericEmph:      spec(t.ResolveMarkdownEmph()),
+		chroma.GenericStrong:    spec(t.ResolveMarkdownStrong()),
+		chroma.GenericHeading:   spec(t.ResolveMarkdownHeading(1)),
+		chroma.GenericError:     spec(c.Error),
+		chroma.GenericOutput:    spec(style.Entry{Fg: t.TextMuted}),
+		chroma.GenericPrompt:    spec(style.Entry{Fg: t.TextWeak}),
+		chroma.GenericTraceback: spec(c.Error),
 	}
 
-	// chroma.MustNewStyle panics on parse errors; because all inputs are
-	// hex-from-color (well-formed) or fixed literals, this won't happen
-	// in practice.
+	// Every specification below is generated from a Color or fixed keyword,
+	// so MustNewStyle cannot receive malformed style syntax.
 	return chroma.MustNewStyle("fluid-theme", entries)
 }
 
-// NewChromaHighlighterWithStyle returns a ChromaHighlighter that uses the
-// given pre-built chroma.Style, bypassing the name-based theme lookup.
-// Used when deriving a syntax style from a Theme palette.
+// NewChromaHighlighterWithStyle returns a highlighter that uses s directly
+// instead of resolving a Chroma theme by name.
 func NewChromaHighlighterWithStyle(s *chroma.Style) *ChromaHighlighter {
 	h := &ChromaHighlighter{theme: "fluid-theme"}
 	h.chromaStyle = s
 	return h
 }
 
-// ---------------------------------------------------------------------------
-// helpers
-// ---------------------------------------------------------------------------
-
-// bgSpec returns a Chroma StyleEntries spec that sets fg and bg.
-func bgSpec(fg, bg style.Color) string {
-	return fg.ToHex() + " bg:" + bg.ToHex()
-}
-
-// join concatenates non-empty parts with a single space, the format
-// Chroma's StyleEntries parser expects.
-func join(parts ...string) string {
-	nonEmpty := parts[:0]
-	for _, p := range parts {
-		if p != "" {
-			nonEmpty = append(nonEmpty, p)
-		}
-	}
-	return strings.Join(nonEmpty, " ")
-}
-
-// attrsToChromaSpec converts a bitmask of AttrBold / AttrItalic /
-// AttrUnderline into the corresponding Chroma spec words.
-func attrsToChromaSpec(attrs uint32) string {
+// spec formats an Entry for Chroma's StyleEntries parser, for example
+// `#cc7832 bg:#1c1c1c bold`. Unset
+// colors are omitted so Chroma's own inheritance fills them in.
+func spec(e style.Entry) string {
 	var parts []string
-	if attrs&style.AttrBold != 0 {
+	if e.Fg.A != 0 {
+		parts = append(parts, e.Fg.ToHex())
+	}
+	if e.Bg.A != 0 {
+		parts = append(parts, "bg:"+e.Bg.ToHex())
+	}
+	if e.Attrs&style.AttrBold != 0 {
 		parts = append(parts, "bold")
 	}
-	if attrs&style.AttrItalic != 0 {
+	if e.Attrs&style.AttrItalic != 0 {
 		parts = append(parts, "italic")
 	}
-	if attrs&style.AttrUnderline != 0 {
+	if e.Attrs&style.AttrUnderline != 0 {
 		parts = append(parts, "underline")
 	}
 	return strings.Join(parts, " ")

@@ -4,10 +4,7 @@ import (
 	"testing"
 )
 
-// ---------------------------------------------------------------------------
-// Mock renderer
-// ---------------------------------------------------------------------------
-
+// mockRenderer records the live-rendering reference count.
 type mockRenderer struct {
 	liveCount int
 }
@@ -15,17 +12,11 @@ type mockRenderer struct {
 func (m *mockRenderer) RequestLive() { m.liveCount++ }
 func (m *mockRenderer) DropLive()    { m.liveCount-- }
 
-// ---------------------------------------------------------------------------
-// Setup / Teardown
-// ---------------------------------------------------------------------------
-
 func resetForTest() {
 	ResetEngine()
 }
 
-// ---------------------------------------------------------------------------
-// Attach / Detach
-// ---------------------------------------------------------------------------
+// Renderer attachment.
 
 func TestAttachDetach(t *testing.T) {
 	resetForTest()
@@ -46,9 +37,7 @@ func TestAttachDetach(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Register / Unregister
-// ---------------------------------------------------------------------------
+// Timeline registration.
 
 func TestRegisterUnregister(t *testing.T) {
 	resetForTest()
@@ -59,7 +48,7 @@ func TestRegisterUnregister(t *testing.T) {
 		t.Errorf("expected 1 timeline, got %d", ActiveCount())
 	}
 
-	// Duplicate registration should not add twice
+	// Duplicate registration leaves only one entry.
 	Register(tl)
 	if ActiveCount() != 1 {
 		t.Errorf("expected 1 timeline after duplicate, got %d", ActiveCount())
@@ -71,9 +60,7 @@ func TestRegisterUnregister(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Update drives timelines
-// ---------------------------------------------------------------------------
+// Engine updates.
 
 func TestUpdateDrivesTimelines(t *testing.T) {
 	resetForTest()
@@ -95,10 +82,6 @@ func TestUpdateDrivesTimelines(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Completed timelines are auto-removed
-// ---------------------------------------------------------------------------
-
 func TestCompletedAutoRemove(t *testing.T) {
 	resetForTest()
 
@@ -116,15 +99,11 @@ func TestCompletedAutoRemove(t *testing.T) {
 		t.Errorf("expected 1, got %d", ActiveCount())
 	}
 
-	Update(0.6) // complete the timeline
+	Update(0.6) // Advance beyond the configured duration.
 	if ActiveCount() != 0 {
 		t.Errorf("expected 0 after completion, got %d", ActiveCount())
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Clear
-// ---------------------------------------------------------------------------
 
 func TestClear(t *testing.T) {
 	resetForTest()
@@ -143,9 +122,7 @@ func TestClear(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Synced timelines are not updated by engine
-// ---------------------------------------------------------------------------
+// Parent-driven timelines.
 
 func TestSyncedNotUpdatedByEngine(t *testing.T) {
 	resetForTest()
@@ -168,10 +145,6 @@ func TestSyncedNotUpdatedByEngine(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// CreateTimeline convenience
-// ---------------------------------------------------------------------------
-
 func TestCreateTimeline(t *testing.T) {
 	resetForTest()
 
@@ -184,9 +157,7 @@ func TestCreateTimeline(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Live rendering integration
-// ---------------------------------------------------------------------------
+// Live-rendering references.
 
 func TestLiveRendering(t *testing.T) {
 	resetForTest()
@@ -207,17 +178,13 @@ func TestLiveRendering(t *testing.T) {
 		t.Errorf("expected liveCount=1 after registering playing timeline, got %d", r.liveCount)
 	}
 
-	// Complete
+	// Completion releases the engine's live-rendering reference.
 	Update(0.6)
 
 	if r.liveCount != 0 {
 		t.Errorf("expected liveCount=0 after all timelines complete, got %d", r.liveCount)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Multiple timelines
-// ---------------------------------------------------------------------------
 
 func TestMultipleTimelines(t *testing.T) {
 	resetForTest()
@@ -254,8 +221,8 @@ func TestMultipleTimelines(t *testing.T) {
 		t.Errorf("b = %f, want ≈ 50.0", gotB)
 	}
 
-	// After tl2 completes, only tl1 remains
-	Update(0.1) // tl2 should be auto-removed
+	// Only the longer timeline remains after the shorter one completes.
+	Update(0.1)
 	if ActiveCount() != 1 {
 		t.Errorf("expected 1 after tl2 completes, got %d", ActiveCount())
 	}

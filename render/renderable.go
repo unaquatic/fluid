@@ -6,204 +6,186 @@ import (
 	"github.com/unaquatic/fluid/layout"
 )
 
-// Renderable is the core interface for all UI components in the scene graph.
-// Every widget implements this interface, typically by embedding
-// BaseRenderable which provides default implementations for all methods.
+// Renderable is a UI component in the retained scene graph. Widgets typically
+// implement it by embedding BaseRenderable and overriding component-specific
+// methods.
 type Renderable interface {
-	// --- Identity ---
+	// Identity.
 
-	// ID returns the string identifier assigned to this renderable.
+	// ID returns the renderable's string identifier.
 	ID() string
 	// SetID sets the string identifier.
 	SetID(id string)
-	// Num returns the globally unique numeric ID, assigned at construction.
-	// Used by the hit grid for O(1) mouse dispatch.
+	// Num returns the numeric ID used by hit testing.
 	Num() uint64
 
-	// --- Tree ---
+	// Tree structure.
 
-	// Parent returns this node's parent in the scene graph, or nil for root.
+	// Parent returns the scene graph parent, or nil for a root.
 	Parent() Renderable
-	// SetParent sets this node's parent. Called internally by Add/Remove.
+	// SetParent sets the scene graph parent.
 	SetParent(r Renderable)
-	// Children returns a copy of the child renderables (safe to modify).
+	// Children returns a copy of the direct children.
 	Children() []Renderable
-	// ChildrenRaw returns the underlying children slice without copying.
-	// The caller must NOT modify the returned slice.
+	// ChildrenRaw returns the underlying children slice for read-only iteration.
 	ChildrenRaw() []Renderable
-	// Add appends a child (or inserts at index). Returns the child's position.
+	// Add appends child or inserts it at the first optional index. It returns the
+	// resulting child index.
 	Add(child Renderable, index ...int) int
-	// Remove detaches the child with the given ID from this node.
+	// Remove detaches the direct child identified by id.
 	Remove(id string)
 	// InsertBefore inserts child immediately before anchor in the child list.
 	InsertBefore(child, anchor Renderable)
-	// Renderable returns the direct child with the given ID, or nil.
+	// Renderable returns the direct child identified by id, or nil.
 	Renderable(id string) Renderable
-	// FindDescendantByID performs a depth-first search for a descendant
-	// with the given ID. Returns nil if not found.
+	// FindDescendantByID returns the first matching node in a depth-first search
+	// of this subtree, including the receiver.
 	FindDescendantByID(id string) Renderable
 	// ChildrenCount returns the number of direct children.
 	ChildrenCount() int
 
-	// --- State ---
+	// State.
 
-	// Visible returns whether this renderable is visible. Invisible nodes
-	// are skipped during layout, rendering, and hit testing.
+	// Visible reports whether the renderable is drawn and hit tested. A hidden
+	// renderable retains its layout space.
 	Visible() bool
 	// SetVisible shows or hides this renderable.
 	SetVisible(v bool)
-	// IsDirty returns true if this renderable needs re-rendering.
+	// IsDirty reports whether the renderable requires repainting.
 	IsDirty() bool
-	// RequestRender marks this renderable (and the scene) as dirty.
+	// RequestRender marks the renderable dirty and requests a scene repaint.
 	RequestRender()
-	// IsDestroyed returns true if Destroy has been called.
+	// IsDestroyed reports whether Destroy was called.
 	IsDestroyed() bool
 
-	// --- Layout ---
+	// Layout.
 
-	// LayoutNode returns the underlying flexbox layout node. Widgets
-	// configure layout properties (width, height, flex, padding, etc.)
-	// through this node.
+	// LayoutNode returns the flexbox node configured by the renderable.
 	LayoutNode() *layout.LayoutNode
-	// X returns the computed absolute x position after layout.
+	// X returns the resolved absolute x-coordinate.
 	X() int
-	// Y returns the computed absolute y position after layout.
+	// Y returns the resolved absolute y-coordinate.
 	Y() int
-	// Width returns the computed width after layout.
+	// Width returns the resolved width.
 	Width() int
-	// Height returns the computed height after layout.
+	// Height returns the resolved height.
 	Height() int
-	// SetOpacity sets the opacity (0.0 = transparent, 1.0 = opaque).
+	// SetOpacity sets opacity, where zero is transparent and one is opaque.
 	SetOpacity(o float32)
 	// Opacity returns the current opacity.
 	Opacity() float32
-	// TranslateX returns the horizontal offset applied after layout.
-	// Used by ScrollBox to implement scrolling.
+	// TranslateX returns the horizontal offset inherited by descendants after
+	// layout.
 	TranslateX() int
-	// TranslateY returns the vertical offset applied after layout.
+	// TranslateY returns the vertical offset inherited by descendants after layout.
 	TranslateY() int
 	// SetTranslateX sets the horizontal post-layout offset.
 	SetTranslateX(x int)
 	// SetTranslateY sets the vertical post-layout offset.
 	SetTranslateY(y int)
-	// StickyOffsetX returns the horizontal sticky position offset.
+	// StickyOffsetX returns the renderable's horizontal sticky offset.
 	StickyOffsetX() int
 	// SetStickyOffsetX sets the horizontal sticky position offset.
 	SetStickyOffsetX(x int)
-	// StickyOffsetY returns the vertical sticky position offset.
+	// StickyOffsetY returns the renderable's vertical sticky offset.
 	StickyOffsetY() int
 	// SetStickyOffsetY sets the vertical sticky position offset.
 	SetStickyOffsetY(y int)
 
-	// --- Rendering ---
+	// Rendering.
 
-	// Render is the top-level render entry point. It calls RenderBefore,
-	// RenderSelf, renders children, then RenderAfter. Override sparingly;
-	// most widgets only need to override RenderSelf.
+	// Render draws this renderable. Scene graph traversal schedules child
+	// renderables separately.
 	Render(buf *buffer.Buffer, deltaTime float64)
-	// RenderSelf draws this widget's own content into the buffer.
-	// This is the primary method widgets override.
+	// RenderSelf draws the renderable's own content and is the primary widget
+	// override point.
 	RenderSelf(buf *buffer.Buffer, deltaTime float64)
-	// RenderBefore is called before RenderSelf. Use for background fills
-	// or setup that must happen before content.
+	// RenderBefore draws content that must precede RenderSelf.
 	RenderBefore(buf *buffer.Buffer, deltaTime float64)
-	// RenderAfter is called after all children have rendered. Use for
-	// overlays, borders, or decorations.
+	// RenderAfter draws overlays or decorations after the renderable's content.
 	RenderAfter(buf *buffer.Buffer, deltaTime float64)
 
-	// --- Focus ---
+	// Focus and keyboard input.
 
-	// Focusable returns whether this widget can receive keyboard focus.
+	// Focusable reports whether the renderable can receive keyboard focus.
 	Focusable() bool
-	// SetFocusable enables or disables keyboard focus for this widget.
+	// SetFocusable controls whether the renderable can receive keyboard focus.
 	SetFocusable(f bool)
-	// Focused returns true if this widget currently has keyboard focus.
+	// Focused reports whether the renderable currently has keyboard focus.
 	Focused() bool
-	// Focus gives this widget keyboard focus. Called by the renderer.
+	// Focus requests keyboard focus for the renderable.
 	Focus()
-	// Blur removes keyboard focus from this widget. Called by the renderer.
+	// Blur removes keyboard focus from the renderable.
 	Blur()
-	// HandleKeyPress processes a key event. Returns true if the event was
-	// consumed and should not propagate further.
+	// HandleKeyPress processes e and reports whether propagation should stop.
 	HandleKeyPress(e *input.KeyEvent) bool
 	// HandlePaste processes a bracketed paste event.
 	HandlePaste(e *input.PasteEvent)
 
-	// --- Mouse ---
+	// Mouse input.
 
-	// ProcessMouseEvent handles a mouse event dispatched to this widget
-	// by the hit grid.
+	// ProcessMouseEvent handles a mouse event dispatched by the hit grid.
 	ProcessMouseEvent(e *input.MouseEvent)
 
-	// --- Selection ---
+	// Selection.
 
-	// Selectable returns whether this widget participates in text selection.
+	// Selectable reports whether the renderable participates in text selection.
 	Selectable() bool
-	// SetSelectable enables or disables text selection for this widget.
+	// SetSelectable controls participation in text selection.
 	SetSelectable(s bool)
-	// ShouldStartSelection returns true if a mouse-down at (x, y) should
-	// begin a text selection rather than other interactions.
+	// ShouldStartSelection reports whether a mouse press at (x, y) should begin
+	// text selection instead of another interaction.
 	ShouldStartSelection(x, y int) bool
-	// SelectedText returns the currently selected text within this widget,
-	// or "" if nothing is selected.
+	// SelectedText returns the text selected within the renderable.
 	SelectedText() string
-	// HasSelection returns true if this widget has an active text selection.
+	// HasSelection reports whether the renderable has an active text selection.
 	HasSelection() bool
 
-	// --- Lifecycle ---
+	// Lifecycle.
 
-	// OnUpdate is called once per frame for registered widgets, before
-	// layout. Use for animations, polling, or time-based state changes.
+	// OnUpdate runs before layout for each frame in which the widget is updated.
 	OnUpdate(deltaTime float64)
-	// OnPostLayout is called after layout has been computed but before
-	// rendering. Use for logic that depends on final positions/sizes.
+	// OnPostLayout runs after layout and before rendering.
 	OnPostLayout(deltaTime float64)
-	// OnResize is called when this widget's dimensions change between frames.
+	// OnResize handles a change to the renderable's resolved dimensions.
 	OnResize(width, height int)
-	// Destroy releases resources held by this widget. The widget must not
-	// be used after Destroy is called.
+	// Destroy detaches and unregisters the renderable.
 	Destroy()
-	// DestroyRecursively destroys this widget and all descendants.
+	// DestroyRecursively destroys the renderable and every descendant.
 	DestroyRecursively()
 
-	// --- Context ---
+	// Context.
 
-	// Context returns the Context this widget is attached to, or a
-	// no-op context if the widget has not been added to a renderer.
+	// Context returns the attached renderer context or a no-op context.
 	Context() Context
-	// SetContext attaches a Context. Called internally when the widget
-	// is added to the scene graph.
+	// SetContext attaches a renderer context.
 	SetContext(ctx Context)
 
-	// --- Buffered mode ---
+	// Buffered rendering.
 
-	// Buffered returns true if this widget renders into a private frame
-	// buffer that is composited onto the main buffer.
+	// Buffered reports whether the renderable uses a private frame buffer.
 	Buffered() bool
-	// SetBuffered enables or disables private frame buffer mode.
+	// SetBuffered controls private frame-buffer rendering.
 	SetBuffered(b bool)
-	// FrameBuffer returns the private frame buffer, or nil if not buffered.
+	// FrameBuffer returns the private frame buffer, or nil if none is allocated.
 	FrameBuffer() *buffer.Buffer
 
-	// --- Live mode ---
+	// Continuous rendering.
 
-	// Live returns true if this widget has requested continuous rendering.
+	// Live reports whether the renderable requested continuous rendering.
 	Live() bool
-	// SetLive enables or disables live (continuous rendering) mode. When
-	// enabled, the renderer runs at full frame rate regardless of dirty
-	// state.
+	// SetLive controls continuous rendering independent of dirty state.
 	SetLive(l bool)
-	// LiveCount returns the number of live-mode children (including self).
+	// LiveCount returns the renderable's local live-render request count.
 	LiveCount() int
 
-	// --- Layout position update ---
+	// Layout synchronization.
 
-	// UpdateFromLayout reads the computed position from the flexbox layout
-	// node and stores it. Called during the layout traversal pass.
+	// UpdateFromLayout copies the flexbox result and applies the renderable's own
+	// translation and sticky offset.
 	UpdateFromLayout()
-	// UpdateFromLayoutWithOffset applies an inherited parent offset (from
-	// ancestor translates, e.g. scroll offsets) to the computed position.
-	// The node's own TranslateX/Y is NOT included — it is accumulated
-	// separately and passed to descendants.
+	// UpdateFromLayoutWithOffset copies the flexbox result with inherited
+	// translation offsets. It does not apply the renderable's own translation,
+	// which traversal passes to descendants separately.
 	UpdateFromLayoutWithOffset(offsetX, offsetY int)
 }

@@ -2,21 +2,18 @@ package terminal
 
 import "github.com/unaquatic/fluid/buffer"
 
-// HitGrid maps terminal cell coordinates to Renderable numeric IDs for O(1)
-// mouse targeting. Each cell stores the ID of the last widget rendered into
-// it (painter's algorithm). The renderer rebuilds the grid every frame during
-// the render pass and queries it when dispatching mouse events. Supports a
-// scissor stack so that widgets inside scroll containers only receive hits
-// within their visible bounds.
+// HitGrid maps each terminal cell to the numeric ID of the last renderable
+// registered there. A clipping stack restricts registration for clipped
+// descendants.
 type HitGrid struct {
-	grid         []uint64 // flat array, width * height
+	grid         []uint64 // IDs in row-major order.
 	width        int
 	height       int
 	scissorStack []buffer.Rect
 	dirty        bool
 }
 
-// NewHitGrid creates a hit grid of the given size.
+// NewHitGrid returns an empty hit grid with nonnegative dimensions.
 func NewHitGrid(width, height int) *HitGrid {
 	if width < 0 {
 		width = 0
@@ -31,8 +28,8 @@ func NewHitGrid(width, height int) *HitGrid {
 	}
 }
 
-// Add registers a rect in the hit grid with the given renderable ID.
-// Later writes overwrite earlier ones (painter's algorithm: last rendered wins).
+// Add assigns id to each in-bounds cell in the rectangle. Later calls replace
+// earlier IDs in overlapping cells.
 func (h *HitGrid) Add(x, y, w, hh int, id uint64) {
 	for row := y; row < y+hh; row++ {
 		for col := x; col < x+w; col++ {
@@ -44,7 +41,8 @@ func (h *HitGrid) Add(x, y, w, hh int, id uint64) {
 	}
 }
 
-// AddClipped registers a rect, respecting the active scissor rect.
+// AddClipped assigns id within the intersection of the rectangle and active
+// clipping region.
 func (h *HitGrid) AddClipped(x, y, w, hh int, id uint64) {
 	clip := h.activeScissor()
 	if clip == nil {
@@ -52,7 +50,7 @@ func (h *HitGrid) AddClipped(x, y, w, hh int, id uint64) {
 		return
 	}
 
-	// Intersect the rect with the scissor
+	// Restrict the requested rectangle to the effective clip.
 	x1 := maxInt(x, clip.X)
 	y1 := maxInt(y, clip.Y)
 	x2 := minInt(x+w, clip.X+clip.Width)
@@ -64,7 +62,8 @@ func (h *HitGrid) AddClipped(x, y, w, hh int, id uint64) {
 	h.Add(x1, y1, x2-x1, y2-y1, id)
 }
 
-// Check returns the renderable ID at (x, y), or 0 if none.
+// Check returns the renderable ID at (x, y), or zero outside the grid or where
+// no renderable is registered.
 func (h *HitGrid) Check(x, y int) uint64 {
 	if x < 0 || x >= h.width || y < 0 || y >= h.height {
 		return 0
@@ -80,11 +79,11 @@ func (h *HitGrid) Clear() {
 	h.dirty = false
 }
 
-// PushScissorRect pushes a clipping rect onto the scissor stack.
+// PushScissorRect adds a clipping rectangle intersected with the active region.
 func (h *HitGrid) PushScissorRect(x, y, w, hh int) {
 	rect := buffer.Rect{X: x, Y: y, Width: w, Height: hh}
 
-	// If there's already a scissor, intersect with it
+	// Store the effective intersection for constant-time access.
 	if len(h.scissorStack) > 0 {
 		top := h.scissorStack[len(h.scissorStack)-1]
 		rect = top.Intersect(rect)
@@ -93,24 +92,25 @@ func (h *HitGrid) PushScissorRect(x, y, w, hh int) {
 	h.scissorStack = append(h.scissorStack, rect)
 }
 
-// PopScissorRect pops the current scissor rect.
+// PopScissorRect removes the most recently pushed clipping rectangle.
 func (h *HitGrid) PopScissorRect() {
 	if len(h.scissorStack) > 0 {
 		h.scissorStack = h.scissorStack[:len(h.scissorStack)-1]
 	}
 }
 
-// ClearScissorRects clears all scissor rects.
+// ClearScissorRects removes all clipping restrictions.
 func (h *HitGrid) ClearScissorRects() {
 	h.scissorStack = h.scissorStack[:0]
 }
 
-// IsDirty returns whether the grid changed since the last Clear.
+// IsDirty reports whether Add wrote an in-bounds cell since the last Clear or
+// Resize.
 func (h *HitGrid) IsDirty() bool {
 	return h.dirty
 }
 
-// Resize resizes the grid, clearing all entries.
+// Resize changes the grid dimensions and clears all entries and clipping state.
 func (h *HitGrid) Resize(width, height int) {
 	if width < 0 {
 		width = 0
@@ -125,13 +125,14 @@ func (h *HitGrid) Resize(width, height int) {
 	h.scissorStack = h.scissorStack[:0]
 }
 
-// Width returns the grid width.
+// Width returns the grid width in cells.
 func (h *HitGrid) Width() int { return h.width }
 
-// Height returns the grid height.
+// Height returns the grid height in cells.
 func (h *HitGrid) Height() int { return h.height }
 
-// activeScissor returns the current scissor rect, or nil if none.
+// activeScissor returns the effective clipping rectangle, or nil when
+// unrestricted.
 func (h *HitGrid) activeScissor() *buffer.Rect {
 	if len(h.scissorStack) == 0 {
 		return nil

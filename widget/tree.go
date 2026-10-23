@@ -11,7 +11,7 @@ import (
 	"github.com/unaquatic/fluid/symbol"
 )
 
-// TreeNode represents a node in the tree.
+// TreeNode contains one displayed value and its child nodes.
 type TreeNode struct {
 	Text     string
 	Value    any
@@ -19,18 +19,18 @@ type TreeNode struct {
 	Expanded bool
 }
 
-// flatTreeItem is a flattened tree node for rendering.
+// flatTreeItem pairs a visible node with its depth in the expanded tree.
 type flatTreeItem struct {
 	node  *TreeNode
 	depth int
 }
 
-// Tree is an expandable/collapsible tree view with key navigation.
+// Tree is a keyboard-navigable view of expandable TreeNode values.
 type Tree struct {
 	*render.BaseRenderable
 
 	root          []*TreeNode
-	selectedIndex int // index in flattened list
+	selectedIndex int // Index in flatItems.
 	scrollOffset  int
 
 	textColor       style.Color
@@ -41,16 +41,17 @@ type Tree struct {
 
 	indentSize int
 
-	// Flattened view
+	// flatItems contains only nodes visible under the current expansion state.
 	flatItems []flatTreeItem
 
+	// OnNodeSelected is called when the user activates a leaf node.
 	OnNodeSelected func(node *TreeNode)
 }
 
 // TreeOption configures a Tree.
 type TreeOption func(*Tree)
 
-// NewTree creates a Tree widget.
+// NewTree returns a focusable Tree rooted at root.
 func NewTree(root []*TreeNode, opts ...TreeOption) *Tree {
 	t := &Tree{
 		BaseRenderable:  render.NewBaseRenderable(render.WithFocusable(true)),
@@ -81,7 +82,7 @@ func (t *Tree) SetRoot(root []*TreeNode) {
 	t.RequestRender()
 }
 
-// flatten builds the flat list from the tree.
+// flatten rebuilds the visible, depth-annotated node list.
 func (t *Tree) flatten() {
 	t.flatItems = nil
 	for _, node := range t.root {
@@ -130,13 +131,13 @@ func (t *Tree) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 			buf.FillRect(x, screenY, w, 1, bg)
 		}
 
-		// Build prefix
+		// Indent by depth before the expand/collapse indicator.
 		var indent strings.Builder
 		for d := 0; d < item.depth*t.indentSize; d++ {
 			indent.WriteString(" ")
 		}
 
-		// Expand indicator
+		// Branches show their current expansion state; leaves reserve one cell.
 		indicator := " "
 		if len(item.node.Children) > 0 {
 			if item.node.Expanded {
@@ -149,7 +150,7 @@ func (t *Tree) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 		text := truncateToWidth(indent.String()+indicator+" "+item.node.Text, w)
 		buf.DrawText(text, x, screenY, fg)
 
-		// Draw branch indicator in a different color
+		// Repaint branch indicators with their dedicated color.
 		if len(item.node.Children) > 0 {
 			indentWidth := item.depth * t.indentSize
 			buf.DrawText(indicator, x+indentWidth, screenY, t.branchColor)
@@ -157,7 +158,7 @@ func (t *Tree) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 	}
 }
 
-// HandleKeyPress processes keyboard input.
+// HandleKeyPress moves, expands, collapses, or activates the selected node.
 func (t *Tree) HandleKeyPress(e *input.KeyEvent) bool {
 	if e.Type == input.KeyRelease || len(t.flatItems) == 0 {
 		return false
@@ -246,14 +247,14 @@ func (t *Tree) ensureVisible() {
 	}
 }
 
-// --- Tree Options ---
+// Tree options.
 
 // TreeWithTextColor sets the text color.
 func TreeWithTextColor(c style.Color) TreeOption {
 	return func(t *Tree) { t.textColor = c }
 }
 
-// TreeWithSelectedBg sets the selected background.
+// TreeWithSelectedBg sets the selected row's background color.
 func TreeWithSelectedBg(c style.Color) TreeOption {
 	return func(t *Tree) { t.selectedBg = c }
 }
@@ -263,12 +264,12 @@ func TreeWithBranchColor(c style.Color) TreeOption {
 	return func(t *Tree) { t.branchColor = c }
 }
 
-// TreeWithIndentSize sets the indent size per depth level.
+// TreeWithIndentSize sets the number of columns added for each depth level.
 func TreeWithIndentSize(n int) TreeOption {
 	return func(t *Tree) { t.indentSize = n }
 }
 
-// TreeWithOnNodeSelected sets the node selected callback.
+// TreeWithOnNodeSelected sets the callback invoked when the user activates a leaf.
 func TreeWithOnNodeSelected(fn func(*TreeNode)) TreeOption {
 	return func(t *Tree) { t.OnNodeSelected = fn }
 }

@@ -10,7 +10,7 @@ func TestScissorStack_Empty(t *testing.T) {
 	if s.Current() != nil {
 		t.Error("empty stack Current() should be nil")
 	}
-	// No clipping: should contain any point
+	// An empty stack represents unrestricted drawing.
 	if !s.Contains(0, 0) {
 		t.Error("empty stack should contain (0,0)")
 	}
@@ -34,14 +34,13 @@ func TestScissorStack_PushPop(t *testing.T) {
 		t.Errorf("Current() = %+v, want {5 5 10 10}", *r)
 	}
 
-	// Point inside
+	// The clipping rectangle includes its minimum edges and excludes its maximum edges.
 	if !s.Contains(5, 5) {
 		t.Error("should contain (5,5)")
 	}
 	if !s.Contains(14, 14) {
 		t.Error("should contain (14,14)")
 	}
-	// Point outside
 	if s.Contains(4, 5) {
 		t.Error("should not contain (4,5)")
 	}
@@ -61,9 +60,8 @@ func TestScissorStack_PushPop(t *testing.T) {
 func TestScissorStack_Intersection(t *testing.T) {
 	var s scissorStack
 
-	// First rect: (0,0)-(20,20)
+	// The two rectangles overlap from (10,10) up to, but not including, (20,20).
 	s.Push(0, 0, 20, 20)
-	// Second rect: (10,10)-(30,30) -> intersection should be (10,10)-(20,20) = {10,10,10,10}
 	s.Push(10, 10, 20, 20)
 
 	if s.Len() != 2 {
@@ -91,7 +89,7 @@ func TestScissorStack_Intersection(t *testing.T) {
 		t.Error("should not contain (20,20)")
 	}
 
-	// Pop inner, should revert to outer
+	// Removing the inner rectangle restores the outer rectangle.
 	s.Pop()
 	r = s.Current()
 	if r.X != 0 || r.Y != 0 || r.Width != 20 || r.Height != 20 {
@@ -103,7 +101,7 @@ func TestScissorStack_NonOverlapping(t *testing.T) {
 	var s scissorStack
 
 	s.Push(0, 0, 5, 5)
-	s.Push(10, 10, 5, 5) // no overlap
+	s.Push(10, 10, 5, 5) // This rectangle does not overlap the first.
 
 	r := s.Current()
 	if r == nil {
@@ -113,7 +111,7 @@ func TestScissorStack_NonOverlapping(t *testing.T) {
 		t.Errorf("non-overlapping intersection should be empty, got %+v", *r)
 	}
 
-	// Nothing should be contained
+	// An empty effective rectangle contains no points.
 	if s.Contains(0, 0) {
 		t.Error("should not contain any point in empty intersection")
 	}
@@ -138,7 +136,7 @@ func TestScissorStack_Clear(t *testing.T) {
 
 func TestScissorStack_PopEmpty(t *testing.T) {
 	var s scissorStack
-	// Should not panic
+	// Popping an empty stack is a safe no-op.
 	s.Pop()
 	if s.Len() != 0 {
 		t.Error("Pop on empty stack should leave Len()=0")

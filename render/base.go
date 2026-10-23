@@ -12,16 +12,12 @@ import (
 	"github.com/unaquatic/fluid/textbuf"
 )
 
-// ---------------------------------------------------------------------------
-// Global counter & registry
-// ---------------------------------------------------------------------------
+var nextNum uint64 // Accessed atomically when assigning numeric IDs.
 
-var nextNum uint64 // atomic counter
-
-// renderablesByNum is used by the hit grid for O(1) mouse dispatch.
+// renderablesByNum resolves hit-grid IDs to renderables.
 var renderablesByNum sync.Map // map[uint64]Renderable
 
-// LookupRenderable returns the Renderable registered with the given num, or nil.
+// LookupRenderable returns the renderable registered under num, or nil.
 func LookupRenderable(num uint64) Renderable {
 	v, ok := renderablesByNum.Load(num)
 	if !ok {
@@ -30,26 +26,20 @@ func LookupRenderable(num uint64) Renderable {
 	return v.(Renderable)
 }
 
-// ---------------------------------------------------------------------------
-// RenderableOption
-// ---------------------------------------------------------------------------
-
-// RenderableOption is a functional option for configuring a BaseRenderable
-// at construction time. Pass these to NewBaseRenderable or widget constructors
-// that accept them (e.g. WithID, WithVisible, WithFocusable).
+// RenderableOption configures a BaseRenderable during construction.
 type RenderableOption func(*BaseRenderable)
 
-// WithID sets the string identifier.
+// WithID sets the initial string identifier.
 func WithID(id string) RenderableOption {
 	return func(b *BaseRenderable) { b.id = id }
 }
 
-// WithVisible sets the initial visibility.
+// WithVisible sets whether the renderable is initially visible.
 func WithVisible(v bool) RenderableOption {
 	return func(b *BaseRenderable) { b.visible = v }
 }
 
-// WithFocusable sets the initial focusability.
+// WithFocusable sets whether the renderable can initially receive focus.
 func WithFocusable(f bool) RenderableOption {
 	return func(b *BaseRenderable) { b.focusable = f }
 }
@@ -59,94 +49,92 @@ func WithOpacity(o float32) RenderableOption {
 	return func(b *BaseRenderable) { b.opacity = o }
 }
 
-// WithBuffered enables or disables private frame buffer mode.
+// WithBuffered controls the initial private frame-buffer mode.
 func WithBuffered(v bool) RenderableOption {
 	return func(b *BaseRenderable) { b.buffered = v }
 }
 
-// WithLive enables or disables live (continuous rendering) mode.
+// WithLive controls the initial continuous-rendering mode.
 func WithLive(l bool) RenderableOption {
 	return func(b *BaseRenderable) { b.live = l }
 }
 
-// WithSelectable sets the initial selectability.
+// WithSelectable sets whether the renderable initially supports text selection.
 func WithSelectable(s bool) RenderableOption {
 	return func(b *BaseRenderable) { b.selectable = s }
 }
 
-// --- Layout options ---
-
-// WithWidth sets the layout node width.
+// WithWidth sets the preferred layout width.
 func WithWidth(s layout.Scalar) RenderableOption {
 	return func(b *BaseRenderable) { b.layoutNode.Width = s }
 }
 
-// WithHeight sets the layout node height.
+// WithHeight sets the preferred layout height.
 func WithHeight(s layout.Scalar) RenderableOption {
 	return func(b *BaseRenderable) { b.layoutNode.Height = s }
 }
 
-// WithFlexGrow sets the flex grow factor.
+// WithFlexGrow sets the layout growth factor.
 func WithFlexGrow(v int) RenderableOption {
 	return func(b *BaseRenderable) { b.layoutNode.FlexGrow = v }
 }
 
-// WithFlexShrink sets the flex shrink factor.
+// WithFlexShrink sets the layout shrink factor.
 func WithFlexShrink(v int) RenderableOption {
 	return func(b *BaseRenderable) { b.layoutNode.FlexShrink = v }
 }
 
-// WithFlexDirection sets the flex direction.
+// WithFlexDirection sets the layout main axis and item order.
 func WithFlexDirection(d layout.FlexDirection) RenderableOption {
 	return func(b *BaseRenderable) { b.layoutNode.FlexDirection = d }
 }
 
-// WithJustifyContent sets the justify content mode.
+// WithJustifyContent sets main-axis item distribution.
 func WithJustifyContent(j layout.JustifyContent) RenderableOption {
 	return func(b *BaseRenderable) { b.layoutNode.JustifyContent = j }
 }
 
-// WithAlignItems sets the align items mode.
+// WithAlignItems sets cross-axis item alignment.
 func WithAlignItems(a layout.Align) RenderableOption {
 	return func(b *BaseRenderable) { b.layoutNode.AlignItems = a }
 }
 
-// WithPadding sets all four paddings to the same value.
+// WithPadding sets padding on all four sides.
 func WithPadding(s layout.Scalar) RenderableOption {
 	return func(b *BaseRenderable) { b.layoutNode.SetPadding(s) }
 }
 
-// WithMargin sets all four margins to the same value.
+// WithMargin sets all four margins.
 func WithMargin(s layout.Scalar) RenderableOption {
 	return func(b *BaseRenderable) { b.layoutNode.SetMargin(s) }
 }
 
-// WithPosition sets the position type.
+// WithPosition sets whether the renderable participates in flex flow.
 func WithPosition(p layout.Position) RenderableOption {
 	return func(b *BaseRenderable) { b.layoutNode.Position = p }
 }
 
-// WithOverflow sets the overflow mode.
+// WithOverflow sets how content outside the layout bounds is handled.
 func WithOverflow(o layout.Overflow) RenderableOption {
 	return func(b *BaseRenderable) { b.layoutNode.Overflow = o }
 }
 
-// WithFlexBasis sets the flex basis.
+// WithFlexBasis sets the initial main-axis size.
 func WithFlexBasis(s layout.Scalar) RenderableOption {
 	return func(b *BaseRenderable) { b.layoutNode.FlexBasis = s }
 }
 
-// WithAlignSelf sets the align self mode.
+// WithAlignSelf sets the renderable's cross-axis alignment override.
 func WithAlignSelf(a layout.Align) RenderableOption {
 	return func(b *BaseRenderable) { b.layoutNode.AlignSelf = a }
 }
 
-// WithFlexWrap sets the flex wrap mode.
+// WithFlexWrap sets the line-wrapping mode.
 func WithFlexWrap(w layout.FlexWrap) RenderableOption {
 	return func(b *BaseRenderable) { b.layoutNode.FlexWrap = w }
 }
 
-// WithGap sets the gap between items.
+// WithGap sets the fallback gap between flex items.
 func WithGap(v int) RenderableOption {
 	return func(b *BaseRenderable) { b.layoutNode.Gap = v }
 }
@@ -171,48 +159,37 @@ func WithMaxHeight(s layout.Scalar) RenderableOption {
 	return func(b *BaseRenderable) { b.layoutNode.MaxHeight = s }
 }
 
-// WithTop sets the top position offset.
+// WithTop sets the top positioning offset.
 func WithTop(s layout.Scalar) RenderableOption {
 	return func(b *BaseRenderable) { b.layoutNode.Top = s }
 }
 
-// WithRight sets the right position offset.
+// WithRight sets the right positioning offset.
 func WithRight(s layout.Scalar) RenderableOption {
 	return func(b *BaseRenderable) { b.layoutNode.Right = s }
 }
 
-// WithBottom sets the bottom position offset.
+// WithBottom sets the bottom positioning offset.
 func WithBottom(s layout.Scalar) RenderableOption {
 	return func(b *BaseRenderable) { b.layoutNode.Bottom = s }
 }
 
-// WithLeft sets the left position offset.
+// WithLeft sets the left positioning offset.
 func WithLeft(s layout.Scalar) RenderableOption {
 	return func(b *BaseRenderable) { b.layoutNode.Left = s }
 }
 
-// ---------------------------------------------------------------------------
-// BaseRenderable
-// ---------------------------------------------------------------------------
-
-// BaseRenderable provides the default implementation of the Renderable
-// interface. All widget structs embed *BaseRenderable, inheriting tree
-// management, layout integration, focus handling, selection, and the
-// standard render pipeline (RenderBefore → RenderSelf → children →
-// RenderAfter). Widgets override only the methods they need.
+// BaseRenderable implements shared scene graph, layout, input, and rendering
+// behavior for widgets. Concrete widgets embed it and override only the methods
+// they need.
 type BaseRenderable struct {
 	mu sync.Mutex
 
-	num uint64 // unique auto-incremented ID
-	id  string // string identifier
+	num uint64 // The process-unique numeric ID.
+	id  string // The user-facing string identifier.
 
-	// self holds the outer Renderable (e.g. *Box, *Text) so that internal
-	// calls like renderContent can dispatch to the widget's RenderSelf
-	// override.  Go embedding does NOT provide virtual dispatch: when
-	// BaseRenderable.Render calls b.RenderSelf(), the receiver is
-	// *BaseRenderable, not *Box.  Storing the interface value here lets us
-	// call b.self.RenderSelf() which goes through the vtable and reaches
-	// the correct concrete method.  The field is set automatically in Add().
+	// self stores the concrete outer widget. Calling through this interface
+	// reaches methods overridden by a type that embeds BaseRenderable.
 	self Renderable
 
 	parent   Renderable
@@ -220,11 +197,11 @@ type BaseRenderable struct {
 
 	layoutNode *layout.LayoutNode
 
-	// Computed absolute position (set during layout traversal)
+	// Resolved geometry copied from layout traversal.
 	x, y, width, height   int
-	prevWidth, prevHeight int // for resize detection
+	prevWidth, prevHeight int // The dimensions used to detect resize callbacks.
 
-	// Configuration
+	// Configuration and state.
 	visible    bool
 	focusable  bool
 	focused    bool
@@ -236,21 +213,21 @@ type BaseRenderable struct {
 	opacity       float32
 	translateX    int
 	translateY    int
-	stickyOffsetX int // post-layout X offset applied by ScrollBox for sticky children
-	stickyOffsetY int // post-layout Y offset applied by ScrollBox for sticky children
+	stickyOffsetX int // A horizontal post-layout offset for sticky positioning.
+	stickyOffsetY int // A vertical post-layout offset for sticky positioning.
 
 	dirty bool
 
-	// Private frame buffer (when buffered=true)
+	// Private frame buffer used by buffered rendering.
 	frameBuffer *buffer.Buffer
 
-	// Live count tracking
+	// Local continuous-rendering request count.
 	liveCount int
 
-	// Context (set by renderer)
+	// Renderer context, or noopContext while detached.
 	ctx Context
 
-	// Event handlers (set by widgets or users)
+	// Optional input handlers.
 	OnMouseHandler        func(*input.MouseEvent)
 	OnMouseDownHandler    func(*input.MouseEvent)
 	OnMouseUpHandler      func(*input.MouseEvent)
@@ -265,16 +242,17 @@ type BaseRenderable struct {
 	OnKeyDownHandler      func(*input.KeyEvent)
 	OnSizeChangeHandler   func()
 
-	// Render hooks
+	// Optional rendering and lifecycle hooks.
 	RenderBeforeHook func(*buffer.Buffer, float64)
 	RenderAfterHook  func(*buffer.Buffer, float64)
 	OnLifecyclePass  func()
 }
 
-// Compile-time interface check.
+// Verify that BaseRenderable implements Renderable.
 var _ Renderable = (*BaseRenderable)(nil)
 
-// NewBaseRenderable creates a BaseRenderable with sensible defaults.
+// NewBaseRenderable returns a registered renderable with default layout and
+// rendering state.
 func NewBaseRenderable(opts ...RenderableOption) *BaseRenderable {
 	num := atomic.AddUint64(&nextNum, 1)
 
@@ -293,15 +271,11 @@ func NewBaseRenderable(opts ...RenderableOption) *BaseRenderable {
 		opt(b)
 	}
 
-	// Register in global map
+	// Registration allows the hit grid to resolve the numeric ID.
 	renderablesByNum.Store(num, b)
 
 	return b
 }
-
-// ---------------------------------------------------------------------------
-// Identity
-// ---------------------------------------------------------------------------
 
 // ID returns the string identifier.
 func (b *BaseRenderable) ID() string { return b.id }
@@ -309,39 +283,30 @@ func (b *BaseRenderable) ID() string { return b.id }
 // SetID sets the string identifier.
 func (b *BaseRenderable) SetID(id string) { b.id = id }
 
-// Num returns the unique numeric ID.
+// Num returns the process-unique numeric ID.
 func (b *BaseRenderable) Num() uint64 { return b.num }
 
-// SetSelf stores the outer Renderable interface value (e.g. *Box wrapping
-// this BaseRenderable) so that internal method calls like renderContent can
-// dispatch to the widget's RenderSelf override.  Called automatically by Add.
+// SetSelf stores the concrete outer widget used for overridden method dispatch.
 func (b *BaseRenderable) SetSelf(r Renderable) { b.self = r }
 
-// Self returns the outer Renderable, or nil if not yet set.
+// Self returns the concrete outer widget, or nil until SetSelf or Add associates
+// one with b.
 func (b *BaseRenderable) Self() Renderable { return b.self }
 
-// ---------------------------------------------------------------------------
-// Tree Management
-// ---------------------------------------------------------------------------
-
-// Parent returns the parent renderable.
+// Parent returns the scene graph parent.
 func (b *BaseRenderable) Parent() Renderable { return b.parent }
 
-// SetParent sets the parent renderable.
+// SetParent sets the scene graph parent.
 func (b *BaseRenderable) SetParent(r Renderable) { b.parent = r }
 
-// Children returns a copy of the direct children slice.
-// Safe for callers that may modify the slice. For read-only iteration
-// in hot paths, use ChildrenRaw() to avoid allocation.
+// Children returns a copy of the direct children.
 func (b *BaseRenderable) Children() []Renderable {
 	result := make([]Renderable, len(b.children))
 	copy(result, b.children)
 	return result
 }
 
-// ChildrenRaw returns the underlying children slice without copying.
-// The caller must NOT modify the returned slice. Use this in hot
-// render/layout paths to avoid 183k+ allocations per frame.
+// ChildrenRaw returns the underlying children slice for read-only iteration.
 func (b *BaseRenderable) ChildrenRaw() []Renderable {
 	return b.children
 }
@@ -351,29 +316,24 @@ func (b *BaseRenderable) ChildrenCount() int {
 	return len(b.children)
 }
 
-// Add adds a child at the optional index (default: append).
-// Sets child's parent and propagates the render context.
-// Returns the insertion index.
+// Add reparents child to b, propagates b's context, and inserts child at the
+// first optional index. An absent or invalid index appends child. Add returns
+// the resulting index, or -1 for a nil child.
 func (b *BaseRenderable) Add(child Renderable, index ...int) int {
 	if child == nil {
 		return -1
 	}
 
-	// Re-register child in the global map with the correct outer type.
-	// NewBaseRenderable() registers the embedded *BaseRenderable, but the
-	// caller passes the outer widget type (e.g., *widget.Input) here.
-	// This mirrors JS/TS where `this` in a base constructor is the subclass.
+	// Replace an embedded BaseRenderable's registry entry with the concrete widget.
 	renderablesByNum.Store(child.Num(), child)
 
-	// Store the outer Renderable so internal dispatch (e.g. renderContent
-	// calling RenderSelf) goes through the interface vtable and reaches
-	// the widget's override instead of the BaseRenderable no-op.
+	// Store the concrete widget so internal calls reach overridden methods.
 	type selfSettable interface{ SetSelf(Renderable) }
 	if ss, ok := child.(selfSettable); ok {
 		ss.SetSelf(child)
 	}
 
-	// Remove from old parent if any
+	// Keep the render and layout trees single-parented.
 	if oldParent := child.Parent(); oldParent != nil {
 		oldParent.Remove(child.ID())
 	}
@@ -384,7 +344,7 @@ func (b *BaseRenderable) Add(child Renderable, index ...int) int {
 	idx := len(b.children)
 	if len(index) > 0 && index[0] >= 0 && index[0] <= len(b.children) {
 		idx = index[0]
-		// Insert at position in both render tree and layout tree.
+		// Preserve identical ordering in the render and layout trees.
 		b.layoutNode.AddChildAt(child.LayoutNode(), idx)
 		b.children = append(b.children, nil)
 		copy(b.children[idx+1:], b.children[idx:])
@@ -399,11 +359,11 @@ func (b *BaseRenderable) Add(child Renderable, index ...int) int {
 	return idx
 }
 
-// Remove removes a child by ID.
+// Remove detaches the first direct child identified by id.
 func (b *BaseRenderable) Remove(id string) {
 	for i, child := range b.children {
 		if child.ID() == id {
-			// Remove from layout tree
+			// Keep the layout tree synchronized with the render tree.
 			b.layoutNode.RemoveChild(child.LayoutNode())
 
 			child.SetParent(nil)
@@ -415,8 +375,8 @@ func (b *BaseRenderable) Remove(id string) {
 	}
 }
 
-// InsertBefore inserts child before the anchor child.
-// If anchor is nil or not found, appends.
+// InsertBefore inserts child immediately before anchor. It appends child when
+// anchor is nil or not a direct child.
 func (b *BaseRenderable) InsertBefore(child, anchor Renderable) {
 	if anchor == nil {
 		b.Add(child)
@@ -430,11 +390,10 @@ func (b *BaseRenderable) InsertBefore(child, anchor Renderable) {
 		}
 	}
 
-	// Anchor not found, append
 	b.Add(child)
 }
 
-// Renderable returns a direct child by ID, or nil.
+// Renderable returns the direct child identified by id, or nil.
 func (b *BaseRenderable) Renderable(id string) Renderable {
 	for _, child := range b.children {
 		if child.ID() == id {
@@ -444,7 +403,8 @@ func (b *BaseRenderable) Renderable(id string) Renderable {
 	return nil
 }
 
-// FindDescendantByID searches the entire subtree for a renderable by ID.
+// FindDescendantByID returns the first matching node in a depth-first search of
+// b's subtree, including b.
 func (b *BaseRenderable) FindDescendantByID(id string) Renderable {
 	if b.id == id {
 		return b
@@ -457,15 +417,11 @@ func (b *BaseRenderable) FindDescendantByID(id string) Renderable {
 	return nil
 }
 
-// ---------------------------------------------------------------------------
-// State
-// ---------------------------------------------------------------------------
-
-// Visible returns whether this renderable is visible.
+// Visible reports whether b is drawn and hit tested.
 func (b *BaseRenderable) Visible() bool { return b.visible }
 
-// SetVisible sets visibility. When hidden, the node still participates in
-// layout (like CSS visibility:hidden). Use SetGone to remove from layout.
+// SetVisible controls rendering and hit testing while preserving layout space.
+// Use SetGone to remove b from layout.
 func (b *BaseRenderable) SetVisible(v bool) {
 	if b.visible != v {
 		b.visible = v
@@ -479,8 +435,7 @@ func (b *BaseRenderable) SetVisible(v bool) {
 	}
 }
 
-// SetGone removes this renderable from both layout and rendering.
-// The node occupies zero space (like Android View.GONE).
+// SetGone controls whether b participates in layout and rendering.
 func (b *BaseRenderable) SetGone(g bool) {
 	if g {
 		b.visible = false
@@ -493,39 +448,34 @@ func (b *BaseRenderable) SetGone(g bool) {
 	b.RequestRender()
 }
 
-// IsDirty returns whether this renderable needs re-rendering.
+// IsDirty reports whether b requires repainting.
 func (b *BaseRenderable) IsDirty() bool { return b.dirty }
 
-// RequestRender marks this renderable as dirty and requests a render frame.
+// RequestRender marks b dirty and requests a scene repaint.
 func (b *BaseRenderable) RequestRender() {
 	b.dirty = true
 	b.ctx.RequestRender()
 }
 
-// IsDestroyed returns whether this renderable has been destroyed.
+// IsDestroyed reports whether Destroy was called.
 func (b *BaseRenderable) IsDestroyed() bool { return b.destroyed }
 
-// ---------------------------------------------------------------------------
-// Layout
-// ---------------------------------------------------------------------------
-
-// LayoutNode returns the underlying layout node.
+// LayoutNode returns b's flexbox node.
 func (b *BaseRenderable) LayoutNode() *layout.LayoutNode { return b.layoutNode }
 
-// X returns the computed absolute x position.
+// X returns the resolved absolute x-coordinate.
 func (b *BaseRenderable) X() int { return b.x }
 
-// Y returns the computed absolute y position.
+// Y returns the resolved absolute y-coordinate.
 func (b *BaseRenderable) Y() int { return b.y }
 
-// Width returns the computed width.
+// Width returns the resolved width.
 func (b *BaseRenderable) Width() int { return b.width }
 
-// Height returns the computed height.
+// Height returns the resolved height.
 func (b *BaseRenderable) Height() int { return b.height }
 
-// SetBounds sets the absolute position and size directly. This bypasses
-// layout computation and is intended for tests or manual positioning.
+// SetBounds directly sets b's resolved geometry without running layout.
 func (b *BaseRenderable) SetBounds(x, y, w, h int) {
 	b.x = x
 	b.y = y
@@ -533,7 +483,7 @@ func (b *BaseRenderable) SetBounds(x, y, w, h int) {
 	b.height = h
 }
 
-// SetOpacity sets the opacity (0.0 - 1.0).
+// SetOpacity sets b's opacity, clamped to [0, 1].
 func (b *BaseRenderable) SetOpacity(o float32) {
 	if o < 0 {
 		o = 0
@@ -544,51 +494,45 @@ func (b *BaseRenderable) SetOpacity(o float32) {
 	b.opacity = o
 }
 
-// Opacity returns the opacity.
+// Opacity returns b's opacity.
 func (b *BaseRenderable) Opacity() float32 { return b.opacity }
 
-// TranslateX returns the x translation offset.
+// TranslateX returns the horizontal offset inherited by descendants.
 func (b *BaseRenderable) TranslateX() int { return b.translateX }
 
-// TranslateY returns the y translation offset.
+// TranslateY returns the vertical offset inherited by descendants.
 func (b *BaseRenderable) TranslateY() int { return b.translateY }
 
-// SetTranslateX sets the x translation offset.
+// SetTranslateX sets the horizontal offset inherited by descendants.
 func (b *BaseRenderable) SetTranslateX(x int) { b.translateX = x }
 
-// SetTranslateY sets the y translation offset.
+// SetTranslateY sets the vertical offset inherited by descendants.
 func (b *BaseRenderable) SetTranslateY(y int) { b.translateY = y }
 
-// StickyOffsetX returns the horizontal sticky position offset.
+// StickyOffsetX returns b's horizontal sticky offset.
 func (b *BaseRenderable) StickyOffsetX() int { return b.stickyOffsetX }
 
-// SetStickyOffsetX sets the horizontal sticky position offset.
+// SetStickyOffsetX sets b's horizontal sticky offset.
 func (b *BaseRenderable) SetStickyOffsetX(x int) { b.stickyOffsetX = x }
 
-// StickyOffsetY returns the vertical sticky position offset.
+// StickyOffsetY returns b's vertical sticky offset.
 func (b *BaseRenderable) StickyOffsetY() int { return b.stickyOffsetY }
 
-// SetStickyOffsetY sets the vertical sticky position offset.
+// SetStickyOffsetY sets b's vertical sticky offset.
 func (b *BaseRenderable) SetStickyOffsetY(y int) { b.stickyOffsetY = y }
 
-// UpdateFromLayout reads computed layout values and updates absolute position.
-// The layout engine (ComputeLayout / layoutFlexContainer) already produces
-// absolute Computed.X/Y values (accumulated from the root). We must NOT add
-// the parent's position again — that would double-count for nested widgets.
+// UpdateFromLayout copies b's absolute flexbox geometry and applies b's own
+// translation and sticky offset.
 //
-// NOTE: This legacy method applies the node's own translate directly. For
-// correct scroll behaviour use UpdateFromLayoutWithOffset which separates
-// the node's translate (applied to descendants) from inherited offsets.
+// Scene traversal should use UpdateFromLayoutWithOffset so a container's
+// translation moves its descendants without moving the container itself.
 func (b *BaseRenderable) UpdateFromLayout() {
 	b.UpdateFromLayoutWithOffset(b.translateX, b.translateY)
 }
 
-// UpdateFromLayoutWithOffset reads computed layout values and updates
-// absolute position using an inherited offset from ancestor translates.
-// The node's own translateX/Y is NOT added here — collectCommands
-// accumulates it and passes it to descendant calls instead. This ensures
-// a scroll container's translate shifts its children without moving the
-// container (or its scissor rect) itself.
+// UpdateFromLayoutWithOffset copies b's absolute flexbox geometry and adds
+// inherited translation and sticky offsets. It excludes b's own translation,
+// which scene traversal passes to descendants.
 func (b *BaseRenderable) UpdateFromLayoutWithOffset(offsetX, offsetY int) {
 	computed := b.layoutNode.Computed
 
@@ -597,13 +541,11 @@ func (b *BaseRenderable) UpdateFromLayoutWithOffset(offsetX, offsetY int) {
 	b.width = computed.Width
 	b.height = computed.Height
 
-	// Check for size change
+	// Notify through the concrete widget only when resolved dimensions change.
 	if b.width != b.prevWidth || b.height != b.prevHeight {
 		b.prevWidth = b.width
 		b.prevHeight = b.height
-		// Dispatch through self (the outer Renderable) so widget
-		// overrides of OnResize are reached. Same pattern as
-		// renderContent → self.RenderSelf.
+		// Calling through self reaches a concrete widget's OnResize override.
 		if b.self != nil {
 			b.self.OnResize(b.width, b.height)
 		} else {
@@ -615,17 +557,14 @@ func (b *BaseRenderable) UpdateFromLayoutWithOffset(offsetX, offsetY int) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Rendering
-// ---------------------------------------------------------------------------
-
-// Render executes the render pipeline for this renderable.
+// Render draws b's content and registers its hit-test region. Scene traversal
+// renders children separately.
 func (b *BaseRenderable) Render(buf *buffer.Buffer, deltaTime float64) {
 	if !b.visible {
 		return
 	}
 
-	// If buffered mode, render into private buffer then blit
+	// Buffered rendering draws into the private buffer before compositing it.
 	if b.buffered && b.frameBuffer != nil {
 		b.frameBuffer.Clear()
 		b.renderContent(b.frameBuffer, deltaTime)
@@ -634,15 +573,14 @@ func (b *BaseRenderable) Render(buf *buffer.Buffer, deltaTime float64) {
 		b.renderContent(buf, deltaTime)
 	}
 
-	// Register in hit grid
+	// Only visible renderables register hit-test regions.
 	b.ctx.AddToHitGrid(b.x, b.y, b.width, b.height, b.num)
 
 	b.dirty = false
 }
 
-// renderContent runs the hooks + RenderSelf sequence.
-// Dispatches through b.self (when set) so the concrete widget's RenderSelf
-// override is called instead of the BaseRenderable no-op.
+// renderContent runs the before hook, concrete RenderSelf implementation, and
+// after hook in order.
 func (b *BaseRenderable) renderContent(buf *buffer.Buffer, deltaTime float64) {
 	if b.RenderBeforeHook != nil {
 		b.RenderBeforeHook(buf, deltaTime)
@@ -659,37 +597,33 @@ func (b *BaseRenderable) renderContent(buf *buffer.Buffer, deltaTime float64) {
 	}
 }
 
-// RenderSelf is the override point for widgets. Default: no-op.
+// RenderSelf is the widget content override point. The default does nothing.
 func (b *BaseRenderable) RenderSelf(buf *buffer.Buffer, deltaTime float64) {}
 
-// RenderBefore calls the RenderBeforeHook if set.
+// RenderBefore calls RenderBeforeHook when it is set.
 func (b *BaseRenderable) RenderBefore(buf *buffer.Buffer, deltaTime float64) {
 	if b.RenderBeforeHook != nil {
 		b.RenderBeforeHook(buf, deltaTime)
 	}
 }
 
-// RenderAfter calls the RenderAfterHook if set.
+// RenderAfter calls RenderAfterHook when it is set.
 func (b *BaseRenderable) RenderAfter(buf *buffer.Buffer, deltaTime float64) {
 	if b.RenderAfterHook != nil {
 		b.RenderAfterHook(buf, deltaTime)
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Focus
-// ---------------------------------------------------------------------------
-
-// Focusable returns whether this renderable can receive focus.
+// Focusable reports whether b can receive keyboard focus.
 func (b *BaseRenderable) Focusable() bool { return b.focusable }
 
-// SetFocusable sets whether this renderable can receive focus.
+// SetFocusable controls whether b can receive keyboard focus.
 func (b *BaseRenderable) SetFocusable(f bool) { b.focusable = f }
 
-// Focused returns whether this renderable currently has focus.
+// Focused reports whether b currently has keyboard focus.
 func (b *BaseRenderable) Focused() bool { return b.focused }
 
-// Focus gives this renderable keyboard focus.
+// Focus requests keyboard focus for b when it is focusable.
 func (b *BaseRenderable) Focus() {
 	if !b.focusable {
 		return
@@ -698,13 +632,13 @@ func (b *BaseRenderable) Focus() {
 	b.ctx.FocusRenderable(b)
 }
 
-// Blur removes keyboard focus from this renderable.
+// Blur removes keyboard focus from b.
 func (b *BaseRenderable) Blur() {
 	b.focused = false
 }
 
-// HandleKeyPress handles a keyboard event. Returns true if consumed.
-// Default: invokes OnKeyDownHandler if set, otherwise returns false.
+// HandleKeyPress calls OnKeyDownHandler when set and reports whether the
+// handler stopped event propagation.
 func (b *BaseRenderable) HandleKeyPress(e *input.KeyEvent) bool {
 	if b.OnKeyDownHandler != nil {
 		b.OnKeyDownHandler(e)
@@ -713,21 +647,18 @@ func (b *BaseRenderable) HandleKeyPress(e *input.KeyEvent) bool {
 	return false
 }
 
-// HandlePaste handles a paste event.
+// HandlePaste calls OnPasteHandler when it is set.
 func (b *BaseRenderable) HandlePaste(e *input.PasteEvent) {
 	if b.OnPasteHandler != nil {
 		b.OnPasteHandler(e)
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Mouse
-// ---------------------------------------------------------------------------
-
-// ProcessMouseEvent dispatches a mouse event to type-specific handlers,
-// then bubbles to parent if propagation is not stopped.
+// ProcessMouseEvent calls the catch-all handler first. Unless it stops
+// propagation, ProcessMouseEvent then calls the matching type-specific handler
+// and propagates e to the parent.
 func (b *BaseRenderable) ProcessMouseEvent(e *input.MouseEvent) {
-	// Catch-all handler
+	// The catch-all handler runs before the type-specific handler.
 	if b.OnMouseHandler != nil {
 		b.OnMouseHandler(e)
 	}
@@ -736,7 +667,6 @@ func (b *BaseRenderable) ProcessMouseEvent(e *input.MouseEvent) {
 		return
 	}
 
-	// Type-specific handlers
 	switch e.Type {
 	case input.MouseDown:
 		if b.OnMouseDownHandler != nil {
@@ -776,68 +706,54 @@ func (b *BaseRenderable) ProcessMouseEvent(e *input.MouseEvent) {
 		}
 	}
 
-	// Bubble to parent if not stopped
+	// Continue propagation through the scene graph parent.
 	if !e.PropagationStopped() && b.parent != nil {
 		b.parent.ProcessMouseEvent(e)
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Selection
-// ---------------------------------------------------------------------------
-
-// Selectable returns whether this renderable supports text selection.
+// Selectable reports whether b supports text selection.
 func (b *BaseRenderable) Selectable() bool { return b.selectable }
 
-// SetSelectable sets whether this renderable supports text selection.
+// SetSelectable controls whether b supports text selection.
 func (b *BaseRenderable) SetSelectable(s bool) { b.selectable = s }
 
-// ShouldStartSelection returns whether a selection should start at (x, y).
-// Default: returns selectable state.
+// ShouldStartSelection reports b's selectable state. Widgets can override it
+// for coordinate-dependent behavior.
 func (b *BaseRenderable) ShouldStartSelection(x, y int) bool {
 	return b.selectable
 }
 
-// SelectedText returns the currently selected text. Default: empty.
+// SelectedText returns no text by default.
 func (b *BaseRenderable) SelectedText() string { return "" }
 
-// HasSelection returns whether there is an active selection. Default: false.
+// HasSelection reports false by default.
 func (b *BaseRenderable) HasSelection() bool { return false }
 
-// ---------------------------------------------------------------------------
-// Lifecycle
-// ---------------------------------------------------------------------------
-
-// OnUpdate is called each frame before layout. Default: no-op.
-// Widgets override this to modify layout properties (sizes, flex, etc.)
-// before the layout engine runs.
+// OnUpdate runs before layout and does nothing by default.
 func (b *BaseRenderable) OnUpdate(deltaTime float64) {}
 
-// OnPostLayout is called each frame after CalculateLayout has resolved
-// all Computed positions and sizes. Widgets override this when they need
-// to react to fresh layout results — e.g. recalculating content
-// dimensions or adjusting scroll position. Default: no-op.
+// OnPostLayout runs after layout and does nothing by default.
 func (b *BaseRenderable) OnPostLayout(deltaTime float64) {}
 
-// OnResize is called when the computed size changes. Default: no-op.
+// OnResize handles a resolved size change and does nothing by default.
 func (b *BaseRenderable) OnResize(width, height int) {}
 
-// Destroy removes this renderable from the scene graph and unregisters it.
+// Destroy marks b destroyed, detaches it from its parent, and unregisters its
+// numeric ID.
 func (b *BaseRenderable) Destroy() {
 	b.destroyed = true
 
-	// Remove from parent
 	if b.parent != nil {
 		b.parent.Remove(b.id)
 	}
 
-	// Unregister from global map
 	renderablesByNum.Delete(b.num)
 }
 
-// DestroyRecursively destroys this renderable and all descendants.
+// DestroyRecursively destroys every descendant before destroying b.
 func (b *BaseRenderable) DestroyRecursively() {
-	// Destroy children first (copy slice to avoid mutation during iteration)
+	// Copy the slice because destroying a child mutates b.children.
 	children := make([]Renderable, len(b.children))
 	copy(children, b.children)
 	for _, child := range children {
@@ -848,16 +764,11 @@ func (b *BaseRenderable) DestroyRecursively() {
 	b.Destroy()
 }
 
-// ---------------------------------------------------------------------------
-// Context
-// ---------------------------------------------------------------------------
-
-// Context returns the render context.
+// Context returns b's renderer context.
 func (b *BaseRenderable) Context() Context { return b.ctx }
 
-// SetContext sets the render context and propagates to children.
-// A nil ctx is replaced with the package-level no-op context so that
-// b.ctx is never nil.
+// SetContext assigns ctx to b and every descendant. A nil context is replaced
+// by the package no-op context.
 func (b *BaseRenderable) SetContext(ctx Context) {
 	if ctx == nil {
 		ctx = noopContext
@@ -868,24 +779,16 @@ func (b *BaseRenderable) SetContext(ctx Context) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Width helpers
-// ---------------------------------------------------------------------------
-
-// StringWidth returns the display width of a string using grapheme-cluster-aware
-// width calculation.
+// StringWidth returns s's grapheme-aware terminal width.
 func (b *BaseRenderable) StringWidth(s string) int {
 	return textbuf.StringWidth(s)
 }
 
-// ---------------------------------------------------------------------------
-// Buffered mode
-// ---------------------------------------------------------------------------
-
-// Buffered returns whether this renderable uses a private frame buffer.
+// Buffered reports whether b uses private frame-buffer rendering.
 func (b *BaseRenderable) Buffered() bool { return b.buffered }
 
-// SetBuffered enables or disables private frame buffer mode.
+// SetBuffered controls private frame-buffer rendering and allocates the buffer
+// when enabling it after b has nonzero dimensions.
 func (b *BaseRenderable) SetBuffered(v bool) {
 	b.buffered = v
 	if v && b.frameBuffer == nil && b.width > 0 && b.height > 0 {
@@ -893,17 +796,13 @@ func (b *BaseRenderable) SetBuffered(v bool) {
 	}
 }
 
-// FrameBuffer returns the private frame buffer (nil if not buffered).
+// FrameBuffer returns b's private frame buffer, or nil if none is allocated.
 func (b *BaseRenderable) FrameBuffer() *buffer.Buffer { return b.frameBuffer }
 
-// ---------------------------------------------------------------------------
-// Live mode
-// ---------------------------------------------------------------------------
-
-// Live returns whether this renderable is in continuous rendering mode.
+// Live reports whether b requested continuous rendering.
 func (b *BaseRenderable) Live() bool { return b.live }
 
-// SetLive enables or disables live mode.
+// SetLive controls b's continuous-render request and updates its context.
 func (b *BaseRenderable) SetLive(l bool) {
 	if b.live == l {
 		return
@@ -921,15 +820,11 @@ func (b *BaseRenderable) SetLive(l bool) {
 	}
 }
 
-// LiveCount returns the live mode reference count.
+// LiveCount returns b's local continuous-render request count.
 func (b *BaseRenderable) LiveCount() int { return b.liveCount }
 
-// ---------------------------------------------------------------------------
-// AnimationTarget implementation
-// ---------------------------------------------------------------------------
-
-// Property returns an animatable property value by name.
-// Supported properties: "opacity", "translateX", "translateY".
+// Property returns the named animatable value. It supports "opacity",
+// "translateX", and "translateY", and returns zero for any other name.
 func (b *BaseRenderable) Property(name string) float64 {
 	switch name {
 	case "opacity":
@@ -943,8 +838,8 @@ func (b *BaseRenderable) Property(name string) float64 {
 	}
 }
 
-// SetProperty sets an animatable property value by name and marks the
-// renderable as dirty. Supported: "opacity", "translateX", "translateY".
+// SetProperty updates a supported animatable value and requests a repaint. It
+// supports "opacity", "translateX", and "translateY" and ignores other names.
 func (b *BaseRenderable) SetProperty(name string, value float64) {
 	switch name {
 	case "opacity":

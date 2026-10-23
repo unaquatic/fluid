@@ -51,7 +51,7 @@ func TestInput_InsertChar(t *testing.T) {
 	inp := setupInput("hllo")
 	inp.SetCursorPos(1)
 
-	// Insert 'e' at position 1
+	// Insert between the first and second runes.
 	e := &input.KeyEvent{Name: "e", Type: input.KeyPress}
 	inp.HandleKeyPress(e)
 
@@ -91,25 +91,25 @@ func TestInput_CursorMovement(t *testing.T) {
 	inp := setupInput("hello")
 	inp.SetCursorPos(3)
 
-	// Move left
+	// Left moves one display column.
 	inp.HandleKeyPress(&input.KeyEvent{Name: input.KeyLeft, Type: input.KeyPress})
 	if inp.CursorPos() != 2 {
 		t.Errorf("expected cursor at 2, got %d", inp.CursorPos())
 	}
 
-	// Move right
+	// Right restores the original position.
 	inp.HandleKeyPress(&input.KeyEvent{Name: input.KeyRight, Type: input.KeyPress})
 	if inp.CursorPos() != 3 {
 		t.Errorf("expected cursor at 3, got %d", inp.CursorPos())
 	}
 
-	// Line home (Ctrl+A)
+	// Control+A moves to logical line start.
 	inp.HandleKeyPress(&input.KeyEvent{Name: "a", Ctrl: true, Type: input.KeyPress})
 	if inp.CursorPos() != 0 {
 		t.Errorf("expected cursor at 0, got %d", inp.CursorPos())
 	}
 
-	// Line end (Ctrl+E)
+	// Control+E moves to logical line end.
 	inp.HandleKeyPress(&input.KeyEvent{Name: "e", Ctrl: true, Type: input.KeyPress})
 	if inp.CursorPos() != 5 {
 		t.Errorf("expected cursor at 5, got %d", inp.CursorPos())
@@ -120,7 +120,7 @@ func TestInput_MaxLength(t *testing.T) {
 	inp := NewInput(InputWithMaxLength(5))
 	testutil.SetupWidget(inp, 20, 1)
 
-	// Type 7 characters
+	// Only the first five typed runes fit.
 	for _, ch := range "abcdefg" {
 		inp.HandleKeyPress(&input.KeyEvent{Name: string(ch), Type: input.KeyPress})
 	}
@@ -182,7 +182,7 @@ func TestInput_HandlePaste(t *testing.T) {
 	inp.SetCursorPos(5)
 
 	inp.HandlePaste(&input.PasteEvent{Text: " world\nnewline"})
-	// Newlines should be stripped
+	// Paste normalizes both newline forms to a single line.
 	if inp.Value() != "hello worldnewline" {
 		t.Errorf("expected 'hello worldnewline', got %q", inp.Value())
 	}
@@ -203,15 +203,13 @@ func TestInput_Options(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// New tests: Input embeds Textarea
-// ---------------------------------------------------------------------------
+// Embedded Textarea behavior.
 
 func TestInput_EnterDoesNotInsertNewline(t *testing.T) {
 	inp := setupInput("hello")
 	inp.SetCursorPos(3)
 
-	// Enter should NOT insert a newline in Input
+	// Enter submits without inserting a newline.
 	inp.HandleKeyPress(&input.KeyEvent{Name: input.KeyReturn, Type: input.KeyPress})
 	if inp.LineCount() != 1 {
 		t.Errorf("expected 1 line (no newline in input), got %d", inp.LineCount())
@@ -222,7 +220,7 @@ func TestInput_UpDownIgnored(t *testing.T) {
 	inp := setupInput("hello")
 	inp.SetCursorPos(3)
 
-	// Up/Down should be ignored in single-line input
+	// Vertical movement is not valid in a single-line input.
 	handled := inp.HandleKeyPress(&input.KeyEvent{Name: input.KeyUp, Type: input.KeyPress})
 	if handled {
 		t.Error("expected Up to be unhandled in Input")
@@ -237,7 +235,7 @@ func TestInput_TabIgnored(t *testing.T) {
 	inp := setupInput("hello")
 	inp.SetCursorPos(3)
 
-	// Tab should be ignored in Input
+	// Tab is reserved for focus navigation rather than inserted.
 	handled := inp.HandleKeyPress(&input.KeyEvent{Name: input.KeyTab, Type: input.KeyPress})
 	if handled {
 		t.Error("expected Tab to be unhandled in Input")
@@ -247,7 +245,7 @@ func TestInput_TabIgnored(t *testing.T) {
 func TestInput_SelectAll(t *testing.T) {
 	inp := setupInput("hello world")
 
-	// Meta+A (Cmd+A, Kitty protocol) triggers select-all
+	// The Kitty protocol reports Command+A as Meta+A.
 	inp.HandleKeyPress(&input.KeyEvent{Name: "a", Meta: true, Type: input.KeyPress})
 
 	selected := inp.SelectedText()
@@ -263,7 +261,7 @@ func TestInput_MaxLengthOnPaste(t *testing.T) {
 	inp.SetCursorPos(2)
 	inp.HandlePaste(&input.PasteEvent{Text: "cdefgh"})
 
-	// Only "cde" should be inserted (3 remaining slots)
+	// The remaining capacity accepts only three pasted runes.
 	if inp.Value() != "abcde" {
 		t.Errorf("expected 'abcde' (max 5), got %q", inp.Value())
 	}
@@ -281,14 +279,14 @@ func TestInput_WordNavigation(t *testing.T) {
 	inp := setupInput("hello world foo")
 	inp.SetCursorPos(0)
 
-	// Ctrl+Right to move to next word
+	// Control+Right moves to the next word boundary.
 	inp.HandleKeyPress(&input.KeyEvent{Name: input.KeyRight, Ctrl: true, Type: input.KeyPress})
 	pos := inp.CursorPos()
 	if pos == 0 {
 		t.Error("expected cursor to advance past first word")
 	}
 
-	// Ctrl+Left to move back
+	// Control+Left returns to the previous word boundary.
 	inp.HandleKeyPress(&input.KeyEvent{Name: input.KeyLeft, Ctrl: true, Type: input.KeyPress})
 	pos = inp.CursorPos()
 	if pos != 0 {
@@ -322,7 +320,7 @@ func TestInput_CustomKeyBindings(t *testing.T) {
 	inp := setupInput("hello")
 	inp.SetCursorPos(5)
 
-	// Map Ctrl+B to backspace
+	// A custom binding can replace the default Control+B movement.
 	inp.Textarea.SetKeyBindings([]input.KeyBinding{
 		{Name: "b", Ctrl: true, Action: ActionBackspace},
 	})

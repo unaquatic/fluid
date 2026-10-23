@@ -2,11 +2,7 @@ package animation
 
 import "math"
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-// EasingFunc maps a linear progress value (0.0-1.0) to an eased value.
+// EasingFunc maps linear progress in the range [0, 1] to eased progress.
 type EasingFunc func(t float64) float64
 
 // EasingName identifies a built-in easing function by name.
@@ -35,11 +31,7 @@ const (
 	OutElastic EasingName = "outElastic"
 )
 
-// ---------------------------------------------------------------------------
-// Lookup
-// ---------------------------------------------------------------------------
-
-// easingFuncs maps easing names to their implementations.
+// easingFuncs contains every built-in easing implementation by name.
 var easingFuncs = map[EasingName]EasingFunc{
 	Linear:     easeLinear,
 	InQuad:     easeInQuad,
@@ -63,8 +55,8 @@ var easingFuncs = map[EasingName]EasingFunc{
 	OutElastic: easeOutElastic,
 }
 
-// GetEasingFunc returns the easing function for the given name.
-// Returns easeLinear if the name is not recognized.
+// GetEasingFunc returns the built-in function named by name.
+// It returns linear easing for an unknown name.
 func GetEasingFunc(name EasingName) EasingFunc {
 	if fn, ok := easingFuncs[name]; ok {
 		return fn
@@ -72,9 +64,7 @@ func GetEasingFunc(name EasingName) EasingFunc {
 	return easeLinear
 }
 
-// ---------------------------------------------------------------------------
-// Implementations — all are pure math with no allocations.
-// ---------------------------------------------------------------------------
+// Built-in easing implementations.
 
 func easeLinear(t float64) float64 {
 	return t
@@ -109,7 +99,7 @@ func easeInOutCubic(t float64) float64 {
 		return 4 * t * t * t
 	}
 	t--
-	return 1 + 4*t*t*t // Equivalent to: (2t-2)^3/2 + 1 simplified
+	return 1 + 4*t*t*t // Simplified from (2t-2)^3/2 + 1.
 }
 
 func easeInExpo(t float64) float64 {
@@ -174,7 +164,7 @@ func easeOutBack(t float64) float64 {
 }
 
 func easeInOutBack(t float64) float64 {
-	const s = backOvershoot * 1.525 // Standard overshoot for in-out
+	const s = backOvershoot * 1.525 // Scale the overshoot for a symmetric in-out curve.
 	if t < 0.5 {
 		t *= 2
 		return (t * t * ((s+1)*t - s)) / 2

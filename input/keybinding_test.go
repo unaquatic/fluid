@@ -51,7 +51,7 @@ func TestMergeKeyBindings_Override(t *testing.T) {
 		{Name: "down", Action: "move-down"},
 	}
 	custom := []KeyBinding{
-		{Name: "up", Action: "custom-up"}, // overrides default
+		{Name: "up", Action: "custom-up"}, // Replaces the default "up" combination.
 	}
 
 	merged := MergeKeyBindings(defaults, custom)
@@ -59,7 +59,7 @@ func TestMergeKeyBindings_Override(t *testing.T) {
 		t.Fatalf("expected 2 bindings, got %d", len(merged))
 	}
 
-	// Find the "up" binding — should be the custom one
+	// The custom binding replaces, rather than duplicates, the default.
 	for _, b := range merged {
 		if b.Name == "up" {
 			if b.Action != "custom-up" {
@@ -93,7 +93,7 @@ func TestMergeKeyBindings_EmptyDefaults(t *testing.T) {
 
 func TestMergeKeyAliases(t *testing.T) {
 	defaults := KeyAliasMap{"enter": "return", "esc": "escape"}
-	custom := KeyAliasMap{"cr": "return", "esc": "esc-custom"} // overrides esc
+	custom := KeyAliasMap{"cr": "return", "esc": "esc-custom"} // Override the default "esc" alias.
 
 	merged := MergeKeyAliases(defaults, custom)
 
@@ -130,13 +130,13 @@ func TestBuildKeyBindingsMap(t *testing.T) {
 
 func TestBuildKeyBindingsMap_WithAliases(t *testing.T) {
 	bindings := []KeyBinding{
-		{Name: "enter", Action: "submit"}, // alias for "return"
+		{Name: "enter", Action: "submit"}, // The alias resolves to "return".
 	}
 	aliases := KeyAliasMap{"enter": "return"}
 
 	m := BuildKeyBindingsMap(bindings, aliases)
 
-	// Should be stored under canonical name "return"
+	// The map stores the binding under its canonical name.
 	if m["return"] != "submit" {
 		t.Errorf("return -> %q, want 'submit'", m["return"])
 	}
@@ -158,7 +158,7 @@ func TestResolveAction(t *testing.T) {
 		{KeyEvent{Name: "a", Ctrl: true}, "select-all", true},
 		{KeyEvent{Name: "return"}, "submit", true},
 		{KeyEvent{Name: "x"}, "", false},
-		{KeyEvent{Name: "a"}, "", false}, // no ctrl
+		{KeyEvent{Name: "a"}, "", false}, // The map contains only Control-A.
 	}
 
 	for _, tt := range tests {

@@ -70,13 +70,13 @@ func TestSelect_MoveUp(t *testing.T) {
 
 func TestSelect_WrapSelection(t *testing.T) {
 	s := setupSelect()
-	// Wrap from top to bottom
+	// Up wraps from the first enabled option to the last.
 	s.HandleKeyPress(&input.KeyEvent{Name: input.KeyUp, Type: input.KeyPress})
 	if s.SelectedIndex() != 2 {
 		t.Errorf("expected wrap to 2, got %d", s.SelectedIndex())
 	}
 
-	// Wrap from bottom to top
+	// Down wraps from the last enabled option to the first.
 	s.HandleKeyPress(&input.KeyEvent{Name: input.KeyDown, Type: input.KeyPress})
 	if s.SelectedIndex() != 0 {
 		t.Errorf("expected wrap to 0, got %d", s.SelectedIndex())
@@ -133,7 +133,7 @@ func TestSelect_Render(t *testing.T) {
 	buf := buffer.New(30, 10)
 	s.RenderSelf(buf, 0)
 
-	// Verify something was rendered
+	// The first option must produce visible text.
 	text := buf.PlainText(true)
 	if len(text) == 0 {
 		t.Error("expected non-empty render output")
@@ -188,14 +188,14 @@ func TestSelect_SelectedBackground(t *testing.T) {
 	text := buf.PlainText(true)
 	t.Logf("rendered text:\n%s", text)
 
-	// First row (selected) should have the blue background.
+	// The selected first row receives the configured blue background.
 	cell0 := buf.Cell(1, 0)
 	t.Logf("cell at (1,0): char=%c (%U), bg=%v", cell0.Char, cell0.Char, cell0.Bg)
 	if cell0.Bg != selectedBg {
 		t.Errorf("expected selected bg %v at (1,0), got %v", selectedBg, cell0.Bg)
 	}
 
-	// Second row (unselected) should NOT have the blue background.
+	// The unselected second row retains its normal background.
 	cell1 := buf.Cell(1, 1)
 	t.Logf("cell at (1,1): char=%c (%U), bg=%v", cell1.Char, cell1.Char, cell1.Bg)
 	if cell1.Bg == selectedBg {

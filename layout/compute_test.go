@@ -2,8 +2,6 @@ package layout
 
 import "testing"
 
-// --- Full Layout Computation Tests ---
-
 func TestComputeLayout_SimpleRow(t *testing.T) {
 	root := NewNode()
 	root.SetSize(Points(100), Points(50))
@@ -84,7 +82,7 @@ func TestComputeLayout_MinWidth(t *testing.T) {
 
 	root.ComputeLayout(100, 30)
 
-	// c2 should not shrink below 60
+	// Flexible shrinkage must respect c2's minimum width.
 	if c2.Computed.Width < 60 {
 		t.Errorf("c2.Width = %d, should not be below MinWidth 60", c2.Computed.Width)
 	}
@@ -115,7 +113,7 @@ func TestComputeLayout_Padding(t *testing.T) {
 
 	root.ComputeLayout(100, 100)
 
-	// Child should be inside padding
+	// Padding reduces the child's available box on every side.
 	assertEqual(t, child.Computed.X, 10)
 	assertEqual(t, child.Computed.Y, 10)
 	assertEqual(t, child.Computed.Width, 80)
@@ -133,11 +131,9 @@ func TestComputeLayout_Margin(t *testing.T) {
 
 	root.ComputeLayout(100, 100)
 
-	assertEqual(t, child.Computed.X, 10) // margin-left
+	assertEqual(t, child.Computed.X, 10) // The left margin offsets the child.
 	assertEqual(t, child.Computed.Width, 60)
 }
-
-// --- Absolute Positioning Tests ---
 
 func TestComputeLayout_AbsoluteTopLeft(t *testing.T) {
 	root := NewNode()
@@ -171,8 +167,8 @@ func TestComputeLayout_AbsoluteBottomRight(t *testing.T) {
 
 	root.ComputeLayout(100, 100)
 
-	assertEqual(t, child.Computed.X, 50) // 100 - 20 - 30
-	assertEqual(t, child.Computed.Y, 60) // 100 - 10 - 30
+	assertEqual(t, child.Computed.X, 50) // 100 width - 20 right - 30 child width.
+	assertEqual(t, child.Computed.Y, 60) // 100 height - 10 bottom - 30 child height.
 }
 
 func TestComputeLayout_AbsoluteLeftRight_DeriveWidth(t *testing.T) {
@@ -185,7 +181,7 @@ func TestComputeLayout_AbsoluteLeftRight_DeriveWidth(t *testing.T) {
 	child.Right = Points(20)
 	child.Top = Points(5)
 	child.Height = Points(30)
-	// Width is Auto -> should be derived: 100 - 10 - 20 = 70
+	// Opposing horizontal offsets derive the automatic width: 100 - 10 - 20 = 70.
 	root.AddChild(child)
 
 	root.ComputeLayout(100, 100)
@@ -198,7 +194,7 @@ func TestComputeLayout_AbsoluteDoesNotAffectFlex(t *testing.T) {
 	root := NewNode()
 	root.SetSize(Points(100), Points(100))
 
-	// Absolute child should not affect flex siblings
+	// An absolute child is excluded from flex flow.
 	abs := NewNode()
 	abs.Position = PositionAbsolute
 	abs.Top = Points(0)
@@ -212,11 +208,9 @@ func TestComputeLayout_AbsoluteDoesNotAffectFlex(t *testing.T) {
 
 	root.ComputeLayout(100, 100)
 
-	// Flex child should take full width since absolute child is out of flow
+	// The flex child therefore receives the full width.
 	assertEqual(t, flex.Computed.Width, 100)
 }
-
-// --- DirtyFlags after Layout ---
 
 func TestComputeLayout_ClearsDirty(t *testing.T) {
 	root := NewNode()
@@ -236,16 +230,9 @@ func TestComputeLayout_ClearsDirty(t *testing.T) {
 	}
 }
 
-// --- Complex Nested Layout ---
-
 func TestComputeLayout_ComplexNested(t *testing.T) {
-	// Simulate a typical TUI layout:
-	// root (column, 80x24)
-	//   header (row, height=1)
-	//   body (row, grow=1)
-	//     sidebar (width=20)
-	//     content (grow=1)
-	//   footer (row, height=1)
+	// Model an 80 by 24 column containing a one-row header, a growing body
+	// split into a 20-column sidebar and growing content, and a one-row footer.
 	root := NewNode()
 	root.FlexDirection = DirectionColumn
 	root.SetSize(Points(80), Points(24))
@@ -273,38 +260,36 @@ func TestComputeLayout_ComplexNested(t *testing.T) {
 
 	root.ComputeLayout(80, 24)
 
-	// Header: 80x1 at (0,0)
+	// The header occupies the first row.
 	assertEqual(t, header.Computed.X, 0)
 	assertEqual(t, header.Computed.Y, 0)
 	assertEqual(t, header.Computed.Width, 80)
 	assertEqual(t, header.Computed.Height, 1)
 
-	// Body: 80x22 at (0,1)
+	// The body receives the 22 rows between header and footer.
 	assertEqual(t, body.Computed.X, 0)
 	assertEqual(t, body.Computed.Y, 1)
 	assertEqual(t, body.Computed.Width, 80)
 	assertEqual(t, body.Computed.Height, 22)
 
-	// Sidebar: 20x22 at (0,1)
+	// The sidebar occupies the first 20 body columns.
 	assertEqual(t, sidebar.Computed.X, 0)
 	assertEqual(t, sidebar.Computed.Y, 1)
 	assertEqual(t, sidebar.Computed.Width, 20)
 	assertEqual(t, sidebar.Computed.Height, 22)
 
-	// Content: 60x22 at (20,1)
+	// The content receives the remaining 60 body columns.
 	assertEqual(t, content.Computed.X, 20)
 	assertEqual(t, content.Computed.Y, 1)
 	assertEqual(t, content.Computed.Width, 60)
 	assertEqual(t, content.Computed.Height, 22)
 
-	// Footer: 80x1 at (0,23)
+	// The footer occupies the final row.
 	assertEqual(t, footer.Computed.X, 0)
 	assertEqual(t, footer.Computed.Y, 23)
 	assertEqual(t, footer.Computed.Width, 80)
 	assertEqual(t, footer.Computed.Height, 1)
 }
-
-// --- Zero-Size Container ---
 
 func TestComputeLayout_ZeroSizeContainer(t *testing.T) {
 	root := NewNode()
@@ -320,11 +305,9 @@ func TestComputeLayout_ZeroSizeContainer(t *testing.T) {
 	assertEqual(t, child.Computed.Height, 0)
 }
 
-// --- Auto-Size Root ---
-
 func TestComputeLayout_AutoSizeRoot(t *testing.T) {
 	root := NewNode()
-	// Auto width/height -> fills available space
+	// An automatic root fills the available viewport.
 
 	child := NewNode()
 	child.Width = Points(50)
@@ -336,8 +319,6 @@ func TestComputeLayout_AutoSizeRoot(t *testing.T) {
 	assertEqual(t, root.Computed.Width, 80)
 	assertEqual(t, root.Computed.Height, 24)
 }
-
-// --- Helper Function Tests ---
 
 func TestResolveScalar_Points(t *testing.T) {
 	v, ok := Points(42).Resolve(100)
@@ -377,10 +358,10 @@ func TestResolvePaddings(t *testing.T) {
 	n.PaddingLeft = Percent(20)
 
 	top, right, bottom, left := resolvePaddings(n, 100, 200)
-	assertEqual(t, top, 20)    // 10% of 200
-	assertEqual(t, right, 20)  // 20% of 100
-	assertEqual(t, bottom, 20) // 10% of 200
-	assertEqual(t, left, 20)   // 20% of 100
+	assertEqual(t, top, 20)    // Ten percent of the parent height.
+	assertEqual(t, right, 20)  // Twenty percent of the parent width.
+	assertEqual(t, bottom, 20) // Ten percent of the parent height.
+	assertEqual(t, left, 20)   // Twenty percent of the parent width.
 }
 
 func TestClampSize(t *testing.T) {
@@ -395,8 +376,6 @@ func TestClampSize(t *testing.T) {
 	}
 }
 
-// --- Percentage with padding ---
-
 func TestComputeLayout_PercentageWithPadding(t *testing.T) {
 	root := NewNode()
 	root.SetSize(Points(100), Points(100))
@@ -409,13 +388,11 @@ func TestComputeLayout_PercentageWithPadding(t *testing.T) {
 
 	root.ComputeLayout(100, 100)
 
-	// The child should be positioned inside padding
+	// The child's position begins inside the root padding.
 	if child.Computed.X < 10 {
 		t.Errorf("child X = %d, should be >= 10 (inside padding)", child.Computed.X)
 	}
 }
-
-// --- Multiple margins ---
 
 func TestComputeLayout_MarginBetweenItems(t *testing.T) {
 	root := NewNode()
@@ -433,5 +410,5 @@ func TestComputeLayout_MarginBetweenItems(t *testing.T) {
 	root.ComputeLayout(100, 30)
 
 	assertEqual(t, c1.Computed.X, 0)
-	assertEqual(t, c2.Computed.X, 30) // 20 + 10 margin
+	assertEqual(t, c2.Computed.X, 30) // c1's width plus its right margin.
 }

@@ -6,19 +6,18 @@ import (
 	"strings"
 )
 
-// Color represents a color with uint8 channels in [0, 255] range.
+// Color stores red, green, blue, and alpha channels in the range [0, 255].
 type Color struct {
 	R, G, B, A uint8
 }
 
-// --- Constructors ---
-
-// ColorFromHex parses a hex string ("#RGB", "#RGBA", "#RRGGBB", "#RRGGBBAA") into a Color.
+// ColorFromHex parses RGB, RGBA, RRGGBB, or RRGGBBAA hexadecimal notation with
+// an optional leading '#'. Unsupported lengths return ColorTransparent.
 func ColorFromHex(hex string) Color {
 	hex = strings.TrimPrefix(hex, "#")
 
 	switch len(hex) {
-	case 3: // RGB
+	case 3: // One hexadecimal digit per RGB channel.
 		r := hexDigit(hex[0])
 		g := hexDigit(hex[1])
 		b := hexDigit(hex[2])
@@ -28,7 +27,7 @@ func ColorFromHex(hex string) Color {
 			B: b * 17,
 			A: 255,
 		}
-	case 4: // RGBA
+	case 4: // One hexadecimal digit per RGBA channel.
 		r := hexDigit(hex[0])
 		g := hexDigit(hex[1])
 		b := hexDigit(hex[2])
@@ -39,7 +38,7 @@ func ColorFromHex(hex string) Color {
 			B: b * 17,
 			A: a * 17,
 		}
-	case 6: // RRGGBB
+	case 6: // Two hexadecimal digits per RGB channel.
 		r := hexByte(hex[0], hex[1])
 		g := hexByte(hex[2], hex[3])
 		b := hexByte(hex[4], hex[5])
@@ -49,7 +48,7 @@ func ColorFromHex(hex string) Color {
 			B: b,
 			A: 255,
 		}
-	case 8: // RRGGBBAA
+	case 8: // Two hexadecimal digits per RGBA channel.
 		r := hexByte(hex[0], hex[1])
 		g := hexByte(hex[2], hex[3])
 		b := hexByte(hex[4], hex[5])
@@ -65,12 +64,12 @@ func ColorFromHex(hex string) Color {
 	}
 }
 
-// ColorFromInts creates a Color from 0-255 integer values.
+// ColorFromInts returns a color from channel values in the range [0, 255].
 func ColorFromInts(r, g, b, a uint8) Color {
 	return Color{R: r, G: g, B: b, A: a}
 }
 
-// ColorFromFloats creates a Color from 0.0-1.0 float values.
+// ColorFromFloats returns a color from channel values in the range [0, 1].
 func ColorFromFloats(r, g, b, a float32) Color {
 	return Color{
 		R: uint8(math.Round(float64(r) * 255)),
@@ -80,20 +79,18 @@ func ColorFromFloats(r, g, b, a float32) Color {
 	}
 }
 
-// --- Methods ---
-
-// ToInts converts to 0-255 integer values.
+// ToInts returns c's channels in the range [0, 255].
 func (c Color) ToInts() (r, g, b, a uint8) {
 	return c.R, c.G, c.B, c.A
 }
 
-// ToFloats converts to 0.0-1.0 float32 values.
+// ToFloats returns c's channels normalized to the range [0, 1].
 func (c Color) ToFloats() (r, g, b, a float32) {
 	return float32(c.R) / 255.0, float32(c.G) / 255.0, float32(c.B) / 255.0, float32(c.A) / 255.0
 }
 
-// ToHex converts to "#RRGGBB" or "#RRGGBBAA" string.
-// If alpha is 255, the AA suffix is omitted.
+// ToHex returns c as lowercase #RRGGBB or #RRGGBBAA notation. It omits alpha
+// when c is fully opaque.
 func (c Color) ToHex() string {
 	if c.A == 255 {
 		return fmt.Sprintf("#%02x%02x%02x", c.R, c.G, c.B)
@@ -101,18 +98,18 @@ func (c Color) ToHex() string {
 	return fmt.Sprintf("#%02x%02x%02x%02x", c.R, c.G, c.B, c.A)
 }
 
-// Equals performs deep equality comparison.
+// Equals reports whether c and other have identical channels.
 func (c Color) Equals(other Color) bool {
 	return c == other
 }
 
-// String returns "rgba(r, g, b, a)" with uint8 values.
+// String returns c as "rgba(r, g, b, a)" using integer channel values.
 func (c Color) String() string {
 	return fmt.Sprintf("rgba(%d, %d, %d, %d)", c.R, c.G, c.B, c.A)
 }
 
-// Blend performs linear interpolation between two colors.
-// t=0 returns c, t=1 returns other.
+// Blend linearly interpolates from c at t=0 to other at t=1. Values outside
+// that range extrapolate and clamp each resulting channel.
 func (c Color) Blend(other Color, t float32) Color {
 	r := float32(c.R) + (float32(other.R)-float32(c.R))*t
 	g := float32(c.G) + (float32(other.G)-float32(c.G))*t
@@ -126,7 +123,8 @@ func (c Color) Blend(other Color, t float32) Color {
 	}
 }
 
-// ColorBlendPerceptual composites overlay over text using perceptual alpha curves.
+// ColorBlendPerceptual composites overlay over text using a perceptually
+// adjusted overlay alpha.
 func ColorBlendPerceptual(overlay, text Color) Color {
 	if overlay.A == 255 {
 		return overlay
@@ -164,13 +162,13 @@ func ColorBlendPerceptual(overlay, text Color) Color {
 	return Color{R: clampU8(blendedR), G: clampU8(blendedG), B: clampU8(blendedB), A: clampU8(resultAlpha * 255)}
 }
 
-// WithAlpha returns a copy with modified alpha.
+// WithAlpha returns a copy of c with alpha set to a.
 func (c Color) WithAlpha(a uint8) Color {
 	c.A = a
 	return c
 }
 
-// Premultiply returns the premultiplied-alpha version.
+// Premultiply returns c with each RGB channel multiplied by its alpha.
 func (c Color) Premultiply() Color {
 	a := float32(c.A) / 255.0
 	return Color{
@@ -181,12 +179,12 @@ func (c Color) Premultiply() Color {
 	}
 }
 
-// IsTransparent returns true if alpha is 0.
+// IsTransparent reports whether c has zero alpha.
 func (c Color) IsTransparent() bool {
 	return c.A == 0
 }
 
-// Luminance returns perceived luminance using the BT.709 formula.
+// Luminance returns c's BT.709 luma in the range [0, 1].
 func (c Color) Luminance() float32 {
 	r := float32(c.R) / 255.0
 	g := float32(c.G) / 255.0
@@ -194,7 +192,8 @@ func (c Color) Luminance() float32 {
 	return 0.2126*r + 0.7152*g + 0.0722*b
 }
 
-// DistanceSq returns the squared Euclidean distance between two colors in RGB space.
+// DistanceSq returns the squared Euclidean RGB distance from c to other,
+// ignoring alpha.
 func (c Color) DistanceSq(other Color) float32 {
 	dr := float32(int(c.R) - int(other.R))
 	dg := float32(int(c.G) - int(other.G))
@@ -202,7 +201,8 @@ func (c Color) DistanceSq(other Color) float32 {
 	return dr*dr + dg*dg + db*db
 }
 
-// ColorAverage returns the component-wise average of the given colors.
+// ColorAverage returns the component-wise mean of colors. An empty input
+// returns ColorTransparent.
 func ColorAverage(colors []Color) Color {
 	if len(colors) == 0 {
 		return ColorTransparent
@@ -218,8 +218,7 @@ func ColorAverage(colors []Color) Color {
 	return Color{R: uint8(r / n), G: uint8(g / n), B: uint8(b / n), A: uint8(a / n)}
 }
 
-// --- Color Constants ---
-
+// Common named colors.
 var (
 	ColorTransparent = Color{0, 0, 0, 0}
 	ColorBlack       = Color{0, 0, 0, 255}
@@ -253,17 +252,19 @@ var (
 	ColorBrightWhite   = Color{255, 255, 255, 255}
 )
 
-// --- ColorInput Resolution ---
-
+// ColorInput is either a Color or a ColorString accepted by ParseColor.
 type ColorInput interface {
 	colorInput()
 }
 
+// ColorString is a named color or hexadecimal notation beginning with '#'.
 type ColorString string
 
 func (ColorString) colorInput() {}
 func (Color) colorInput()       {}
 
+// ParseColor resolves input to a color. A nil input or unknown string returns
+// ColorTransparent.
 func ParseColor(input ColorInput) Color {
 	switch v := input.(type) {
 	case Color:
@@ -290,11 +291,14 @@ func parseColorString(s string) Color {
 	return ColorTransparent
 }
 
-// --- Color Conversion Functions ---
-
+// ColorHexToRGB parses hexadecimal color notation.
 func ColorHexToRGB(hex string) Color { return ColorFromHex(hex) }
-func ColorRGBToHex(c Color) string   { return c.ToHex() }
 
+// ColorRGBToHex formats c as hexadecimal color notation.
+func ColorRGBToHex(c Color) string { return c.ToHex() }
+
+// ColorHSVToRGB converts hue in degrees and normalized saturation and value to
+// an opaque RGB color.
 func ColorHSVToRGB(h, s, v float32) Color {
 	if s == 0 {
 		val := uint8(v * 255)
@@ -331,6 +335,8 @@ func ColorHSVToRGB(h, s, v float32) Color {
 	return Color{R: uint8(r * 255), G: uint8(g * 255), B: uint8(b * 255), A: 255}
 }
 
+// ColorRGBToHSV converts c to hue in degrees and normalized saturation and
+// value, ignoring alpha.
 func ColorRGBToHSV(c Color) (h, s, v float32) {
 	r := float32(c.R) / 255.0
 	g := float32(c.G) / 255.0
@@ -363,8 +369,7 @@ func ColorRGBToHSV(c Color) (h, s, v float32) {
 	return
 }
 
-// --- Named Color Map ---
-
+// namedColors maps accepted case-insensitive names to colors.
 var namedColors = map[string]Color{
 	"transparent":   ColorTransparent,
 	"black":         ColorBlack,
@@ -396,8 +401,6 @@ var namedColors = map[string]Color{
 	"brightcyan":    ColorBrightCyan,
 	"brightwhite":   ColorBrightWhite,
 }
-
-// --- Internal helpers ---
 
 func hexDigit(c byte) uint8 {
 	switch {
@@ -442,28 +445,19 @@ func minf(a, b float32) float32 {
 	return b
 }
 
-// ---------------------------------------------------------------------------
-// ColorMode
-// ---------------------------------------------------------------------------
-
-// ColorMode represents a terminal's color capability level.
+// ColorMode identifies a terminal color capability level.
 type ColorMode int
 
 const (
-	// ColorTrueColor supports 24-bit RGB (16 million colors).
+	// ColorTrueColor supports 24-bit RGB.
 	ColorTrueColor ColorMode = iota
-	// Color256 supports 256-color palette.
+	// Color256 supports the xterm 256-color palette.
 	Color256
-	// Color16 supports basic 16 ANSI colors.
+	// Color16 supports the 16 ANSI colors.
 	Color16
 )
 
-// ---------------------------------------------------------------------------
-// ANSI color sequence generation
-// ---------------------------------------------------------------------------
-
-// FgColorSeq generates the ANSI foreground color escape sequence for the
-// given Color using the specified color mode.
+// FgColorSeq returns an ANSI foreground-color sequence for c in mode.
 func FgColorSeq(c Color, mode ColorMode) string {
 	r, g, b := int(c.R), int(c.G), int(c.B)
 	switch mode {
@@ -476,8 +470,7 @@ func FgColorSeq(c Color, mode ColorMode) string {
 	}
 }
 
-// BgColorSeq generates the ANSI background color escape sequence for the
-// given Color using the specified color mode.
+// BgColorSeq returns an ANSI background-color sequence for c in mode.
 func BgColorSeq(c Color, mode ColorMode) string {
 	r, g, b := int(c.R), int(c.G), int(c.B)
 	switch mode {
@@ -490,20 +483,18 @@ func BgColorSeq(c Color, mode ColorMode) string {
 	}
 }
 
-// xtermCubeLevels are the six non-linear channel values used by the
-// xterm 6x6x6 color cube (indices 16-231). The cube is not evenly
-// spaced: the first step is 95, subsequent steps are 40.
+// xtermCubeLevels contains the six channel values in xterm palette entries 16
+// through 231. The first step is 95 and each later step is 40.
 var xtermCubeLevels = [6]int{0, 95, 135, 175, 215, 255}
 
-// xtermGreyLevels are the 24 grey-ramp values used by indices 232-255.
-// Level i == 8 + 10*i, spanning 8..238.
+// xtermGreyLevels contains the 24 equal-channel values in xterm palette entries
+// 232 through 255.
 var xtermGreyLevels = [24]int{
 	8, 18, 28, 38, 48, 58, 68, 78, 88, 98, 108, 118,
 	128, 138, 148, 158, 168, 178, 188, 198, 208, 218, 228, 238,
 }
 
-// nearestCubeLevel returns the index in xtermCubeLevels whose value is
-// closest to v. Used to map a single channel onto the 6-step cube.
+// nearestCubeLevel returns the xtermCubeLevels index closest to v.
 func nearestCubeLevel(v int) int {
 	best, bestDist := 0, math.MaxInt
 	for i, lv := range xtermCubeLevels {
@@ -518,7 +509,7 @@ func nearestCubeLevel(v int) int {
 	return best
 }
 
-// nearestGreyLevel returns the index in xtermGreyLevels closest to v.
+// nearestGreyLevel returns the xtermGreyLevels index closest to v.
 func nearestGreyLevel(v int) int {
 	best, bestDist := 0, math.MaxInt
 	for i, lv := range xtermGreyLevels {
@@ -533,15 +524,10 @@ func nearestGreyLevel(v int) int {
 	return best
 }
 
-// rgbTo256 maps an RGB color to the nearest xterm-256 index. It picks
-// the closer of two candidates — the best match in the 6x6x6 color
-// cube and the best match on the 24-step grey ramp — using squared
-// Euclidean distance in sRGB. This matters for near-grey colors
-// (e.g. Darcula's #cfd2d5 text): the cube quantises them to a flat
-// #d7d7d7 that looks washed out, while the grey ramp has a 10-unit
-// step that reproduces them faithfully.
+// rgbTo256 returns the closer of the nearest xterm color-cube and gray-ramp
+// entries, measured by squared Euclidean RGB distance.
 func rgbTo256(r, g, b int) int {
-	// Candidate 1: best fit on the 6x6x6 cube.
+	// Find the nearest color-cube entry.
 	ri := nearestCubeLevel(r)
 	gi := nearestCubeLevel(g)
 	bi := nearestCubeLevel(b)
@@ -549,10 +535,7 @@ func rgbTo256(r, g, b int) int {
 	cubeIdx := 16 + 36*ri + 6*gi + bi
 	cubeDist := sqDist(r, g, b, cubeR, cubeG, cubeB)
 
-	// Candidate 2: best fit on the grey ramp. We score it against
-	// the actual RGB, so a tinted grey like #cfd2d5 correctly prefers
-	// the grey ramp when its distance to an equal-channel grey is
-	// smaller than its distance to the cube corner.
+	// Compare the nearest gray-ramp entry against the original RGB value.
 	gi2 := nearestGreyLevel((r + g + b) / 3)
 	grey := xtermGreyLevels[gi2]
 	greyIdx := 232 + gi2
@@ -564,13 +547,13 @@ func rgbTo256(r, g, b int) int {
 	return cubeIdx
 }
 
-// sqDist returns the squared Euclidean distance between two sRGB points.
+// sqDist returns the squared Euclidean distance between two RGB points.
 func sqDist(r1, g1, b1, r2, g2, b2 int) int {
 	dr, dg, db := r1-r2, g1-g2, b1-b2
 	return dr*dr + dg*dg + db*db
 }
 
-// ansi16Colors are the standard 16 ANSI colors (normal + bright).
+// ansi16Colors contains the eight standard and eight bright ANSI colors.
 var ansi16Colors = [][3]int{
 	{0, 0, 0},       // 0: black
 	{128, 0, 0},     // 1: red
@@ -590,7 +573,7 @@ var ansi16Colors = [][3]int{
 	{255, 255, 255}, // 15: bright white
 }
 
-// rgbTo16Fg maps RGB to the nearest ANSI 16-color foreground code (30-37, 90-97).
+// rgbTo16Fg returns the nearest ANSI foreground code in 30-37 or 90-97.
 func rgbTo16Fg(r, g, b int) int {
 	idx := nearestAnsi16(r, g, b)
 	if idx < 8 {
@@ -599,7 +582,7 @@ func rgbTo16Fg(r, g, b int) int {
 	return 90 + (idx - 8)
 }
 
-// rgbTo16Bg maps RGB to the nearest ANSI 16-color background code (40-47, 100-107).
+// rgbTo16Bg returns the nearest ANSI background code in 40-47 or 100-107.
 func rgbTo16Bg(r, g, b int) int {
 	idx := nearestAnsi16(r, g, b)
 	if idx < 8 {
@@ -608,7 +591,7 @@ func rgbTo16Bg(r, g, b int) int {
 	return 100 + (idx - 8)
 }
 
-// nearestAnsi16 finds the nearest ANSI 16-color index by Euclidean distance.
+// nearestAnsi16 returns the nearest ansi16Colors index by squared RGB distance.
 func nearestAnsi16(r, g, b int) int {
 	bestIdx := 0
 	bestDist := math.MaxFloat64

@@ -11,33 +11,30 @@ import (
 	"github.com/unaquatic/fluid/widget"
 )
 
-// rerender renders a widget to a fresh buffer of the same size.
+// rerender draws an already laid-out widget into a fresh buffer.
 func rerender(w testutil.SelfRenderer, width, height int) *buffer.Buffer {
 	buf := buffer.New(width, height)
 	w.RenderSelf(buf, 0)
 	return buf
 }
 
-// ---------------------------------------------------------------------------
-// Text scroll: before and after
-// ---------------------------------------------------------------------------
+// Text scrolling sequences.
 
-// TestGoldenSeq_TextScrollY captures the text widget before and after
-// vertical scrolling through 5 lines of content in a 3-line viewport.
+// TestGoldenSeq_TextScrollY captures vertical offsets in a shorter viewport.
 func TestGoldenSeq_TextScrollY(t *testing.T) {
 	txt := widget.NewText("line0\nline1\nline2\nline3\nline4")
 	testutil.SetupWidget(txt, 10, 3)
 
 	seq := testutil.NewGoldenSequence()
 
-	// Step 1: initial (no scroll)
+	// Capture the initial top viewport.
 	seq.Add("initial", rerender(txt, 10, 3))
 
-	// Step 2: scroll down by 1
+	// Capture a one-row offset.
 	txt.SetScrollY(1)
 	seq.Add("scroll_y=1", rerender(txt, 10, 3))
 
-	// Step 3: scroll down by 2
+	// Capture a two-row offset.
 	txt.SetScrollY(2)
 	seq.Add("scroll_y=2", rerender(txt, 10, 3))
 
@@ -51,23 +48,21 @@ func TestGoldenSeq_TextScrollX(t *testing.T) {
 
 	seq := testutil.NewGoldenSequence()
 
-	// Step 1: initial
+	// Capture the initial left edge.
 	seq.Add("initial", rerender(txt, 8, 1))
 
-	// Step 2: scroll right by 3
+	// Capture a three-column offset.
 	txt.SetScrollX(3)
 	seq.Add("scroll_x=3", rerender(txt, 8, 1))
 
-	// Step 3: scroll right by 7
+	// Capture a seven-column offset.
 	txt.SetScrollX(7)
 	seq.Add("scroll_x=7", rerender(txt, 8, 1))
 
 	testutil.AssertGoldenSequence(t, "text_scroll_x", seq)
 }
 
-// ---------------------------------------------------------------------------
-// Text content mutation: before and after
-// ---------------------------------------------------------------------------
+// Text mutation sequences.
 
 // TestGoldenSeq_TextContentChange captures text content changing over time.
 func TestGoldenSeq_TextContentChange(t *testing.T) {
@@ -78,11 +73,11 @@ func TestGoldenSeq_TextContentChange(t *testing.T) {
 
 	seq.Add("initial", rerender(txt, 20, 1))
 
-	// Change content
+	// Replace the initial plain content.
 	txt.SetContent("World")
 	seq.Add("after_set_content", rerender(txt, 20, 1))
 
-	// Change again with styled text
+	// Replace it with styled content.
 	txt.SetStyledContent(style.NewStyledText(
 		style.FgRed("Red"),
 		style.Plain(" "),
@@ -100,18 +95,18 @@ func TestGoldenSeq_TextNodeMutation(t *testing.T) {
 
 	seq := testutil.NewGoldenSequence()
 
-	// Step 1: empty
+	// Capture an empty node tree.
 	seq.Add("empty", rerender(txt, 20, 1))
 
-	// Step 2: add plain text
+	// Add plain node content.
 	txt.AddText("Hello")
 	seq.Add("add_text", rerender(txt, 20, 1))
 
-	// Step 3: add bold node
+	// Append bold node content.
 	txt.AddNode(widget.BoldText(" Bold"))
 	seq.AddStyled("add_bold_node", rerender(txt, 20, 1))
 
-	// Step 4: clear and replace
+	// Replace the complete node tree.
 	txt.ClearNodes()
 	txt.AddNode(widget.ItalicText("Replaced"))
 	seq.AddStyled("clear_and_replace", rerender(txt, 20, 1))
@@ -128,15 +123,15 @@ func TestGoldenSeq_TextNodeColorChange(t *testing.T) {
 
 	seq := testutil.NewGoldenSequence()
 
-	// Step 1: red
+	// Capture the initial red foreground.
 	seq.AddStyled("red", rerender(txt, 10, 1))
 
-	// Step 2: change to green
+	// Change the node foreground to green.
 	green := style.ColorGreen
 	span.SetFg(&green)
 	seq.AddStyled("green", rerender(txt, 10, 1))
 
-	// Step 3: change to blue
+	// Change the node foreground to blue.
 	blue := style.ColorBlue
 	span.SetFg(&blue)
 	seq.AddStyled("blue", rerender(txt, 10, 1))
@@ -144,12 +139,9 @@ func TestGoldenSeq_TextNodeColorChange(t *testing.T) {
 	testutil.AssertGoldenSequence(t, "text_node_color_change", seq)
 }
 
-// ---------------------------------------------------------------------------
-// Input: focus / unfocus state changes
-// ---------------------------------------------------------------------------
+// Input focus and typing sequences.
 
-// TestGoldenSeq_InputFocusUnfocus captures the Input widget rendering
-// in unfocused and focused states.
+// TestGoldenSeq_InputFocusUnfocus captures placeholder, text, and focus states.
 func TestGoldenSeq_InputFocusUnfocus(t *testing.T) {
 	inp := widget.NewInput(
 		widget.InputWithPlaceholder("Type here"),
@@ -159,19 +151,19 @@ func TestGoldenSeq_InputFocusUnfocus(t *testing.T) {
 
 	seq := testutil.NewGoldenSequence()
 
-	// Step 1: unfocused, empty — shows placeholder
+	// Capture the unfocused placeholder.
 	seq.AddStyled("unfocused_empty", rerender(inp, 15, 1))
 
-	// Step 2: focused, empty — shows placeholder dimly
+	// Capture the focused placeholder.
 	inp.Focus()
 	seq.AddStyled("focused_empty", rerender(inp, 15, 1))
 
-	// Step 3: focused, type text
+	// Capture focused input after typing.
 	pressKey(inp, "H")
 	pressKey(inp, "i")
 	seq.AddStyled("focused_with_text", rerender(inp, 15, 1))
 
-	// Step 4: unfocused, with text
+	// Capture the entered text after blur.
 	inp.Blur()
 	seq.AddStyled("unfocused_with_text", rerender(inp, 15, 1))
 
@@ -192,7 +184,7 @@ func TestGoldenSeq_InputTypingSequence(t *testing.T) {
 		seq.Add("typed_"+string(ch), rerender(inp, 10, 1))
 	}
 
-	// Backspace twice
+	// Capture two deletions after the typing sequence.
 	pressKey(inp, input.KeyBackspace)
 	seq.Add("backspace_1", rerender(inp, 10, 1))
 
@@ -202,29 +194,26 @@ func TestGoldenSeq_InputTypingSequence(t *testing.T) {
 	testutil.AssertGoldenSequence(t, "input_typing_sequence", seq)
 }
 
-// ---------------------------------------------------------------------------
-// Text wrapping: content that grows and needs re-wrap
-// ---------------------------------------------------------------------------
+// Wrapping sequences.
 
-// TestGoldenSeq_TextWrapGrowingContent captures text that grows beyond
-// the viewport width, triggering wrapping.
+// TestGoldenSeq_TextWrapGrowingContent captures wrapping as content grows.
 func TestGoldenSeq_TextWrapGrowingContent(t *testing.T) {
 	txt := widget.NewText("", widget.TextWithWrapMode(widget.WrapWord))
 	testutil.SetupWidget(txt, 10, 4)
 
 	seq := testutil.NewGoldenSequence()
 
-	// Step 1: short text, no wrap needed
+	// Capture content that fits on one row.
 	txt.ClearNodes()
 	txt.AddText("Hi")
 	seq.Add("short", rerender(txt, 10, 4))
 
-	// Step 2: medium text, single wrap
+	// Capture content that wraps once.
 	txt.ClearNodes()
 	txt.AddText("Hello World")
 	seq.Add("medium", rerender(txt, 10, 4))
 
-	// Step 3: long text, multiple wraps
+	// Capture content that wraps across several rows.
 	txt.ClearNodes()
 	txt.AddText("The quick brown fox jumps")
 	seq.Add("long", rerender(txt, 10, 4))
@@ -232,12 +221,9 @@ func TestGoldenSeq_TextWrapGrowingContent(t *testing.T) {
 	testutil.AssertGoldenSequence(t, "text_wrap_growing", seq)
 }
 
-// ---------------------------------------------------------------------------
-// Box focus: border color change
-// ---------------------------------------------------------------------------
+// Box focus sequence.
 
-// TestGoldenSeq_BoxFocusBorderColor captures the box border color
-// changing when the box gains/loses focus.
+// TestGoldenSeq_BoxFocusBorderColor captures normal and focused border colors.
 func TestGoldenSeq_BoxFocusBorderColor(t *testing.T) {
 	box := widget.NewBox(
 		widget.BoxWithBorder(style.BorderAll()),
@@ -252,23 +238,21 @@ func TestGoldenSeq_BoxFocusBorderColor(t *testing.T) {
 
 	seq := testutil.NewGoldenSequence()
 
-	// Step 1: unfocused — white border
+	// Capture the normal white border.
 	seq.AddStyled("unfocused", rerender(box, 10, 3))
 
-	// Step 2: focused — green border
+	// Capture the focused green border.
 	box.Focus()
 	seq.AddStyled("focused", rerender(box, 10, 3))
 
-	// Step 3: blurred — back to white
+	// Capture the restored normal border after blur.
 	box.Blur()
 	seq.AddStyled("blurred", rerender(box, 10, 3))
 
 	testutil.AssertGoldenSequence(t, "box_focus_border_color", seq)
 }
 
-// ---------------------------------------------------------------------------
-// Text scroll + wrap interaction
-// ---------------------------------------------------------------------------
+// Wrapped-text scrolling.
 
 // TestGoldenSeq_TextWrapThenScroll tests wrapped text that is scrolled.
 func TestGoldenSeq_TextWrapThenScroll(t *testing.T) {
@@ -278,10 +262,10 @@ func TestGoldenSeq_TextWrapThenScroll(t *testing.T) {
 
 	seq := testutil.NewGoldenSequence()
 
-	// Step 1: initial view
+	// Capture the first wrapped viewport.
 	seq.Add("initial", rerender(txt, 10, 3))
 
-	// Step 2: scroll down
+	// Capture the wrapped viewport after scrolling.
 	txt.SetScrollY(2)
 	seq.Add("scrolled", rerender(txt, 10, 3))
 

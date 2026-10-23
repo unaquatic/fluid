@@ -10,29 +10,26 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// LineInfoProvider is implemented by widgets that can provide line information
-// for the LineNumber gutter to sync with.
+// LineInfoProvider reports the logical line count displayed by a target widget.
 type LineInfoProvider interface {
 	LineCount() int
 }
 
-// ScrollInfoProvider is optionally implemented to sync scroll position.
+// ScrollInfoProvider reports a target widget's vertical scroll offset.
 type ScrollInfoProvider interface {
 	ScrollY() int
 }
 
-// CursorInfoProvider is implemented by widgets that can report their cursor row.
-// Used for active line highlighting.
+// CursorInfoProvider reports the logical cursor row used for active-line styling.
 type CursorInfoProvider interface {
 	CursorRow() int
 }
 
-// VisualLineProvider is implemented by widgets that support word wrap.
-// When present, the line number gutter shows the logical line number only on
-// the first visual line of each logical line; continuation lines show empty gutter.
+// VisualLineProvider maps wrapped visual lines to logical source lines.
+// LineNumber leaves continuation rows blank when a target implements this interface.
 type VisualLineProvider interface {
 	VisualLineCount() int
-	// LogicalLineForVisualLine maps a visual line index to its logical line index.
+	// LogicalLineForVisualLine returns the logical line for a visual line index.
 	LogicalLineForVisualLine(visualLine int) int
 }
 
@@ -40,57 +37,49 @@ type VisualLineProvider interface {
 type LineNumberMode int
 
 const (
-	LineNumberAbsolute LineNumberMode = iota // Show absolute line numbers
-	LineNumberRelative                       // Show distance from active line
+	LineNumberAbsolute LineNumberMode = iota // Displays absolute line numbers.
+	LineNumberRelative                       // Displays distance from the active line.
 )
 
-// LineSign configures sign indicators displayed before/after line numbers.
+// LineSign configures text displayed before and after a line number.
 type LineSign struct {
-	Before      string      // text before line number (e.g. for bookmarks)
-	BeforeColor style.Color // color for before text
-	After       string      // text after line number (e.g. " +" or " -")
-	AfterColor  style.Color // color for after text
+	Before      string      // Text before the line number, such as a bookmark marker.
+	BeforeColor style.Color // Foreground color for Before.
+	After       string      // Text after the line number, such as a diff sign.
+	AfterColor  style.Color // Foreground color for After.
 }
 
-// LineColorConfig configures per-line background colors for both the gutter
-// and content areas.
+// LineColorConfig contains the gutter and content backgrounds for one logical line.
 type LineColorConfig struct {
-	Gutter  style.Color // background for the gutter (line number + signs)
-	Content style.Color // background for the content area (code)
+	Gutter  style.Color // Background behind the line number and signs.
+	Content style.Color // Background behind the target content.
 }
 
-// LineNumber displays line numbers synced with a target widget.
-//
-// Features:
-//   - Active line highlighting with configurable foreground and background
-//   - Wrap-aware numbering (shows number only on first visual line of each logical line)
-//   - Relative line number mode
-//   - Auto-width calculation from max line number digit count
-//   - Scroll sync with target widget
-//   - Per-line background colors (gutter + content), signs, custom line numbers
-//   - Content area background painting (for diff-style coloring)
+// LineNumber draws a gutter synchronized with a target renderable.
+// It supports wrapped and relative numbering, active-line styles, signs,
+// custom numbers, and per-line gutter or content backgrounds.
 type LineNumber struct {
 	*render.BaseRenderable
 
-	target           render.Renderable // the widget to sync with
+	target           render.Renderable // Widget that supplies line, scroll, and cursor data.
 	fg               style.Color
 	bg               style.Color
-	activeFg         style.Color // color for the current/active line
-	activeBg         style.Color // background for the active line row
+	activeFg         style.Color // Foreground for the active line number.
+	activeBg         style.Color // Background for the active gutter row.
 	minWidth         int
-	lineNumberOffset int  // offset added to display line numbers (default 1)
-	showLineNumbers  bool // whether to show line numbers (default true)
+	lineNumberOffset int  // Added to zero-based logical line indexes; defaults to one.
+	showLineNumbers  bool // Controls gutter visibility; defaults to true.
 	mode             LineNumberMode
-	separator        rune // separator char after gutter (0 = none)
+	separator        rune // Character after the gutter; zero disables it.
 	separatorFg      style.Color
 
-	// Per-line customization (used by Diff and other composing widgets)
-	lineColors      map[int]LineColorConfig // logical line → gutter/content bg
-	lineSigns       map[int]LineSign        // logical line → sign indicators
-	lineNumbers     map[int]int             // logical line → custom display number
-	hideLineNumbers map[int]bool            // logical lines where number is hidden
+	// Per-line maps use zero-based logical line indexes.
+	lineColors      map[int]LineColorConfig
+	lineSigns       map[int]LineSign
+	lineNumbers     map[int]int
+	hideLineNumbers map[int]bool
 
-	// Cached sign column widths
+	// Sign widths reserve stable columns across every gutter row.
 	maxBeforeWidth int
 	maxAfterWidth  int
 }
@@ -98,7 +87,7 @@ type LineNumber struct {
 // LineNumberOption configures a LineNumber widget.
 type LineNumberOption func(*LineNumber)
 
-// NewLineNumber creates a LineNumber widget.
+// NewLineNumber returns a gutter synchronized with target.
 func NewLineNumber(target render.Renderable, opts ...LineNumberOption) *LineNumber {
 	ln := &LineNumber{
 		BaseRenderable:   render.NewBaseRenderable(),
@@ -122,7 +111,7 @@ func NewLineNumber(target render.Renderable, opts ...LineNumberOption) *LineNumb
 	return ln
 }
 
-// SetTarget sets the target widget to sync with.
+// SetTarget changes the widget that supplies line, scroll, and cursor data.
 func (ln *LineNumber) SetTarget(target render.Renderable) {
 	ln.target = target
 	ln.RequestRender()
@@ -142,7 +131,7 @@ func (ln *LineNumber) SetMode(mode LineNumberMode) {
 // Mode returns the current line number mode.
 func (ln *LineNumber) Mode() LineNumberMode { return ln.mode }
 
-// SetShowLineNumbers enables/disables line number display.
+// SetShowLineNumbers controls whether the gutter is displayed.
 func (ln *LineNumber) SetShowLineNumbers(v bool) {
 	ln.showLineNumbers = v
 	ln.RequestRender()
@@ -151,9 +140,7 @@ func (ln *LineNumber) SetShowLineNumbers(v bool) {
 // ShowLineNumbers returns whether line numbers are shown.
 func (ln *LineNumber) ShowLineNumbers() bool { return ln.showLineNumbers }
 
-// ---------------------------------------------------------------------------
-// Per-line customization setters (used by Diff)
-// ---------------------------------------------------------------------------
+// Per-line customization.
 
 // SetLineColors sets per-line background colors for gutter and content areas.
 func (ln *LineNumber) SetLineColors(colors map[int]LineColorConfig) {
@@ -168,13 +155,13 @@ func (ln *LineNumber) SetLineSigns(signs map[int]LineSign) {
 	ln.RequestRender()
 }
 
-// SetLineNumbers sets custom line number mapping (logical line → display number).
+// SetLineNumbers maps zero-based logical lines to displayed numbers.
 func (ln *LineNumber) SetLineNumbers(numbers map[int]int) {
 	ln.lineNumbers = numbers
 	ln.RequestRender()
 }
 
-// SetHideLineNumbers sets which logical lines should hide their line number.
+// SetHideLineNumbers sets the zero-based logical lines whose numbers are hidden.
 func (ln *LineNumber) SetHideLineNumbers(hide map[int]bool) {
 	ln.hideLineNumbers = hide
 	ln.RequestRender()
@@ -194,11 +181,7 @@ func (ln *LineNumber) calculateSignWidths() {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Computed Width
-// ---------------------------------------------------------------------------
-
-// ComputedWidth returns the width the gutter needs based on the target's line count.
+// ComputedWidth returns the gutter width required by numbers, signs, and the separator.
 func (ln *LineNumber) ComputedWidth() int {
 	if !ln.showLineNumbers || ln.target == nil {
 		return 0
@@ -207,7 +190,7 @@ func (ln *LineNumber) ComputedWidth() int {
 	lineCount := ln.getLineCount()
 	maxLine := lineCount + ln.lineNumberOffset
 
-	// Account for custom line numbers which may be larger
+	// Include custom displayed numbers when finding the digit width.
 	for _, num := range ln.lineNumbers {
 		if num > maxLine {
 			maxLine = num
@@ -218,14 +201,14 @@ func (ln *LineNumber) ComputedWidth() int {
 
 	w := digits
 	if ln.maxAfterWidth > 0 {
-		// When after signs present, the sign provides spacing
+		// An after-sign field also provides separation from the content.
 		w += ln.maxAfterWidth
 	} else {
-		w += 1 // trailing space when no signs
+		w += 1 // Separate a number from adjacent content when no sign follows it.
 	}
 	w += ln.maxBeforeWidth
 	if ln.separator != 0 {
-		w++ // separator char
+		w++ // Reserve the explicit separator column.
 	}
 	if w < ln.minWidth {
 		w = ln.minWidth
@@ -233,9 +216,7 @@ func (ln *LineNumber) ComputedWidth() int {
 	return w
 }
 
-// ---------------------------------------------------------------------------
-// Rendering
-// ---------------------------------------------------------------------------
+// LineNumber rendering.
 
 // RenderSelf draws the line numbers and per-line content backgrounds.
 func (ln *LineNumber) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
@@ -257,16 +238,14 @@ func (ln *LineNumber) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 		return
 	}
 
-	// Get line count from target
+	// Query optional target interfaces once for this render.
 	lineCount := ln.getLineCount()
 
-	// Get scroll offset from target
 	scrollY := ln.getScrollY()
 
-	// Get cursor row from target (for active line)
 	activeLine := ln.getActiveLine()
 
-	// Check if target supports visual line mapping (word wrap)
+	// Wrapped targets provide visual-to-logical line mapping.
 	hasVisualLines := false
 	var vlp VisualLineProvider
 	if vl, ok := ln.target.(VisualLineProvider); ok {
@@ -274,18 +253,17 @@ func (ln *LineNumber) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 		vlp = vl
 	}
 
-	// Calculate number display width (excluding sign columns)
+	// numWidth excludes sign and separator columns.
 	numWidth := ln.computeNumWidth(lineCount)
 	sepWidth := 0
 	if ln.separator != 0 {
 		sepWidth = 1
 	}
 
-	// Total gutter width (for content bg positioning)
+	// ComputedWidth locates the target content area for row backgrounds.
 	gutterW := ln.ComputedWidth()
 
-	// Draw content area backgrounds (behind the target code widget).
-	// This paints the full-width row bg for each line.
+	// Paint configured target-row backgrounds before drawing the gutter.
 	if ln.lineColors != nil && ln.showLineNumbers {
 		ln.drawContentBackgrounds(buf, x, y, w, h, gutterW, scrollY, lineCount, hasVisualLines, vlp)
 	}
@@ -294,12 +272,12 @@ func (ln *LineNumber) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 		return
 	}
 
-	// Draw gutter rows
+	// Draw one gutter row for each visible target row.
 	for row := range h {
 		visualLine := scrollY + row
 		lineY := y + row
 
-		// Determine logical line number
+		// Resolve the logical line and whether this is its first visual row.
 		logicalLine := -1
 		isFirstVisualLine := true
 
@@ -322,23 +300,22 @@ func (ln *LineNumber) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 			break
 		}
 
-		// Per-line gutter background
+		// Apply a line-specific gutter background when configured.
 		rowBg := style.ColorTransparent
 		if lc, ok := ln.lineColors[logicalLine]; ok && !lc.Gutter.IsTransparent() {
 			rowBg = lc.Gutter
 			buf.FillRect(x, lineY, gutterW, 1, rowBg)
 		}
 
-		// Determine if this is the active line
 		isActive := activeLine >= 0 && logicalLine == activeLine
 
-		// Active line background (takes precedence)
+		// Active-line styling takes precedence over per-line styling.
 		if isActive && !ln.activeBg.IsTransparent() {
 			rowBg = ln.activeBg
 			buf.FillRect(x, lineY, w, 1, rowBg)
 		}
 
-		// Skip number/sign rendering for hidden lines or continuation lines
+		// Wrapped continuation and explicitly hidden rows keep only their background.
 		if ln.hideLineNumbers[logicalLine] || !isFirstVisualLine {
 			continue
 		}
@@ -350,7 +327,7 @@ func (ln *LineNumber) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 
 		cx := x
 
-		// Before sign
+		// Right-align the before-sign in its reserved field.
 		if ln.maxBeforeWidth > 0 {
 			if sign, ok := ln.lineSigns[logicalLine]; ok && sign.Before != "" {
 				padding := ln.maxBeforeWidth - len(sign.Before)
@@ -371,7 +348,7 @@ func (ln *LineNumber) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 			}
 		}
 
-		// Line number (right-aligned within numWidth)
+		// Select an absolute, relative, or custom displayed number.
 		numStr := ""
 		if customNum, ok := ln.lineNumbers[logicalLine]; ok {
 			displayNum := customNum
@@ -401,16 +378,14 @@ func (ln *LineNumber) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 			}
 		}
 
-		// Right-align the number within numWidth.
-		// When after signs are present, the sign provides spacing so we omit
-		// the trailing space from the number area.
+		// Right-align the number. An after-sign field replaces normal trailing space.
 		trailingSpace := " "
 		if ln.maxAfterWidth > 0 {
 			trailingSpace = ""
 		}
 		availDigits := numWidth
 		if trailingSpace != "" {
-			availDigits-- // reserve space for trailing space
+			availDigits-- // Reserve the trailing separator space.
 		}
 		if availDigits < 1 {
 			availDigits = 1
@@ -424,7 +399,7 @@ func (ln *LineNumber) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 			cx++
 		}
 
-		// After sign
+		// Draw the after-sign in its reserved field.
 		if ln.maxAfterWidth > 0 {
 			if sign, ok := ln.lineSigns[logicalLine]; ok && sign.After != "" {
 				signFg := sign.AfterColor
@@ -441,15 +416,14 @@ func (ln *LineNumber) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 			}
 		}
 
-		// Separator
+		// Draw the explicit separator after all number and sign fields.
 		if ln.separator != 0 && cx-x < gutterW {
 			buf.SetCell(cx, lineY, ln.separator, ln.separatorFg, rowBg, 0)
 		}
 	}
 }
 
-// drawContentBackgrounds paints the content area background for each visible line.
-// This is separate from the gutter rendering and fills the area to the right of the gutter.
+// drawContentBackgrounds paints configured target-row backgrounds to the right of the gutter.
 func (ln *LineNumber) drawContentBackgrounds(buf *buffer.Buffer, x, y, w, h, gutterW, scrollY, lineCount int, hasVisualLines bool, vlp VisualLineProvider) {
 	contentX := x + gutterW
 	contentW := w - gutterW
@@ -483,7 +457,7 @@ func (ln *LineNumber) drawContentBackgrounds(buf *buffer.Buffer, x, y, w, h, gut
 	}
 }
 
-// getLineCount gets the line count from the target.
+// getLineCount returns the target's logical line count, or zero when unsupported.
 func (ln *LineNumber) getLineCount() int {
 	if lip, ok := ln.target.(LineInfoProvider); ok {
 		return lip.LineCount()
@@ -491,7 +465,7 @@ func (ln *LineNumber) getLineCount() int {
 	return 0
 }
 
-// getScrollY gets the scroll offset from the target.
+// getScrollY returns the target's vertical offset, or zero when unsupported.
 func (ln *LineNumber) getScrollY() int {
 	if sip, ok := ln.target.(ScrollInfoProvider); ok {
 		return sip.ScrollY()
@@ -499,7 +473,7 @@ func (ln *LineNumber) getScrollY() int {
 	return 0
 }
 
-// getActiveLine gets the cursor row from the target, or -1.
+// getActiveLine returns the target's cursor row, or -1 when unsupported.
 func (ln *LineNumber) getActiveLine() int {
 	if cip, ok := ln.target.(CursorInfoProvider); ok {
 		return cip.CursorRow()
@@ -507,11 +481,11 @@ func (ln *LineNumber) getActiveLine() int {
 	return -1
 }
 
-// computeNumWidth calculates the column width needed for line numbers.
+// computeNumWidth returns the number field width available inside the widget.
 func (ln *LineNumber) computeNumWidth(lineCount int) int {
 	maxLine := lineCount + ln.lineNumberOffset
 
-	// Account for custom line numbers
+	// Include custom displayed numbers when finding the digit width.
 	for _, num := range ln.lineNumbers {
 		if num > maxLine {
 			maxLine = num
@@ -521,9 +495,9 @@ func (ln *LineNumber) computeNumWidth(lineCount int) int {
 	digits := max(len(fmt.Sprintf("%d", maxLine)), 1)
 	numWidth := digits
 	if ln.maxAfterWidth > 0 {
-		// When signs present, sign text provides spacing
+		// The after-sign field separates the number from content.
 	} else {
-		numWidth++ // trailing space
+		numWidth++ // Reserve one trailing separator space.
 	}
 	if numWidth < ln.minWidth {
 		numWidth = ln.minWidth
@@ -540,9 +514,7 @@ func (ln *LineNumber) computeNumWidth(lineCount int) int {
 	return numWidth
 }
 
-// ---------------------------------------------------------------------------
-// Setters
-// ---------------------------------------------------------------------------
+// LineNumber appearance.
 
 // SetFg sets the default line number foreground color.
 func (ln *LineNumber) SetFg(c style.Color) {
@@ -574,9 +546,7 @@ func (ln *LineNumber) SetSeparator(r rune) {
 	ln.RequestRender()
 }
 
-// ---------------------------------------------------------------------------
-// LineNumber Options
-// ---------------------------------------------------------------------------
+// LineNumber options.
 
 // LineNumberWithFg sets the foreground color.
 func LineNumberWithFg(c style.Color) LineNumberOption {
@@ -608,7 +578,7 @@ func LineNumberWithOffset(offset int) LineNumberOption {
 	return func(ln *LineNumber) { ln.lineNumberOffset = offset }
 }
 
-// LineNumberWithShow enables/disables line number display.
+// LineNumberWithShow controls whether the gutter is displayed.
 func LineNumberWithShow(v bool) LineNumberOption {
 	return func(ln *LineNumber) { ln.showLineNumbers = v }
 }
@@ -641,12 +611,12 @@ func LineNumberWithLineSigns(signs map[int]LineSign) LineNumberOption {
 	}
 }
 
-// LineNumberWithLineNumbers sets custom line number mapping.
+// LineNumberWithLineNumbers maps zero-based logical lines to displayed numbers.
 func LineNumberWithLineNumbers(numbers map[int]int) LineNumberOption {
 	return func(ln *LineNumber) { ln.lineNumbers = numbers }
 }
 
-// LineNumberWithHideLineNumbers sets which lines hide their number.
+// LineNumberWithHideLineNumbers sets the zero-based logical lines whose numbers are hidden.
 func LineNumberWithHideLineNumbers(hide map[int]bool) LineNumberOption {
 	return func(ln *LineNumber) { ln.hideLineNumbers = hide }
 }

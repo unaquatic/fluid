@@ -19,7 +19,7 @@ func TestStreamMarkdown_Empty(t *testing.T) {
 func TestStreamMarkdown_ShortContent(t *testing.T) {
 	sm := NewStreamMarkdown(StreamMarkdownWithFg(style.ColorWhite))
 	sm.SetContent("# Hello\n\nWorld")
-	// One child per parsed block.
+	// Each parsed block receives one child.
 	if len(sm.children) != len(sm.allBlocks) {
 		t.Errorf("expected %d children (one per block), got %d",
 			len(sm.allBlocks), len(sm.children))
@@ -36,13 +36,13 @@ func TestStreamMarkdown_OneBlockPerChild(t *testing.T) {
 	sm := NewStreamMarkdown(StreamMarkdownWithFg(style.ColorWhite))
 	sm.SetContent(sb.String())
 
-	// One child per block.
+	// Child count follows parsed block count.
 	if len(sm.children) != len(sm.allBlocks) {
 		t.Fatalf("expected %d children (one per block), got %d",
 			len(sm.allBlocks), len(sm.children))
 	}
 
-	// Every child holds exactly one block.
+	// Each child owns exactly one block.
 	for i, child := range sm.children {
 		if len(child.blocks) != 1 {
 			t.Errorf("child %d: expected 1 block, got %d", i, len(child.blocks))
@@ -53,19 +53,19 @@ func TestStreamMarkdown_OneBlockPerChild(t *testing.T) {
 func TestStreamMarkdown_IncrementalAppend(t *testing.T) {
 	sm := NewStreamMarkdown(StreamMarkdownWithFg(style.ColorWhite))
 
-	// Simulate streaming: append content incrementally.
+	// Supply progressively longer complete content values.
 	var content strings.Builder
 	for i := 0; i < 25; i++ {
 		content.WriteString(fmt.Sprintf("Line %d\n\n", i))
 		sm.SetContent(content.String())
 	}
 
-	// Child count should match block count.
+	// The first update creates one child per block.
 	if len(sm.children) != len(sm.allBlocks) {
 		t.Fatalf("expected %d children, got %d", len(sm.allBlocks), len(sm.children))
 	}
 
-	// Append more content — child count should not decrease (grow-only).
+	// Later updates retain existing children and add any required children.
 	prevChildCount := len(sm.children)
 	content.WriteString("one more line")
 	sm.SetContent(content.String())
@@ -76,8 +76,7 @@ func TestStreamMarkdown_IncrementalAppend(t *testing.T) {
 }
 
 func TestStreamMarkdown_CodeBlockNotSplit(t *testing.T) {
-	// A large code block is a single MdBlockCode. Since we split at
-	// block boundaries, the code block always stays in one child.
+	// A fenced code block remains one MdBlockCode regardless of its line count.
 	var sb strings.Builder
 	sb.WriteString("```go\n")
 	for i := 0; i < 30; i++ {
@@ -88,7 +87,7 @@ func TestStreamMarkdown_CodeBlockNotSplit(t *testing.T) {
 	sm := NewStreamMarkdown(StreamMarkdownWithFg(style.ColorWhite))
 	sm.SetContent(sb.String())
 
-	// The code block should be entirely within one child.
+	// Exactly one child should contain the complete code block.
 	for _, child := range sm.children {
 		codeCount := 0
 		for _, blk := range child.blocks {
@@ -96,8 +95,7 @@ func TestStreamMarkdown_CodeBlockNotSplit(t *testing.T) {
 				codeCount++
 			}
 		}
-		// If this child has a code block, it should be complete
-		// (the parser always produces complete code blocks).
+		// A code-block child contains all source lines from that block.
 		if codeCount > 1 {
 			t.Errorf("child has %d code blocks — expected at most 1", codeCount)
 		}
@@ -107,7 +105,7 @@ func TestStreamMarkdown_CodeBlockNotSplit(t *testing.T) {
 func TestStreamMarkdown_EarlyChildStableBlockCount(t *testing.T) {
 	sm := NewStreamMarkdown(StreamMarkdownWithFg(style.ColorWhite))
 
-	// Build content large enough to produce multiple blocks.
+	// Use multiple blocks so unchanged prefix children can be observed.
 	var sb strings.Builder
 	for i := 0; i < 25; i++ {
 		sb.WriteString(fmt.Sprintf("Para %d\n\n", i))
@@ -119,14 +117,13 @@ func TestStreamMarkdown_EarlyChildStableBlockCount(t *testing.T) {
 		t.Fatalf("expected multiple children, got %d", len(sm.children))
 	}
 
-	// Record first child's single block.
+	// Save the first child's block before extending the tail.
 	if len(sm.children[0].blocks) != 1 {
 		t.Fatalf("expected 1 block in first child, got %d", len(sm.children[0].blocks))
 	}
 	firstBlock := sm.children[0].blocks[0]
 
-	// Append more content — earlier children's blocks should be unchanged
-	// since new content only extends the tail.
+	// Extending only the tail must not change earlier child blocks.
 	sm.SetContent(base + "tail extended with more text")
 	if len(sm.children[0].blocks) != 1 {
 		t.Errorf("first child block count changed: got %d", len(sm.children[0].blocks))
@@ -140,7 +137,7 @@ func TestStreamMarkdown_ContentDedup(t *testing.T) {
 	sm := NewStreamMarkdown(StreamMarkdownWithFg(style.ColorWhite))
 	sm.SetContent("hello")
 
-	// Setting the same content should be a no-op.
+	// Reapplying identical content must preserve child state.
 	childCountBefore := len(sm.children)
 	sm.SetContent("hello")
 	if len(sm.children) != childCountBefore {
@@ -152,14 +149,14 @@ func TestStreamMarkdown_ContentDedup(t *testing.T) {
 func TestStreamMarkdown_BlocksDistributed(t *testing.T) {
 	sm := NewStreamMarkdown(StreamMarkdownWithFg(style.ColorWhite))
 
-	// Build enough paragraphs to trigger a split.
+	// Multiple paragraphs produce multiple block children.
 	var sb strings.Builder
 	for i := 0; i < 30; i++ {
 		sb.WriteString(fmt.Sprintf("Block %d\n\n", i))
 	}
 	sm.SetContent(sb.String())
 
-	// Total blocks across all children should equal allBlocks.
+	// Child block counts must account for every parsed block.
 	totalChildBlocks := 0
 	for _, child := range sm.children {
 		totalChildBlocks += len(child.blocks)
@@ -173,7 +170,7 @@ func TestStreamMarkdown_BlocksDistributed(t *testing.T) {
 func TestMarkdown_SetBlocks(t *testing.T) {
 	md := NewMarkdown("", MarkdownWithFg(style.ColorWhite))
 
-	// Parse some content to get blocks.
+	// Reuse blocks produced by the configured parser.
 	parser := NewGoldmarkParser()
 	styles := MdStyles{Fg: style.ColorWhite}
 	blocks := parser.Parse("# Hello\n\nWorld\n\n- item", styles)
@@ -182,7 +179,7 @@ func TestMarkdown_SetBlocks(t *testing.T) {
 		t.Fatal("parser returned no blocks")
 	}
 
-	// SetBlocks should replace blocks and mark wrap dirty.
+	// SetBlocks replaces parsed state and schedules wrapping.
 	md.SetBlocks(blocks)
 	if len(md.blocks) != len(blocks) {
 		t.Errorf("expected %d blocks, got %d", len(blocks), len(md.blocks))

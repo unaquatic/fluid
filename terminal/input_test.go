@@ -13,10 +13,7 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// ---------------------------------------------------------------------------
-// Helper: create a renderer for input testing (no real terminal)
-// ---------------------------------------------------------------------------
-
+// newInputTestRenderer returns a renderer with in-memory terminal streams.
 func newInputTestRenderer() *Renderer {
 	var outBuf bytes.Buffer
 	w, h := 40, 20
@@ -25,34 +22,31 @@ func newInputTestRenderer() *Renderer {
 	hitGrid := NewHitGrid(w, h)
 
 	r := &Renderer{
-		root:            root,
-		hitGrid:         hitGrid,
-		backend:         NewBackend(strings.NewReader(""), &outBuf),
-		config:          DefaultConfig(),
-		currentBuffer:   buffer.New(w, h),
-		nextBuffer:      buffer.New(w, h),
-		width:           w,
-		height:          h,
-		controlState:    StateIdle,
-		parser:          input.NewParser(),
-		eventBus:        input.NewEventBus(),
-		pendingWork:     make(chan func(), 512),
-		stopChan:        make(chan struct{}, 1),
-		done:            make(chan struct{}),
-		sel:             render.NewSelection(),
-		linkRegistry:    NewLinkRegistry(),
-		stats:           NewStats(60),
-		lastFrameTime:   time.Now(),
+		root:          root,
+		hitGrid:       hitGrid,
+		backend:       NewBackend(strings.NewReader(""), &outBuf),
+		config:        DefaultConfig(),
+		currentBuffer: buffer.New(w, h),
+		nextBuffer:    buffer.New(w, h),
+		width:         w,
+		height:        h,
+		controlState:  StateIdle,
+		parser:        input.NewParser(),
+		eventBus:      input.NewEventBus(),
+		pendingWork:   make(chan func()),
+		wake:          make(chan struct{}, 1),
+		stopChan:      make(chan struct{}, 1),
+		done:          make(chan struct{}),
+		sel:           render.NewSelection(),
+		linkRegistry:  NewLinkRegistry(),
+		stats:         NewStats(60),
+		lastFrameTime: time.Now(),
 	}
 
 	root.SetContext(r)
 
 	return r
 }
-
-// ---------------------------------------------------------------------------
-// dispatchKeyEvent tests
-// ---------------------------------------------------------------------------
 
 func TestDispatchKeyEvent_EmitsOnBus(t *testing.T) {
 	r := newInputTestRenderer()
@@ -114,7 +108,7 @@ func TestDispatchKeyEvent_InputHandlerStops(t *testing.T) {
 	})
 
 	r.AddInputHandler(func(seq string) bool {
-		return true // consume all input
+		return true // Consume all raw input.
 	})
 
 	r.dispatchEvent(input.TerminalEvent{
@@ -129,6 +123,195 @@ func TestDispatchKeyEvent_InputHandlerStops(t *testing.T) {
 
 	if busReceived {
 		t.Error("expected input handler to stop event before reaching EventBus")
+	}
+}
+
+// keyPressEvent returns a raw key-press terminal event.
+func keyPressEvent(name string) input.TerminalEvent {
+	return input.TerminalEvent{
+		Type: input.EventKeyboard,
+		Key: &input.KeyEvent{
+			Name:   name,
+			Type:   input.KeyPress,
+			Raw:    name,
+			Source: "raw",
+		},
+	}
+}
+
+func TestDispatchKeyEvent_BubblesToParent(t *testing.T) {
+	r := newInputTestRenderer()
+
+	parent := render.NewBaseRenderable(render.WithID("parent"))
+	child := render.NewBaseRenderable(render.WithID("child"), render.WithFocusable(true))
+	r.root.Add(parent)
+	parent.Add(child)
+
+	var parentKey string
+	parent.OnKeyDownHandler = func(e *input.KeyEvent) { parentKey = e.Name }
+
+	r.focused = child
+	r.dispatchEvent(keyPressEvent("x"))
+
+	if parentKey != "x" {
+		t.Errorf("expected unhandled key to bubble to parent, got %q", parentKey)
+	}
+}
+
+func TestDispatchKeyEvent_ConsumedStopsBubbling(t *testing.T) {
+	r := newInputTestRenderer()
+
+	parent := render.NewBaseRenderable(render.WithID("parent"))
+	child := render.NewBaseRenderable(render.WithID("child"), render.WithFocusable(true))
+	r.root.Add(parent)
+	parent.Add(child)
+
+	var parentCalled bool
+	child.OnKeyDownHandler = func(e *input.KeyEvent) { e.StopPropagation() }
+	parent.OnKeyDownHandler = func(e *input.KeyEvent) { parentCalled = true }
+
+	r.focused = child
+	r.dispatchEvent(keyPressEvent("x"))
+
+	if parentCalled {
+		t.Error("expected consumed key not to bubble to parent")
+	}
+}
+
+// stopPropRenderable stops propagation while reporting the event as unhandled.
+type stopPropRenderable struct {
+	*render.BaseRenderable
+}
+
+func (s *stopPropRenderable) HandleKeyPress(e *input.KeyEvent) bool {
+	e.StopPropagation()
+	return false
+}
+
+func TestDispatchKeyEvent_StopPropagationStopsBubbling(t *testing.T) {
+	r := newInputTestRenderer()
+
+	parent := render.NewBaseRenderable(render.WithID("parent"))
+	child := &stopPropRenderable{
+		BaseRenderable: render.NewBaseRenderable(render.WithID("child"), render.WithFocusable(true)),
+	}
+	r.root.Add(parent)
+	parent.Add(child)
+
+	var parentCalled bool
+	parent.OnKeyDownHandler = func(e *input.KeyEvent) { parentCalled = true }
+
+	r.focused = child
+	r.dispatchEvent(keyPressEvent("x"))
+
+	if parentCalled {
+		t.Error("expected StopPropagation to halt bubbling even when unconsumed")
+	}
+}
+
+func TestDispatchKeyEvent_UnhandledReachesRoot(t *testing.T) {
+	r := newInputTestRenderer()
+
+	parent := render.NewBaseRenderable(render.WithID("parent"))
+	child := render.NewBaseRenderable(render.WithID("child"), render.WithFocusable(true))
+	r.root.Add(parent)
+	parent.Add(child)
+
+	var rootKey string
+	r.root.OnKeyDownHandler = func(e *input.KeyEvent) { rootKey = e.Name }
+
+	r.focused = child
+	r.dispatchEvent(keyPressEvent("z"))
+
+	if rootKey != "z" {
+		t.Errorf("expected unhandled key to reach root, got %q", rootKey)
+	}
+}
+
+func TestDispatchKeyEvent_ExitOnCtrlC(t *testing.T) {
+	r := newInputTestRenderer()
+	r.config.ExitOnCtrlC = true
+
+	evt := keyPressEvent("c")
+	evt.Key.Ctrl = true
+	r.dispatchEvent(evt)
+
+	if !r.destroyed {
+		t.Error("expected ctrl+c to destroy the renderer")
+	}
+}
+
+func TestDispatchKeyEvent_BusVetoesExitOnCtrlC(t *testing.T) {
+	r := newInputTestRenderer()
+	r.config.ExitOnCtrlC = true
+
+	r.eventBus.On(input.EventKeyboard, func(evt input.TerminalEvent) {
+		evt.Key.PreventDefault()
+	})
+
+	evt := keyPressEvent("c")
+	evt.Key.Ctrl = true
+	r.dispatchEvent(evt)
+
+	if r.destroyed {
+		t.Error("expected PreventDefault to veto the ExitOnCtrlC default action")
+	}
+}
+
+func TestDispatchMouseEvent_BusVetoesTargetDispatch(t *testing.T) {
+	r := newInputTestRenderer()
+
+	child := render.NewBaseRenderable(render.WithID("veto-click"), render.WithFocusable(true))
+	child.SetBounds(0, 0, 10, 10)
+	r.root.Add(child)
+	r.hitGrid.Add(0, 0, 10, 10, child.Num())
+
+	var clicked bool
+	child.OnMouseDownHandler = func(e *input.MouseEvent) { clicked = true }
+
+	r.eventBus.On(input.EventMouse, func(evt input.TerminalEvent) {
+		evt.Mouse.PreventDefault()
+	})
+
+	r.dispatchEvent(input.TerminalEvent{
+		Type: input.EventMouse,
+		Mouse: &input.MouseEvent{
+			Type:   input.MouseDown,
+			Button: input.ButtonLeft,
+			X:      1,
+			Y:      1,
+		},
+	})
+
+	if clicked {
+		t.Error("expected PreventDefault to veto target dispatch")
+	}
+	if r.focused == child {
+		t.Error("expected PreventDefault to veto auto-focus")
+	}
+}
+
+func TestDispatchPasteEvent_BusVetoesFocusedDispatch(t *testing.T) {
+	r := newInputTestRenderer()
+
+	child := render.NewBaseRenderable(render.WithID("paste-veto"), render.WithFocusable(true))
+	r.root.Add(child)
+
+	var pasted bool
+	child.OnPasteHandler = func(e *input.PasteEvent) { pasted = true }
+	r.focused = child
+
+	r.eventBus.On(input.EventPaste, func(evt input.TerminalEvent) {
+		evt.Paste.PreventDefault()
+	})
+
+	r.dispatchEvent(input.TerminalEvent{
+		Type:  input.EventPaste,
+		Paste: &input.PasteEvent{Text: "blocked"},
+	})
+
+	if pasted {
+		t.Error("expected PreventDefault to veto focused paste dispatch")
 	}
 }
 
@@ -160,10 +343,6 @@ func TestPrependInputHandler(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// dispatchMouseEvent tests
-// ---------------------------------------------------------------------------
-
 func TestDispatchMouseEvent_HitTest(t *testing.T) {
 	r := newInputTestRenderer()
 
@@ -171,7 +350,7 @@ func TestDispatchMouseEvent_HitTest(t *testing.T) {
 	child.SetBounds(5, 5, 10, 10)
 	r.root.Add(child)
 
-	// Register in hit grid
+	// Register the expected mouse target.
 	r.hitGrid.Add(5, 5, 10, 10, child.Num())
 
 	var clicked bool
@@ -251,7 +430,7 @@ func TestDispatchMouseEvent_OverOut(t *testing.T) {
 		mu.Unlock()
 	}
 
-	// Move into A
+	// Enter target A.
 	r.dispatchEvent(input.TerminalEvent{
 		Type: input.EventMouse,
 		Mouse: &input.MouseEvent{
@@ -267,7 +446,7 @@ func TestDispatchMouseEvent_OverOut(t *testing.T) {
 	}
 	mu.Unlock()
 
-	// Move into B (should trigger Out on A, Over on B)
+	// Moving to B sends MouseOut to A before MouseOver to B.
 	r.dispatchEvent(input.TerminalEvent{
 		Type: input.EventMouse,
 		Mouse: &input.MouseEvent{
@@ -311,10 +490,6 @@ func TestDispatchMouseEvent_EmitsOnBus(t *testing.T) {
 		t.Error("expected mouse event to be emitted on EventBus")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// dispatchPasteEvent tests
-// ---------------------------------------------------------------------------
 
 func TestDispatchPasteEvent_DeliveredToFocused(t *testing.T) {
 	r := newInputTestRenderer()
@@ -361,10 +536,6 @@ func TestDispatchPasteEvent_EmitsOnBus(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// handleResize test
-// ---------------------------------------------------------------------------
-
 func TestHandleResize(t *testing.T) {
 	r := newInputTestRenderer()
 
@@ -376,7 +547,7 @@ func TestHandleResize(t *testing.T) {
 		}
 	})
 
-	// Call processResize directly — tests don't run an event loop.
+	// Invoke processResize directly because this test has no event loop.
 	r.processResize(60, 30)
 
 	if r.width != 60 || r.height != 30 {
@@ -393,13 +564,9 @@ func TestHandleResize(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Drag tracking tests
-// ---------------------------------------------------------------------------
-
 func TestDispatchMouseEvent_DragAndDrop(t *testing.T) {
 	r := newInputTestRenderer()
-	_ = style.ColorBlack // suppress unused import
+	_ = style.ColorBlack
 
 	source := render.NewBaseRenderable(render.WithID("drag-source"))
 	source.SetBounds(0, 0, 5, 5)
@@ -422,7 +589,7 @@ func TestDispatchMouseEvent_DragAndDrop(t *testing.T) {
 		gotDrop = true
 	}
 
-	// Mouse down on source
+	// Mouse down records the drag source.
 	r.dispatchEvent(input.TerminalEvent{
 		Type: input.EventMouse,
 		Mouse: &input.MouseEvent{
@@ -433,7 +600,7 @@ func TestDispatchMouseEvent_DragAndDrop(t *testing.T) {
 		},
 	})
 
-	// Drag (motion with button held)
+	// Motion with the button held starts dragging.
 	r.dispatchEvent(input.TerminalEvent{
 		Type: input.EventMouse,
 		Mouse: &input.MouseEvent{
@@ -445,7 +612,7 @@ func TestDispatchMouseEvent_DragAndDrop(t *testing.T) {
 		},
 	})
 
-	// Mouse up on target
+	// Mouse up sends drag-end to the source and drop to the target.
 	r.dispatchEvent(input.TerminalEvent{
 		Type: input.EventMouse,
 		Mouse: &input.MouseEvent{

@@ -83,7 +83,7 @@ func TestKeyEvent_IsRune(t *testing.T) {
 		want bool
 		desc string
 	}{
-		// Backwards-compatible: Name-only (no Text field)
+		// Events without Text fall back to a single-rune Name.
 		{KeyEvent{Name: "a"}, true, "plain 'a' (fallback, no Text)"},
 		{KeyEvent{Name: "Z"}, true, "plain 'Z' (fallback, no Text)"},
 		{KeyEvent{Name: "\u4e16"}, true, "CJK (fallback, no Text)"},
@@ -91,7 +91,7 @@ func TestKeyEvent_IsRune(t *testing.T) {
 		{KeyEvent{Name: "a", Ctrl: true}, false, "ctrl+a"},
 		{KeyEvent{Name: "a", Alt: true}, false, "alt+a"},
 		{KeyEvent{Name: "a", Meta: true}, false, "meta+a"},
-		// Text field (as produced by the parser)
+		// Parsed events use Text to distinguish printable input.
 		{KeyEvent{Name: "a", Text: "a"}, true, "'a' with Text"},
 		{KeyEvent{Name: KeySpace, Text: " "}, true, "space with Text"},
 		{KeyEvent{Name: KeySpace}, false, "space without Text (fallback: multi-char Name)"},
@@ -107,7 +107,7 @@ func TestKeyEvent_IsRune(t *testing.T) {
 }
 
 func TestKeyEvent_Rune(t *testing.T) {
-	// Backwards-compatible: Name-only (no Text field)
+	// Events without Text fall back to a single-rune Name.
 	ev := KeyEvent{Name: "x"}
 	if r := ev.Rune(); r != 'x' {
 		t.Errorf("Rune() = %q, want 'x'", r)
@@ -123,7 +123,7 @@ func TestKeyEvent_Rune(t *testing.T) {
 		t.Errorf("Rune() for ctrl = %q, want 0", r)
 	}
 
-	// Text field (as produced by the parser)
+	// Parsed events return the first rune from Text.
 	ev4 := KeyEvent{Name: KeySpace, Text: " "}
 	if r := ev4.Rune(); r != ' ' {
 		t.Errorf("Rune() for space with Text = %q, want ' '", r)
@@ -162,7 +162,7 @@ func TestKeyEvent_PropagationControl(t *testing.T) {
 }
 
 func TestKeyConstants(t *testing.T) {
-	// Verify aliases
+	// KeyEnter is the public alias for KeyReturn.
 	if KeyEnter != KeyReturn {
 		t.Error("KeyEnter should equal KeyReturn")
 	}

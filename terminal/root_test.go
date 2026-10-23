@@ -8,10 +8,6 @@ import (
 	"github.com/unaquatic/fluid/render"
 )
 
-// ---------------------------------------------------------------------------
-// Root creation
-// ---------------------------------------------------------------------------
-
 func TestRootRenderable_Creation(t *testing.T) {
 	root := NewRootRenderable(80, 24)
 
@@ -25,10 +21,6 @@ func TestRootRenderable_Creation(t *testing.T) {
 		t.Errorf("expected height 24, got %d", root.Height())
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Resize
-// ---------------------------------------------------------------------------
 
 func TestRootRenderable_Resize(t *testing.T) {
 	root := NewRootRenderable(80, 24)
@@ -50,17 +42,13 @@ func TestRootRenderable_Resize(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Render pipeline: lifecycle + update + layout + commands
-// ---------------------------------------------------------------------------
-
 func TestRootRenderable_RenderPipeline(t *testing.T) {
 	root := NewRootRenderable(80, 24)
 
 	hitGrid := NewHitGrid(80, 24)
 	root.SetContext(&mockContext{hitGrid: hitGrid})
 
-	// Add a child with fixed size
+	// Add one fixed-size child to exercise layout and rendering.
 	child := render.NewBaseRenderable(
 		render.WithID("child"),
 		render.WithWidth(layout.Points(20)),
@@ -71,7 +59,7 @@ func TestRootRenderable_RenderPipeline(t *testing.T) {
 	buf := buffer.New(80, 24)
 	root.Render(buf, 0.016)
 
-	// After render, child should have computed position
+	// Rendering synchronizes the child's computed geometry.
 	if child.Width() != 20 {
 		t.Errorf("expected child width=20, got %d", child.Width())
 	}
@@ -79,10 +67,6 @@ func TestRootRenderable_RenderPipeline(t *testing.T) {
 		t.Errorf("expected child height=5, got %d", child.Height())
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Lifecycle pass
-// ---------------------------------------------------------------------------
 
 func TestRootRenderable_LifecyclePass(t *testing.T) {
 	root := NewRootRenderable(80, 24)
@@ -123,10 +107,6 @@ func TestRootRenderable_UnregisterLifecyclePass(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Scissor rect emission for overflow:hidden
-// ---------------------------------------------------------------------------
-
 func TestRootRenderable_ScissorForOverflowHidden(t *testing.T) {
 	root := NewRootRenderable(80, 24)
 	root.SetContext(&mockContext{hitGrid: NewHitGrid(80, 24)})
@@ -141,7 +121,7 @@ func TestRootRenderable_ScissorForOverflowHidden(t *testing.T) {
 
 	commands := root.UpdateLayout()
 
-	// Should contain pushScissorRect and popScissorRect for the container
+	// A clipping container surrounds its child commands with scissor operations.
 	hasPush := false
 	hasPop := false
 	for _, cmd := range commands {
@@ -160,10 +140,6 @@ func TestRootRenderable_ScissorForOverflowHidden(t *testing.T) {
 		t.Error("expected popScissorRect command for overflow:hidden")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Opacity emission for opacity < 1
-// ---------------------------------------------------------------------------
 
 func TestRootRenderable_OpacityCommands(t *testing.T) {
 	root := NewRootRenderable(80, 24)
@@ -201,10 +177,6 @@ func TestRootRenderable_OpacityCommands(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Children render in insertion order
-// ---------------------------------------------------------------------------
-
 func TestRootRenderable_ChildrenOrder(t *testing.T) {
 	root := NewRootRenderable(80, 24)
 
@@ -228,7 +200,7 @@ func TestRootRenderable_ChildrenOrder(t *testing.T) {
 		}
 	}
 
-	// Should follow insertion order: a, b, c
+	// Child render commands preserve insertion order.
 	if len(renderOrder) != 3 {
 		t.Fatalf("expected 3 render commands for children, got %d: %v", len(renderOrder), renderOrder)
 	}
@@ -236,10 +208,6 @@ func TestRootRenderable_ChildrenOrder(t *testing.T) {
 		t.Errorf("expected render order [a, b, c], got %v", renderOrder)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Invisible children not rendered
-// ---------------------------------------------------------------------------
 
 func TestRootRenderable_InvisibleChildSkipped(t *testing.T) {
 	root := NewRootRenderable(80, 24)
@@ -257,10 +225,6 @@ func TestRootRenderable_InvisibleChildSkipped(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// HitGrid rebuilt on render
-// ---------------------------------------------------------------------------
-
 func TestRootRenderable_HitGridRebuilt(t *testing.T) {
 	root := NewRootRenderable(80, 24)
 	hitGrid := NewHitGrid(80, 24)
@@ -276,11 +240,9 @@ func TestRootRenderable_HitGridRebuilt(t *testing.T) {
 	buf := buffer.New(80, 24)
 	root.Render(buf, 0.016)
 
-	// The child should be registered in the hit grid at its position
+	// Rendering registers the child at its synchronized position.
 	id := hitGrid.Check(child.X(), child.Y())
 	if id == 0 {
 		t.Error("expected child to be registered in hit grid after render")
 	}
 }
-
-// ---------------------------------------------------------------------------

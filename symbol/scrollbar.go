@@ -1,24 +1,21 @@
 package symbol
 
-// Scrollbar symbol sets for vertical and horizontal scrollbars.
-
-// ScrollBarSet defines the characters used to draw a scrollbar.
+// ScrollBarSet contains the runes used to draw a scrollbar.
 type ScrollBarSet struct {
-	Track rune // background track character
-	Thumb rune // thumb/handle character
-	Begin rune // optional start cap (0 = none)
-	End   rune // optional end cap (0 = none)
+	Track rune // The background track.
+	Thumb rune // The movable thumb.
+	Begin rune // The optional start cap; zero omits it.
+	End   rune // The optional end cap; zero omits it.
 }
 
-// Preset scrollbar character sets.
 var (
-	// ScrollBarVertical uses a block thumb on a space track.
+	// ScrollBarVertical uses a full-block thumb on an empty track.
 	ScrollBarVertical = ScrollBarSet{
 		Track: ' ',
 		Thumb: '█',
 	}
 
-	// ScrollBarHorizontal uses upper-half block on a space track.
+	// ScrollBarHorizontal uses an upper-half-block thumb on an empty track.
 	ScrollBarHorizontal = ScrollBarSet{
 		Track: ' ',
 		Thumb: '▀',

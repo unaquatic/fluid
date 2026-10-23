@@ -76,11 +76,11 @@ func TestLinkRegistry_GetURL(t *testing.T) {
 func TestLinkRegistry_GetURL_Invalid(t *testing.T) {
 	lr := NewLinkRegistry()
 
-	// ID 0 is reserved
+	// ID zero represents no link.
 	if lr.URL(0) != "" {
 		t.Error("expected empty for ID 0")
 	}
-	// Out of range
+	// IDs beyond the registry are invalid.
 	if lr.URL(99) != "" {
 		t.Error("expected empty for out-of-range ID")
 	}
@@ -92,7 +92,7 @@ func TestLinkRegistry_IntegrationWithAttributes(t *testing.T) {
 	linkID := lr.Alloc("https://example.com")
 	attrs := style.AttributesWithLink(style.AttrBold|style.AttrUnderline, linkID)
 
-	// Extract and verify
+	// Link attributes preserve the allocated ID for registry lookup.
 	gotBase := style.GetBaseAttributes(attrs)
 	if gotBase != style.AttrBold|style.AttrUnderline {
 		t.Errorf("expected base attrs Bold|Underline, got %d", gotBase)
@@ -130,7 +130,7 @@ func TestLinkRegistry_ConcurrentAlloc(t *testing.T) {
 		t.Errorf("expected %d links, got %d", n, lr.Count())
 	}
 
-	// All IDs should be unique and non-zero
+	// Distinct concurrent URLs receive distinct positive IDs.
 	seen := make(map[uint32]bool)
 	for i, id := range ids {
 		if id == 0 {
@@ -154,13 +154,13 @@ func TestLinkRegistry_ConcurrentDedupAlloc(t *testing.T) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			// All goroutines alloc the same URL
+			// Every goroutine allocates the same URL.
 			ids[idx] = lr.Alloc("https://example.com")
 		}(i)
 	}
 	wg.Wait()
 
-	// All IDs should be the same
+	// Deduplication gives every goroutine the same ID.
 	for i := 1; i < n; i++ {
 		if ids[i] != ids[0] {
 			t.Errorf("expected all IDs to be %d, got %d at index %d", ids[0], ids[i], i)

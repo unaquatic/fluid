@@ -9,25 +9,25 @@ import (
 	"github.com/unaquatic/fluid/textbuf"
 )
 
-// Input is a single-line text input with cursor, placeholder, and editing.
-// It embeds Textarea, adding max-length enforcement and single-line
-// constraints.
+// Input is a single-line editor built on Textarea.
+// It removes multiline actions and can enforce a maximum rune count.
 type Input struct {
 	*Textarea
 
 	maxLength int
 
-	// Event callbacks (Input-specific; OnSubmit is inherited from Textarea)
-	OnInput  func(value string)
+	// OnInput is called after the value changes.
+	OnInput func(value string)
+	// OnChange is called after the value changes.
 	OnChange func(value string)
 }
 
 // InputOption configures an Input widget during construction.
 type InputOption func(*Input)
 
-// NewInput creates an Input widget with optional configuration.
+// NewInput returns a one-row Input with optional configuration.
 func NewInput(opts ...InputOption) *Input {
-	// Create the underlying textarea with Input defaults
+	// Disable wrapping and constrain the embedded editor to one row.
 	ta := NewTextarea(
 		TextareaWithWrapMode(WrapNone),
 		TextareaWithHeight(layout.Points(1)),
@@ -37,7 +37,7 @@ func NewInput(opts ...InputOption) *Input {
 		Textarea: ta,
 	}
 
-	// Wire content change to emit Input/Change events
+	// Forward Textarea content changes through both Input callbacks.
 	ta.OnContentChange = func(text string) {
 		if inp.OnInput != nil {
 			inp.OnInput(text)
@@ -54,9 +54,7 @@ func NewInput(opts ...InputOption) *Input {
 	return inp
 }
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
+// Input value and cursor access.
 
 // Value returns the current input value.
 func (inp *Input) Value() string {
@@ -65,11 +63,11 @@ func (inp *Input) Value() string {
 
 // SetValue sets the input value.
 func (inp *Input) SetValue(v string) {
-	// Strip newlines for single-line
+	// Remove line breaks before updating the single-line editor.
 	v = strings.ReplaceAll(v, "\n", "")
 	v = strings.ReplaceAll(v, "\r", "")
 	inp.SetText(v)
-	// Move cursor to end
+	// Place the cursor after the new value.
 	inp.SetCursorPos(len([]rune(v)))
 }
 
@@ -84,11 +82,7 @@ func (inp *Input) SetCursorPos(pos int) {
 	inp.SetCursor(0, pos)
 }
 
-// ---------------------------------------------------------------------------
-// HandleKeyPress
-// ---------------------------------------------------------------------------
-
-// blockedInputActions are actions that don't apply to single-line input.
+// blockedInputActions contains multiline actions that Input does not support.
 var blockedInputActions = map[string]bool{
 	ActionNewline:  true,
 	ActionMoveUp:   true,
@@ -102,32 +96,32 @@ var blockedInputActions = map[string]bool{
 	ActionMoveDocStart: true, ActionMoveDocEnd: true,
 }
 
-// HandleKeyPress processes keyboard input with Input-specific constraints.
+// HandleKeyPress processes a key event under Input's single-line constraints.
 func (inp *Input) HandleKeyPress(e *input.KeyEvent) bool {
 	if e.Type == input.KeyRelease {
 		return false
 	}
 
-	// For printable runes, enforce max-length before delegating
+	// Enforce the rune limit before Textarea inserts printable input.
 	if e.IsRune() {
 		if inp.maxLength > 0 && len([]rune(inp.Value())) >= inp.maxLength {
-			return true // consume but ignore
+			return true // Consume input that exceeds the configured limit.
 		}
 		return inp.Textarea.HandleKeyPress(e)
 	}
 
-	// Resolve action from Input keybindings
+	// Input has a separate binding table because Enter submits.
 	action, found := inp.resolveInputAction(e)
 	if !found {
 		return false
 	}
 
-	// Block actions that don't apply to single-line input
+	// Let unsupported multiline actions propagate to an ancestor.
 	if blockedInputActions[action] {
 		return false
 	}
 
-	// Handle submit via Textarea's OnSubmit
+	// Invoke the callback without inserting a newline.
 	if action == ActionSubmit {
 		if inp.Textarea.OnSubmit != nil {
 			inp.Textarea.OnSubmit(inp.Value())
@@ -136,12 +130,12 @@ func (inp *Input) HandleKeyPress(e *input.KeyEvent) bool {
 		return true
 	}
 
-	// Read-only check: block editing actions
+	// Read-only inputs still accept navigation and selection actions.
 	if inp.readOnly && !navActions[action] {
 		return false
 	}
 
-	// Dispatch via handler map
+	// Reuse Textarea's editing and movement handlers.
 	if handler, ok := inp.Textarea.actionHandlers[action]; ok {
 		handled := handler()
 		if handled {
@@ -153,17 +147,17 @@ func (inp *Input) HandleKeyPress(e *input.KeyEvent) bool {
 	return false
 }
 
-// HandlePaste handles paste events, stripping newlines and enforcing max-length.
+// HandlePaste inserts pasted text after removing line breaks and applying the rune limit.
 func (inp *Input) HandlePaste(e *input.PasteEvent) {
 	if inp.readOnly {
 		return
 	}
 
-	// Strip newlines for single-line input
+	// Normalize the paste to a single line.
 	text := strings.ReplaceAll(e.Text, "\n", "")
 	text = strings.ReplaceAll(text, "\r", "")
 
-	// Enforce max length
+	// Truncate the paste to the remaining rune capacity.
 	if inp.maxLength > 0 {
 		currentLen := len([]rune(inp.Value()))
 		remaining := inp.maxLength - currentLen
@@ -182,9 +176,7 @@ func (inp *Input) HandlePaste(e *input.PasteEvent) {
 	inp.RequestRender()
 }
 
-// ---------------------------------------------------------------------------
-// Internal
-// ---------------------------------------------------------------------------
+// Input keybinding resolution.
 
 func (inp *Input) resolveInputAction(e *input.KeyEvent) (string, bool) {
 	if inp.bindingsDirty {
@@ -201,9 +193,7 @@ func (inp *Input) rebuildInputBindingMap() {
 	inp.bindingsDirty = false
 }
 
-// ---------------------------------------------------------------------------
-// Input Options
-// ---------------------------------------------------------------------------
+// Input options.
 
 // InputWithValue sets the initial value.
 func InputWithValue(v string) InputOption {
@@ -211,7 +201,7 @@ func InputWithValue(v string) InputOption {
 		v = strings.ReplaceAll(v, "\n", "")
 		v = strings.ReplaceAll(v, "\r", "")
 		inp.editBuffer().SetText(v)
-		// Move cursor to end of value
+		// Place the cursor after the initial value.
 		lineW := inp.textBuffer().LineWidthAt(0)
 		inp.editBuffer().SetCursor(0, lineW)
 	}
@@ -224,7 +214,7 @@ func InputWithPlaceholder(p string) InputOption {
 	}
 }
 
-// InputWithMaxLength sets the maximum length.
+// InputWithMaxLength sets the maximum value length in runes; non-positive values disable the limit.
 func InputWithMaxLength(n int) InputOption {
 	return func(inp *Input) { inp.maxLength = n }
 }
@@ -252,17 +242,17 @@ func InputWithCursorColor(c style.Color) InputOption {
 	return func(inp *Input) { inp.cursorColor = c }
 }
 
-// InputWithOnInput sets the input callback (called on every keystroke).
+// InputWithOnInput sets the callback invoked after each value change.
 func InputWithOnInput(fn func(string)) InputOption {
 	return func(inp *Input) { inp.OnInput = fn }
 }
 
-// InputWithOnChange sets the change callback.
+// InputWithOnChange sets the callback invoked after each value change.
 func InputWithOnChange(fn func(string)) InputOption {
 	return func(inp *Input) { inp.OnChange = fn }
 }
 
-// InputWithOnSubmit sets the submit callback (called on Enter).
+// InputWithOnSubmit sets the callback invoked when the submit action runs.
 func InputWithOnSubmit(fn func(string)) InputOption {
 	return func(inp *Input) { inp.Textarea.OnSubmit = fn }
 }

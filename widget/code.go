@@ -11,35 +11,24 @@ import (
 	"github.com/unaquatic/fluid/textbuf"
 )
 
-// HighlightContext provides context to the OnHighlight callback.
+// HighlightContext identifies the source and theme supplied to an OnHighlightCallback.
 type HighlightContext struct {
 	Content  string
 	Filetype string
 	Theme    string
 }
 
-// OnHighlightCallback is called after highlighting completes, allowing
-// callers to modify the styled lines before they are rendered.
+// OnHighlightCallback transforms highlighted lines before Code stores them for rendering.
 type OnHighlightCallback func(lines []textbuf.Line, ctx HighlightContext) []textbuf.Line
 
-// SelectionRange represents a character-offset selection range.
+// SelectionRange contains the start and end character offsets of a selection.
 type SelectionRange struct {
 	Start int
 	End   int
 }
 
-// Code displays syntax-highlighted code with scroll and wrap support.
-//
-// Features:
-//   - Pluggable syntax highlighting via the SyntaxHighlighter interface
-//   - Horizontal and vertical scrolling
-//   - Word/character/no-wrap modes
-//   - Selection support for copy
-//   - Streaming mode for incremental content updates
-//   - Conceal mode for hiding formatting characters
-//   - Truncation mode
-//   - OnHighlight callback for modifying highlights
-//   - Implements LineInfoProvider and ScrollInfoProvider for LineNumber integration
+// Code displays selectable, scrollable source text with wrapping and syntax highlighting.
+// It implements the line and scroll interfaces used by LineNumber.
 type Code struct {
 	*render.BaseRenderable
 
@@ -51,25 +40,22 @@ type Code struct {
 	theme      string // theme name (e.g. "monokai", "dracula")
 	attributes uint32 // default text attributes
 
-	// Conceal: when true, concealed text (e.g. markdown formatting) is hidden (default true).
+	// conceal controls whether formatting text marked as concealed is hidden.
 	conceal bool
 
-	// DrawUnstyledText: when true, plain text is drawn before highlighting
-	// completes (default true).
+	// drawUnstyledText allows plain source to remain visible during highlighting.
 	drawUnstyledText bool
 
-	// Streaming
+	// streaming adjusts when incremental content replaces the displayed buffer.
 	streaming bool
 
-	// IsHighlighting indicates whether async highlighting is in progress.
+	// isHighlighting is true while SyntaxHighlighter.Highlight is running.
 	isHighlighting bool
 
-	// Truncate: when true, lines exceeding the viewport width are truncated
-	// instead of being scrollable.
+	// truncate clips lines at the viewport width instead of allowing horizontal scrolling.
 	truncate bool
 
-	// OnHighlight is called after highlighting, allowing callers to modify
-	// the styled segments.
+	// onHighlight can transform the highlighter output before it is stored.
 	onHighlight OnHighlightCallback
 
 	// Scroll
@@ -88,31 +74,29 @@ type Code struct {
 	// Syntax highlighting
 	highlighter SyntaxHighlighter
 
-	// Internal: TextBuffer + TextSurface (shared measurement & rendering)
+	// textBuf and textSurface provide shared measurement and rendering.
 	textBuf     *textbuf.TextBuffer
 	textSurface *textbuf.TextSurface
 
 	linesDirty bool
 
-	// Internal: whether the text buffer should be rendered (for streaming
-	// flow where highlighting may not be ready yet).
+	// shouldRenderTextBuffer hides stale text during configured streaming updates.
 	shouldRenderTextBuffer bool
 
-	// Internal: whether initial content has been received during streaming.
+	// hadInitialContent distinguishes the first streaming update from later updates.
 	hadInitialContent bool
 
-	// Logical line count (before wrapping)
+	// logicalLineCount counts source lines before wrapping.
 	logicalLineCount int
 
-	// Per-line background colors (logical line → RGBA). Used by Diff and
-	// other composing widgets to paint line-level backgrounds.
+	// lineColors maps zero-based logical lines to row background colors.
 	lineColors map[int]style.Color
 }
 
 // CodeOption configures a Code widget.
 type CodeOption func(*Code)
 
-// NewCode creates a Code widget with optional configuration.
+// NewCode returns a Code widget containing content.
 func NewCode(content string, opts ...CodeOption) *Code {
 	tb := textbuf.NewTextBuffer()
 	tv := textbuf.NewTextSurface(tb)
@@ -139,29 +123,32 @@ func NewCode(content string, opts ...CodeOption) *Code {
 		opt(c)
 	}
 
-	// Sync settings to TextSurface
+	// Apply widget defaults to the shared text pipeline.
 	tv.SetWrapMode(c.wrapMode)
 	tb.SetDefaultFg(c.fg)
 	tb.SetDefaultBg(c.bg)
 	tb.SetExpandTabs(true)
 
-	// Default highlighter if not set via option
+	// Use Chroma unless the caller supplied a highlighter.
 	if c.highlighter == nil {
 		c.highlighter = NewChromaHighlighter(c.theme)
 	}
 
-	// Build highlighted lines into TextBuffer
+	// Populate the text buffer before the first measurement or render.
 	c.highlightContent()
 
-	// Set up mouse scroll handler
+	// Let the parent scroll when this widget cannot move any further.
 	c.OnMouseScrollHandler = func(e *input.MouseEvent) {
 		if e.Scroll != nil {
+			oldX, oldY := c.scrollX, c.scrollY
 			c.handleScroll(e.Scroll.DeltaX, e.Scroll.DeltaY)
-			e.StopPropagation()
+			if c.scrollX != oldX || c.scrollY != oldY {
+				e.StopPropagation()
+			}
 		}
 	}
 
-	// Set up intrinsic measurement via TextSurface.
+	// Measure with the same TextSurface used for rendering.
 	c.LayoutNode().Measure = func(
 		width int, widthMode layout.MeasureMode,
 		height int, heightMode layout.MeasureMode,
@@ -201,16 +188,13 @@ func NewCode(content string, opts ...CodeOption) *Code {
 	return c
 }
 
-// ---------------------------------------------------------------------------
-// Syntax Highlighting
-// ---------------------------------------------------------------------------
+// Syntax highlighting.
 
-// highlightContent tokenizes the source via the SyntaxHighlighter and
-// populates the TextBuffer with highlighted lines.
+// highlightContent replaces the text buffer with highlighted or fallback lines.
 func (c *Code) highlightContent() {
 	c.logicalLineCount = len(strings.Split(c.content, "\n"))
 
-	// Empty content — nothing to render
+	// Empty content clears and hides the text buffer.
 	if len(c.content) == 0 {
 		c.shouldRenderTextBuffer = false
 		c.textBuf.Clear()
@@ -218,28 +202,28 @@ func (c *Code) highlightContent() {
 		return
 	}
 
-	// No filetype — always render plain text
+	// A missing file type selects the plain-text fallback.
 	if c.filetype == "" {
 		c.shouldRenderTextBuffer = true
 		c.buildFallbackLines()
 		return
 	}
 
-	// Ensure visible text before highlight
+	// Decide whether old or unstyled text remains visible during this pass.
 	c.ensureVisibleTextBeforeHighlight()
 
 	c.isHighlighting = true
 
 	highlighted, err := c.highlighter.Highlight(c.content, c.filetype, c.fg, c.bg)
 	if err != nil {
-		// Fallback: plain text
+		// Preserve readable source when tokenization fails.
 		c.buildFallbackLines()
 		c.shouldRenderTextBuffer = true
 		c.isHighlighting = false
 		return
 	}
 
-	// Invoke onHighlight callback if set
+	// Allow callers to transform successful highlighter output.
 	if c.onHighlight != nil {
 		ctx := HighlightContext{
 			Content:  c.content,
@@ -255,8 +239,7 @@ func (c *Code) highlightContent() {
 	c.isHighlighting = false
 }
 
-// ensureVisibleTextBeforeHighlight decides whether to show plain text while
-// highlighting runs.
+// ensureVisibleTextBeforeHighlight selects the buffer shown while highlighting runs.
 func (c *Code) ensureVisibleTextBeforeHighlight() {
 	if c.filetype == "" {
 		c.shouldRenderTextBuffer = true
@@ -283,7 +266,7 @@ func (c *Code) ensureVisibleTextBeforeHighlight() {
 	}
 }
 
-// buildFallbackLines creates plain lines in the TextBuffer (fallback).
+// buildFallbackLines stores source lines using the default foreground and background.
 func (c *Code) buildFallbackLines() {
 	rawLines := strings.Split(c.content, "\n")
 	result := make([]textbuf.Line, len(rawLines))
@@ -300,13 +283,11 @@ func (c *Code) buildFallbackLines() {
 	c.linesDirty = false
 }
 
-// ---------------------------------------------------------------------------
-// Content Management
-// ---------------------------------------------------------------------------
+// Content management.
 
-// SetContent sets the code content.
-// When streaming with a filetype and drawUnstyledText disabled, the content
-// is stored but rendering is deferred until highlighting completes.
+// SetContent replaces the source text.
+// In streaming mode with unstyled text disabled, it leaves the displayed buffer
+// unchanged until a later highlighting pass.
 func (c *Code) SetContent(content string) {
 	if c.content == content {
 		return
@@ -314,8 +295,7 @@ func (c *Code) SetContent(content string) {
 	c.content = content
 	c.linesDirty = true
 
-	// When streaming + !drawUnstyledText + filetype set,
-	// defer the text buffer update until highlighting finishes.
+	// Avoid replacing the visible highlighted buffer with unstyled streaming text.
 	if c.streaming && !c.drawUnstyledText && c.filetype != "" {
 		return
 	}
@@ -327,7 +307,7 @@ func (c *Code) SetContent(content string) {
 // Content returns the current content.
 func (c *Code) Content() string { return c.content }
 
-// AppendContent appends text to the content (optimized for streaming).
+// AppendContent appends text and immediately rebuilds highlighted output.
 func (c *Code) AppendContent(text string) {
 	c.content += text
 	c.linesDirty = true
@@ -349,8 +329,7 @@ func (c *Code) SetFiletype(ft string) {
 // Filetype returns the current language.
 func (c *Code) Filetype() string { return c.filetype }
 
-// SetStreaming sets whether content is being streamed.
-// Resets internal highlight state when the value changes.
+// SetStreaming controls incremental-update behavior and resets initial-content state.
 func (c *Code) SetStreaming(v bool) {
 	if c.streaming != v {
 		c.streaming = v
@@ -362,9 +341,7 @@ func (c *Code) SetStreaming(v bool) {
 // Streaming returns whether streaming mode is active.
 func (c *Code) Streaming() bool { return c.streaming }
 
-// ---------------------------------------------------------------------------
-// Theme
-// ---------------------------------------------------------------------------
+// Theme configuration.
 
 // SetTheme sets the syntax highlighting theme by name (e.g. "monokai", "dracula", "github").
 func (c *Code) SetTheme(name string) {
@@ -372,7 +349,7 @@ func (c *Code) SetTheme(name string) {
 		return
 	}
 	c.theme = name
-	// Propagate to highlighter if it supports theme changes.
+	// Update highlighters that expose mutable theme selection.
 	type themeSetter interface{ SetTheme(string) }
 	if ts, ok := c.highlighter.(themeSetter); ok {
 		ts.SetTheme(name)
@@ -384,10 +361,6 @@ func (c *Code) SetTheme(name string) {
 
 // Theme returns the current theme name.
 func (c *Code) Theme() string { return c.theme }
-
-// ---------------------------------------------------------------------------
-// Conceal
-// ---------------------------------------------------------------------------
 
 // Conceal returns whether concealed text is hidden.
 func (c *Code) Conceal() bool { return c.conceal }
@@ -401,10 +374,6 @@ func (c *Code) SetConceal(v bool) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// DrawUnstyledText
-// ---------------------------------------------------------------------------
-
 // DrawUnstyledText returns whether plain text is drawn before highlighting.
 func (c *Code) DrawUnstyledText() bool { return c.drawUnstyledText }
 
@@ -417,16 +386,8 @@ func (c *Code) SetDrawUnstyledText(v bool) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// IsHighlighting
-// ---------------------------------------------------------------------------
-
-// IsHighlighting returns whether async highlighting is currently in progress.
+// IsHighlighting reports whether the configured highlighter is currently running.
 func (c *Code) IsHighlighting() bool { return c.isHighlighting }
-
-// ---------------------------------------------------------------------------
-// Truncate
-// ---------------------------------------------------------------------------
 
 // Truncate returns whether lines are truncated to the viewport width.
 func (c *Code) Truncate() bool { return c.truncate }
@@ -442,11 +403,7 @@ func (c *Code) SetTruncate(v bool) {
 // TextBuffer returns the underlying TextBuffer.
 func (c *Code) TextBuffer() *textbuf.TextBuffer { return c.textBuf }
 
-// ---------------------------------------------------------------------------
-// Default Attributes
-// ---------------------------------------------------------------------------
-
-// Attributes returns the default text attributes (bold, italic, etc.).
+// Attributes returns the default text attribute bitmask.
 func (c *Code) Attributes() uint32 { return c.attributes }
 
 // SetAttributes sets the default text attributes.
@@ -458,24 +415,15 @@ func (c *Code) SetAttributes(attrs uint32) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// OnHighlight callback
-// ---------------------------------------------------------------------------
-
-// SetOnHighlight sets a callback invoked after highlighting, allowing callers
-// to modify the styled segments before rendering.
+// SetOnHighlight sets the transformation applied to successful highlighter output.
 func (c *Code) SetOnHighlight(fn OnHighlightCallback) {
 	c.onHighlight = fn
 	c.linesDirty = true
 	c.RequestRender()
 }
 
-// OnHighlightFn returns the current OnHighlight callback, or nil.
+// OnHighlightFn returns the current highlight transformation, or nil.
 func (c *Code) OnHighlightFn() OnHighlightCallback { return c.onHighlight }
-
-// ---------------------------------------------------------------------------
-// PlainText / TextLength
-// ---------------------------------------------------------------------------
 
 // PlainText returns the raw content string (without styling).
 func (c *Code) PlainText() string { return c.content }
@@ -483,20 +431,11 @@ func (c *Code) PlainText() string { return c.content }
 // TextLength returns the length of the content in bytes.
 func (c *Code) TextLength() int { return len(c.content) }
 
-// ---------------------------------------------------------------------------
-// Per-line Colors
-// ---------------------------------------------------------------------------
-
-// SetLineColors sets per-line background colors (logical line → RGBA).
-// Used by Diff to paint line-level backgrounds (green for adds, red for removes).
+// SetLineColors maps zero-based logical lines to row background colors.
 func (c *Code) SetLineColors(colors map[int]style.Color) {
 	c.lineColors = colors
 	c.RequestRender()
 }
-
-// ---------------------------------------------------------------------------
-// Line Info (implements LineInfoProvider)
-// ---------------------------------------------------------------------------
 
 // LineCount returns the number of logical lines (before wrapping).
 func (c *Code) LineCount() int {
@@ -505,16 +444,14 @@ func (c *Code) LineCount() int {
 
 // VisualLineCount returns the number of visual lines (after wrapping).
 func (c *Code) VisualLineCount() int {
-	// Ensure viewport is synced to current widget dimensions so wrapping is correct.
+	// Use current dimensions so the returned count reflects current wrapping.
 	if w, h := c.Width(), c.Height(); w > 0 && h > 0 {
 		c.textSurface.SetViewportSize(w, h)
 	}
 	return c.textSurface.VirtualLineCount()
 }
 
-// ---------------------------------------------------------------------------
-// Scroll (implements ScrollInfoProvider)
-// ---------------------------------------------------------------------------
+// Scrolling.
 
 // ScrollX returns the horizontal scroll offset.
 func (c *Code) ScrollX() int { return c.scrollX }
@@ -522,7 +459,7 @@ func (c *Code) ScrollX() int { return c.scrollX }
 // ScrollY returns the vertical scroll offset.
 func (c *Code) ScrollY() int { return c.scrollY }
 
-// SetScrollX sets the horizontal scroll offset (clamped).
+// SetScrollX sets the horizontal scroll offset, clamped to the scrollable range.
 func (c *Code) SetScrollX(v int) {
 	maxX := c.MaxScrollX()
 	if v < 0 {
@@ -537,7 +474,7 @@ func (c *Code) SetScrollX(v int) {
 	}
 }
 
-// SetScrollY sets the vertical scroll offset (clamped).
+// SetScrollY sets the vertical scroll offset, clamped to the scrollable range.
 func (c *Code) SetScrollY(v int) {
 	maxY := c.MaxScrollY()
 	if v < 0 {
@@ -602,11 +539,7 @@ func (c *Code) handleScroll(deltaX, deltaY int) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Active Line
-// ---------------------------------------------------------------------------
-
-// SetActiveLine sets the highlighted line index (-1 to disable).
+// SetActiveLine sets the zero-based highlighted line; a negative value disables it.
 func (c *Code) SetActiveLine(line int) {
 	if c.activeLine != line {
 		c.activeLine = line
@@ -614,12 +547,10 @@ func (c *Code) SetActiveLine(line int) {
 	}
 }
 
-// ActiveLine returns the active line index (-1 if none).
+// ActiveLine returns the highlighted line index, or a negative value if disabled.
 func (c *Code) ActiveLine() int { return c.activeLine }
 
-// ---------------------------------------------------------------------------
-// Selection
-// ---------------------------------------------------------------------------
+// Selection.
 
 // Selectable returns whether the code is selectable.
 func (c *Code) Selectable() bool { return c.selectable_ }
@@ -630,7 +561,7 @@ func (c *Code) SetSelectable(v bool) {
 	c.BaseRenderable.SetSelectable(v)
 }
 
-// SelectedText returns the text within the current render.
+// SelectedText returns the text covered by the active selection in this widget.
 func (c *Code) SelectedText() string {
 	sel := c.Context().Selection()
 	if sel == nil || !sel.IsActive() {
@@ -642,7 +573,7 @@ func (c *Code) SelectedText() string {
 		return ""
 	}
 
-	// Save/restore viewport to iterate all virtual lines
+	// Temporarily expose all virtual lines while extracting the selected text.
 	origVP := c.textSurface.Viewport()
 	totalVLines := c.textSurface.VirtualLineCount()
 	c.textSurface.SetViewportSize(origVP.Width, totalVLines)
@@ -651,7 +582,7 @@ func (c *Code) SelectedText() string {
 
 	allVLines := c.textSurface.VirtualLines()
 
-	// Restore viewport
+	// Restore the rendering viewport after extraction.
 	c.textSurface.SetViewportSize(origVP.Width, origVP.Height)
 	if rvp := c.textSurface.Viewport(); rvp != nil {
 		rvp.Y = origVP.Y
@@ -678,7 +609,7 @@ func (c *Code) SelectedText() string {
 	return sb.String()
 }
 
-// HasSelection returns true if there's an active selection intersecting this widget.
+// HasSelection reports whether an active selection intersects this widget.
 func (c *Code) HasSelection() bool {
 	sel := c.Context().Selection()
 	if sel == nil || !sel.IsActive() {
@@ -688,8 +619,7 @@ func (c *Code) HasSelection() bool {
 	return localSel != nil && localSel.IsActive
 }
 
-// ShouldStartSelection returns true if the given absolute coordinate falls
-// within this widget's bounds and the widget is selectable.
+// ShouldStartSelection reports whether an absolute coordinate can begin selection here.
 func (c *Code) ShouldStartSelection(x, y int) bool {
 	if !c.selectable_ {
 		return false
@@ -712,13 +642,13 @@ func (c *Code) Selection() *SelectionRange {
 		return nil
 	}
 
-	// Convert 2D selection bounds to a linear character range
+	// Convert visual line coordinates to offsets in the flattened text.
 	info := c.textSurface.FullLineInfo()
 
 	startY, startX := localSel.AnchorY, localSel.AnchorX
 	endY, endX := localSel.FocusY, localSel.FocusX
 
-	// Normalize so start <= end
+	// Normalize the endpoints to document order.
 	if startY > endY || (startY == endY && startX > endX) {
 		startY, startX, endY, endX = endY, endX, startY, startX
 	}
@@ -741,8 +671,7 @@ func (c *Code) Selection() *SelectionRange {
 	return &SelectionRange{Start: startOff, End: endOff}
 }
 
-// OnSelectionChanged updates the widget's local selection state from a global
-// Selection object and returns true if the selection intersects this widget.
+// OnSelectionChanged requests a redraw when sel intersects this widget.
 func (c *Code) OnSelectionChanged(sel *render.Selection) bool {
 	if sel == nil || !sel.IsActive() {
 		return false
@@ -755,11 +684,7 @@ func (c *Code) OnSelectionChanged(sel *render.Selection) bool {
 	return true
 }
 
-// ---------------------------------------------------------------------------
-// Wrapping
-// ---------------------------------------------------------------------------
-
-// ensureWrapped recomputes lines if dirty.
+// ensureWrapped rebuilds highlighted lines when content or styling is dirty.
 func (c *Code) ensureWrapped() {
 	if !c.linesDirty {
 		return
@@ -772,9 +697,7 @@ func (c *Code) OnResize(width, height int) {
 	c.textSurface.SetViewportSize(width, height)
 }
 
-// ---------------------------------------------------------------------------
-// Setters
-// ---------------------------------------------------------------------------
+// Appearance and wrapping.
 
 // SetFg sets the default foreground color.
 func (c *Code) SetFg(fg style.Color) {
@@ -804,12 +727,10 @@ func (c *Code) Fg() style.Color { return c.fg }
 // Bg returns the background color.
 func (c *Code) Bg() style.Color { return c.bg }
 
-// WrapModeValue returns the current wrap mode.
+// WrapModeValue returns the configured wrap mode.
 func (c *Code) WrapModeValue() WrapMode { return c.wrapMode }
 
-// ---------------------------------------------------------------------------
-// Rendering
-// ---------------------------------------------------------------------------
+// Rendering.
 
 // RenderSelf draws the code content into the buffer.
 func (c *Code) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
@@ -819,7 +740,7 @@ func (c *Code) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 		return
 	}
 
-	// Re-highlight if dirty
+	// Refresh highlighted output before synchronizing the viewport.
 	if c.linesDirty {
 		if len(c.content) == 0 {
 			c.shouldRenderTextBuffer = false
@@ -837,7 +758,7 @@ func (c *Code) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 		return
 	}
 
-	// Sync viewport (scroll + dimensions) to TextSurface
+	// Apply widget dimensions and scroll offsets to TextSurface.
 	c.textSurface.SetViewportSize(w, h)
 	if vp := c.textSurface.Viewport(); vp != nil {
 		vp.Y = c.scrollY
@@ -847,23 +768,23 @@ func (c *Code) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 	x := c.X()
 	y := c.Y()
 
-	// Fill background
+	// Fill the viewport before drawing text.
 	if !c.bg.IsTransparent() {
 		buf.FillRect(x, y, w, h, c.bg)
 	}
 
-	// Push per-line config to TextSurface
+	// Apply row backgrounds, active-line styling, and truncation.
 	c.textSurface.SetLineBackgrounds(c.lineColors)
 	c.textSurface.SetActiveLine(c.activeLine, c.activeLineBg)
 	c.textSurface.SetTruncate(c.truncate)
 
-	// Convert screen selection → text buffer selection
+	// Convert the global screen selection into TextSurface coordinates.
 	c.syncSelection()
 
 	buf.DrawTextSurface(c.textSurface, x, y)
 }
 
-// syncSelection converts global screen selection to a TextSurface render.
+// syncSelection applies the global screen selection to TextSurface.
 func (c *Code) syncSelection() {
 	c.textSurface.ResetSelection()
 	if !c.selectable_ {
@@ -881,8 +802,7 @@ func (c *Code) syncSelection() {
 	c.textSurface.SetLocalSelection(localSel.AnchorX, localSel.AnchorY, localSel.FocusX, localSel.FocusY, &bg, c.selectionFg)
 }
 
-// LogicalLineForVisualLine maps a visual line index to its logical line index.
-// Implements VisualLineProvider for LineNumber integration with word wrap.
+// LogicalLineForVisualLine returns the logical source line for a wrapped visual line.
 func (c *Code) LogicalLineForVisualLine(visualLine int) int {
 	info := c.textSurface.FullLineInfo()
 	if len(info.Sources) == 0 {
@@ -897,12 +817,7 @@ func (c *Code) LogicalLineForVisualLine(visualLine int) int {
 	return info.Sources[visualLine]
 }
 
-// ---------------------------------------------------------------------------
-// Line Highlights (for LineNumber integration)
-// ---------------------------------------------------------------------------
-
-// LineHighlights returns the styled chunks for a given logical line.
-// Used by Diff and other widgets that compose Code.
+// LineHighlights returns styled chunks for a zero-based logical line.
 func (c *Code) LineHighlights(lineIdx int) []style.TextChunk {
 	if lineIdx < 0 || lineIdx >= c.textBuf.LineCount() {
 		return nil
@@ -923,9 +838,7 @@ func (c *Code) LineHighlights(lineIdx int) []style.TextChunk {
 	return chunks
 }
 
-// ---------------------------------------------------------------------------
-// Code Options
-// ---------------------------------------------------------------------------
+// Code options.
 
 // CodeWithFiletype sets the language for syntax highlighting.
 func CodeWithFiletype(ft string) CodeOption {
@@ -947,7 +860,7 @@ func CodeWithWrapMode(m WrapMode) CodeOption {
 	return func(c *Code) { c.wrapMode = m }
 }
 
-// CodeWithStreaming sets streaming mode.
+// CodeWithStreaming controls incremental-update behavior.
 func CodeWithStreaming(v bool) CodeOption {
 	return func(c *Code) { c.streaming = v }
 }
@@ -957,7 +870,7 @@ func CodeWithTheme(name string) CodeOption {
 	return func(c *Code) { c.theme = name }
 }
 
-// CodeWithSelectable makes the code selectable.
+// CodeWithSelectable controls whether pointer selections can start in the code.
 func CodeWithSelectable(v bool) CodeOption {
 	return func(c *Code) { c.selectable_ = v }
 }
@@ -1007,22 +920,22 @@ func CodeWithHeight(s layout.Scalar) CodeOption {
 	return func(c *Code) { c.LayoutNode().Height = s }
 }
 
-// CodeWithFlexGrow sets flex grow.
+// CodeWithFlexGrow sets the flex-grow factor.
 func CodeWithFlexGrow(v int) CodeOption {
 	return func(c *Code) { c.LayoutNode().FlexGrow = v }
 }
 
-// CodeWithConceal sets whether concealed text is hidden (default true).
+// CodeWithConceal controls whether concealed text is hidden; the default is true.
 func CodeWithConceal(v bool) CodeOption {
 	return func(c *Code) { c.conceal = v }
 }
 
-// CodeWithDrawUnstyledText sets whether plain text is drawn before highlighting (default true).
+// CodeWithDrawUnstyledText controls whether plain source is visible during highlighting.
 func CodeWithDrawUnstyledText(v bool) CodeOption {
 	return func(c *Code) { c.drawUnstyledText = v }
 }
 
-// CodeWithTruncate sets whether lines are truncated to viewport width.
+// CodeWithTruncate controls whether lines are clipped to the viewport width.
 func CodeWithTruncate(v bool) CodeOption {
 	return func(c *Code) { c.truncate = v }
 }
@@ -1032,7 +945,7 @@ func CodeWithAttributes(attrs uint32) CodeOption {
 	return func(c *Code) { c.attributes = attrs }
 }
 
-// CodeWithOnHighlight sets the highlight callback.
+// CodeWithOnHighlight sets the transformation applied after successful highlighting.
 func CodeWithOnHighlight(fn OnHighlightCallback) CodeOption {
 	return func(c *Code) { c.onHighlight = fn }
 }

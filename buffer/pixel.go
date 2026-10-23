@@ -7,26 +7,23 @@ import (
 	"github.com/unaquatic/fluid/symbol"
 )
 
-// PixelFormat describes the byte layout of pixel data.
+// PixelFormat identifies the channel order of four-byte pixel data.
 type PixelFormat int
 
 const (
-	// PixelFormatBGRA is BGRA byte order (Blue, Green, Red, Alpha).
+	// PixelFormatBGRA stores channels in blue, green, red, alpha order.
 	PixelFormatBGRA PixelFormat = iota
-	// PixelFormatRGBA is Color byte order (Red, Green, Blue, Alpha).
+	// PixelFormatRGBA stores channels in red, green, blue, alpha order.
 	PixelFormatRGBA
 )
 
-// quadrantChars is an alias for symbols.QuadrantChars. It maps a 4-bit mask
-// (TL=8, TR=4, BL=2, BR=1) to a Unicode quadrant block character.
+// quadrantChars maps a four-bit quadrant mask to a Unicode block rune. The
+// bits from most to least significant represent top-left, top-right,
+// bottom-left, and bottom-right.
 var quadrantChars = symbol.QuadrantChars
 
-// grayscaleRamp maps intensity 0.0–1.0 to an ASCII art character.
+// grayscaleRamp orders ASCII runes from lowest to highest intensity.
 const grayscaleRamp = symbol.GrayscaleRamp
-
-// ---------------------------------------------------------------------------
-// Sub-cell pixel helpers
-// ---------------------------------------------------------------------------
 
 func closestColorIndex(pixel style.Color, a, b style.Color) int {
 	if pixel.DistanceSq(a) <= pixel.DistanceSq(b) {
@@ -35,18 +32,17 @@ func closestColorIndex(pixel style.Color, a, b style.Color) int {
 	return 1
 }
 
-// quadrantResult holds the result of rendering 4 sub-pixels into one cell.
+// quadrantResult approximates four source pixels as one styled terminal cell.
 type quadrantResult struct {
 	Char rune
 	Fg   style.Color
 	Bg   style.Color
 }
 
-// renderQuadrantBlock determines the best quadrant block character and two
-// colors (fg/bg) to approximate 4 sub-pixels in a single terminal cell.
-// pixels order: [TL, TR, BL, BR].
+// renderQuadrantBlock approximates four pixels with a quadrant block rune and
+// two colors. Pixels are ordered top-left, top-right, bottom-left, bottom-right.
 func renderQuadrantBlock(pixels [4]style.Color) quadrantResult {
-	// 1. Find the most different pair of pixels.
+	// Use the most distant pair of colors as clustering candidates.
 	var idxA, idxB int
 	maxDist := float32(-1)
 	for i := range 4 {
@@ -61,7 +57,7 @@ func renderQuadrantBlock(pixels [4]style.Color) quadrantResult {
 	candA := pixels[idxA]
 	candB := pixels[idxB]
 
-	// 2. Assign dark/light based on luminance.
+	// The darker candidate is the foreground represented by set mask bits.
 	var dark, light style.Color
 	if candA.Luminance() <= candB.Luminance() {
 		dark, light = candA, candB
@@ -69,7 +65,7 @@ func renderQuadrantBlock(pixels [4]style.Color) quadrantResult {
 		dark, light = candB, candA
 	}
 
-	// 3. Classify each quadrant. Bit positions: TL=8, TR=4, BL=2, BR=1.
+	// Assign each quadrant to its nearest candidate color.
 	var bits uint8
 	bitValues := [4]uint8{8, 4, 2, 1}
 	for i := range 4 {
@@ -78,21 +74,20 @@ func renderQuadrantBlock(pixels [4]style.Color) quadrantResult {
 		}
 	}
 
-	// 4. Construct result.
 	all := pixels[:]
 	switch bits {
-	case 0: // all light
+	case 0: // All quadrants use the background candidate.
 		return quadrantResult{Char: ' ', Fg: dark, Bg: style.ColorAverage(all)}
-	case 15: // all dark
+	case 15: // All quadrants use the foreground candidate.
 		return quadrantResult{Char: quadrantChars[15], Fg: style.ColorAverage(all), Bg: light}
-	default: // mixed
+	default: // The block rune separates the two candidate colors.
 		return quadrantResult{Char: quadrantChars[bits], Fg: dark, Bg: light}
 	}
 }
 
 func getPixelColor(data []byte, idx int, isBGRA bool) style.Color {
 	if idx+3 >= len(data) {
-		return style.ColorFromInts(255, 0, 255, 0) // transparent magenta for OOB
+		return style.ColorFromInts(255, 0, 255, 0) // Transparent magenta marks missing pixels.
 	}
 	if isBGRA {
 		return style.ColorFromInts(data[idx+2], data[idx+1], data[idx], data[idx+3])
@@ -120,18 +115,11 @@ func clampF(v, lo, hi float32) float32 {
 	return v
 }
 
-// ---------------------------------------------------------------------------
-// Public pixel drawing methods
-// ---------------------------------------------------------------------------
-
-// DrawSuperSampleBuffer renders raw RGBA/BGRA pixel data into the buffer
-// using Unicode quadrant block characters. Each terminal cell represents a
-// 2×2 block of source pixels, effectively doubling the resolution.
+// DrawSuperSampleBuffer renders four-channel pixel data with Unicode quadrant
+// blocks. Each terminal cell represents a 2 by 2 block of source pixels.
 //
-// pixelData must be in 4-bytes-per-pixel format. alignedBytesPerRow is the
-// stride (bytes per source row, which may include padding).
-//
-// Go equivalent of bufferDrawSuperSampleBuffer.
+// pixelData must contain four bytes per pixel in the specified format.
+// alignedBytesPerRow is the source row stride in bytes, including any padding.
 func (b *Buffer) DrawSuperSampleBuffer(posX, posY int, pixelData []byte, format PixelFormat, alignedBytesPerRow int) {
 	isBGRA := format == PixelFormatBGRA
 	const bytesPerPixel = 4
@@ -151,10 +139,10 @@ func (b *Buffer) DrawSuperSampleBuffer(posX, posY int, pixelData []byte, format 
 			brIdx := blIdx + bytesPerPixel
 
 			var pixels [4]style.Color
-			pixels[0] = getPixelColor(pixelData, tlIdx, isBGRA) // TL
-			pixels[1] = getPixelColor(pixelData, trIdx, isBGRA) // TR
-			pixels[2] = getPixelColor(pixelData, blIdx, isBGRA) // BL
-			pixels[3] = getPixelColor(pixelData, brIdx, isBGRA) // BR
+			pixels[0] = getPixelColor(pixelData, tlIdx, isBGRA) // Top-left.
+			pixels[1] = getPixelColor(pixelData, trIdx, isBGRA) // Top-right.
+			pixels[2] = getPixelColor(pixelData, blIdx, isBGRA) // Bottom-left.
+			pixels[3] = getPixelColor(pixelData, brIdx, isBGRA) // Bottom-right.
 
 			result := renderQuadrantBlock(pixels)
 			b.SetCellBlended(xCel, yCel, result.Char, result.Fg, result.Bg, 0)
@@ -162,14 +150,13 @@ func (b *Buffer) DrawSuperSampleBuffer(posX, posY int, pixelData []byte, format 
 	}
 }
 
-// PackedCellSize is the byte size of one packed cell result (bg[16] + fg[16] + char[4] + padding[12] = 48).
+// PackedCellSize is the size in bytes of one packed cell.
 const PackedCellSize = 48
 
-// DrawPackedBuffer renders pre-computed cell results from a packed byte buffer.
-// Each cell is 48 bytes: bg Color (4×float32), fg Color (4×float32), char (uint32), padding.
-// termW and termH are the logical grid dimensions of the packed data.
-//
-// Go equivalent of bufferDrawPackedBuffer.
+// DrawPackedBuffer renders precomputed cells from data. Each 48-byte cell
+// contains four little-endian float32 background channels, four little-endian
+// float32 foreground channels, a little-endian uint32 character, and 12 padding
+// bytes. termW and termH specify the packed grid's dimensions.
 func (b *Buffer) DrawPackedBuffer(data []byte, posX, posY, termW, termH int) {
 	numCells := len(data) / PackedCellSize
 
@@ -196,19 +183,16 @@ func (b *Buffer) DrawPackedBuffer(data []byte, posX, posY, termW, termH int) {
 			ch = ' '
 		}
 		if ch < 32 || (ch > 126 && ch < 0x2580) {
-			ch = 0x2588 // full block
+			ch = 0x2588 // Replace unsupported control runes with a full block.
 		}
 
 		b.SetCellBlended(cellX, cellY, rune(ch), fg, bg, 0)
 	}
 }
 
-// DrawGrayscaleBuffer renders a grid of float32 intensity values (0.0–1.0)
-// as ASCII-art characters. Each intensity value maps to one terminal cell.
-// fg and bg are optional override colors; pass nil to use defaults
-// (white fg, transparent bg).
-//
-// Go equivalent of bufferDrawGrayscaleBuffer.
+// DrawGrayscaleBuffer renders a srcW by srcH grid of intensities as ASCII art,
+// with one source value per terminal cell. Intensities are clamped to [0, 1].
+// A nil foreground uses white, and a nil background uses transparency.
 func (b *Buffer) DrawGrayscaleBuffer(posX, posY int, intensities []float32, srcW, srcH int, fg, bg *style.Color) {
 	if srcW == 0 || srcH == 0 {
 		return
@@ -259,11 +243,10 @@ func (b *Buffer) DrawGrayscaleBuffer(posX, posY int, intensities []float32, srcW
 	}
 }
 
-// DrawGrayscaleBufferSupersampled renders a grid of float32 intensity values
-// where the source is 2× the terminal resolution. Each 2×2 block of source
-// intensities is averaged into a single terminal cell.
-//
-// Go equivalent of bufferDrawGrayscaleBufferSupersampled.
+// DrawGrayscaleBufferSupersampled renders a srcW by srcH intensity grid at half
+// its width and height. Each terminal cell represents the average of a 2 by 2
+// source block. A nil foreground uses white, and a nil background uses
+// transparency.
 func (b *Buffer) DrawGrayscaleBufferSupersampled(posX, posY int, intensities []float32, srcW, srcH int, fg, bg *style.Color) {
 	termW := srcW / 2
 	termH := srcH / 2
@@ -338,10 +321,6 @@ func (b *Buffer) DrawGrayscaleBufferSupersampled(posX, posY int, intensities []f
 		}
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Packed data helpers
-// ---------------------------------------------------------------------------
 
 func readPackedU32(data []byte, off int) uint32 {
 	return uint32(data[off]) | uint32(data[off+1])<<8 | uint32(data[off+2])<<16 | uint32(data[off+3])<<24

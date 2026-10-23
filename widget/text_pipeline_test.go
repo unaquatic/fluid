@@ -1,6 +1,4 @@
-// Integration tests for cross-package behavior in the fluid framework.
-// These tests use the public API only (external test package) to verify that
-// widgets, layout, text nodes, and rendering work together correctly.
+// These external-package tests verify the public Text-to-buffer rendering pipeline.
 package widget_test
 
 import (
@@ -12,19 +10,15 @@ import (
 	"github.com/unaquatic/fluid/widget"
 )
 
-// ---------------------------------------------------------------------------
-// TextNode -> Text -> Buffer render pipeline
-// ---------------------------------------------------------------------------
+// Text and TextNode rendering.
 
-// TestTextPipeline_PlainString verifies that a Text widget with a plain string
-// renders the correct characters into the buffer.
+// TestTextPipeline_PlainString verifies plain Text content in the output buffer.
 func TestTextPipeline_PlainString(t *testing.T) {
 	buf := testutil.RenderWidget(widget.NewText("Hello"), 10, 1)
 	testutil.AssertRow(t, buf, 0, "Hello")
 }
 
-// TestTextPipeline_StyledText verifies styled text chunks render with correct
-// fg colors through the full pipeline.
+// TestTextPipeline_StyledText verifies chunk foregrounds through the full pipeline.
 func TestTextPipeline_StyledText(t *testing.T) {
 	st := style.NewStyledText(
 		style.FgRed("R"),
@@ -36,8 +30,7 @@ func TestTextPipeline_StyledText(t *testing.T) {
 	testutil.AssertCellFg(t, buf, 1, 0, 'B', style.ColorBlue)
 }
 
-// TestTextPipeline_BoldNode verifies that a BoldNode produces bold-attributed
-// characters in the buffer.
+// TestTextPipeline_BoldNode verifies that a bold node sets the buffer attribute.
 func TestTextPipeline_BoldNode(t *testing.T) {
 	txt := widget.NewText("")
 	txt.AddNode(widget.BoldText("bold"))
@@ -61,8 +54,7 @@ func TestTextPipeline_ItalicNode(t *testing.T) {
 	testutil.AssertCellAttrs(t, buf, 1, 0, 'm', style.AttrItalic)
 }
 
-// TestTextPipeline_MixedNodes verifies that plain text, bold, and italic nodes
-// produce the correct characters and attributes in sequence.
+// TestTextPipeline_MixedNodes verifies ordered text with independent attributes.
 func TestTextPipeline_MixedNodes(t *testing.T) {
 	txt := widget.NewText("")
 	txt.AddText("A")
@@ -71,16 +63,15 @@ func TestTextPipeline_MixedNodes(t *testing.T) {
 
 	buf := testutil.RenderWidget(txt, 10, 1)
 
-	// 'A' — no attributes
+	// A remains plain.
 	testutil.AssertCellStyle(t, buf, 0, 0, 'A', style.ColorWhite, style.ColorTransparent, 0)
-	// 'B' — bold
+	// B inherits bold.
 	testutil.AssertCellAttrs(t, buf, 1, 0, 'B', style.AttrBold)
-	// 'C' — italic
+	// C inherits italic.
 	testutil.AssertCellAttrs(t, buf, 2, 0, 'C', style.AttrItalic)
 }
 
-// TestTextPipeline_NestedBoldItalic verifies deep nesting:
-// root > bold > italic > "X" → X has both bold and italic.
+// TestTextPipeline_NestedBoldItalic verifies additive attributes in nested nodes.
 func TestTextPipeline_NestedBoldItalic(t *testing.T) {
 	txt := widget.NewText("")
 
@@ -94,8 +85,7 @@ func TestTextPipeline_NestedBoldItalic(t *testing.T) {
 	testutil.AssertCellAttrs(t, buf, 0, 0, 'X', style.AttrBold|style.AttrItalic)
 }
 
-// TestTextPipeline_ColoredSpans verifies that SpanText with different fg colors
-// renders each character with its respective color.
+// TestTextPipeline_ColoredSpans verifies independent foregrounds on adjacent spans.
 func TestTextPipeline_ColoredSpans(t *testing.T) {
 	txt := widget.NewText("")
 	txt.AddNode(widget.SpanText("R", widget.TextNodeWithFg(style.ColorRed)))
@@ -109,8 +99,7 @@ func TestTextPipeline_ColoredSpans(t *testing.T) {
 	testutil.AssertCellFg(t, buf, 2, 0, 'B', style.ColorBlue)
 }
 
-// TestTextPipeline_LineBreakNode verifies that a LineBreakNode produces a
-// newline that pushes subsequent text to the next row.
+// TestTextPipeline_LineBreakNode verifies that a line-break node starts a new row.
 func TestTextPipeline_LineBreakNode(t *testing.T) {
 	txt := widget.NewText("")
 	txt.AddText("line1")
@@ -151,15 +140,14 @@ func TestTextPipeline_Truncation(t *testing.T) {
 	if len(runes) > 6 {
 		t.Errorf("truncated row too long (%d runes): %q", len(runes), row)
 	}
-	// Should end with ellipsis character '…'
+	// Truncation ends with the ellipsis glyph.
 	lastCell := buf.Cell(5, 0)
 	if lastCell.Char != '…' {
 		t.Errorf("expected ellipsis at position 5, got %q (row: %q)", lastCell.Char, row)
 	}
 }
 
-// TestTextPipeline_MultiChunkWrapPreservesStyle verifies that when multi-chunk
-// text wraps, each chunk retains its fg color across line breaks.
+// TestTextPipeline_MultiChunkWrapPreservesStyle verifies styles across wrapped chunks.
 func TestTextPipeline_MultiChunkWrapPreservesStyle(t *testing.T) {
 	st := style.NewStyledText(
 		style.FgRed("AAAA"),
@@ -167,16 +155,16 @@ func TestTextPipeline_MultiChunkWrapPreservesStyle(t *testing.T) {
 	)
 	txt := widget.NewStyledText(st, widget.TextWithWrapMode(widget.WrapChar))
 
-	// 5 chars wide: "AAAA" wraps to "AAAAB"/"BBB"
+	// At width five, the blue chunk starts on the first row and continues on the second.
 	buf := testutil.RenderWidget(txt, 5, 3)
 
-	// Row 0: first 4 chars are red 'A', 5th is blue 'B'
+	// The first row contains four red cells and one blue cell.
 	for x := range 4 {
 		testutil.AssertCellFg(t, buf, x, 0, 'A', style.ColorRed)
 	}
 	testutil.AssertCellFg(t, buf, 4, 0, 'B', style.ColorBlue)
 
-	// Row 1: remaining blue 'B's
+	// The second row contains the remaining blue cells.
 	for x := range 3 {
 		testutil.AssertCellFg(t, buf, x, 1, 'B', style.ColorBlue)
 	}
@@ -193,12 +181,9 @@ func TestTextPipeline_ScrollY(t *testing.T) {
 	testutil.AssertRow(t, buf, 1, "line3")
 }
 
-// ---------------------------------------------------------------------------
-// TextNode mutation -> re-render
-// ---------------------------------------------------------------------------
+// TextNode mutation and rerendering.
 
-// TestTextMutation_AddNode verifies that adding a TextNode and re-rendering
-// produces updated buffer content.
+// TestTextMutation_AddNode verifies that an added node appears after rerendering.
 func TestTextMutation_AddNode(t *testing.T) {
 	txt := widget.NewText("")
 	txt.AddText("Hello")
@@ -206,17 +191,16 @@ func TestTextMutation_AddNode(t *testing.T) {
 	buf := testutil.RenderWidget(txt, 20, 1)
 	testutil.AssertRow(t, buf, 0, "Hello")
 
-	// Mutate: add more text
+	// Add content after the initial render.
 	txt.AddText(" World")
 
-	// Re-render
+	// Render the dirty tree again.
 	buf2 := buffer.New(20, 1)
 	txt.RenderSelf(buf2, 0)
 	testutil.AssertRow(t, buf2, 0, "Hello World")
 }
 
-// TestTextMutation_ClearAndRebuild verifies that ClearNodes + re-adding
-// produces correct output.
+// TestTextMutation_ClearAndRebuild verifies replacement after clearing all nodes.
 func TestTextMutation_ClearAndRebuild(t *testing.T) {
 	txt := widget.NewText("")
 	txt.AddText("original")
@@ -224,7 +208,7 @@ func TestTextMutation_ClearAndRebuild(t *testing.T) {
 	buf := testutil.RenderWidget(txt, 20, 1)
 	testutil.AssertRow(t, buf, 0, "original")
 
-	// Clear and rebuild
+	// Replace the complete node tree.
 	txt.ClearNodes()
 	txt.AddNode(widget.BoldText("replaced"))
 
@@ -234,8 +218,7 @@ func TestTextMutation_ClearAndRebuild(t *testing.T) {
 	testutil.AssertCellAttrs(t, buf2, 0, 0, 'r', style.AttrBold)
 }
 
-// TestTextMutation_ModifyChildNode verifies that modifying a child TextNode's
-// style causes the re-rendered output to reflect the change.
+// TestTextMutation_ModifyChildNode verifies style changes after the initial render.
 func TestTextMutation_ModifyChildNode(t *testing.T) {
 	txt := widget.NewText("")
 	span := widget.SpanText("hello", widget.TextNodeWithFg(style.ColorRed))
@@ -244,7 +227,7 @@ func TestTextMutation_ModifyChildNode(t *testing.T) {
 	buf := testutil.RenderWidget(txt, 10, 1)
 	testutil.AssertCellFg(t, buf, 0, 0, 'h', style.ColorRed)
 
-	// Change color to blue
+	// Mutate the child foreground before rerendering.
 	blue := style.ColorBlue
 	span.SetFg(&blue)
 
@@ -253,8 +236,7 @@ func TestTextMutation_ModifyChildNode(t *testing.T) {
 	testutil.AssertCellFg(t, buf2, 0, 0, 'h', style.ColorBlue)
 }
 
-// TestTextMutation_ReplaceChildren verifies ReplaceChildren on the node tree
-// propagates through to rendering.
+// TestTextMutation_ReplaceChildren verifies replacement through the public node API.
 func TestTextMutation_ReplaceChildren(t *testing.T) {
 	txt := widget.NewText("")
 	txt.AddText("before")
@@ -262,7 +244,7 @@ func TestTextMutation_ReplaceChildren(t *testing.T) {
 	buf := testutil.RenderWidget(txt, 20, 1)
 	testutil.AssertRow(t, buf, 0, "before")
 
-	// Get the root TextNode and replace its children
+	// Replace all root children in one mutation.
 	txt.ClearNodes()
 	txt.AddText("after")
 
@@ -271,8 +253,7 @@ func TestTextMutation_ReplaceChildren(t *testing.T) {
 	testutil.AssertRow(t, buf2, 0, "after")
 }
 
-// TestTextMutation_SetContent_OverridesNodes verifies that SetContent with a
-// string overrides TextNode-based content.
+// TestTextMutation_SetContent_OverridesNodes verifies direct-content precedence.
 func TestTextMutation_SetContent_OverridesNodes(t *testing.T) {
 	txt := widget.NewText("")
 	txt.AddNode(widget.BoldText("from-nodes"))
@@ -280,7 +261,7 @@ func TestTextMutation_SetContent_OverridesNodes(t *testing.T) {
 	buf := testutil.RenderWidget(txt, 20, 1)
 	testutil.AssertRow(t, buf, 0, "from-nodes")
 
-	// Override with manual content
+	// Switch from node-backed content to direct content.
 	txt.SetContent("manual")
 
 	buf2 := buffer.New(20, 1)

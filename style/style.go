@@ -12,7 +12,7 @@ type Style struct {
 	Attributes uint32
 }
 
-// NewStyle returns a default style (white on transparent, no attributes).
+// NewStyle returns white text on a transparent background with no attributes.
 func NewStyle() Style {
 	return Style{
 		Fg:         ColorWhite,
@@ -21,7 +21,7 @@ func NewStyle() Style {
 	}
 }
 
-// StyleFrom creates a Style with explicit foreground, background, and attributes.
+// StyleFrom returns a style with the supplied colors and attributes.
 func StyleFrom(fg, bg Color, attrs uint32) Style {
 	return Style{
 		Fg:         fg,
@@ -29,8 +29,6 @@ func StyleFrom(fg, bg Color, attrs uint32) Style {
 		Attributes: attrs,
 	}
 }
-
-// --- Builder methods (return copies) ---
 
 // Bold returns a copy with the bold attribute set.
 func (s Style) Bold() Style {
@@ -86,15 +84,15 @@ func (s Style) WithAttrs(attrs uint32) Style {
 	return s
 }
 
-// Func returns a curried function that creates a TextChunk with this style applied.
+// Func returns a function that applies s to its text argument.
 func (s Style) Func() func(string) TextChunk {
 	return func(text string) TextChunk {
 		return Styled(text, s)
 	}
 }
 
-// Merge merges another style into this one. Non-zero/non-transparent fields
-// from other override this style's fields.
+// Merge overlays other on s. Non-transparent colors in other replace the
+// corresponding colors in s, and nonzero attributes are added to s's attributes.
 func (s Style) Merge(other Style) Style {
 	if !other.Fg.IsTransparent() {
 		s.Fg = other.Fg
@@ -108,14 +106,15 @@ func (s Style) Merge(other Style) Style {
 	return s
 }
 
-// Equals performs deep equality comparison.
+// Equals reports whether s and other have equal colors and attributes.
 func (s Style) Equals(other Style) bool {
 	return s.Fg.Equals(other.Fg) &&
 		s.Bg.Equals(other.Bg) &&
 		s.Attributes == other.Attributes
 }
 
-// AttrsANSI generates the SGR sequence for text attributes (bold, italic, etc.).
+// AttrsANSI returns one ANSI SGR sequence for the decoration bits in attrs. It
+// returns an empty string when no supported decorations are set.
 func AttrsANSI(attrs uint32) string {
 	base := GetBaseAttributes(attrs)
 	if base == AttrNone {
@@ -154,5 +153,5 @@ func AttrsANSI(attrs uint32) string {
 	return fmt.Sprintf("\x1b[%sm", strings.Join(parts, ";"))
 }
 
-// ResetANSI is the escape sequence to reset all attributes.
+// ResetANSI resets all ANSI SGR attributes.
 const ResetANSI = "\x1b[0m"

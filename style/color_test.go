@@ -23,8 +23,6 @@ func assertFloat32Near(t *testing.T, got, want float32, epsilon float32) {
 	}
 }
 
-// --- ColorFromHex tests ---
-
 func TestFromHex_3Char(t *testing.T) {
 	c := ColorFromHex("#fff")
 	assertColorEquals(t, c, ColorWhite)
@@ -79,8 +77,6 @@ func TestFromHex_MixedCase(t *testing.T) {
 	assertColorEquals(t, c, ColorRed)
 }
 
-// --- ColorFromInts tests ---
-
 func TestFromInts(t *testing.T) {
 	c := ColorFromInts(255, 0, 0, 255)
 	assertColorEquals(t, c, ColorRed)
@@ -95,8 +91,6 @@ func TestFromInts_HalfAlpha(t *testing.T) {
 		t.Errorf("got G=%d, want 255", c.G)
 	}
 }
-
-// --- ColorFromFloats tests ---
 
 func TestFromFloats(t *testing.T) {
 	c := ColorFromFloats(0.5, 0.5, 0.5, 1.0)
@@ -114,8 +108,6 @@ func TestFromFloats(t *testing.T) {
 	}
 }
 
-// --- ToInts tests ---
-
 func TestToInts_ColorWhite(t *testing.T) {
 	r, g, b, a := ColorWhite.ToInts()
 	if r != 255 || g != 255 || b != 255 || a != 255 {
@@ -130,8 +122,6 @@ func TestToInts_Roundtrip(t *testing.T) {
 		t.Errorf("roundtrip failed: got (%d,%d,%d,%d), want (123,45,67,200)", r, g, b, a)
 	}
 }
-
-// --- ToHex tests ---
 
 func TestToHex_ColorRed(t *testing.T) {
 	hex := ColorRed.ToHex()
@@ -155,8 +145,6 @@ func TestToHex_ColorTransparent(t *testing.T) {
 	}
 }
 
-// --- Equals tests ---
-
 func TestEquals_Same(t *testing.T) {
 	if !ColorRed.Equals(ColorRed) {
 		t.Error("ColorRed should equal ColorRed")
@@ -177,8 +165,6 @@ func TestEquals_Exact(t *testing.T) {
 	}
 }
 
-// --- String test ---
-
 func TestString(t *testing.T) {
 	s := ColorRed.String()
 	want := "rgba(255, 0, 0, 255)"
@@ -186,8 +172,6 @@ func TestString(t *testing.T) {
 		t.Errorf("got %q, want %q", s, want)
 	}
 }
-
-// --- Blend tests ---
 
 func TestBlend_Start(t *testing.T) {
 	result := ColorBlack.Blend(ColorWhite, 0)
@@ -201,7 +185,7 @@ func TestBlend_End(t *testing.T) {
 
 func TestBlend_Midpoint(t *testing.T) {
 	result := ColorBlack.Blend(ColorWhite, 0.5)
-	// Should be approximately 128
+	// The midpoint rounds each channel to approximately 128.
 	if result.R < 126 || result.R > 129 {
 		t.Errorf("R: got %d, want ~128", result.R)
 	}
@@ -213,8 +197,6 @@ func TestBlend_Midpoint(t *testing.T) {
 	}
 }
 
-// --- WithAlpha tests ---
-
 func TestWithAlpha(t *testing.T) {
 	c := ColorRed.WithAlpha(128)
 	if c.A != 128 {
@@ -225,15 +207,10 @@ func TestWithAlpha(t *testing.T) {
 	}
 }
 
-// --- Premultiply tests ---
-
 func TestPremultiply(t *testing.T) {
 	c := Color{255, 128, 64, 128}
 	pm := c.Premultiply()
-	// alpha = 128/255 ≈ 0.502
-	// R: 255 * 0.502 ≈ 128
-	// G: 128 * 0.502 ≈ 64
-	// B: 64 * 0.502 ≈ 32
+	// Alpha 128 scales the channels by approximately one half.
 	if pm.R < 126 || pm.R > 129 {
 		t.Errorf("R: got %d, want ~128", pm.R)
 	}
@@ -248,8 +225,6 @@ func TestPremultiply(t *testing.T) {
 	}
 }
 
-// --- IsTransparent tests ---
-
 func TestIsTransparent_True(t *testing.T) {
 	if !ColorTransparent.IsTransparent() {
 		t.Error("ColorTransparent should be transparent")
@@ -262,8 +237,6 @@ func TestIsTransparent_False(t *testing.T) {
 	}
 }
 
-// --- Luminance tests ---
-
 func TestLuminance_ColorWhite(t *testing.T) {
 	l := ColorWhite.Luminance()
 	assertFloat32Near(t, l, 1.0, 0.01)
@@ -275,7 +248,7 @@ func TestLuminance_ColorBlack(t *testing.T) {
 }
 
 func TestLuminance_ColorGreen_Dominant(t *testing.T) {
-	// ColorGreen should have highest luminance contribution
+	// BT.709 gives green the largest luma coefficient.
 	lr := ColorRed.Luminance()
 	lg := ColorGreen.Luminance()
 	lb := ColorBlue.Luminance()
@@ -283,8 +256,6 @@ func TestLuminance_ColorGreen_Dominant(t *testing.T) {
 		t.Errorf("green luminance (%f) should be highest (r=%f, b=%f)", lg, lr, lb)
 	}
 }
-
-// --- ParseColor tests ---
 
 func TestParseColor_Color(t *testing.T) {
 	result := ParseColor(ColorRed)
@@ -316,8 +287,6 @@ func TestParseColor_EmptyString(t *testing.T) {
 	assertColorEquals(t, result, ColorTransparent)
 }
 
-// --- Named color map test ---
-
 func TestNamedColors_AllPresent(t *testing.T) {
 	names := []string{
 		"black", "white", "red", "green", "blue", "yellow", "cyan", "magenta",
@@ -332,8 +301,6 @@ func TestNamedColors_AllPresent(t *testing.T) {
 		}
 	}
 }
-
-// --- HSV conversion tests ---
 
 func TestHSVToRGB_ColorRed(t *testing.T) {
 	c := ColorHSVToRGB(0, 1, 1)
@@ -379,7 +346,7 @@ func TestRGBToHSV_Roundtrip(t *testing.T) {
 	orig := ColorFromInts(200, 100, 50, 255)
 	h, s, v := ColorRGBToHSV(orig)
 	back := ColorHSVToRGB(h, s, v)
-	// Allow ±1 for rounding
+	// Integer conversion permits one channel value of rounding drift.
 	if absDiff(back.R, orig.R) > 1 {
 		t.Errorf("R: got %d, want %d", back.R, orig.R)
 	}
@@ -398,8 +365,6 @@ func absDiff(a, b uint8) uint8 {
 	return b - a
 }
 
-// --- ColorHexToRGB / ColorRGBToHex convenience tests ---
-
 func TestHexToRGB(t *testing.T) {
 	c := ColorHexToRGB("#00ff00")
 	assertColorEquals(t, c, ColorGreen)
@@ -412,8 +377,6 @@ func TestRGBToHex(t *testing.T) {
 	}
 }
 
-// --- Edge cases ---
-
 func TestFromHex_AllZeros(t *testing.T) {
 	c := ColorFromHex("#000000")
 	want := Color{0, 0, 0, 255}
@@ -421,7 +384,7 @@ func TestFromHex_AllZeros(t *testing.T) {
 }
 
 func TestBlend_OutOfRange(t *testing.T) {
-	// Blend should still work even with t > 1 (extrapolation)
+	// Values above one extrapolate and clamp rather than failing.
 	result := ColorBlack.Blend(ColorWhite, 2.0)
 	if math.IsNaN(float64(result.R)) {
 		t.Error("blend should not produce NaN")

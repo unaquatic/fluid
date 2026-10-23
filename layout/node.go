@@ -1,100 +1,94 @@
 package layout
 
-// --- MeasureFunc ---
-
 // MeasureMode tells a MeasureFunc how to interpret the constraint on each axis.
 type MeasureMode int
 
 const (
-	// MeasureExactly means the dimension is fixed; the node must use it.
+	// MeasureExactly requires the supplied dimension.
 	MeasureExactly MeasureMode = iota
-	// MeasureAtMost means the dimension is an upper bound; the node may be smaller.
+	// MeasureAtMost permits any dimension up to the supplied limit.
 	MeasureAtMost
-	// MeasureUndefined means no constraint; return the intrinsic size.
+	// MeasureUndefined requests the unconstrained intrinsic dimension.
 	MeasureUndefined
 )
 
-// MeasureResult holds the intrinsic size returned by a MeasureFunc.
-// Dimensions are in integer cells — the natural unit for a TUI.
+// MeasureResult contains an intrinsic width and height in terminal cells.
 type MeasureResult struct {
 	Width  int
 	Height int
 }
 
-// MeasureFunc is a callback that returns the intrinsic size of a node.
-// It receives the available width/height (in cells) and the mode for each axis.
-// This is analogous to Yoga's YGMeasureFunc, but uses integer cells since
-// terminal UIs operate on a discrete character grid.
+// MeasureFunc returns a node's intrinsic size under width and height
+// constraints expressed in terminal cells.
 //
-// The function is consulted when the node has Auto sizing on at least one
-// axis. It works for both leaf nodes and composite widgets that manage their
-// own children (e.g. Diff, which knows its total line count).
+// Layout calls the function when at least one axis is automatic. Leaf nodes
+// and composite widgets that measure their own content can both provide it.
 type MeasureFunc func(
 	width int, widthMode MeasureMode,
 	height int, heightMode MeasureMode,
 ) MeasureResult
 
-// LayoutNode represents a single node in the flex layout tree.
+// LayoutNode is one node in a flex layout tree.
 type LayoutNode struct {
-	// --- Container properties ---
-	FlexDirection  FlexDirection  // default: DirectionRow
-	FlexWrap       FlexWrap       // default: WrapNone
-	JustifyContent JustifyContent // default: JustifyStart
-	AlignItems     Align          // default: AlignStretch
-	Gap            int            // shorthand for RowGap + ColumnGap
-	RowGap         int            // gap between rows (cross-axis for row direction)
-	ColumnGap      int            // gap between columns (main-axis for row direction)
+	// Container properties.
+	FlexDirection  FlexDirection  // The main axis and item order. The default is DirectionRow.
+	FlexWrap       FlexWrap       // The line-wrapping mode. The default is WrapNone.
+	JustifyContent JustifyContent // The main-axis distribution. The default is JustifyStart.
+	AlignItems     Align          // The cross-axis alignment. The default is AlignStretch.
+	Gap            int            // The fallback gap between rows and columns.
+	RowGap         int            // The row gap when positive, overriding Gap.
+	ColumnGap      int            // The column gap when positive, overriding Gap.
 
-	// --- Item properties ---
-	FlexGrow   int    // default: 0
-	FlexShrink int    // default: 1
-	FlexBasis  Scalar // default: Auto
-	AlignSelf  Align  // default: AlignAuto (inherit from parent)
+	// Item properties.
+	FlexGrow   int    // The growth factor. The default is zero.
+	FlexShrink int    // The shrink factor. The default is one.
+	FlexBasis  Scalar // The initial main-axis size. The default is Auto.
+	AlignSelf  Align  // The item alignment override. The default is AlignAuto.
 
-	// --- Dimensions ---
-	Width     Scalar // default: Auto
-	Height    Scalar // default: Auto
-	MinWidth  Scalar // default: Undefined
-	MaxWidth  Scalar // default: Undefined
-	MinHeight Scalar // default: Undefined
-	MaxHeight Scalar // default: Undefined
+	// Dimensions.
+	Width     Scalar // The preferred width. The default is Auto.
+	Height    Scalar // The preferred height. The default is Auto.
+	MinWidth  Scalar // The minimum width. The default is Undefined.
+	MaxWidth  Scalar // The maximum width. The default is Undefined.
+	MinHeight Scalar // The minimum height. The default is Undefined.
+	MaxHeight Scalar // The maximum height. The default is Undefined.
 
-	// --- Intrinsic measurement ---
-	Measure MeasureFunc // optional: called for leaf nodes with Auto sizing
+	// Intrinsic measurement.
+	Measure MeasureFunc // An optional content measurement function.
 
-	// --- Box model ---
-	MarginTop     Scalar // default: Points(0)
+	// Box model.
+	MarginTop     Scalar // The top margin. The default is zero points.
 	MarginRight   Scalar
 	MarginBottom  Scalar
 	MarginLeft    Scalar
-	PaddingTop    Scalar // default: Points(0)
+	PaddingTop    Scalar // The top padding. The default is zero points.
 	PaddingRight  Scalar
 	PaddingBottom Scalar
 	PaddingLeft   Scalar
 
-	// --- Positioning ---
-	Position Position // default: PositionRelative
-	Top      Scalar   // default: Undefined
-	Right    Scalar   // default: Undefined
-	Bottom   Scalar   // default: Undefined
-	Left     Scalar   // default: Undefined
-	Overflow   Overflow   // default: OverflowVisible
-	Sticky     Sticky     // default: StickyNone
-	Visibility Visibility // default: Visible
+	// Positioning.
+	Position   Position   // The positioning mode. The default is PositionRelative.
+	Top        Scalar     // The top offset. The default is Undefined.
+	Right      Scalar     // The right offset. The default is Undefined.
+	Bottom     Scalar     // The bottom offset. The default is Undefined.
+	Left       Scalar     // The left offset. The default is Undefined.
+	Overflow   Overflow   // The overflow mode. The default is OverflowVisible.
+	Sticky     Sticky     // The pinned viewport edge. The default is StickyNone.
+	Visibility Visibility // The layout and rendering visibility. The default is Visible.
 
-	// --- Output ---
+	// Resolved output.
 	Computed ComputedLayout
 
-	// --- Tree ---
+	// Tree links.
 	Parent   *LayoutNode
 	Children []*LayoutNode
 
-	// --- Internal ---
+	// Layout state.
 	dirty bool
-	Cache LayoutCache // Yoga-style layout cache for subtree skip
+	Cache LayoutCache // The cached inputs used to skip an unchanged subtree.
 }
 
-// NewNode creates a LayoutNode with sensible defaults matching CSS flexbox.
+// NewNode returns a dirty layout node with flexbox defaults.
 func NewNode() *LayoutNode {
 	return &LayoutNode{
 		FlexDirection:  DirectionRow,
@@ -134,9 +128,7 @@ func NewNode() *LayoutNode {
 	}
 }
 
-// --- Tree Manipulation ---
-
-// AddChild appends a child to this node and sets its parent.
+// AddChild appends child to n, removing it from any previous parent first.
 func (n *LayoutNode) AddChild(child *LayoutNode) {
 	if child.Parent != nil {
 		child.Parent.RemoveChild(child)
@@ -146,8 +138,8 @@ func (n *LayoutNode) AddChild(child *LayoutNode) {
 	n.MarkDirty()
 }
 
-// AddChildAt inserts a child at the given index.
-// If index is out of range, the child is appended.
+// AddChildAt inserts child at index after removing it from any previous parent.
+// It appends child when index is outside the existing child range.
 func (n *LayoutNode) AddChildAt(child *LayoutNode, index int) {
 	if child.Parent != nil {
 		child.Parent.RemoveChild(child)
@@ -164,7 +156,8 @@ func (n *LayoutNode) AddChildAt(child *LayoutNode, index int) {
 	n.MarkDirty()
 }
 
-// RemoveChild removes a child from this node and clears its parent.
+// RemoveChild removes child from n and clears its parent link. It does nothing
+// when child is not a direct child of n.
 func (n *LayoutNode) RemoveChild(child *LayoutNode) {
 	for i, c := range n.Children {
 		if c == child {
@@ -181,30 +174,22 @@ func (n *LayoutNode) ChildCount() int {
 	return len(n.Children)
 }
 
-// --- Dirty Tracking ---
-
-// MarkDirty marks this node and all ancestors as needing layout.
+// MarkDirty marks n and every ancestor for layout recomputation.
 func (n *LayoutNode) MarkDirty() {
-	node := n
-	for node != nil {
-		if node.dirty {
-			return // already dirty up the chain
-		}
+	// Walk the full chain because a skipped Gone node can outlive a clean ancestor.
+	for node := n; node != nil; node = node.Parent {
 		node.dirty = true
-		node = node.Parent
 	}
 }
 
-// IsDirty returns true if this node needs layout recomputation.
+// IsDirty reports whether n requires layout recomputation.
 func (n *LayoutNode) IsDirty() bool {
 	return n.dirty
 }
 
-// ShiftDescendantPositions adjusts the absolute Computed.X/Y of all
-// descendants by (dx, dy). Used when a clean subtree moved because a
-// sibling changed size — the internal layout is identical, only the
-// absolute offset changed. Much cheaper than full re-layout (no scalar
-// resolution, no flex math, no MeasureFunc calls).
+// ShiftDescendantPositions moves every descendant's absolute position and
+// cached parent position by (dx, dy). It preserves internal layout when a
+// clean subtree moves as a unit.
 func (n *LayoutNode) ShiftDescendantPositions(dx, dy int) {
 	for _, child := range n.Children {
 		child.Computed.X += dx
@@ -215,9 +200,7 @@ func (n *LayoutNode) ShiftDescendantPositions(dx, dy int) {
 	}
 }
 
-// --- Shorthand Setters ---
-
-// SetMargin sets all four margins to the same value.
+// SetMargin sets all four margins to all.
 func (n *LayoutNode) SetMargin(all Scalar) {
 	n.MarginTop = all
 	n.MarginRight = all
@@ -226,7 +209,7 @@ func (n *LayoutNode) SetMargin(all Scalar) {
 	n.MarkDirty()
 }
 
-// SetMarginXY sets horizontal (x) and vertical (y) margins.
+// SetMarginXY sets both horizontal margins to x and both vertical margins to y.
 func (n *LayoutNode) SetMarginXY(x, y Scalar) {
 	n.MarginLeft = x
 	n.MarginRight = x
@@ -235,7 +218,7 @@ func (n *LayoutNode) SetMarginXY(x, y Scalar) {
 	n.MarkDirty()
 }
 
-// SetPadding sets all four paddings to the same value.
+// SetPadding sets padding on all four sides to all.
 func (n *LayoutNode) SetPadding(all Scalar) {
 	n.PaddingTop = all
 	n.PaddingRight = all
@@ -244,7 +227,7 @@ func (n *LayoutNode) SetPadding(all Scalar) {
 	n.MarkDirty()
 }
 
-// SetPaddingXY sets horizontal (x) and vertical (y) paddings.
+// SetPaddingXY sets both horizontal paddings to x and both vertical paddings to y.
 func (n *LayoutNode) SetPaddingXY(x, y Scalar) {
 	n.PaddingLeft = x
 	n.PaddingRight = x
@@ -253,7 +236,7 @@ func (n *LayoutNode) SetPaddingXY(x, y Scalar) {
 	n.MarkDirty()
 }
 
-// SetSize sets width and height.
+// SetSize sets the preferred width and height.
 func (n *LayoutNode) SetSize(w, h Scalar) {
 	n.Width = w
 	n.Height = h

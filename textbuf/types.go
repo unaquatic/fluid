@@ -4,25 +4,21 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// WidthMethod controls how character/grapheme widths are calculated.
+// WidthMethod selects code-point or grapheme-cluster terminal width calculation.
 //
-//   - WcWidth: uses per-codepoint East Asian Width (EAW) tables, matching
-//     the POSIX wcwidth() function. Compatible with tmux and older terminals.
-//
-//   - Unicode: grapheme-cluster-aware width via UAX #29.
-//     Handles ZWJ sequences, skin tone modifiers, flag pairs, etc.
-//     Matches modern terminals (iTerm2, WezTerm, Kitty, Windows Terminal).
+// WcWidth sums each code point's East Asian width. Unicode segments text using
+// UAX #29 before calculating each cluster's width.
 type WidthMethod int
 
 const (
-	// WcWidth uses per-codepoint East Asian Width lookup.
+	// WcWidth sums per-code-point widths.
 	WcWidth WidthMethod = iota
 
-	// Unicode uses grapheme-cluster-aware width calculation.
+	// Unicode calculates widths for extended grapheme clusters.
 	Unicode
 )
 
-// String returns the string representation.
+// String returns w's name.
 func (w WidthMethod) String() string {
 	switch w {
 	case WcWidth:
@@ -34,8 +30,8 @@ func (w WidthMethod) String() string {
 	}
 }
 
-// ParseWidthMethod parses a string into a WidthMethod.
-// Returns Unicode for unrecognised values.
+// ParseWidthMethod returns WcWidth for "wcwidth" and Unicode for every other
+// value.
 func ParseWidthMethod(s string) WidthMethod {
 	switch s {
 	case "wcwidth":
@@ -45,13 +41,12 @@ func ParseWidthMethod(s string) WidthMethod {
 	}
 }
 
-// DefaultWidthMethod returns the default WidthMethod.
+// DefaultWidthMethod returns Unicode.
 func DefaultWidthMethod() WidthMethod {
 	return Unicode
 }
 
-// StringWidthMethod returns the display width of s using the specified method.
-// WcWidth sums per-codepoint widths; Unicode uses grapheme-cluster-aware width.
+// StringWidthMethod returns s's terminal width using m.
 func StringWidthMethod(s string, m WidthMethod) int {
 	if m == WcWidth {
 		w := 0
@@ -63,19 +58,14 @@ func StringWidthMethod(s string, m WidthMethod) int {
 	return StringWidth(s)
 }
 
-// ClusterWidth returns cw unchanged unless it is zero, in which case it
-// returns 1.  Zero-width grapheme clusters (lone ZWJ, bare combining marks)
-// still need to occupy one cursor column so the cursor can advance past them.
+// ClusterWidth returns at least one column for a grapheme cluster. This lets
+// cursor movement advance past isolated zero-width clusters.
 func ClusterWidth(cw int) int {
 	if cw == 0 {
 		return 1
 	}
 	return cw
 }
-
-// ---------------------------------------------------------------------------
-// WrapMode
-// ---------------------------------------------------------------------------
 
 // WrapMode controls how long lines are wrapped in a TextSurface.
 type WrapMode int
@@ -89,30 +79,19 @@ const (
 	WrapWord
 )
 
-// ---------------------------------------------------------------------------
-// Viewport
-// ---------------------------------------------------------------------------
-
-// Viewport defines a rectangular window into the virtual line space.
+// Viewport defines a rectangular window in virtual-line coordinates.
 type Viewport struct {
 	X, Y          int
 	Width, Height int
 }
 
-// ---------------------------------------------------------------------------
-// TextSelection
-// ---------------------------------------------------------------------------
-
-// TextSelection describes a highlighted character range.
+// TextSelection describes a highlighted half-open range in global display-width
+// coordinates.
 type TextSelection struct {
-	Start, End int // character offset range (display-width based)
+	Start, End int // Inclusive start and exclusive end offsets.
 	BgColor    *style.Color
 	FgColor    *style.Color
 }
-
-// ---------------------------------------------------------------------------
-// Span
-// ---------------------------------------------------------------------------
 
 // Span is a run of text with uniform styling.
 type Span struct {
@@ -120,76 +99,54 @@ type Span struct {
 	Fg         style.Color
 	Bg         style.Color
 	Attributes uint32
-	Width      int // display width (0 = not yet measured)
+	Width      int // Cached display width; zero can mean not yet measured.
 }
 
-// ---------------------------------------------------------------------------
-// VirtualChunk
-// ---------------------------------------------------------------------------
-
-// VirtualChunk is a fragment of a VirtualLine that maps back to source text.
+// VirtualChunk is an equally styled fragment of a wrapped visual line.
 type VirtualChunk struct {
-	Text          string      // resolved text content
-	GraphemeStart int         // column offset within the source span
-	Width         int         // display width of this chunk
-	Fg            style.Color // foreground color
-	Bg            style.Color // background color
-	Attributes    uint32      // text attributes
+	Text          string      // Resolved text content.
+	GraphemeStart int         // Display-column offset within the virtual line.
+	Width         int         // Display width.
+	Fg            style.Color // Foreground color.
+	Bg            style.Color // Background color.
+	Attributes    uint32      // Text attributes.
 }
 
-// ---------------------------------------------------------------------------
-// VirtualLine
-// ---------------------------------------------------------------------------
-
-// VirtualLine is one visual row after wrapping / viewport slicing.
+// VirtualLine is one visual row produced by wrapping a logical source line.
 type VirtualLine struct {
 	Chunks          []VirtualChunk
-	Width           int // total display width
-	CharOffset      int // global char offset where this vline starts
-	SourceLine      int // logical line index
-	SourceColOffset int // column offset within the source line (>0 for wrapped continuations)
+	Width           int // Total display width.
+	CharOffset      int // Global display-width offset at the line start.
+	SourceLine      int // Logical source-line index.
+	SourceColOffset int // Display-column offset within the source line.
 }
 
-// ---------------------------------------------------------------------------
-// LineInfo
-// ---------------------------------------------------------------------------
-
-// LineInfo holds cached layout metadata for virtual lines.
+// LineInfo contains parallel layout metadata for virtual lines.
 type LineInfo struct {
-	Starts   []int // char offset where each vline starts
-	Widths   []int // display width of each vline
-	Sources  []int // source logical line index for each vline
-	MaxWidth int   // maximum width across all lines
+	Starts   []int // Global display-width offset of each virtual line.
+	Widths   []int // Display width of each virtual line.
+	Sources  []int // Logical source-line index of each virtual line.
+	MaxWidth int   // Maximum virtual-line width.
 }
 
-// ---------------------------------------------------------------------------
-// Surface interface
-// ---------------------------------------------------------------------------
-
-// Surface is the interface that Buffer.DrawTextSurface accepts.
-// Both TextSurface and EditSurface implement this interface.
+// Surface exposes viewport-adjusted text and styling to a buffer renderer.
 type Surface interface {
-	// VirtualLines returns the visible virtual lines (viewport-sliced).
+	// VirtualLines returns virtual lines within the vertical viewport.
 	VirtualLines() []VirtualLine
 	// Viewport returns the current viewport, or nil if none.
 	Viewport() *Viewport
-	// CachedLineInfo returns layout metadata for the visible virtual lines.
+	// CachedLineInfo returns metadata for the visible virtual lines.
 	CachedLineInfo() LineInfo
-	// Selection returns the current text selection, or nil.
+	// Selection returns the current text selection, or nil when absent.
 	Selection() *TextSelection
 	// DefaultFg returns the default foreground color.
 	DefaultFg() style.Color
 	// DefaultBg returns the default background color.
 	DefaultBg() style.Color
-	// LineHighlights returns the highlights for a source (physical) line.
-	// Used by the renderer to apply highlight colors at render time.
+	// LineHighlights returns styling ranges for a logical source line.
 	LineHighlights(lineIdx int) []Highlight
-	// LineBackground returns the per-line background color for a source
-	// (physical) line. The renderer calls FillRect before painting text when
-	// the returned color is non-transparent. Used for active-line highlighting
-	// and diff hunk coloring.
+	// LineBackground returns the background for a logical source line.
 	LineBackground(lineIdx int) style.Color
-	// Truncate returns whether lines wider than the viewport should be
-	// truncated with an ellipsis in the last column.
+	// Truncate reports whether rendering replaces overflow with an ellipsis.
 	Truncate() bool
 }

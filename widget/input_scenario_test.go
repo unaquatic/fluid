@@ -9,17 +9,15 @@ import (
 	"github.com/unaquatic/fluid/widget"
 )
 
-// ---------------------------------------------------------------------------
-// Input widget event scenarios
-// ---------------------------------------------------------------------------
+// Input event scenarios.
 
-// pressKey creates a KeyEvent and dispatches it to the input.
+// pressKey dispatches one key press to inp.
 func pressKey(inp *widget.Input, name string) {
 	e := &input.KeyEvent{Name: name, Type: input.KeyPress}
 	inp.HandleKeyPress(e)
 }
 
-// renderInput is a helper that re-renders an already-laid-out Input.
+// renderInput renders an already laid-out Input into a fresh buffer.
 func renderInput(inp *widget.Input, width, height int) *buffer.Buffer {
 	buf := buffer.New(width, height)
 	inp.RenderSelf(buf, 0)
@@ -65,7 +63,7 @@ func TestInput_CursorMoveThenInsert(t *testing.T) {
 	inp := widget.NewInput(widget.InputWithValue("Hllo"))
 	testutil.SetupWidget(inp, 20, 1)
 
-	// Move cursor to position 1 (after 'H')
+	// Insert between the first and second characters.
 	inp.SetCursorPos(1)
 	pressKey(inp, "e")
 
@@ -77,12 +75,12 @@ func TestInput_CursorMoveThenInsert(t *testing.T) {
 	}
 }
 
-// TestInput_SequentialEdits verifies a sequence of edits: type, move, delete, type.
+// TestInput_SequentialEdits verifies a mixed sequence of insertion, movement, and deletion.
 func TestInput_SequentialEdits(t *testing.T) {
 	inp := widget.NewInput()
 	testutil.SetupWidget(inp, 20, 1)
 
-	// Type "abc"
+	// Build the initial value one event at a time.
 	pressKey(inp, "a")
 	pressKey(inp, "b")
 	pressKey(inp, "c")
@@ -90,13 +88,13 @@ func TestInput_SequentialEdits(t *testing.T) {
 		t.Fatalf("after typing: expected 'abc', got %q", inp.Value())
 	}
 
-	// Delete last char
+	// Remove the final character.
 	pressKey(inp, input.KeyBackspace)
 	if inp.Value() != "ab" {
 		t.Fatalf("after backspace: expected 'ab', got %q", inp.Value())
 	}
 
-	// Type "C"
+	// Replace it with an uppercase character.
 	pressKey(inp, "C")
 	if inp.Value() != "abC" {
 		t.Fatalf("after re-type: expected 'abC', got %q", inp.Value())
@@ -108,7 +106,7 @@ func TestInput_SequentialEdits(t *testing.T) {
 	testutil.AssertCell(t, buf, 2, 0, 'C')
 }
 
-// TestInput_OnSubmitCallback verifies the OnSubmit callback fires on Enter.
+// TestInput_OnSubmitCallback verifies that Enter invokes OnSubmit.
 func TestInput_OnSubmitCallback(t *testing.T) {
 	var submitted string
 	inp := widget.NewInput(
@@ -124,7 +122,7 @@ func TestInput_OnSubmitCallback(t *testing.T) {
 	}
 }
 
-// TestInput_OnInputCallback verifies OnInput fires on each keystroke.
+// TestInput_OnInputCallback verifies that each inserted rune invokes OnInput.
 func TestInput_OnInputCallback(t *testing.T) {
 	var inputValues []string
 	inp := widget.NewInput(
@@ -154,7 +152,7 @@ func TestInput_MaxLength(t *testing.T) {
 	pressKey(inp, "a")
 	pressKey(inp, "b")
 	pressKey(inp, "c")
-	pressKey(inp, "d") // should be rejected
+	pressKey(inp, "d") // Exceeds the configured maximum length.
 
 	if inp.Value() != "abc" {
 		t.Errorf("expected 'abc', got %q", inp.Value())
@@ -166,7 +164,7 @@ func TestInput_Paste(t *testing.T) {
 	inp := widget.NewInput()
 	testutil.SetupWidget(inp, 20, 1)
 
-	// Simulate paste
+	// Paste should use the same content-change path as typing.
 	pe := &input.PasteEvent{Text: "pasted"}
 	inp.HandlePaste(pe)
 
@@ -198,16 +196,16 @@ func TestInput_RenderAfterMultipleOps(t *testing.T) {
 	inp := widget.NewInput()
 	testutil.SetupWidget(inp, 20, 1)
 
-	// Type "abcde"
+	// Build a five-character value.
 	for _, ch := range "abcde" {
 		pressKey(inp, string(ch))
 	}
 
-	// Delete last 2
+	// Remove its final two characters.
 	pressKey(inp, input.KeyBackspace)
 	pressKey(inp, input.KeyBackspace)
 
-	// Type "XY"
+	// Append replacement characters.
 	pressKey(inp, "X")
 	pressKey(inp, "Y")
 

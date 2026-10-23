@@ -5,11 +5,7 @@ import (
 	"unicode/utf8"
 )
 
-// ---------------------------------------------------------------------------
-// Grapheme_Cluster_Break (GCB) property
-// ---------------------------------------------------------------------------
-
-// gcbProp represents the UAX #29 Grapheme_Cluster_Break property value.
+// gcbProp identifies a UAX #29 Grapheme_Cluster_Break property.
 type gcbProp int
 
 const (
@@ -29,9 +25,9 @@ const (
 	gcbLVT
 )
 
-// gcbOf returns the Grapheme_Cluster_Break property for r.
+// gcbOf returns r's Grapheme_Cluster_Break property.
 func gcbOf(r rune) gcbProp {
-	// --- Exact single-codepoint values ---
+	// Handle exact singleton properties first.
 	if r == '\n' {
 		return gcbLF
 	}
@@ -42,7 +38,7 @@ func gcbOf(r rune) gcbProp {
 		return gcbZWJ
 	}
 
-	// --- C0 control characters (excluding CR/LF already handled) ---
+	// CR and LF were separated from the remaining C0 controls above.
 	if r >= 0 && r < 0x0A {
 		return gcbControl
 	}
@@ -52,22 +48,22 @@ func gcbOf(r rune) gcbProp {
 	if r > 0x0D && r <= 0x1F {
 		return gcbControl
 	}
-	// DEL + C1 controls
+	// DEL and C1 controls share the Control property.
 	if r >= 0x7F && r <= 0x9F {
 		return gcbControl
 	}
 
-	// --- Prepend (must check before general Cf check) ---
+	// Prepend format characters must be classified before the general Cf case.
 	if isPrepend(r) {
 		return gcbPrepend
 	}
 
-	// --- Regional Indicator ---
+	// Regional indicator symbols form flag pairs.
 	if r >= 0x1F1E6 && r <= 0x1F1FF {
 		return gcbRI
 	}
 
-	// --- Hangul Jamo algorithmic classification ---
+	// Classify Hangul jamo and syllables algorithmically.
 	if r >= 0x1100 && r <= 0x115F {
 		return gcbL
 	}
@@ -86,7 +82,7 @@ func gcbOf(r rune) gcbProp {
 	if r >= 0xD7CB && r <= 0xD7FB {
 		return gcbT
 	}
-	// Hangul syllables: LV if trailing index == 0, else LVT
+	// A zero trailing index identifies an LV syllable; all others are LVT.
 	if r >= 0xAC00 && r <= 0xD7A3 {
 		if (r-0xAC00)%28 == 0 {
 			return gcbLV
@@ -94,38 +90,35 @@ func gcbOf(r rune) gcbProp {
 		return gcbLVT
 	}
 
-	// --- Extend (combining marks + supplementary) ---
 	if isGCBExtend(r) {
 		return gcbExtend
 	}
 
-	// --- SpacingMark ---
 	if isGCBSpacingMark(r) {
 		return gcbSpacingMark
 	}
 
-	// --- Remaining format characters → Control ---
+	// Remaining format characters behave as controls for segmentation.
 	if unicode.Is(unicode.Cf, r) {
 		return gcbControl
 	}
 
-	// --- Surrogates and noncharacters → Control ---
+	// Treat surrogate code points and Unicode noncharacters as controls.
 	if r >= 0xD800 && r <= 0xDFFF {
 		return gcbControl
 	}
 	if r >= 0xFDD0 && r <= 0xFDEF {
 		return gcbControl
 	}
-	if r&0xFFFE == 0xFFFE { // U+xFFFE and U+xFFFF
+	if r&0xFFFE == 0xFFFE { // The final two code points in every plane.
 		return gcbControl
 	}
 
 	return gcbOther
 }
 
-// ---------------------------------------------------------------------------
 // firstClusterBreak returns the byte length of the first grapheme cluster
-// in s, implementing the UAX #29 grapheme cluster boundary rules:
+// in s according to these UAX #29 boundary rules:
 //
 //	GB3:  CR × LF
 //	GB4:  (Control | CR | LF) ÷
@@ -140,8 +133,6 @@ func gcbOf(r rune) gcbProp {
 //	GB12: sot (RI RI)* RI × RI
 //	GB13: [^RI] (RI RI)* RI × RI
 //	GB999: Any ÷ Any
-//
-// ---------------------------------------------------------------------------
 func firstClusterBreak(s string) int {
 	if len(s) == 0 {
 		return 0
@@ -155,17 +146,15 @@ func firstClusterBreak(s string) int {
 
 	prev := gcbOf(r0)
 
-	// --- State for GB11 ---
-	// epState tracks Extended_Pictographic + Extend* + ZWJ context:
-	//   0 = not tracking
-	//   1 = saw ExtPict (possibly followed by Extend*)
-	//   2 = saw ExtPict + Extend* + ZWJ
+	// epState tracks the Extended_Pictographic Extend* ZWJ sequence for GB11.
+	// Zero means inactive, one means the pictograph and optional extenders were
+	// seen, and two means the trailing ZWJ was also seen.
 	epState := 0
 	if isExtendedPictographic(r0) {
 		epState = 1
 	}
 
-	// --- State for GB12/GB13 ---
+	// riCount tracks regional indicators for pairing under GB12 and GB13.
 	riCount := 0
 	if prev == gcbRI {
 		riCount = 1
@@ -176,7 +165,7 @@ func firstClusterBreak(s string) int {
 		cur := gcbOf(r)
 		curEP := isExtendedPictographic(r)
 
-		// Apply break rules in priority order.
+		// UAX #29 requires these boundary rules in priority order.
 		shouldBreak := true
 
 		switch {
@@ -220,7 +209,7 @@ func firstClusterBreak(s string) int {
 		case epState == 2 && curEP:
 			shouldBreak = false
 
-		// GB12/13: RI × RI (only pairs — odd count means we're mid-pair)
+		// GB12/13: RI × RI when an odd count starts the current pair.
 		case prev == gcbRI && cur == gcbRI && riCount%2 == 1:
 			shouldBreak = false
 
@@ -233,22 +222,19 @@ func firstClusterBreak(s string) int {
 			break
 		}
 
-		// --- Update state for next iteration ---
-
-		// Update EP tracking for GB11.
+		// Update extended-pictographic state for the next boundary.
 		switch {
 		case curEP:
 			epState = 1
 		case cur == gcbExtend && epState >= 1:
-			// Extend preserves EP context: ExtPict Extend*
-			// epState stays at 1
+			// Extenders preserve state one.
 		case cur == gcbZWJ && epState >= 1:
 			epState = 2
 		default:
 			epState = 0
 		}
 
-		// Update RI count for GB12/13.
+		// Reset regional-indicator pairing after any other property.
 		if cur == gcbRI {
 			riCount++
 		} else {

@@ -9,10 +9,6 @@ import (
 	"github.com/unaquatic/fluid/layout"
 )
 
-// ---------------------------------------------------------------------------
-// Auto-increment IDs
-// ---------------------------------------------------------------------------
-
 func TestBaseRenderable_AutoIncrementNum(t *testing.T) {
 	a := NewBaseRenderable()
 	b := NewBaseRenderable()
@@ -44,10 +40,6 @@ func TestBaseRenderable_SetID(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Global Registry
-// ---------------------------------------------------------------------------
-
 func TestBaseRenderable_GlobalRegistry(t *testing.T) {
 	r := NewBaseRenderable()
 	found := LookupRenderable(r.Num())
@@ -67,10 +59,6 @@ func TestBaseRenderable_UnregisteredAfterDestroy(t *testing.T) {
 		t.Error("expected renderable to be unregistered after Destroy")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Options
-// ---------------------------------------------------------------------------
 
 func TestBaseRenderable_Options(t *testing.T) {
 	r := NewBaseRenderable(
@@ -137,10 +125,6 @@ func TestBaseRenderable_LayoutOptions(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Defaults
-// ---------------------------------------------------------------------------
-
 func TestBaseRenderable_Defaults(t *testing.T) {
 	r := NewBaseRenderable()
 
@@ -170,10 +154,6 @@ func TestBaseRenderable_Defaults(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Tree Management: Add/Remove
-// ---------------------------------------------------------------------------
-
 func TestBaseRenderable_AddChild(t *testing.T) {
 	parent := NewBaseRenderable(WithID("parent"))
 	child := NewBaseRenderable(WithID("child"))
@@ -198,7 +178,7 @@ func TestBaseRenderable_AddChildAtIndex(t *testing.T) {
 
 	parent.Add(a)
 	parent.Add(c)
-	parent.Add(b, 1) // insert between a and c
+	parent.Add(b, 1) // Insert b between a and c.
 
 	children := parent.Children()
 	if len(children) != 3 {
@@ -238,7 +218,7 @@ func TestBaseRenderable_InsertBefore(t *testing.T) {
 
 	parent.Add(a)
 	parent.Add(c)
-	parent.InsertBefore(b, c) // insert b before c
+	parent.InsertBefore(b, c)
 
 	children := parent.Children()
 	if len(children) != 3 {
@@ -253,7 +233,7 @@ func TestBaseRenderable_InsertBefore_NilAnchor(t *testing.T) {
 	parent := NewBaseRenderable(WithID("parent"))
 	a := NewBaseRenderable(WithID("a"))
 
-	parent.InsertBefore(a, nil) // should append
+	parent.InsertBefore(a, nil) // A nil anchor appends the child.
 
 	if parent.ChildrenCount() != 1 {
 		t.Errorf("expected 1 child, got %d", parent.ChildrenCount())
@@ -300,10 +280,6 @@ func TestBaseRenderable_FindDescendantByID(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Parent propagation
-// ---------------------------------------------------------------------------
-
 func TestBaseRenderable_ReparentChild(t *testing.T) {
 	p1 := NewBaseRenderable(WithID("p1"))
 	p2 := NewBaseRenderable(WithID("p2"))
@@ -314,7 +290,7 @@ func TestBaseRenderable_ReparentChild(t *testing.T) {
 		t.Error("expected parent to be p1")
 	}
 
-	// Adding to p2 should remove from p1
+	// Reparenting removes child from p1 before adding it to p2.
 	p2.Add(child)
 	if p1.ChildrenCount() != 0 {
 		t.Errorf("expected p1 to have 0 children, got %d", p1.ChildrenCount())
@@ -323,10 +299,6 @@ func TestBaseRenderable_ReparentChild(t *testing.T) {
 		t.Error("expected parent to be p2")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Context propagation
-// ---------------------------------------------------------------------------
 
 func TestBaseRenderable_ContextPropagation(t *testing.T) {
 	parent := NewBaseRenderable(WithID("parent"))
@@ -359,10 +331,6 @@ func TestBaseRenderable_ContextOnAdd(t *testing.T) {
 		t.Error("expected child to get context on Add")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Dirty tracking
-// ---------------------------------------------------------------------------
 
 func TestBaseRenderable_DirtyOnAdd(t *testing.T) {
 	parent := NewBaseRenderable(WithID("parent"))
@@ -406,10 +374,6 @@ func TestBaseRenderable_RequestRender(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Visibility
-// ---------------------------------------------------------------------------
-
 func TestBaseRenderable_SetVisible(t *testing.T) {
 	r := NewBaseRenderable()
 	r.dirty = false
@@ -424,10 +388,6 @@ func TestBaseRenderable_SetVisible(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Opacity clamp
-// ---------------------------------------------------------------------------
-
 func TestBaseRenderable_OpacityClamp(t *testing.T) {
 	r := NewBaseRenderable()
 
@@ -441,10 +401,6 @@ func TestBaseRenderable_OpacityClamp(t *testing.T) {
 		t.Errorf("expected opacity=1.0 for >1 input, got %f", r.Opacity())
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Focus
-// ---------------------------------------------------------------------------
 
 func TestBaseRenderable_Focus(t *testing.T) {
 	r := NewBaseRenderable(WithFocusable(true))
@@ -463,7 +419,7 @@ func TestBaseRenderable_Focus(t *testing.T) {
 }
 
 func TestBaseRenderable_FocusNotFocusable(t *testing.T) {
-	r := NewBaseRenderable() // focusable=false by default
+	r := NewBaseRenderable() // Renderables are not focusable by default.
 	r.Focus()
 	if r.Focused() {
 		t.Error("expected Focus to be no-op when focusable=false")
@@ -478,10 +434,6 @@ func TestBaseRenderable_Blur(t *testing.T) {
 		t.Error("expected focused=false after Blur()")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Mouse event dispatch
-// ---------------------------------------------------------------------------
 
 func TestBaseRenderable_ProcessMouseEvent_TypeHandlers(t *testing.T) {
 	r := NewBaseRenderable()
@@ -545,30 +497,22 @@ func TestBaseRenderable_ProcessMouseEvent_StopPropagation(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Key event handling
-// ---------------------------------------------------------------------------
-
 func TestBaseRenderable_HandleKeyPress(t *testing.T) {
 	r := NewBaseRenderable()
 
-	// No handler: returns false
+	// Without a handler, the event remains unhandled.
 	e := &input.KeyEvent{Name: "a"}
 	if r.HandleKeyPress(e) {
 		t.Error("expected HandleKeyPress to return false with no handler")
 	}
 
-	// With handler that stops propagation
+	// Stopping propagation makes the event handled.
 	r.OnKeyDownHandler = func(e *input.KeyEvent) { e.StopPropagation() }
 	e2 := &input.KeyEvent{Name: "b"}
 	if !r.HandleKeyPress(e2) {
 		t.Error("expected HandleKeyPress to return true when propagation stopped")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Paste event handling
-// ---------------------------------------------------------------------------
 
 func TestBaseRenderable_HandlePaste(t *testing.T) {
 	r := NewBaseRenderable()
@@ -583,14 +527,10 @@ func TestBaseRenderable_HandlePaste(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Render pipeline
-// ---------------------------------------------------------------------------
-
 func TestBaseRenderable_RenderSelf_Default(t *testing.T) {
 	r := NewBaseRenderable()
 	buf := buffer.New(10, 5)
-	// Should not panic -- default is no-op
+	// The default RenderSelf is a safe no-op.
 	r.RenderSelf(buf, 0.016)
 }
 
@@ -624,10 +564,6 @@ func TestBaseRenderable_RenderNotVisibleIsNoop(t *testing.T) {
 		t.Error("expected Render to be no-op when not visible")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Destroy
-// ---------------------------------------------------------------------------
 
 func TestBaseRenderable_Destroy(t *testing.T) {
 	parent := NewBaseRenderable(WithID("parent"))
@@ -667,7 +603,7 @@ func TestBaseRenderable_DestroyRecursively(t *testing.T) {
 		t.Error("expected leaf destroyed")
 	}
 
-	// Check unregistered from global map
+	// Recursive destruction unregisters every descendant.
 	if LookupRenderable(midNum) != nil {
 		t.Error("expected mid unregistered from global map")
 	}
@@ -675,10 +611,6 @@ func TestBaseRenderable_DestroyRecursively(t *testing.T) {
 		t.Error("expected leaf unregistered from global map")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Selection
-// ---------------------------------------------------------------------------
 
 func TestBaseRenderable_Selection(t *testing.T) {
 	r := NewBaseRenderable(WithSelectable(true))
@@ -697,10 +629,6 @@ func TestBaseRenderable_Selection(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Translation
-// ---------------------------------------------------------------------------
-
 func TestBaseRenderable_Translation(t *testing.T) {
 	r := NewBaseRenderable()
 	r.SetTranslateX(10)
@@ -713,10 +641,6 @@ func TestBaseRenderable_Translation(t *testing.T) {
 		t.Errorf("expected translateY=20, got %d", r.TranslateY())
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Buffered mode
-// ---------------------------------------------------------------------------
 
 func TestBaseRenderable_BufferedMode(t *testing.T) {
 	r := NewBaseRenderable()
@@ -740,10 +664,6 @@ func TestBaseRenderable_BufferedMode(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Layout node tree sync
-// ---------------------------------------------------------------------------
-
 func TestBaseRenderable_LayoutNodeSync(t *testing.T) {
 	parent := NewBaseRenderable(WithID("parent"))
 	child := NewBaseRenderable(WithID("child"))
@@ -760,10 +680,6 @@ func TestBaseRenderable_LayoutNodeSync(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// UpdateFromLayout
-// ---------------------------------------------------------------------------
-
 func TestBaseRenderable_UpdateFromLayout(t *testing.T) {
 	parent := NewBaseRenderable(WithID("parent"))
 	parent.x = 10
@@ -774,9 +690,7 @@ func TestBaseRenderable_UpdateFromLayout(t *testing.T) {
 	child.SetTranslateY(3)
 	parent.Add(child)
 
-	// The layout engine produces absolute Computed.X/Y values (from root).
-	// If parent is at (10,20) and child is at relative (2,4) inside parent,
-	// the layout engine would set Computed.X = 12, Computed.Y = 24.
+	// Computed coordinates are already absolute, so this child starts at (12,24).
 	child.LayoutNode().Computed.X = 12
 	child.LayoutNode().Computed.Y = 24
 	child.LayoutNode().Computed.Width = 30
@@ -784,11 +698,10 @@ func TestBaseRenderable_UpdateFromLayout(t *testing.T) {
 
 	child.UpdateFromLayout()
 
-	// x = absX(12) + translateX(5) = 17
+	// The legacy update applies the child's own translation.
 	if child.X() != 17 {
 		t.Errorf("expected x=17, got %d", child.X())
 	}
-	// y = absY(24) + translateY(3) = 27
 	if child.Y() != 27 {
 		t.Errorf("expected y=27, got %d", child.Y())
 	}
@@ -814,7 +727,7 @@ func TestBaseRenderable_UpdateFromLayout_ResizeCallback(t *testing.T) {
 		t.Error("expected OnSizeChangeHandler to be called on size change")
 	}
 
-	// Call again with same size -- should not trigger
+	// An unchanged size does not invoke the callback again.
 	sizeChangeCalled = false
 	r.UpdateFromLayout()
 

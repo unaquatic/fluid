@@ -158,14 +158,14 @@ func TestEditBuffer_CursorMovement_LineWrap(t *testing.T) {
 	eb := NewEditBuffer(tb)
 	eb.SetText("abc\ndef")
 
-	// At end of line 0, move right should go to start of line 1
+	// Moving right at line end crosses the newline.
 	eb.SetCursor(0, 3)
 	eb.MoveCursorRight()
 	if eb.CursorRow() != 1 || eb.CursorCol() != 0 {
 		t.Errorf("expected (1,0), got (%d,%d)", eb.CursorRow(), eb.CursorCol())
 	}
 
-	// At start of line 1, move left should go to end of line 0
+	// Moving left at line start crosses the preceding newline.
 	eb.MoveCursorLeft()
 	if eb.CursorRow() != 0 || eb.CursorCol() != 3 {
 		t.Errorf("expected (0,3), got (%d,%d)", eb.CursorRow(), eb.CursorCol())
@@ -294,13 +294,13 @@ func TestEditBuffer_ReplaceText(t *testing.T) {
 	eb.SetCursor(0, 5)
 	eb.InsertChar('!')
 
-	// Now replace — should preserve undo history
+	// ReplaceText adds an undoable replacement without clearing prior history.
 	eb.ReplaceText("new content")
 	if eb.Text() != "new content" {
 		t.Errorf("expected %q, got %q", "new content", eb.Text())
 	}
 
-	// Undo should restore to before ReplaceText (i.e., "hello!")
+	// Undo restores the content immediately before replacement.
 	ok := eb.Undo()
 	if !ok {
 		t.Fatal("undo should succeed after ReplaceText")
@@ -326,7 +326,7 @@ func TestEditBuffer_SetCursorByByteOffset(t *testing.T) {
 	eb := NewEditBuffer(tb)
 	eb.SetText("hello")
 
-	// Byte offset 3 = display col 3 for ASCII
+	// Three ASCII bytes occupy three display columns.
 	eb.SetCursorByByteOffset(0, 3)
 	if eb.CursorCol() != 3 {
 		t.Errorf("expected col=3, got %d", eb.CursorCol())
@@ -338,13 +338,13 @@ func TestEditBuffer_SetCursorByByteOffset_UTF8(t *testing.T) {
 	eb := NewEditBuffer(tb)
 	eb.SetText("日本語") // 3 chars, each 3 bytes, each 2 display cols
 
-	// byte offset 3 = after "日" = display col 2
+	// Three UTF-8 bytes for 日 occupy two display columns.
 	eb.SetCursorByByteOffset(0, 3)
 	if eb.CursorCol() != 2 {
 		t.Errorf("expected col=2 after first CJK char, got %d", eb.CursorCol())
 	}
 
-	// byte offset 6 = after "日本" = display col 4
+	// Six UTF-8 bytes for 日本 occupy four display columns.
 	eb.SetCursorByByteOffset(0, 6)
 	if eb.CursorCol() != 4 {
 		t.Errorf("expected col=4 after two CJK chars, got %d", eb.CursorCol())
