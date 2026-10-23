@@ -1,0 +1,1533 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>fluid design</title>
+<style>
+:root { --accent: #9cc4ff; --line: #2a2a2a; --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body { background: #111; color: #ddd; font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0;
+  display: flex; overflow: hidden; }
+nav, aside { flex: none; overflow: auto; font-size: 12px; }
+nav { width: 296px; padding: 12px 14px 40px; border-right: 1px solid var(--line); }
+aside { width: 470px; display: flex; flex-direction: column; border-left: 1px solid var(--line); }
+aside[hidden] { display: none; }
+main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+h4 { margin: 18px 0 6px; color: #888; font-weight: 500; font-size: 12px; display: flex; gap: 8px; align-items: baseline; }
+h4:first-child { margin-top: 0; }
+h4 small { margin-left: auto; font-weight: 400; }
+small, .muted { color: #888; }
+button, input[type=text], input[type=number], textarea { background: #1b1b1b; color: #ddd; border: 1px solid #333;
+  border-radius: 0; font: inherit; }
+button { padding: 4px 8px; cursor: pointer; white-space: nowrap; }
+button:hover { border-color: #555; }
+button.on { color: var(--accent); border-color: var(--accent); }
+input[type=text], input[type=number] { padding: 3px 6px; }
+input[type=checkbox], input[type=range] { accent-color: var(--accent); margin: 0; }
+code, kbd, pre, .mono { font-family: var(--mono); }
+kbd { font-size: 10px; color: #777; }
+.tools { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.tools button { display: flex; justify-content: space-between; align-items: baseline; padding: 5px 6px; }
+.hint { color: #888; margin: 8px 0 0; min-height: 3em; }
+.row { display: flex; align-items: center; gap: 6px; margin: 6px 0; flex-wrap: wrap; }
+.row > .label { width: 46px; color: #aaa; flex: none; }
+.row label { display: inline-flex; gap: 4px; align-items: center; }
+.color input[type=color], .lg input[type=color] { width: 26px; height: 24px; padding: 0; border: 1px solid #444;
+  background: none; cursor: pointer; flex: none; }
+input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+input[type=color]::-webkit-color-swatch { border: none; }
+.color input[type=text] { width: 82px; font: 12px var(--mono); }
+.attrs button { width: 30px; padding: 3px 0; font-family: var(--mono); }
+.chars { display: flex; flex-wrap: wrap; gap: 2px; }
+.chars button { width: 24px; padding: 2px 0; font-family: var(--mono); }
+#brush-ch { width: 40px; font: 13px var(--mono); text-align: center; }
+.swatches { display: flex; flex-wrap: wrap; gap: 3px; }
+.sw { width: 18px; height: 18px; padding: 0; border: 1px solid #0008; }
+.sw:hover { outline: 1px solid #fff; outline-offset: 1px; }
+.group { margin: 4px 0 8px; }
+.group > div:first-child { color: #777; margin-bottom: 3px; }
+.lg { display: grid; grid-template-columns: 14px 26px 62px 1fr; gap: 6px; align-items: center; margin: 3px 0; }
+.lg .sym { font-family: var(--mono); color: #aaa; text-align: center; }
+.lg code { cursor: pointer; }
+.lg code:hover { color: var(--accent); }
+.lg input[type=text] { width: 100%; font-size: 12px; padding: 2px 5px; }
+.legend-empty { color: #666; }
+.warn { color: #ffb86c; }
+.error { color: #ff7b72; }
+details > summary { cursor: pointer; color: #888; margin: 6px 0; }
+header { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+header .sep { width: 1px; height: 20px; background: var(--line); margin: 0 2px; }
+header h1 { font-size: 14px; margin: 0 6px 0 0; font-weight: 600; }
+#path { width: 330px; font: 12px var(--mono); }
+#flash { margin-left: auto; color: #888; font-size: 12px; max-width: 34%; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; }
+.stage { flex: 1; overflow: auto; padding: 28px; background: #0b0b0b; }
+#cv { display: block; box-shadow: 0 0 0 1px #333; touch-action: none; }
+.status { display: flex; gap: 18px; padding: 5px 12px; border-top: 1px solid var(--line); font: 12px var(--mono);
+  color: #aaa; white-space: nowrap; overflow: hidden; }
+.status .push { margin-left: auto; }
+.dirty { color: #ffb86c; }
+aside header { justify-content: flex-start; }
+aside header b { margin-right: auto; font-weight: 600; }
+#frames { flex: 1; margin: 0; padding: 10px 12px; overflow: auto; font-size: 12px; line-height: 1.35; color: #ccc; }
+#frames-err { margin: 0; padding: 8px 12px 0; font: 12px var(--mono); white-space: pre-wrap; }
+#frames-err:empty { display: none; }
+#ime { position: fixed; left: 0; top: 0; width: 2px; height: 2px; opacity: 0; padding: 0; border: 0; resize: none;
+  overflow: hidden; }
+dialog { background: #161616; color: #ddd; border: 1px solid #333; padding: 0; width: min(780px, 92vw); }
+dialog::backdrop { background: #000a; }
+dialog .head { display: flex; gap: 8px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+dialog .head input { flex: 1; }
+#open-list { max-height: 52vh; overflow: auto; padding: 6px 12px 10px; font-size: 12px; }
+#open-list .dir { color: #888; margin: 10px 0 3px; font-family: var(--mono); }
+#open-list .file { display: flex; gap: 8px; align-items: baseline; width: 100%; text-align: left; border: none;
+  background: none; padding: 2px 4px; font-family: var(--mono); }
+#open-list .file:hover, #open-list .file:focus { background: #222; color: var(--accent); }
+#open-list .file small { margin-left: auto; }
+#open-list .steps { margin: 0 0 4px 22px; }
+#open-list .err { color: #ff7b72; font-size: 11px; margin-left: 22px; }
+dialog .foot { padding: 10px 12px; border-top: 1px solid var(--line); display: grid; gap: 8px; }
+dialog textarea { width: 100%; height: 90px; font: 12px var(--mono); }
+.keys { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 6px 0; }
+.keys kbd { font-size: 11px; color: #bbb; }
+</style>
+
+<nav>
+<h4>Tools</h4>
+<div class="tools" id="tools">
+  <button data-tool="select" title="Select (V)">Select <kbd>V</kbd></button>
+  <button data-tool="text" title="Text (T)">Text <kbd>T</kbd></button>
+  <button data-tool="brush" title="Brush (B)">Brush <kbd>B</kbd></button>
+  <button data-tool="rect" title="Rectangle (R)">Rect <kbd>R</kbd></button>
+  <button data-tool="box" title="Box (O)">Box <kbd>O</kbd></button>
+  <button data-tool="fill" title="Fill (G)">Fill <kbd>G</kbd></button>
+  <button data-tool="pick" title="Pick (I)">Pick <kbd>I</kbd></button>
+  <button data-tool="erase" title="Erase (E)">Erase <kbd>E</kbd></button>
+</div>
+<p class="hint" id="hint"></p>
+
+<div class="row chans" id="chans"><span class="label">Applies</span>
+  <label data-ch="ch"><input type="checkbox"> Char</label>
+  <label data-ch="fg"><input type="checkbox"> Fg</label>
+  <label data-ch="bg"><input type="checkbox"> Bg</label>
+  <label data-ch="attrs"><input type="checkbox"> Attrs</label>
+</div>
+<div id="brush-opts">
+  <div class="row"><span class="label">Char</span><input type="text" id="brush-ch" spellcheck="false" aria-label="Brush character">
+    <span class="muted" id="brush-code"></span></div>
+  <div class="chars" id="chars"></div>
+</div>
+<div class="row" id="box-opts"><span class="label">Style</span>
+  <button data-box="single">┌─┐</button><button data-box="rounded">╭─╮</button><button data-box="heavy">┏━┓</button><button data-box="double">╔═╗</button>
+</div>
+
+<h4>Colors <small>click: fg · shift or right-click: bg</small></h4>
+<div class="row color"><span class="label">Fg</span><input type="color" id="fg-pick" aria-label="Foreground"><input type="text" id="fg-hex" spellcheck="false" aria-label="Foreground hex">
+  <button id="swap" title="Swap foreground and background (X)">⇄</button></div>
+<div class="row color"><span class="label">Bg</span><input type="color" id="bg-pick" aria-label="Background"><input type="text" id="bg-hex" spellcheck="false" aria-label="Background hex">
+  <label title="Paint transparent backgrounds"><input type="checkbox" id="bg-none"> none</label></div>
+<div class="row attrs" id="attrs"><span class="label">Attrs</span>
+  <button data-attr="B" title="Bold" style="font-weight:700">B</button>
+  <button data-attr="D" title="Dim" style="opacity:.6">D</button>
+  <button data-attr="I" title="Italic" style="font-style:italic">I</button>
+  <button data-attr="U" title="Underline" style="text-decoration:underline">U</button>
+  <button data-attr="S" title="Strikethrough" style="text-decoration:line-through">S</button>
+</div>
+
+<h4>Legend <small id="counts"></small></h4>
+<div id="legend"></div>
+
+<h4>Theme <small id="theme-name"></small></h4>
+<div id="theme"></div>
+
+<h4>Used in golden files</h4>
+<div class="swatches" id="goldens"></div>
+
+<details><summary>xterm 256 colors</summary><div class="swatches" id="xterm"></div></details>
+
+<h4>Canvas</h4>
+<div class="row"><span class="label">Size</span>
+  <input type="number" id="w" min="1" max="400" style="width:62px" aria-label="Width"> ×
+  <input type="number" id="h" min="1" max="400" style="width:62px" aria-label="Height">
+  <button id="resize">Resize</button></div>
+<div class="row"><span class="label">Row</span><button id="row-ins">Insert above</button><button id="row-del">Delete</button></div>
+<div class="row"><span class="label">Column</span><button id="col-ins">Insert left</button><button id="col-del">Delete</button></div>
+<div class="row"><span class="label">Zoom</span><input type="range" id="zoom" min="8" max="32" step="1"><span class="muted" id="zoom-out"></span></div>
+<div class="row color"><span class="label">Terminal</span><input type="color" id="backdrop" title="Shown behind transparent cells">
+  <label><input type="checkbox" id="grid"> grid</label></div>
+
+<details><summary>Keys</summary>
+<div class="keys">
+  <kbd>⌘Z / ⇧⌘Z</kbd><span>Undo / redo</span>
+  <kbd>⌘S · ⌘O</kbd><span>Save · open</span>
+  <kbd>⌘A</kbd><span>Select all</span>
+  <kbd>⌘C ⌘X ⌘V</kbd><span>Copy, cut, paste cells; pasting a golden document opens it</span>
+  <kbd>Arrows</kbd><span>Nudge the selection, or move the caret</span>
+  <kbd>Delete</kbd><span>Clear the selection</span>
+  <kbd>Alt-click</kbd><span>Pick a cell's style with any tool; Alt-drag a selection copies it</span>
+  <kbd>X</kbd><span>Swap foreground and background</span>
+  <kbd>- / =</kbd><span>Zoom</span>
+  <kbd>Esc</kbd><span>Drop the selection and caret</span>
+</div>
+<p class="muted">In a terminal: <code>go run ./cmd/design ansi &lt;file&gt;</code></p>
+</details>
+</nav>
+
+<main>
+<header>
+  <h1>fluid design</h1>
+  <button id="new">New</button>
+  <button id="open" title="Open (⌘O)">Open…</button>
+  <input type="text" id="path" spellcheck="false" aria-label="Save path, relative to the root">
+  <button id="save" title="Save (⌘S)">Save</button>
+  <span class="sep"></span>
+  <button id="undo" title="Undo (⌘Z)">Undo</button>
+  <button id="redo" title="Redo (⇧⌘Z)">Redo</button>
+  <span class="sep"></span>
+  <button id="png" title="Download a PNG image">PNG</button>
+  <button id="ansi" title="Download text with ANSI escape sequences">ANSI</button>
+  <button id="toggle-frames" title="Show or hide the golden frames">Frames</button>
+  <span id="flash"></span>
+</header>
+<div class="stage" id="stage"><canvas id="cv"></canvas></div>
+<div class="status"><span id="info"></span><span class="push" id="size"></span><span id="state"></span></div>
+</main>
+
+<aside id="aside">
+<header><b>Golden frames</b><button id="copy-frames">Copy</button></header>
+<p id="frames-err" class="error"></p>
+<pre id="frames"></pre>
+</aside>
+
+<textarea id="ime" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Type into the design"></textarea>
+
+<dialog id="open-dlg">
+  <div class="head"><b>Open</b><input type="text" id="open-filter" placeholder="Filter golden files" spellcheck="false"><button id="open-close">Close</button></div>
+  <div id="open-list"></div>
+  <div class="foot">
+    <textarea id="open-paste" placeholder="Or paste a golden frames or sequence document here" spellcheck="false"></textarea>
+    <div class="row"><button id="open-paste-go">Open pasted</button><span class="muted">or</span><input type="file" id="open-file" accept=".golden,text/plain"><span class="muted">or drop a file on the page</span></div>
+  </div>
+</dialog>
+
+<script>
+'use strict';
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+
+// ---------------------------------------------------------------- model
+
+const BLANK = Object.freeze({ ch: ' ', fg: '', bg: '', attrs: '' });
+const ATTRS = 'BDIUS';
+const DEFAULT_PATH = 'designs/untitled.frames.golden';
+const MAX_SIDE = 400;
+const LIMITS = { fg: 26, bg: 4, combos: 9 };
+const FG_SYMBOLS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', BG_SYMBOLS = '░▒▓█', COMBO_SYMBOLS = '123456789';
+const TOOLS = { v: 'select', t: 'text', b: 'brush', r: 'rect', o: 'box', g: 'fill', i: 'pick', e: 'erase' };
+const HINTS = {
+  select: 'Drag to select. Drag inside the selection to move it, Alt-drag to copy it. Arrows nudge it.',
+  text: 'Click to place the caret, then type. Enter returns to the column you clicked. Paste writes text.',
+  brush: 'Drag to paint the checked properties onto cells.',
+  rect: 'Drag a rectangle and fill it with the checked properties.',
+  box: 'Drag to draw a box border in the style below; one row or column draws a line.',
+  fill: 'Click to fill the connected cells that match the clicked one on the checked properties.',
+  pick: "Click a cell to take its colors, attributes, and character. Alt-click picks with any tool.",
+  erase: 'Drag to clear cells: no character, colors, or attributes.',
+};
+const BOXES = {
+  single: '┌┐└┘─│', rounded: '╭╮╰╯─│', heavy: '┏┓┗┛━┃', double: '╔╗╚╝═║',
+};
+const QUICK_CHARS = '█▀▄▌▐░▒▓─│━┃╭╮╰╯•·●○◆▶▸›❯✓✗…';
+
+// S is the editor's state. Cells are a flat array, row by row, of
+// {ch, fg, bg, attrs}: ch is one character, ' ' for none, or '' for the
+// right half of a wide character; colors are #rrggbb or '' for transparent.
+const S = {
+  w: 60, h: 16, cells: [], names: {}, path: DEFAULT_PATH,
+  savedPath: null, savedFrames: null, frames: null, adoptFrames: false,
+  tool: 'text', fg: '#cfd2d5', bg: '#242424', bgNone: false, attrs: '', brushCh: '█', box: 'rounded',
+  channels: {
+    text: { fg: true, bg: false, attrs: true },
+    brush: { ch: false, fg: false, bg: true, attrs: false },
+    rect: { ch: false, fg: false, bg: true, attrs: false },
+    box: { fg: true, bg: false, attrs: false },
+    fill: { ch: false, fg: false, bg: true, attrs: false },
+  },
+  caret: null, sel: null, hover: null, anchor: { x: 0, y: 0 }, clip: null,
+  zoom: 15, backdrop: '#2b2b2b', grid: true, themeFg: '#cfd2d5',
+};
+
+const blankCells = (w, h) => Array.from({ length: w * h }, () => ({ ...BLANK }));
+const inside = (x, y) => x >= 0 && y >= 0 && x < S.w && y < S.h;
+const cell = (x, y) => S.cells[y * S.w + x];
+const shows = c => c.ch !== ' ' && c.ch !== '';
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const HEX = /^#[0-9a-f]{6}$/;
+const normHex = s => { s = String(s).trim().toLowerCase(); if (/^[0-9a-f]{6}$/.test(s)) s = '#' + s; return HEX.test(s) ? s : null; };
+const canonAttrs = set => [...ATTRS].filter(l => set.includes(l)).join('');
+
+// isWide guesses whether ch takes two columns, as East Asian wide characters
+// and most emoji do. The server measures again when it writes frames.
+const WIDE = /[\u1100-\u115f\u2e80-\u303e\u3041-\u33ff\u3400-\u4dbf\u4e00-\u9fff\ua000-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6\u{1f300}-\u{1f64f}\u{1f680}-\u{1f6ff}\u{1f900}-\u{1f9ff}\u{20000}-\u{3fffd}]/u;
+const isWide = ch => ch.length > 0 && WIDE.test(ch);
+const PRINTABLE = /^[\p{L}\p{N}\p{P}\p{S}\p{Zs}]$/u;
+
+function styleCell(c, st) {
+  if (st.fg !== undefined) c.fg = st.fg;
+  if (st.bg !== undefined) c.bg = st.bg;
+  if (st.attrs !== undefined) c.attrs = st.attrs;
+}
+
+// detach turns the other half of a wide character at (x, y) into a space.
+function detach(x, y) {
+  const c = cell(x, y);
+  if (c.ch === '' && x > 0) cell(x - 1, y).ch = ' ';
+  else if (isWide(c.ch) && x + 1 < S.w && cell(x + 1, y).ch === '') cell(x + 1, y).ch = ' ';
+}
+
+// putChar writes ch at (x, y) with the style st, whose undefined parts keep
+// the cell's, and returns the columns it took: 0 when a wide character does
+// not fit, as the buffer drops it.
+function putChar(x, y, ch, st) {
+  if (!inside(x, y)) return 0;
+  const wide = isWide(ch);
+  if (wide && x + 1 >= S.w) return 0;
+  detach(x, y);
+  if (wide) detach(x + 1, y);
+  const c = cell(x, y);
+  c.ch = ch;
+  styleCell(c, st);
+  if (shows(c) && !c.fg) c.fg = S.fg;
+  if (wide) Object.assign(cell(x + 1, y), { ch: '', fg: c.fg, bg: c.bg, attrs: c.attrs });
+  return wide ? 2 : 1;
+}
+
+// restyle applies st to (x, y) and to the other half of a wide character there.
+function restyle(x, y, st) {
+  if (!inside(x, y)) return;
+  const c = cell(x, y);
+  styleCell(c, st);
+  if (c.ch === '' && x > 0) styleCell(cell(x - 1, y), st);
+  else if (isWide(c.ch) && x + 1 < S.w) styleCell(cell(x + 1, y), st);
+}
+
+function blankAt(x, y) {
+  if (!inside(x, y)) return;
+  detach(x, y);
+  Object.assign(cell(x, y), BLANK);
+}
+
+// normalize repairs wide characters: a right half needs its left one, which
+// needs room and a right half in its style.
+function normalize() {
+  for (let y = 0; y < S.h; y++) {
+    for (let x = 0; x < S.w; x++) {
+      const c = cell(x, y);
+      if (c.ch === '' && !(x > 0 && isWide(cell(x - 1, y).ch))) c.ch = ' ';
+      else if (isWide(c.ch)) {
+        if (x + 1 >= S.w) { c.ch = ' '; continue; }
+        Object.assign(cell(x + 1, y), { ch: '', fg: c.fg, bg: c.bg, attrs: c.attrs });
+      }
+    }
+  }
+}
+
+// brushStyle returns the style that the checked channels chans apply.
+function brushStyle(chans) {
+  const st = {};
+  if (chans.fg) st.fg = S.fg;
+  if (chans.bg) st.bg = S.bgNone ? '' : S.bg;
+  if (chans.attrs) st.attrs = S.attrs;
+  return st;
+}
+
+function apply(x, y, chans) {
+  if (!inside(x, y)) return;
+  if (chans.ch) putChar(x, y, S.brushCh, brushStyle(chans));
+  else restyle(x, y, brushStyle(chans));
+}
+
+const norm = (a, b) => ({ x0: Math.min(a.x, b.x), y0: Math.min(a.y, b.y), x1: Math.max(a.x, b.x), y1: Math.max(a.y, b.y) });
+const inSel = p => S.sel && p.x >= S.sel.x0 && p.x <= S.sel.x1 && p.y >= S.sel.y0 && p.y <= S.sel.y1;
+function clipSel(r) {
+  const s = { x0: Math.max(0, r.x0), y0: Math.max(0, r.y0), x1: Math.min(S.w - 1, r.x1), y1: Math.min(S.h - 1, r.y1) };
+  return s.x0 <= s.x1 && s.y0 <= s.y1 ? s : null;
+}
+
+function copyRegion(r) {
+  const w = r.x1 - r.x0 + 1, h = r.y1 - r.y0 + 1, cells = [], lines = [];
+  for (let y = r.y0; y <= r.y1; y++) {
+    let line = '';
+    for (let x = r.x0; x <= r.x1; x++) {
+      const c = cell(x, y);
+      cells.push({ ...c });
+      line += c.ch;
+    }
+    lines.push(line);
+  }
+  return { w, h, cells, text: lines.join('\n') };
+}
+
+function stampRegion(clip, x0, y0) {
+  for (let j = 0; j < clip.h; j++) {
+    for (let i = 0; i < clip.w; i++) {
+      if (inside(x0 + i, y0 + j)) Object.assign(cell(x0 + i, y0 + j), clip.cells[j * clip.w + i]);
+    }
+  }
+}
+
+function clearRegion(r) {
+  for (let y = r.y0; y <= r.y1; y++) for (let x = r.x0; x <= r.x1; x++) blankAt(x, y);
+}
+
+function writeText(text, at, st) {
+  let x = at.x, y = at.y;
+  for (const ch of text.replace(/\r\n?/g, '\n')) {
+    if (ch === '\n') { x = at.x; y++; continue; }
+    if (ch === '\t') { x += 2; continue; }
+    if (PRINTABLE.test(ch) && y < S.h) x += putChar(x, y, ch, st) || 1;
+  }
+}
+
+// line calls fn for each cell from a to b.
+function line(a, b, fn) {
+  let x = a.x, y = a.y;
+  const dx = Math.abs(b.x - x), dy = -Math.abs(b.y - y), sx = x < b.x ? 1 : -1, sy = y < b.y ? 1 : -1;
+  let err = dx + dy;
+  for (;;) {
+    fn(x, y);
+    if (x === b.x && y === b.y) return;
+    const e2 = 2 * err;
+    if (e2 >= dy) { err += dy; x += sx; }
+    if (e2 <= dx) { err += dx; y += sy; }
+  }
+}
+
+function drawBox(r, style, chans) {
+  const [tl, tr, bl, br, hz, vt] = [...BOXES[style]];
+  const st = brushStyle(chans);
+  const put = (x, y, ch) => putChar(x, y, ch, st);
+  if (r.y0 === r.y1) { for (let x = r.x0; x <= r.x1; x++) put(x, r.y0, hz); return; }
+  if (r.x0 === r.x1) { for (let y = r.y0; y <= r.y1; y++) put(r.x0, y, vt); return; }
+  for (let x = r.x0 + 1; x < r.x1; x++) { put(x, r.y0, hz); put(x, r.y1, hz); }
+  for (let y = r.y0 + 1; y < r.y1; y++) { put(r.x0, y, vt); put(r.x1, y, vt); }
+  put(r.x0, r.y0, tl); put(r.x1, r.y0, tr); put(r.x0, r.y1, bl); put(r.x1, r.y1, br);
+}
+
+// flood applies chans to the cells connected to p that match it on them.
+function flood(p, chans) {
+  if (!chans.ch && !chans.fg && !chans.bg && !chans.attrs) return;
+  const key = c => [chans.ch ? c.ch : '', chans.fg ? (shows(c) ? c.fg : '') : '', chans.bg ? c.bg : '', chans.attrs ? c.attrs : ''].join('|');
+  const want = key(cell(p.x, p.y)), seen = new Set(), stack = [p], region = [];
+  while (stack.length) {
+    const { x, y } = stack.pop();
+    if (!inside(x, y) || seen.has(y * S.w + x)) continue;
+    seen.add(y * S.w + x);
+    if (key(cell(x, y)) !== want) continue;
+    region.push({ x, y });
+    stack.push({ x: x + 1, y }, { x: x - 1, y }, { x, y: y + 1 }, { x, y: y - 1 });
+  }
+  for (const q of region) apply(q.x, q.y, chans);
+}
+
+// ---------------------------------------------------------------- history
+
+const past = [], future = [];
+let lastKind = null;
+const snapshot = () => ({ w: S.w, h: S.h, cells: S.cells.map(c => ({ ...c })), names: { ...S.names }, path: S.path });
+
+function restore(s) {
+  Object.assign(S, { w: s.w, h: s.h, cells: s.cells.map(c => ({ ...c })), names: { ...s.names }, path: s.path });
+  clampState();
+  changed();
+}
+
+// record keeps before, the state ahead of an edit, for undo. Edits of one
+// kind in a row, such as typing, undo together.
+function record(before, kind = null) {
+  if (kind && kind === lastKind) return;
+  past.push(before);
+  if (past.length > 400) past.shift();
+  future.length = 0;
+  lastKind = kind;
+}
+
+function edit(fn, kind) {
+  const before = snapshot();
+  fn();
+  record(before, kind);
+  changed();
+}
+
+function undo() { if (past.length) { future.push(snapshot()); restore(past.pop()); lastKind = null; } }
+function redo() { if (future.length) { past.push(snapshot()); restore(future.pop()); lastKind = null; } }
+
+function clampState() {
+  if (S.caret) { S.caret.x = clamp(S.caret.x, 0, S.w - 1); S.caret.y = clamp(S.caret.y, 0, S.h - 1); S.caret.startX = clamp(S.caret.startX, 0, S.w - 1); }
+  if (S.sel) S.sel = clipSel(S.sel);
+  S.anchor = { x: clamp(S.anchor.x, 0, S.w - 1), y: clamp(S.anchor.y, 0, S.h - 1) };
+  S.hover = null;
+}
+
+// changed redraws everything that shows the design after it changes.
+function changed() {
+  normalize();
+  render();
+  renderLegend();
+  syncCanvasControls();
+  scheduleFrames();
+  scheduleAutosave();
+}
+
+// ---------------------------------------------------------------- drawing
+
+const FAMILY = 'ui-monospace, "SF Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace';
+const fontOf = (attrs, px) => `${attrs.includes('I') ? 'italic ' : ''}${attrs.includes('B') ? 'bold ' : ''}${px}px ${FAMILY}`;
+const cv = $('#cv'), ctx = cv.getContext('2d');
+let M = null;
+
+// metrics returns the cell size and line widths, in device pixels, of a
+// font px CSS pixels high on a screen of dpr device pixels per CSS pixel.
+function metrics(px, dpr) {
+  const fs = px * dpr, g = document.createElement('canvas').getContext('2d');
+  g.font = fontOf('', fs);
+  const t = g.measureText('M');
+  const lh = Math.round(px * 1.25 * dpr);
+  const asc = t.fontBoundingBoxAscent ?? fs * 0.8, desc = t.fontBoundingBoxDescent ?? fs * 0.2;
+  const t1 = Math.max(1, Math.round(t.width / 9));
+  return { dpr, fs, cw: t.width, lh, base: Math.round((lh - asc - desc) / 2 + asc), t1, t2: t1 * 2, gap: Math.max(t1 + 1, Math.round(t.width / 6)) };
+}
+const colX = (m, x) => Math.round(x * m.cw);
+
+// LINES maps box-drawing characters to the weights of their arms, up,
+// right, down, and left: 1 light, 2 heavy, 3 double.
+const LINES = new Map();
+{
+  const spec = '─0101━0202│1010┃2020┌0110┍0210┎0120┏0220┐0011┑0012┒0021┓0022└1100┕1200┖2100┗2200┘1001┙1002┚2001┛2002' +
+    '├1110┝1210┞2110┟1120┠2120┡2210┢1220┣2220┤1011┥1012┦2011┧1021┨2021┩2012┪1022┫2022┬0111┭0112┮0211┯0212┰0121┱0122' +
+    '┲0221┳0222┴1101┵1102┶1201┷1202┸2101┹2102┺2201┻2202┼1111┽1112┾1211┿1212╀2111╁1121╂2121╃2112╄2211╅1122╆1221' +
+    '╇2212╈1222╉2122╊2221╋2222╴0001╵1000╶0100╷0010╸0002╹2000╺0200╻0020╼0201╽1020╾0102╿2010' +
+    '═0303║3030╔0330╗0033╚3300╝3003╠3330╣3033╦0333╩3303╬3333';
+  for (let i = 0; i < spec.length; i += 5) LINES.set(spec[i], [...spec.slice(i + 1, i + 5)].map(Number));
+}
+const ARCS = { '╭': [1, 1], '╮': [-1, 1], '╯': [-1, -1], '╰': [1, -1] };
+const QUADS = { UL: [0, 0, .5, .5], UR: [.5, 0, 1, .5], LL: [0, .5, .5, 1], LR: [.5, .5, 1, 1] };
+const QUAD_CHARS = { 0x2596: 'LL', 0x2597: 'LR', 0x2598: 'UL', 0x2599: 'UL LL LR', 0x259a: 'UL LR', 0x259b: 'UL UR LL', 0x259c: 'UL UR LR', 0x259d: 'UR', 0x259e: 'UR LL', 0x259f: 'UR LL LR' };
+
+// blockRects returns the parts of the cell, as fractions, that a block
+// element fills.
+function blockRects(code) {
+  if (code === 0x2580) return [[0, 0, 1, .5]];
+  if (code >= 0x2581 && code <= 0x2588) return [[0, 1 - (code - 0x2580) / 8, 1, 1]];
+  if (code >= 0x2589 && code <= 0x258f) return [[0, 0, (0x2590 - code) / 8, 1]];
+  if (code === 0x2590) return [[.5, 0, 1, 1]];
+  if (code === 0x2594) return [[0, 0, 1, 1 / 8]];
+  if (code === 0x2595) return [[7 / 8, 0, 1, 1]];
+  return QUAD_CHARS[code]?.split(' ').map(k => QUADS[k]) ?? null;
+}
+
+// glyph draws ch in the box from (x0, y0) to (x1, y1) when it is a block
+// element or a line that terminals draw to the cell's edges, and reports
+// whether it did.
+function glyph(g, m, ch, x0, y0, x1, y1) {
+  const code = ch.codePointAt(0);
+  if (code >= 0x2591 && code <= 0x2593) {
+    const a = g.globalAlpha;
+    g.globalAlpha = a * (code - 0x2590) / 4;
+    g.fillRect(x0, y0, x1 - x0, y1 - y0);
+    g.globalAlpha = a;
+    return true;
+  }
+  const rects = code >= 0x2580 && code <= 0x259f ? blockRects(code) : null;
+  if (rects) {
+    const W = x1 - x0, H = y1 - y0;
+    for (const [a, b, c, d] of rects) {
+      const rx = x0 + Math.round(a * W), ry = y0 + Math.round(b * H);
+      g.fillRect(rx, ry, x0 + Math.round(c * W) - rx, y0 + Math.round(d * H) - ry);
+    }
+    return true;
+  }
+  const cx = x0 + Math.floor((x1 - x0) / 2), cy = y0 + Math.floor((y1 - y0) / 2);
+  const arms = LINES.get(ch);
+  if (arms) {
+    if (arms.includes(3)) drawDouble(g, m, arms, x0, y0, x1, y1, cx, cy);
+    else drawLines(g, m, arms, x0, y0, x1, y1, cx, cy);
+    return true;
+  }
+  const arc = ARCS[ch];
+  if (arc) {
+    const t = m.t1, lx = cx - (t >> 1) + t / 2, ly = cy - (t >> 1) + t / 2;
+    g.beginPath();
+    g.moveTo(arc[0] > 0 ? x1 : x0, ly);
+    g.arcTo(lx, ly, lx, arc[1] > 0 ? y1 : y0, Math.min(x1 - x0, y1 - y0) / 2);
+    g.lineTo(lx, arc[1] > 0 ? y1 : y0);
+    g.lineWidth = t;
+    g.strokeStyle = g.fillStyle;
+    g.stroke();
+    return true;
+  }
+  return false;
+}
+
+function drawLines(g, m, [u, r, d, l], x0, y0, x1, y1, cx, cy) {
+  const t = w => (w === 2 ? m.t2 : m.t1);
+  // Each arm reaches into the junction far enough to cover the arms across it.
+  const vReach = w => Math.max(Math.ceil(Math.max(r && t(r), l && t(l)) / 2), Math.ceil(w / 2));
+  const hReach = w => Math.max(Math.ceil(Math.max(u && t(u), d && t(d)) / 2), Math.ceil(w / 2));
+  if (u) { const w = t(u); g.fillRect(cx - (w >> 1), y0, w, cy + vReach(w) - y0); }
+  if (d) { const w = t(d), top = cy - vReach(w); g.fillRect(cx - (w >> 1), top, w, y1 - top); }
+  if (l) { const w = t(l); g.fillRect(x0, cy - (w >> 1), cx + hReach(w) - x0, w); }
+  if (r) { const w = t(r), left = cx - hReach(w); g.fillRect(left, cy - (w >> 1), x1 - left, w); }
+}
+
+// drawDouble draws double lines; LINES holds no character that mixes them
+// with single ones, which the font draws.
+function drawDouble(g, m, [u, r, d, l], x0, y0, x1, y1, cx, cy) {
+  const t = m.t1, e = Math.ceil(t / 2), a = cx - m.gap, b = cx + m.gap, p = cy - m.gap, q = cy + m.gap;
+  const V = (x, ya, yb) => g.fillRect(x - (t >> 1), ya, t, yb - ya);
+  const H = (y, xa, xb) => g.fillRect(xa, y - (t >> 1), xb - xa, t);
+  if (u) { V(a, y0, (l ? p : q) + e); V(b, y0, (r ? p : q) + e); }
+  if (d) { V(a, (l ? q : p) - e, y1); V(b, (r ? q : p) - e, y1); }
+  if (l) { H(p, x0, (u ? a : b) + e); H(q, x0, (d ? a : b) + e); }
+  if (r) { H(p, (u ? b : a) - e, x1); H(q, (d ? b : a) - e, x1); }
+}
+
+// draw paints the design with the metrics m, and the editor's marks on top
+// when overlay is set.
+function draw(g, m, overlay) {
+  const W = colX(m, S.w), H = S.h * m.lh;
+  g.globalAlpha = 1;
+  g.fillStyle = S.backdrop;
+  g.fillRect(0, 0, W, H);
+  for (let y = 0; y < S.h; y++) {
+    for (let x = 0; x < S.w; x++) {
+      const c = cell(x, y);
+      if (!c.bg) continue;
+      g.fillStyle = c.bg;
+      g.fillRect(colX(m, x), y * m.lh, colX(m, x + 1) - colX(m, x), m.lh);
+    }
+  }
+  let font = '';
+  for (let y = 0; y < S.h; y++) {
+    for (let x = 0; x < S.w; x++) {
+      const c = cell(x, y), lines = c.attrs.includes('U') || c.attrs.includes('S');
+      if (!shows(c) && !(lines && c.ch === ' ')) continue;
+      const x0 = colX(m, x), x1 = colX(m, x + (isWide(c.ch) ? 2 : 1)), y0 = y * m.lh, y1 = y0 + m.lh;
+      g.globalAlpha = c.attrs.includes('D') ? 0.55 : 1;
+      g.fillStyle = c.fg || S.themeFg;
+      if (shows(c) && !glyph(g, m, c.ch, x0, y0, x1, y1)) {
+        const f = fontOf(c.attrs, m.fs);
+        if (f !== font) g.font = font = f;
+        g.fillText(c.ch, x0, y0 + m.base);
+      }
+      if (c.attrs.includes('U')) g.fillRect(x0, y1 - 2 * m.t1, x1 - x0, m.t1);
+      if (c.attrs.includes('S')) g.fillRect(x0, y0 + Math.round(m.lh * 0.55), x1 - x0, m.t1);
+    }
+  }
+  g.globalAlpha = 1;
+  if (overlay) drawOverlay(g, m, W, H);
+}
+
+function drawOverlay(g, m, W, H) {
+  const px = m.dpr;
+  if (S.grid) {
+    g.fillStyle = 'rgba(255,255,255,0.045)';
+    for (let x = 1; x < S.w; x++) g.fillRect(colX(m, x), 0, 1, H);
+    for (let y = 1; y < S.h; y++) g.fillRect(0, y * m.lh, W, 1);
+  }
+  const box = (r, stroke, fill, dash) => {
+    const x0 = colX(m, r.x0), y0 = r.y0 * m.lh, x1 = colX(m, r.x1 + 1), y1 = (r.y1 + 1) * m.lh;
+    if (fill) { g.fillStyle = fill; g.fillRect(x0, y0, x1 - x0, y1 - y0); }
+    g.setLineDash(dash ? [4 * px, 3 * px] : []);
+    g.lineWidth = px;
+    g.strokeStyle = stroke;
+    g.strokeRect(x0 + px / 2, y0 + px / 2, x1 - x0 - px, y1 - y0 - px);
+    g.setLineDash([]);
+  };
+  if (S.sel) box(S.sel, '#9cc4ff', 'rgba(156,196,255,0.14)', true);
+  if (S.tool === 'text' && S.caret) {
+    const { x, y } = S.caret;
+    box({ x0: x, y0: y, x1: x, y1: y }, 'rgba(156,196,255,0.5)');
+    g.fillStyle = '#9cc4ff';
+    g.fillRect(colX(m, x), y * m.lh, Math.max(2 * px, m.t2), m.lh);
+  }
+  if (S.hover && !drag && S.tool !== 'select') {
+    box({ x0: S.hover.x, y0: S.hover.y, x1: S.hover.x, y1: S.hover.y }, 'rgba(255,255,255,0.55)');
+  }
+}
+
+function layout() {
+  M = metrics(S.zoom, window.devicePixelRatio || 1);
+  cv.width = colX(M, S.w);
+  cv.height = S.h * M.lh;
+  cv.style.width = cv.width / M.dpr + 'px';
+  cv.style.height = cv.height / M.dpr + 'px';
+  draw(ctx, M, true);
+}
+
+function render() {
+  if (!M || cv.width !== colX(M, S.w) || cv.height !== S.h * M.lh) return layout();
+  draw(ctx, M, true);
+  placeIme();
+}
+
+// ---------------------------------------------------------------- pointer
+
+let drag = null;
+
+function cellAt(e) {
+  const r = cv.getBoundingClientRect();
+  const px = (e.clientX - r.left) * (cv.width / r.width), py = (e.clientY - r.top) * (cv.height / r.height);
+  return { x: clamp(Math.floor(px / M.cw), 0, S.w - 1), y: clamp(Math.floor(py / M.lh), 0, S.h - 1) };
+}
+
+function pick(p) {
+  let { x, y } = p;
+  if (cell(x, y).ch === '' && x > 0) x--;
+  const c = cell(x, y);
+  if (shows(c)) { S.fg = c.fg || S.themeFg; S.brushCh = c.ch; }
+  S.bgNone = !c.bg;
+  if (c.bg) S.bg = c.bg;
+  S.attrs = c.attrs;
+  syncControls();
+  flash(`Picked ${shows(c) ? `'${c.ch}' ${S.fg}` : 'blank'} on ${c.bg || 'transparent'}${c.attrs ? ' ' + c.attrs : ''}`);
+}
+
+cv.addEventListener('mousedown', e => e.preventDefault());
+cv.addEventListener('contextmenu', e => e.preventDefault());
+
+cv.addEventListener('pointerdown', e => {
+  if (e.button !== 0 && e.button !== 2) return;
+  const p = cellAt(e);
+  S.anchor = p;
+  if (document.activeElement && document.activeElement !== ime) document.activeElement.blur();
+  if (e.button === 2 || (e.altKey && S.tool !== 'select')) { pick(p); return; }
+  cv.setPointerCapture(e.pointerId);
+  const before = snapshot();
+  switch (S.tool) {
+    case 'text':
+      S.caret = { x: p.x, y: p.y, startX: p.x };
+      S.sel = null;
+      lastKind = null;
+      render();
+      focusIme();
+      return;
+    case 'pick':
+      pick(p);
+      return;
+    case 'fill':
+      flood(p, S.channels.fill);
+      record(before);
+      changed();
+      return;
+    case 'brush': case 'erase':
+      drag = { tool: S.tool, before, last: p };
+      paintTo(p);
+      break;
+    case 'rect': case 'box':
+      drag = { tool: S.tool, before, start: p };
+      shapeTo(p);
+      break;
+    case 'select':
+      if (inSel(p)) drag = { tool: 'move', before, start: p, sel: { ...S.sel }, lifted: copyRegion(S.sel), dup: e.altKey };
+      else { drag = { tool: 'select', start: p }; S.sel = norm(p, p); }
+      break;
+  }
+  render();
+});
+
+function paintTo(p) {
+  line(drag.last, p, (x, y) => (drag.tool === 'erase' ? blankAt(x, y) : apply(x, y, S.channels.brush)));
+  drag.last = p;
+}
+
+function shapeTo(p) {
+  S.cells = drag.before.cells.map(c => ({ ...c }));
+  const r = norm(drag.start, p);
+  if (drag.tool === 'box') drawBox(r, S.box, S.channels.box);
+  else for (let y = r.y0; y <= r.y1; y++) for (let x = r.x0; x <= r.x1; x++) apply(x, y, S.channels.rect);
+  S.sel = null;
+}
+
+function moveTo(p) {
+  const dx = p.x - drag.start.x, dy = p.y - drag.start.y;
+  S.cells = drag.before.cells.map(c => ({ ...c }));
+  if (!drag.dup) clearRegion(drag.sel);
+  stampRegion(drag.lifted, drag.sel.x0 + dx, drag.sel.y0 + dy);
+  normalize();
+  S.sel = clipSel({ x0: drag.sel.x0 + dx, y0: drag.sel.y0 + dy, x1: drag.sel.x1 + dx, y1: drag.sel.y1 + dy });
+  drag.moved = dx !== 0 || dy !== 0;
+}
+
+cv.addEventListener('pointermove', e => {
+  if (!M) return;
+  const p = cellAt(e);
+  const moved = !S.hover || p.x !== S.hover.x || p.y !== S.hover.y;
+  S.hover = p;
+  if (!moved) return;
+  showInfo(p);
+  cv.style.cursor = S.tool === 'select' && inSel(p) && !drag ? 'move' : S.tool === 'text' ? 'text' : S.tool === 'select' ? 'default' : 'crosshair';
+  if (drag) {
+    switch (drag.tool) {
+      case 'brush': case 'erase': paintTo(p); break;
+      case 'rect': case 'box': shapeTo(p); break;
+      case 'select': S.sel = norm(drag.start, p); drag.moved = true; break;
+      case 'move': moveTo(p); break;
+    }
+  }
+  render();
+});
+
+cv.addEventListener('pointerup', () => {
+  if (!drag) return;
+  const d = drag;
+  drag = null;
+  if (d.tool === 'select') {
+    if (!d.moved) S.sel = null;
+    render();
+    return;
+  }
+  if (d.tool === 'move' && !d.moved) { render(); return; }
+  record(d.before);
+  changed();
+});
+
+cv.addEventListener('pointerleave', () => { S.hover = null; showInfo(S.anchor); render(); });
+
+// ---------------------------------------------------------------- typing
+
+const ime = $('#ime');
+
+function placeIme() {
+  if (!S.caret || !M) return;
+  const r = cv.getBoundingClientRect();
+  ime.style.left = r.left + (colX(M, S.caret.x) / M.dpr) + 'px';
+  ime.style.top = r.top + (S.caret.y * M.lh / M.dpr) + 'px';
+}
+
+function focusIme() { placeIme(); ime.focus({ preventScroll: true }); }
+
+function typeText(text) {
+  if (!S.caret || !text) return;
+  edit(() => {
+    const st = brushStyle(S.channels.text), c = S.caret;
+    for (const ch of text.replace(/\r\n?/g, '\n')) {
+      if (ch === '\n') { c.y = Math.min(S.h - 1, c.y + 1); c.x = c.startX; continue; }
+      if (!PRINTABLE.test(ch)) continue;
+      const n = putChar(c.x, c.y, ch, st);
+      c.x = Math.min(S.w - 1, c.x + (n || 1));
+    }
+  }, 'type');
+}
+
+ime.addEventListener('input', e => {
+  if (e.isComposing) return;
+  typeText(ime.value);
+  ime.value = '';
+});
+ime.addEventListener('compositionend', () => { typeText(ime.value); ime.value = ''; });
+ime.addEventListener('blur', () => { if (S.caret) render(); });
+
+ime.addEventListener('keydown', e => {
+  const c = S.caret;
+  if (!c || e.metaKey || e.ctrlKey || e.isComposing) return;
+  const move = (x, y) => { c.x = clamp(x, 0, S.w - 1); c.y = clamp(y, 0, S.h - 1); lastKind = null; };
+  switch (e.key) {
+    case 'Enter': c.y = Math.min(S.h - 1, c.y + 1); c.x = c.startX; break;
+    case 'Backspace':
+      if (c.x === 0) break;
+      c.x--;
+      if (cell(c.x, c.y).ch === '' && c.x > 0) c.x--;
+      edit(() => putChar(c.x, c.y, ' ', {}), 'type');
+      break;
+    case 'Delete': edit(() => putChar(c.x, c.y, ' ', {}), 'type'); break;
+    case 'Tab': typeText('  '); break;
+    case 'ArrowLeft': move(c.x - 1, c.y); break;
+    case 'ArrowRight': move(c.x + 1, c.y); break;
+    case 'ArrowUp': move(c.x, c.y - 1); break;
+    case 'ArrowDown': move(c.x, c.y + 1); break;
+    case 'Home': move(c.startX, c.y); break;
+    case 'End': move(S.w - 1, c.y); break;
+    case 'Escape': S.caret = null; ime.blur(); break;
+    default: return;
+  }
+  e.preventDefault();
+  render();
+});
+
+// ---------------------------------------------------------------- keys and clipboard
+
+const isField = el => el && el !== ime && el.matches('input, textarea, select, [contenteditable]');
+
+function nudge(dx, dy) {
+  const s = S.sel;
+  const to = { x0: s.x0 + dx, y0: s.y0 + dy, x1: s.x1 + dx, y1: s.y1 + dy };
+  if (!inside(to.x0, to.y0) || !inside(to.x1, to.y1)) return;
+  edit(() => {
+    const lifted = copyRegion(s);
+    clearRegion(s);
+    stampRegion(lifted, to.x0, to.y0);
+    S.sel = to;
+  }, 'nudge');
+}
+
+document.addEventListener('keydown', e => {
+  const t = e.target, mod = e.metaKey || e.ctrlKey, field = isField(t);
+  if ($('#open-dlg').open) return;
+  if (mod) {
+    const k = e.key.toLowerCase();
+    if (k === 'z' && !field) { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+    else if (k === 'y' && !field) { e.preventDefault(); redo(); }
+    else if (k === 's') { e.preventDefault(); save(); }
+    else if (k === 'o') { e.preventDefault(); openDialog(); }
+    else if (k === 'a' && !field && t !== ime) {
+      e.preventDefault();
+      setTool('select');
+      S.sel = { x0: 0, y0: 0, x1: S.w - 1, y1: S.h - 1 };
+      render();
+    }
+    return;
+  }
+  if (field || t === ime || e.altKey) return;
+  const k = e.key;
+  if (TOOLS[k.toLowerCase()] && !e.shiftKey) { setTool(TOOLS[k.toLowerCase()]); return; }
+  switch (k) {
+    case 'x': case 'X': swapColors(); break;
+    case '=': case '+': setZoom(S.zoom + 1); break;
+    case '-': case '_': setZoom(S.zoom - 1); break;
+    case 'Escape': S.sel = null; S.caret = null; render(); break;
+    case 'Delete': case 'Backspace': if (S.sel) edit(() => clearRegion(S.sel)); break;
+    case 'ArrowLeft': case 'ArrowRight': case 'ArrowUp': case 'ArrowDown': {
+      if (!S.sel) return;
+      const n = e.shiftKey ? 4 : 1;
+      nudge(k === 'ArrowLeft' ? -n : k === 'ArrowRight' ? n : 0, k === 'ArrowUp' ? -n : k === 'ArrowDown' ? n : 0);
+      break;
+    }
+    default: return;
+  }
+  e.preventDefault();
+});
+
+function copySelection(e) {
+  if (isField(document.activeElement) || !S.sel) return false;
+  e.preventDefault();
+  S.clip = copyRegion(S.sel);
+  e.clipboardData.setData('text/plain', S.clip.text);
+  return true;
+}
+
+document.addEventListener('copy', e => { if (copySelection(e)) flash(`Copied ${S.clip.w}×${S.clip.h} cells`); });
+document.addEventListener('cut', e => { if (copySelection(e)) edit(() => clearRegion(S.sel)); });
+
+document.addEventListener('paste', e => {
+  if (isField(document.activeElement) || $('#open-dlg').open) return;
+  const text = (e.clipboardData.getData('text/plain') || '').replace(/\r\n?/g, '\n');
+  if (!text) return;
+  e.preventDefault();
+  if (/^=== (text|step: .*) ===\n/.test(text)) { openDoc(text); return; }
+  const typing = S.tool === 'text' && S.caret;
+  const at = typing ? S.caret : S.sel ? { x: S.sel.x0, y: S.sel.y0 } : S.hover || S.anchor;
+  if (S.clip && S.clip.text === text) {
+    const clip = S.clip;
+    edit(() => stampRegion(clip, at.x, at.y));
+    setTool('select');
+    S.sel = clipSel({ x0: at.x, y0: at.y, x1: at.x + clip.w - 1, y1: at.y + clip.h - 1 });
+    render();
+  } else if (typing) typeText(text);
+  else edit(() => writeText(text, at, brushStyle(S.channels.text)));
+});
+
+// ---------------------------------------------------------------- controls
+
+function setTool(tool) {
+  S.tool = tool;
+  if (tool !== 'text') { S.caret = null; if (document.activeElement === ime) ime.blur(); }
+  syncControls();
+  render();
+  scheduleAutosave();
+}
+
+function setZoom(z) {
+  S.zoom = clamp(z, 8, 32);
+  syncControls();
+  layout();
+  scheduleAutosave();
+}
+
+function swapColors() {
+  if (S.bgNone) return flash('The background is none, so there is nothing to swap');
+  [S.fg, S.bg] = [S.bg, S.fg];
+  syncControls();
+}
+
+// useColor makes hex the foreground, or the background when asBg is set,
+// and gives it name in the legend unless it has one.
+function useColor(hex, asBg, name) {
+  if (asBg) { S.bg = hex; S.bgNone = false; } else S.fg = hex;
+  if (name && !S.names[hex]) { S.names[hex] = name; renderLegend(); scheduleFrames(); }
+  syncControls();
+  scheduleAutosave();
+}
+
+function syncControls() {
+  $$('#tools button').forEach(b => b.classList.toggle('on', b.dataset.tool === S.tool));
+  $('#hint').textContent = HINTS[S.tool];
+  const chans = S.channels[S.tool];
+  $('#chans').hidden = !chans;
+  for (const l of $$('#chans label')) {
+    const k = l.dataset.ch;
+    l.hidden = !chans || !(k in chans);
+    if (chans && k in chans) l.querySelector('input').checked = chans[k];
+  }
+  $('#brush-opts').hidden = !['brush', 'rect', 'fill'].includes(S.tool);
+  $('#brush-ch').value = S.brushCh;
+  $('#brush-code').textContent = 'U+' + S.brushCh.codePointAt(0).toString(16).toUpperCase().padStart(4, '0');
+  $('#box-opts').hidden = S.tool !== 'box';
+  $$('#box-opts button').forEach(b => b.classList.toggle('on', b.dataset.box === S.box));
+  $('#fg-pick').value = S.fg;
+  $('#fg-hex').value = S.fg;
+  $('#bg-pick').value = S.bg;
+  $('#bg-hex').value = S.bg;
+  $('#bg-none').checked = S.bgNone;
+  $('#bg-pick').style.opacity = $('#bg-hex').style.opacity = S.bgNone ? 0.4 : 1;
+  $$('#attrs button').forEach(b => b.classList.toggle('on', S.attrs.includes(b.dataset.attr)));
+  $('#zoom').value = S.zoom;
+  $('#zoom-out').textContent = S.zoom + 'px';
+  $('#backdrop').value = S.backdrop;
+  $('#grid').checked = S.grid;
+  syncCanvasControls();
+}
+
+function syncCanvasControls() {
+  if (document.activeElement !== $('#w')) $('#w').value = S.w;
+  if (document.activeElement !== $('#h')) $('#h').value = S.h;
+  if (document.activeElement !== $('#path')) $('#path').value = S.path;
+  $('#size').textContent = `${S.w}×${S.h}`;
+  $('#undo').disabled = !past.length;
+  $('#redo').disabled = !future.length;
+}
+
+// Buttons in the panel leave the caret's focus alone, so typing goes on.
+$('nav').addEventListener('mousedown', e => {
+  if (document.activeElement === ime && e.target.closest('button')) e.preventDefault();
+});
+$('#tools').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setTool(b.dataset.tool); });
+$('#chans').addEventListener('change', e => {
+  const l = e.target.closest('label');
+  if (l && S.channels[S.tool]) { S.channels[S.tool][l.dataset.ch] = e.target.checked; scheduleAutosave(); }
+});
+$('#brush-ch').addEventListener('input', e => {
+  const ch = [...e.target.value].find(c => PRINTABLE.test(c));
+  if (ch) { S.brushCh = ch; syncControls(); scheduleAutosave(); }
+});
+$('#chars').append(...[...QUICK_CHARS].map(ch => {
+  const b = document.createElement('button');
+  b.textContent = ch;
+  b.title = 'U+' + ch.codePointAt(0).toString(16).toUpperCase().padStart(4, '0');
+  b.onclick = () => { S.brushCh = ch; S.channels[S.tool] && (S.channels[S.tool].ch = true); syncControls(); scheduleAutosave(); };
+  return b;
+}));
+$('#box-opts').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { S.box = b.dataset.box; syncControls(); scheduleAutosave(); } });
+for (const [kind, key] of [['fg', 'fg'], ['bg', 'bg']]) {
+  $(`#${kind}-pick`).addEventListener('input', e => { S[key] = e.target.value; if (kind === 'bg') S.bgNone = false; syncControls(); scheduleAutosave(); });
+  $(`#${kind}-hex`).addEventListener('change', e => {
+    const hex = normHex(e.target.value);
+    if (hex) { S[key] = hex; if (kind === 'bg') S.bgNone = false; } else flash(`${e.target.value} is not #rrggbb`, 'error');
+    syncControls();
+    scheduleAutosave();
+  });
+}
+$('#bg-none').addEventListener('change', e => { S.bgNone = e.target.checked; syncControls(); scheduleAutosave(); });
+$('#swap').addEventListener('click', swapColors);
+$('#attrs').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  const a = b.dataset.attr;
+  S.attrs = canonAttrs(S.attrs.includes(a) ? S.attrs.replace(a, '') : S.attrs + a);
+  syncControls();
+  scheduleAutosave();
+});
+$('#zoom').addEventListener('input', e => setZoom(Number(e.target.value)));
+$('#backdrop').addEventListener('input', e => { S.backdrop = e.target.value; render(); scheduleAutosave(); });
+$('#grid').addEventListener('change', e => { S.grid = e.target.checked; render(); scheduleAutosave(); });
+$('#path').addEventListener('change', e => { S.path = e.target.value.trim(); updateState(); scheduleAutosave(); });
+
+// target is the cell that row and column edits start at.
+const target = () => (S.sel ? { x: S.sel.x0, y: S.sel.y0 } : S.caret || S.anchor);
+
+function resize(w, h) {
+  w = clamp(Math.round(w) || S.w, 1, MAX_SIDE);
+  h = clamp(Math.round(h) || S.h, 1, MAX_SIDE);
+  if (w === S.w && h === S.h) return syncCanvasControls();
+  edit(() => {
+    const cells = blankCells(w, h);
+    for (let y = 0; y < Math.min(h, S.h); y++) for (let x = 0; x < Math.min(w, S.w); x++) cells[y * w + x] = cell(x, y);
+    Object.assign(S, { w, h, cells });
+    clampState();
+  });
+}
+
+function editColumns(fn) {
+  edit(() => {
+    const rows = [];
+    for (let y = 0; y < S.h; y++) rows.push(fn(S.cells.slice(y * S.w, (y + 1) * S.w)));
+    S.w = rows[0].length;
+    S.cells = rows.flat();
+    clampState();
+  });
+}
+
+$('#resize').addEventListener('click', () => resize(Number($('#w').value), Number($('#h').value)));
+for (const id of ['w', 'h']) $('#' + id).addEventListener('keydown', e => { if (e.key === 'Enter') $('#resize').click(); });
+$('#row-ins').addEventListener('click', () => {
+  if (S.h >= MAX_SIDE) return;
+  const { y } = target();
+  edit(() => { S.cells.splice(y * S.w, 0, ...blankCells(S.w, 1)); S.h++; });
+});
+$('#row-del').addEventListener('click', () => {
+  if (S.h <= 1) return;
+  const { y } = target();
+  edit(() => { S.cells.splice(y * S.w, S.w); S.h--; clampState(); });
+});
+$('#col-ins').addEventListener('click', () => {
+  if (S.w >= MAX_SIDE) return;
+  const { x } = target();
+  editColumns(row => { row.splice(x, 0, { ...BLANK }); return row; });
+});
+$('#col-del').addEventListener('click', () => {
+  if (S.w <= 1) return;
+  const { x } = target();
+  editColumns(row => { row.splice(x, 1); return row; });
+});
+
+// Palettes: click picks a foreground, shift-click or right-click a background.
+function swatch(hex, title, name) {
+  const b = document.createElement('button');
+  b.className = 'sw';
+  b.style.background = hex;
+  b.title = title;
+  b.dataset.hex = hex;
+  if (name) b.dataset.name = name;
+  return b;
+}
+for (const id of ['theme', 'goldens', 'xterm', 'legend']) {
+  const el = $('#' + id);
+  const use = (e, asBg) => {
+    const b = e.target.closest('.sw');
+    if (!b) return false;
+    e.preventDefault();
+    useColor(b.dataset.hex, asBg, b.dataset.name);
+    return true;
+  };
+  el.addEventListener('click', e => use(e, e.shiftKey));
+  el.addEventListener('contextmenu', e => use(e, true));
+}
+
+function xtermColors() {
+  const base = ['#000000', '#cd0000', '#00cd00', '#cdcd00', '#0000ee', '#cd00cd', '#00cdcd', '#e5e5e5',
+    '#7f7f7f', '#ff0000', '#00ff00', '#ffff00', '#5c5cff', '#ff00ff', '#00ffff', '#ffffff'];
+  const hex = (r, g, b) => '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+  const lv = [0, 95, 135, 175, 215, 255], out = base.map((h, i) => [i, h]);
+  for (let r = 0; r < 6; r++) for (let g = 0; g < 6; g++) for (let b = 0; b < 6; b++) out.push([16 + 36 * r + 6 * g + b, hex(lv[r], lv[g], lv[b])]);
+  for (let n = 0; n < 24; n++) out.push([232 + n, hex(8 + 10 * n, 8 + 10 * n, 8 + 10 * n)]);
+  return out;
+}
+$('#xterm').append(...xtermColors().map(([i, hex]) => swatch(hex, `xterm ${i} ${hex}`)));
+
+// legendOf assigns the symbols of the golden frames legend in order of
+// first appearance, as testutil.GoldenFrames does.
+function legendOf() {
+  const fg = [], bg = [], combos = [];
+  for (const c of S.cells) {
+    if (shows(c) && !fg.includes(c.fg)) fg.push(c.fg);
+    if (c.bg && !bg.includes(c.bg)) bg.push(c.bg);
+    if (c.attrs.length > 1 && !combos.includes(c.attrs)) combos.push(c.attrs);
+  }
+  return { fg, bg, combos };
+}
+
+function renderLegend() {
+  const { fg, bg, combos } = legendOf();
+  const count = (n, max, what) => `<span class="${n > max ? 'error' : ''}">${what} ${n}/${max}</span>`;
+  $('#counts').innerHTML = [count(fg.length, LIMITS.fg, 'fg'), count(bg.length, LIMITS.bg, 'bg'), count(combos.length, LIMITS.combos, 'combos')].join(' · ');
+  const el = $('#legend');
+  el.replaceChildren();
+  const row = (sym, hex, kind) => {
+    const r = document.createElement('div');
+    r.className = 'lg';
+    r.innerHTML = `<span class="sym"></span><input type="color" title="Replace this ${kind} everywhere"><code title="Use (shift: as background)"></code><input type="text" placeholder="name" spellcheck="false">`;
+    r.querySelector('.sym').textContent = sym;
+    const [pickEl, nameEl] = r.querySelectorAll('input');
+    pickEl.value = hex || '#000000';
+    pickEl.addEventListener('change', () => replaceColor(kind, hex, pickEl.value));
+    const code = r.querySelector('code');
+    code.textContent = hex || '-';
+    code.addEventListener('click', e => hex && useColor(hex, kind === 'background' || e.shiftKey));
+    nameEl.value = S.names[hex] || '';
+    nameEl.disabled = !hex;
+    nameEl.addEventListener('change', () => edit(() => {
+      const v = nameEl.value.replace(/[\x00-\x1f\x7f]/g, '').trim();
+      if (v) S.names[hex] = v; else delete S.names[hex];
+    }));
+    el.append(r);
+  };
+  fg.forEach((hex, i) => row(FG_SYMBOLS[i] ?? '?', hex, 'foreground'));
+  bg.forEach((hex, i) => row(BG_SYMBOLS[i] ?? '?', hex, 'background'));
+  for (const [i, a] of combos.entries()) {
+    const r = document.createElement('div');
+    r.className = 'lg';
+    r.innerHTML = `<span class="sym"></span><span></span><code></code><span class="muted">attributes</span>`;
+    r.querySelector('.sym').textContent = COMBO_SYMBOLS[i] ?? '?';
+    r.querySelector('code').textContent = a;
+    el.append(r);
+  }
+  if (!el.children.length) el.innerHTML = '<div class="legend-empty">Nothing painted yet.</div>';
+}
+
+function replaceColor(kind, from, to) {
+  if (from === to) return;
+  edit(() => {
+    for (const c of S.cells) {
+      if (kind === 'foreground' && c.fg === from) c.fg = to;
+      if (kind === 'background' && c.bg === from) c.bg = to;
+    }
+    if (S.names[from] && !S.names[to]) S.names[to] = S.names[from];
+  });
+}
+
+function showInfo(p) {
+  if (!p || !inside(p.x, p.y)) return;
+  let { x, y } = p;
+  if (cell(x, y).ch === '' && x > 0) x--;
+  const c = cell(x, y), name = h => (S.names[h] ? ` ${S.names[h]}` : '');
+  const ch = shows(c) ? `'${c.ch}' U+${c.ch.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')} fg ${c.fg || '-'}${name(c.fg)}` : 'blank';
+  $('#info').textContent = `${p.x},${p.y}  ${ch}  bg ${c.bg || '-'}${name(c.bg)}${c.attrs ? '  ' + c.attrs : ''}`;
+}
+
+// ---------------------------------------------------------------- server
+
+async function api(url, { method = 'GET', json, body } = {}) {
+  const init = { method, headers: {} };
+  if (json !== undefined) { init.body = JSON.stringify(json); init.headers['Content-Type'] = 'application/json'; }
+  else if (body !== undefined) { init.body = body; init.headers['Content-Type'] = 'text/plain; charset=utf-8'; }
+  const res = await fetch(url, init);
+  const text = await res.text();
+  if (!res.ok) throw Object.assign(new Error(text.trim() || res.statusText), { status: res.status });
+  return text;
+}
+
+// designJSON returns the design as the server's Design type reads it.
+function designJSON() {
+  const cells = [];
+  for (let y = 0; y < S.h; y++) {
+    const row = [];
+    for (let x = 0; x < S.w; x++) {
+      const c = cell(x, y), o = { ch: c.ch };
+      if (shows(c) && c.fg) o.fg = c.fg;
+      if (c.bg) o.bg = c.bg;
+      if (c.attrs) o.attrs = c.attrs;
+      row.push(o);
+    }
+    cells.push(row);
+  }
+  return { width: S.w, height: S.h, cells, names: S.names };
+}
+
+let framesTimer = 0, framesSeq = 0;
+function scheduleFrames() { clearTimeout(framesTimer); framesTimer = setTimeout(refreshFrames, 150); }
+
+async function refreshFrames() {
+  const seq = ++framesSeq;
+  let doc = null, err = '';
+  try { doc = await api('/api/frames', { method: 'POST', json: designJSON() }); } catch (e) { err = e.message; }
+  if (seq !== framesSeq) return;
+  S.frames = doc;
+  if (S.adoptFrames && doc !== null) { S.savedFrames = doc; S.adoptFrames = false; }
+  $('#frames').textContent = doc ?? '';
+  $('#frames-err').textContent = err;
+  updateState();
+}
+
+function updateState() {
+  const el = $('#state');
+  const dirty = S.frames === null || S.frames !== S.savedFrames || S.path !== S.savedPath;
+  el.textContent = S.savedPath === null ? 'not saved' : dirty ? 'unsaved changes' : 'saved';
+  el.className = dirty ? 'dirty' : '';
+  document.title = `${dirty ? '• ' : ''}${S.path.split('/').pop()} · fluid design`;
+}
+
+let flashTimer = 0;
+function flash(msg, kind = '') {
+  const el = $('#flash');
+  el.textContent = msg;
+  el.title = msg;
+  el.className = kind;
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => { el.textContent = ''; }, kind === 'error' ? 12000 : 5000);
+}
+
+async function save(overwrite = false) {
+  const path = $('#path').value.trim();
+  S.path = path;
+  overwrite ||= path === S.savedPath;
+  try {
+    const res = JSON.parse(await api(`/api/save?path=${encodeURIComponent(path)}${overwrite ? '&overwrite=1' : ''}`, { method: 'POST', json: designJSON() }));
+    S.savedPath = res.path;
+    S.savedFrames = res.frames;
+    flash(`Saved ${res.path}`);
+    updateState();
+    scheduleAutosave();
+    loadLibrary();
+  } catch (e) {
+    if (e.status === 409 && !overwrite) {
+      if (confirm(`${path} exists. Replace it?`)) save(true);
+      return;
+    }
+    flash(e.message, 'error');
+  }
+}
+
+// loadDesign replaces the design with d, which came from path when it is
+// set. Undo brings the previous design back.
+function loadDesign(d, path, fromFile) {
+  edit(() => {
+    Object.assign(S, {
+      w: d.width, h: d.height,
+      cells: d.cells.flat().map(c => ({ ch: c.ch, fg: c.fg || '', bg: c.bg || '', attrs: c.attrs || '' })),
+      names: { ...(d.names || {}) },
+      sel: null, caret: null,
+    });
+    if (path) S.path = path;
+    clampState();
+  });
+  S.savedPath = fromFile ? path : null;
+  S.savedFrames = null;
+  S.adoptFrames = fromFile;
+  updateState();
+  flash(`Opened ${path || 'pasted document'} · ${d.width}×${d.height}`);
+}
+
+async function openFile(path, step) {
+  try {
+    const q = `path=${encodeURIComponent(path)}${step !== undefined ? '&step=' + step : ''}`;
+    const d = JSON.parse(await api('/api/open?' + q));
+    if (step === undefined) loadDesign(d, path, true);
+    else loadDesign(d, `designs/${path.split('/').pop().replace(/\.seq\.golden$/, '')}-${step}.frames.golden`, false);
+    $('#open-dlg').close();
+  } catch (e) { flash(e.message, 'error'); }
+}
+
+async function openDoc(text, name) {
+  try {
+    const d = JSON.parse(await api('/api/parse', { method: 'POST', body: text }));
+    loadDesign(d, name && /\.frames\.golden$/.test(name) ? 'designs/' + name : null, false);
+    $('#open-dlg').close();
+  } catch (e) { flash('Not a golden document: ' + e.message, 'error'); }
+}
+
+let library = { files: [], colors: [] };
+async function loadLibrary() {
+  try { library = JSON.parse(await api('/api/library')); } catch (e) { flash(e.message, 'error'); return; }
+  $('#goldens').replaceChildren(...library.colors.map(c =>
+    swatch(c.hex, `${c.name ? c.name + ' ' : ''}${c.hex} · text in ${c.fg}, background in ${c.bg} snapshots`, c.name)));
+  if ($('#open-dlg').open) renderOpenList();
+}
+
+function renderOpenList() {
+  const q = $('#open-filter').value.trim().toLowerCase(), el = $('#open-list');
+  el.replaceChildren();
+  let dir = null, shown = 0;
+  for (const f of library.files) {
+    if (q && !f.path.toLowerCase().includes(q)) continue;
+    const i = f.path.lastIndexOf('/'), d = i < 0 ? '.' : f.path.slice(0, i);
+    if (d !== dir) {
+      dir = d;
+      const h = document.createElement('div');
+      h.className = 'dir';
+      h.textContent = d;
+      el.append(h);
+    }
+    const b = document.createElement('button');
+    b.className = 'file';
+    b.innerHTML = '<span></span><small></small>';
+    b.firstChild.textContent = f.path.slice(i + 1);
+    b.lastChild.textContent = f.size || (f.steps ? `sequence · ${f.steps.length} steps` : '');
+    if (!f.steps) b.addEventListener('click', () => openFile(f.path));
+    el.append(b);
+    if (f.steps) {
+      const s = document.createElement('div');
+      s.className = 'steps';
+      f.steps.forEach((name, n) => {
+        const sb = document.createElement('button');
+        sb.className = 'file';
+        sb.textContent = `${n}: ${name}`;
+        sb.addEventListener('click', () => openFile(f.path, n));
+        s.append(sb);
+      });
+      el.append(s);
+    }
+    if (f.error) {
+      const e = document.createElement('div');
+      e.className = 'err';
+      e.textContent = f.error;
+      el.append(e);
+    }
+    shown++;
+  }
+  if (!shown) el.innerHTML = '<p class="muted">No golden files match.</p>';
+}
+
+function openDialog() {
+  const dlg = $('#open-dlg');
+  if (!dlg.open) dlg.showModal();
+  renderOpenList();
+  loadLibrary();
+  $('#open-filter').focus();
+  $('#open-filter').select();
+}
+
+$('#open').addEventListener('click', openDialog);
+$('#open-close').addEventListener('click', () => $('#open-dlg').close());
+$('#open-filter').addEventListener('input', renderOpenList);
+$('#open-filter').addEventListener('keydown', e => { if (e.key === 'Enter') $('#open-list .file')?.click(); });
+$('#open-paste-go').addEventListener('click', () => openDoc($('#open-paste').value));
+$('#open-file').addEventListener('change', async e => {
+  const f = e.target.files[0];
+  if (f) openDoc(await f.text(), f.name);
+  e.target.value = '';
+});
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', async e => {
+  e.preventDefault();
+  const f = e.dataTransfer.files[0];
+  if (f) openDoc(await f.text(), f.name);
+});
+
+$('#new').addEventListener('click', () => {
+  edit(() => Object.assign(S, { cells: blankCells(S.w, S.h), names: {}, path: DEFAULT_PATH, sel: null, caret: null }));
+  S.savedPath = null;
+  S.savedFrames = null;
+  updateState();
+});
+$('#save').addEventListener('click', () => save());
+$('#undo').addEventListener('click', undo);
+$('#redo').addEventListener('click', redo);
+
+// ---------------------------------------------------------------- export
+
+const baseName = () => (S.path.split('/').pop() || 'design').replace(/\.frames\.golden$/, '') || 'design';
+
+function download(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+$('#png').addEventListener('click', () => {
+  const m = metrics(S.zoom, 2), c = document.createElement('canvas');
+  c.width = colX(m, S.w);
+  c.height = S.h * m.lh;
+  draw(c.getContext('2d'), m, false);
+  c.toBlob(b => { download(b, baseName() + '.png'); flash(`Downloaded ${baseName()}.png · ${c.width}×${c.height}`); });
+});
+
+$('#ansi').addEventListener('click', async () => {
+  try {
+    const text = await api('/api/ansi', { method: 'POST', json: designJSON() });
+    download(new Blob([text], { type: 'text/plain' }), baseName() + '.ans');
+    flash(`Downloaded ${baseName()}.ans · cat it in a terminal`);
+  } catch (e) { flash(e.message, 'error'); }
+});
+
+$('#copy-frames').addEventListener('click', async () => {
+  if (S.frames === null) return flash('The design has no golden frames: ' + $('#frames-err').textContent, 'error');
+  await navigator.clipboard.writeText(S.frames);
+  flash('Copied the golden frames');
+});
+
+$('#toggle-frames').addEventListener('click', () => {
+  $('#aside').hidden = !$('#aside').hidden;
+  $('#toggle-frames').classList.toggle('on', !$('#aside').hidden);
+  scheduleAutosave();
+});
+
+// ---------------------------------------------------------------- persistence
+
+const STORE = 'fluid-design';
+let saveTimer = 0;
+function scheduleAutosave() { clearTimeout(saveTimer); saveTimer = setTimeout(autosave, 300); }
+
+function autosave() {
+  try {
+    localStorage.setItem(STORE, JSON.stringify({
+      v: 1, design: designJSON(), path: S.path, savedPath: S.savedPath, savedFrames: S.savedFrames,
+      settings: {
+        tool: S.tool, fg: S.fg, bg: S.bg, bgNone: S.bgNone, attrs: S.attrs, brushCh: S.brushCh, box: S.box,
+        channels: S.channels, zoom: S.zoom, backdrop: S.backdrop, grid: S.grid, frames: !$('#aside').hidden,
+      },
+    }));
+  } catch { /* storage full or off: the design stays in the page */ }
+}
+
+function restoreSaved() {
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(STORE)); } catch { return false; }
+  if (!saved || saved.v !== 1) return false;
+  const st = saved.settings || {};
+  for (const k of ['tool', 'fg', 'bg', 'bgNone', 'attrs', 'brushCh', 'box', 'zoom', 'backdrop', 'grid']) if (k in st) S[k] = st[k];
+  for (const [tool, chans] of Object.entries(st.channels || {})) if (S.channels[tool]) Object.assign(S.channels[tool], chans);
+  $('#aside').hidden = st.frames === false;
+  const d = saved.design;
+  const cells = Array.isArray(d?.cells) ? d.cells.flat() : [];
+  if (!(d?.width >= 1 && d.width <= MAX_SIDE && d.height >= 1 && d.height <= MAX_SIDE) || cells.length !== d.width * d.height) return false;
+  Object.assign(S, {
+    w: d.width, h: d.height, names: d.names || {}, path: saved.path || DEFAULT_PATH,
+    cells: cells.map(c => ({ ch: c.ch ?? ' ', fg: c.fg || '', bg: c.bg || '', attrs: c.attrs || '' })),
+    savedPath: saved.savedPath ?? null, savedFrames: saved.savedFrames ?? null,
+  });
+  return true;
+}
+
+// ---------------------------------------------------------------- start
+
+async function start() {
+  try {
+    const th = JSON.parse(await api('/api/theme'));
+    S.themeFg = th.fg;
+    S.backdrop = th.bg;
+    S.fg = th.fg;
+    $('#theme-name').textContent = th.name;
+    $('#theme').replaceChildren(...th.groups.map(g => {
+      const div = document.createElement('div');
+      div.className = 'group';
+      div.innerHTML = '<div></div><div class="swatches"></div>';
+      div.firstChild.textContent = g.title;
+      div.lastChild.append(...g.colors.map(c => swatch(c.hex, `${c.name} ${c.hex}`, c.name)));
+      return div;
+    }));
+  } catch (e) { flash(e.message, 'error'); }
+  if (!restoreSaved()) S.cells = blankCells(S.w, S.h);
+  $('#toggle-frames').classList.toggle('on', !$('#aside').hidden);
+  await document.fonts.ready;
+  syncControls();
+  layout();
+  changed();
+  loadLibrary();
+  // ?open=path opens a golden file; dropping the parameter keeps a reload
+  // from opening it over later edits.
+  const open = new URLSearchParams(location.search).get('open');
+  if (open) {
+    window.history.replaceState(null, '', location.pathname);
+    openFile(open);
+  }
+  window.addEventListener('resize', () => { if (M && M.dpr !== window.devicePixelRatio) layout(); placeIme(); });
+  $('#stage').addEventListener('scroll', placeIme);
+}
+
+start();
+</script>
+</html>
