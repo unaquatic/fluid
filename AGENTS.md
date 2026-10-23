@@ -17,6 +17,7 @@
 fluid/
   buffer/           cell buffer (2D grid of styled characters), border drawing
   cmd/design/       serves an editor that paints golden frames files cell by cell
+  cmd/fluid/        runs interactive demos of the widgets, layout and rendering modes
   cmd/goldenview/   draws golden frames files as an HTML page
   input/            keyboard, mouse, paste events + keybindings + parser
   layout/           flexbox layout engine
