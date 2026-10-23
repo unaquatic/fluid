@@ -3,6 +3,7 @@ package terminal
 import (
 	"bytes"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -389,6 +390,11 @@ func sgrBackground(params, bg string) string {
 			n = min(n, len(p)-k)
 			bg = strings.Join(p[k:k+n], ";")
 			k += n - 1
+		default:
+			// A 16-color background is one code, 40-47 or bright 100-107.
+			if n, err := strconv.Atoi(p[k]); err == nil && (40 <= n && n <= 47 || 100 <= n && n <= 107) {
+				bg = p[k]
+			}
 		}
 	}
 	return bg
