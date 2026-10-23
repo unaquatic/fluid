@@ -13,9 +13,15 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
+// The test terminal is 40 columns by 20 rows.
+const (
+	testTermWidth  = 40
+	testTermHeight = 20
+)
+
 func newInlineTestRenderer() (*Renderer, *bytes.Buffer) {
 	var outBuf bytes.Buffer
-	w, h := 40, 20
+	w, h := testTermWidth, testTermHeight
 	root := NewRootRenderable(w, h)
 	hitGrid := NewHitGrid(w, h)
 	cfg := DefaultConfig()
@@ -45,6 +51,19 @@ func newInlineTestRenderer() (*Renderer, *bytes.Buffer) {
 	return r, &outBuf
 }
 
+// rowsBuffer returns a buffer whose row y is filled with fill glyphs of the
+// rune at index y in glyphs.
+func rowsBuffer(width int, glyphs string, fill int) *buffer.Buffer {
+	runes := []rune(glyphs)
+	buf := buffer.New(width, len(runes))
+	for y, ch := range runes {
+		for x := range fill {
+			buf.SetCell(x, y, ch, style.ColorWhite, style.ColorBlack, 0)
+		}
+	}
+	return buf
+}
+
 func TestInlineMode_ConfigForcesNoAlternateScreen(t *testing.T) {
 	cfg := mergeConfig([]Config{{InlineMode: true, Fullscreen: true}})
 	if cfg.Fullscreen {
@@ -67,474 +86,348 @@ func TestComputeContentHeight(t *testing.T) {
 	}
 }
 
-func TestInlineFlush_FirstFrame_NoErase(t *testing.T) {
+func TestInlineFlush_FirstFrame_KeepsExistingScreen(t *testing.T) {
 	r, outBuf := newInlineTestRenderer()
-	buf := buffer.New(5, 2)
-	buf.SetCell(0, 0, 'A', style.ColorWhite, style.ColorBlack, 0)
-	buf.SetCell(0, 1, 'C', style.ColorWhite, style.ColorBlack, 0)
-	r.InlineFlush(buf)
-	if strings.Contains(outBuf.String(), "\x1b[2K") {
-		t.Error("first frame should not erase")
+
+	r.InlineFlush(rowsBuffer(10, "AC", 1))
+
+	// The screen may hold unrelated output, which inline mode preserves.
+	if strings.Contains(outBuf.String(), "\x1b[2J") {
+		t.Error("first frame should not erase the screen")
 	}
-	// Two content rows plus the trailing cursor row produce three rows to erase.
-	if r.lastInlineHeight != 3 {
-		t.Errorf("expected lastInlineHeight=3 (2+1), got %d", r.lastInlineHeight)
+	if r.inlineViewportTop != 0 {
+		t.Errorf("expected viewportTop=0, got %d", r.inlineViewportTop)
+	}
+	if r.inlineCursorRow != 1 {
+		t.Errorf("expected cursorRow=1, got %d", r.inlineCursorRow)
 	}
 }
 
-func TestInlineFlush_SecondFrame_Diff(t *testing.T) {
+// TestInlineFlush_TallFirstFrame_ScrollsInsteadOfErasing is the property that
+// makes long transcripts usable: content past the last row scrolls into the
+// scrollback rather than triggering a screen-clearing repaint.
+func TestInlineFlush_TallFirstFrame_ScrollsInsteadOfErasing(t *testing.T) {
 	r, outBuf := newInlineTestRenderer()
-	// The first frame contains three distinct rows.
-	buf1 := buffer.New(5, 3)
-	for y := range 3 {
-		buf1.SetCell(0, y, rune('A'+y), style.ColorWhite, style.ColorBlack, 0)
-	}
-	r.InlineFlush(buf1)
-	outBuf.Reset()
+	const height = testTermHeight + 5
 
-	// The second frame changes both common rows and removes the third.
-	buf2 := buffer.New(5, 2)
-	buf2.SetCell(0, 0, 'X', style.ColorWhite, style.ColorBlack, 0)
-	buf2.SetCell(0, 1, 'Y', style.ColorWhite, style.ColorBlack, 0)
-	r.InlineFlush(buf2)
+	r.InlineFlush(rowsBuffer(10, strings.Repeat("A", height), 1))
 	output := outBuf.String()
 
-	// Two changed rows and one removed row require three line erases.
-	if c := strings.Count(output, "\x1b[2K"); c != 3 {
-		t.Errorf("expected 3 erases (2 dirty + 1 removed), got %d", c)
+	if strings.Contains(output, "\x1b[2J") || strings.Contains(output, "\x1b[3J") {
+		t.Error("tall content should scroll, not erase the screen and scrollback")
 	}
-	// Rewritten rows contain the new glyphs.
-	if !strings.Contains(output, "X") || !strings.Contains(output, "Y") {
-		t.Error("expected new content X and Y in output")
+	if r.inlineViewportTop != height-testTermHeight {
+		t.Errorf("expected viewportTop=%d, got %d", height-testTermHeight, r.inlineViewportTop)
 	}
-	// Stored height includes the new trailing cursor row.
-	if r.lastInlineHeight != 3 {
-		t.Errorf("expected lastInlineHeight=3 (2+1), got %d", r.lastInlineHeight)
+	if r.inlineCursorRow != height-1 {
+		t.Errorf("expected cursorRow=%d, got %d", height-1, r.inlineCursorRow)
 	}
 }
 
-func TestInlineFlush_Overflow_ClearTerminal(t *testing.T) {
+// TestInlineFlush_TallFrame_StaysQuietWhenOnlyTheLastRowChanges covers the
+// repaint loop that made long conversations shake: once content exceeds the
+// terminal, updates must still be differential.
+func TestInlineFlush_TallFrame_StaysQuietWhenOnlyTheLastRowChanges(t *testing.T) {
 	r, outBuf := newInlineTestRenderer()
-	// Twenty-five rows overflow the 20-row terminal.
-	buf := buffer.New(10, 25)
-	for y := range 25 {
-		buf.SetCell(0, y, rune('a'+y%26), style.ColorWhite, style.ColorBlack, 0)
-	}
-	r.InlineFlush(buf)
-	output := outBuf.String()
+	const height = testTermHeight + 5
 
-	// Overflow clears the screen, scrollback, and cursor position.
-	if !strings.Contains(output, "\x1b[2J\x1b[3J\x1b[H") {
-		t.Error("overflow should use clearTerminal")
-	}
-	// Overflow does not walk and erase prior lines individually.
-	if strings.Contains(output, "\x1b[2K") {
-		t.Error("overflow should not use per-line erase")
-	}
-	// Twenty-five content rows plus the trailing row produce 26.
-	if r.lastInlineHeight != 26 {
-		t.Errorf("expected lastInlineHeight=26 (25+1), got %d", r.lastInlineHeight)
-	}
-}
-
-func TestInlineFlush_Overflow_Subsequent_StillClears(t *testing.T) {
-	r, outBuf := newInlineTestRenderer()
-	// The first frame overflows.
-	buf1 := buffer.New(10, 25)
-	for y := range 25 {
-		buf1.SetCell(0, y, 'A', style.ColorWhite, style.ColorBlack, 0)
-	}
-	r.InlineFlush(buf1)
-	outBuf.Reset()
-
-	// The previous 26-row output keeps the second frame in overflow handling.
-	buf2 := buffer.New(10, 22)
-	for y := range 22 {
-		buf2.SetCell(0, y, 'B', style.ColorWhite, style.ColorBlack, 0)
-	}
-	r.InlineFlush(buf2)
-	output := outBuf.String()
-
-	// Prior overflow again requires a complete clear.
-	if !strings.Contains(output, "\x1b[2J\x1b[3J\x1b[H") {
-		t.Error("subsequent overflow should still use clearTerminal")
-	}
-}
-
-func TestInlineFlush_Overflow_Discards_CurrentBuf(t *testing.T) {
-	r, _ := newInlineTestRenderer()
-	// The first frame fits the terminal.
-	buf1 := buffer.New(10, 5)
-	buf1.SetCell(0, 0, 'A', style.ColorWhite, style.ColorBlack, 0)
-	r.InlineFlush(buf1)
-	if r.inlineCurrentBuf == nil {
-		t.Fatal("expected inlineCurrentBuf after non-overflow flush")
-	}
-
-	// The second frame overflows the terminal.
-	buf2 := buffer.New(10, 25)
-	for y := range 25 {
-		buf2.SetCell(0, y, 'B', style.ColorWhite, style.ColorBlack, 0)
-	}
-	r.InlineFlush(buf2)
-	if r.inlineCurrentBuf != nil {
-		t.Error("expected inlineCurrentBuf=nil after overflow")
-	}
-}
-
-func TestInlineDiff_NothingChanged_ZeroOutput(t *testing.T) {
-	r, outBuf := newInlineTestRenderer()
-	buf := buffer.New(10, 5)
-	buf.SetCell(0, 0, 'H', style.ColorWhite, style.ColorBlack, 0)
-	buf.SetCell(0, 1, 'e', style.ColorWhite, style.ColorBlack, 0)
-	buf.SetCell(0, 2, 'l', style.ColorWhite, style.ColorBlack, 0)
-	buf.SetCell(0, 3, 'l', style.ColorWhite, style.ColorBlack, 0)
-	buf.SetCell(0, 4, 'o', style.ColorWhite, style.ColorBlack, 0)
-
-	// The first frame uses a complete flush.
-	r.InlineFlush(buf)
-	outBuf.Reset()
-
-	// The second frame is identical.
-	buf2 := buffer.New(10, 5)
-	buf2.SetCell(0, 0, 'H', style.ColorWhite, style.ColorBlack, 0)
-	buf2.SetCell(0, 1, 'e', style.ColorWhite, style.ColorBlack, 0)
-	buf2.SetCell(0, 2, 'l', style.ColorWhite, style.ColorBlack, 0)
-	buf2.SetCell(0, 3, 'l', style.ColorWhite, style.ColorBlack, 0)
-	buf2.SetCell(0, 4, 'o', style.ColorWhite, style.ColorBlack, 0)
-	r.InlineFlush(buf2)
-
-	// Identical output writes no bytes.
-	if outBuf.Len() != 0 {
-		t.Errorf("expected 0 bytes for identical frame, got %d", outBuf.Len())
-	}
-}
-
-func TestInlineDiff_OnlyChangedRowsRewritten(t *testing.T) {
-	r, outBuf := newInlineTestRenderer()
-	// Multi-character row tokens avoid confusing content with letters inside
-	// cursor escape sequences.
-	buf1 := buffer.New(10, 5)
-	for y := range 5 {
-		for x := range 5 {
-			buf1.SetCell(x, y, rune('a'+y), style.ColorWhite, style.ColorBlack, 0)
-		}
-	}
-	r.InlineFlush(buf1)
-	outBuf.Reset()
-
-	// The second frame changes only row two.
-	buf2 := buffer.New(10, 5)
-	for y := range 5 {
-		for x := range 5 {
-			buf2.SetCell(x, y, rune('a'+y), style.ColorWhite, style.ColorBlack, 0)
-		}
-	}
-	// Replace row two with X glyphs.
-	for x := range 5 {
-		buf2.SetCell(x, 2, 'X', style.ColorWhite, style.ColorBlack, 0)
-	}
-	r.InlineFlush(buf2)
-	output := outBuf.String()
-
-	// Only the changed row is erased.
-	if c := strings.Count(output, "\x1b[2K"); c != 1 {
-		t.Errorf("expected 1 erase for 1 dirty row, got %d", c)
-	}
-	// Output contains the replacement content.
-	if !strings.Contains(output, "XXXXX") {
-		t.Error("expected changed row content XXXXX in output")
-	}
-	// Output omits content from unchanged rows.
-	if strings.Contains(output, "aaaaa") || strings.Contains(output, "bbbbb") ||
-		strings.Contains(output, "ddddd") || strings.Contains(output, "eeeee") {
-		t.Error("unchanged rows should not appear in output")
-	}
-}
-
-func TestInlineDiff_HeightGrew_AppendsNewRows(t *testing.T) {
-	r, outBuf := newInlineTestRenderer()
-	// The first frame contains three rows.
-	buf1 := buffer.New(10, 3)
-	for y := range 3 {
-		buf1.SetCell(0, y, rune('A'+y), style.ColorWhite, style.ColorBlack, 0)
-	}
-	r.InlineFlush(buf1)
-	outBuf.Reset()
-
-	// The second frame preserves three rows and appends two.
-	buf2 := buffer.New(10, 5)
-	for y := range 3 {
-		buf2.SetCell(0, y, rune('A'+y), style.ColorWhite, style.ColorBlack, 0)
-	}
-	buf2.SetCell(0, 3, 'D', style.ColorWhite, style.ColorBlack, 0)
-	buf2.SetCell(0, 4, 'E', style.ColorWhite, style.ColorBlack, 0)
-	r.InlineFlush(buf2)
-	output := outBuf.String()
-
-	// Only the appended rows require line erases and writes.
-	eraseCount := strings.Count(output, "\x1b[2K")
-	if eraseCount != 2 {
-		t.Errorf("expected 2 erases (2 new rows), got %d", eraseCount)
-	}
-	// Output contains both appended rows.
-	if !strings.Contains(output, "D") || !strings.Contains(output, "E") {
-		t.Error("expected new content D and E")
-	}
-	// Output omits unchanged existing rows.
-	if strings.Contains(output, "A") || strings.Contains(output, "B") || strings.Contains(output, "C") {
-		t.Error("unchanged rows A, B, C should not be in output")
-	}
-	// Stored height includes five content rows and one trailing row.
-	if r.lastInlineHeight != 6 {
-		t.Errorf("expected lastInlineHeight=6 (5+1), got %d", r.lastInlineHeight)
-	}
-}
-
-func TestInlineDiff_HeightShrunk_ErasesRemovedRows(t *testing.T) {
-	r, outBuf := newInlineTestRenderer()
-	// The first frame contains five identifiable rows.
-	buf1 := buffer.New(10, 5)
-	for y := range 5 {
-		for x := range 5 {
-			buf1.SetCell(x, y, rune('a'+y), style.ColorWhite, style.ColorBlack, 0)
-		}
-	}
-	r.InlineFlush(buf1)
-	outBuf.Reset()
-
-	// The second frame retains three common rows and removes two.
-	buf2 := buffer.New(10, 3)
-	for y := range 3 {
-		for x := range 5 {
-			buf2.SetCell(x, y, rune('a'+y), style.ColorWhite, style.ColorBlack, 0)
-		}
-	}
-	r.InlineFlush(buf2)
-	output := outBuf.String()
-
-	// Both removed rows are erased.
-	eraseCount := strings.Count(output, "\x1b[2K")
-	if eraseCount != 2 {
-		t.Errorf("expected 2 erases (2 removed rows), got %d", eraseCount)
-	}
-	// Unchanged common rows are not rewritten.
-	if strings.Contains(output, "aaaaa") || strings.Contains(output, "bbbbb") || strings.Contains(output, "ccccc") {
-		t.Error("unchanged common rows should not be rewritten")
-	}
-	if r.lastInlineHeight != 4 {
-		t.Errorf("expected lastInlineHeight=4 (3+1), got %d", r.lastInlineHeight)
-	}
-}
-
-func TestInlineDiff_HeightGrewAndRowsChanged(t *testing.T) {
-	r, outBuf := newInlineTestRenderer()
-	// The first frame contains three identifiable rows.
-	buf1 := buffer.New(10, 3)
-	for y := range 3 {
-		for x := range 5 {
-			buf1.SetCell(x, y, rune('a'+y), style.ColorWhite, style.ColorBlack, 0)
-		}
-	}
-	r.InlineFlush(buf1)
-	outBuf.Reset()
-
-	// The second frame changes one row and adds two rows.
-	buf2 := buffer.New(10, 5)
-	for x := range 5 {
-		buf2.SetCell(x, 0, 'a', style.ColorWhite, style.ColorBlack, 0) // Unchanged.
-		buf2.SetCell(x, 1, 'X', style.ColorWhite, style.ColorBlack, 0) // Changed.
-		buf2.SetCell(x, 2, 'c', style.ColorWhite, style.ColorBlack, 0) // Unchanged.
-		buf2.SetCell(x, 3, 'd', style.ColorWhite, style.ColorBlack, 0) // Added.
-		buf2.SetCell(x, 4, 'e', style.ColorWhite, style.ColorBlack, 0) // Added.
-	}
-	r.InlineFlush(buf2)
-	output := outBuf.String()
-
-	// One changed row and two added rows require three line erases.
-	eraseCount := strings.Count(output, "\x1b[2K")
-	if eraseCount != 3 {
-		t.Errorf("expected 3 erases (1 dirty + 2 new), got %d", eraseCount)
-	}
-	if !strings.Contains(output, "XXXXX") || !strings.Contains(output, "ddddd") || !strings.Contains(output, "eeeee") {
-		t.Error("expected changed/new content XXXXX, ddddd, eeeee")
-	}
-	// Unchanged rows are not rewritten.
-	if strings.Contains(output, "aaaaa") || strings.Contains(output, "ccccc") {
-		t.Error("unchanged rows should not be rewritten")
-	}
-}
-
-func TestInlineDiff_WidthChange_FallsBackToFull(t *testing.T) {
-	r, outBuf := newInlineTestRenderer()
-	// The first frame has width ten.
-	buf1 := buffer.New(10, 3)
-	buf1.SetCell(0, 0, 'A', style.ColorWhite, style.ColorBlack, 0)
-	r.InlineFlush(buf1)
-	outBuf.Reset()
-
-	// The second frame changes width to 15.
-	buf2 := buffer.New(15, 3)
-	buf2.SetCell(0, 0, 'A', style.ColorWhite, style.ColorBlack, 0)
-	r.InlineFlush(buf2)
-	output := outBuf.String()
-
-	// A width change forces a complete flush and erases the three prior content
-	// rows plus their trailing row.
-	if c := strings.Count(output, "\x1b[2K"); c != 4 {
-		t.Errorf("expected 4 erases from full flush, got %d", c)
-	}
-}
-
-func TestInlineDiff_AfterOverflow_FullFlush(t *testing.T) {
-	r, outBuf := newInlineTestRenderer()
-	// The first frame overflows and discards its diff buffer.
-	buf1 := buffer.New(10, 25) // Exceeds the 20-row terminal.
-	for y := range 25 {
-		buf1.SetCell(0, y, 'A', style.ColorWhite, style.ColorBlack, 0)
-	}
-	r.InlineFlush(buf1)
-	if r.inlineCurrentBuf != nil {
-		t.Fatal("expected nil inlineCurrentBuf after overflow")
-	}
-
-	// The second frame fits, but prior output still exceeds the terminal and must
-	// use overflow clearing once more.
-	buf2 := buffer.New(10, 5)
-	buf2.SetCell(0, 0, 'B', style.ColorWhite, style.ColorBlack, 0)
-	r.InlineFlush(buf2)
-	// Overflow handling stores six rows and still leaves no diff buffer.
-
-	// The third frame no longer overflows but needs a complete flush to establish
-	// a new diff buffer.
-	outBuf.Reset()
-	buf3 := buffer.New(10, 5)
-	buf3.SetCell(0, 0, 'B', style.ColorWhite, style.ColorBlack, 0)
-	r.InlineFlush(buf3)
-	if r.inlineCurrentBuf == nil {
-		t.Error("expected inlineCurrentBuf after non-overflow full flush")
-	}
-
-	// The identical fourth frame uses diffing and writes nothing.
-	outBuf.Reset()
-	buf4 := buffer.New(10, 5)
-	buf4.SetCell(0, 0, 'B', style.ColorWhite, style.ColorBlack, 0)
-	r.InlineFlush(buf4)
-	if outBuf.Len() != 0 {
-		t.Errorf("expected 0 bytes for identical frame after recovery, got %d", outBuf.Len())
-	}
-}
-
-func TestInlineDiff_CursorMovement_Up(t *testing.T) {
-	r, outBuf := newInlineTestRenderer()
-	// The first frame leaves the cursor after row five.
-	buf1 := buffer.New(10, 5)
-	for y := range 5 {
-		buf1.SetCell(0, y, rune('A'+y), style.ColorWhite, style.ColorBlack, 0)
-	}
-	r.InlineFlush(buf1)
-	outBuf.Reset()
-
-	// The second frame changes only row zero.
-	buf2 := buffer.New(10, 5)
-	buf2.SetCell(0, 0, 'Z', style.ColorWhite, style.ColorBlack, 0) // Changed.
-	for y := 1; y < 5; y++ {
-		buf2.SetCell(0, y, rune('A'+y), style.ColorWhite, style.ColorBlack, 0)
-	}
-	r.InlineFlush(buf2)
-	output := outBuf.String()
-
-	// Rewriting row zero first moves up five rows from the trailing cursor.
-	if !strings.Contains(output, "\x1b[5A") {
-		t.Error("expected cursor up 5 to reach row 0")
-	}
-	// Completion restores the cursor five rows down after the content.
-	if !strings.Contains(output, "\x1b[5B") {
-		t.Error("expected cursor down 5 to return to trailing position")
-	}
-}
-
-func TestInlineDiff_MultipleRows_MinimalOutput(t *testing.T) {
-	r, outBuf := newInlineTestRenderer()
-	// The first frame contains ten wide rows so skipped rows dominate diff overhead.
-	buf1 := buffer.New(40, 10)
-	for y := range 10 {
-		for x := range 30 {
-			buf1.SetCell(x, y, rune('a'+y), style.ColorWhite, style.ColorBlack, 0)
-		}
-	}
-	r.InlineFlush(buf1)
+	r.InlineFlush(rowsBuffer(10, strings.Repeat("A", height), 5))
 	firstBytes := outBuf.Len()
 	outBuf.Reset()
 
-	// The second frame changes only rows three and seven.
-	buf2 := buffer.New(40, 10)
-	for y := range 10 {
-		for x := range 30 {
-			buf2.SetCell(x, y, rune('a'+y), style.ColorWhite, style.ColorBlack, 0)
+	next := rowsBuffer(10, strings.Repeat("A", height), 5)
+	for x := range 5 {
+		next.SetCell(x, height-1, 'Z', style.ColorWhite, style.ColorBlack, 0)
+	}
+	r.InlineFlush(next)
+	output := outBuf.String()
+
+	if strings.Contains(output, "\x1b[2J") {
+		t.Errorf("expected a differential update, got a full repaint: %q", output)
+	}
+	if c := strings.Count(output, inlineEraseRow); c != 1 {
+		t.Errorf("expected 1 row erase, got %d", c)
+	}
+	if outBuf.Len() >= firstBytes {
+		t.Errorf("diff wrote %d bytes, want well under the first frame's %d", outBuf.Len(), firstBytes)
+	}
+}
+
+// TestInlineFlush_ChangeInScrollback_Repaints covers the one case that cannot
+// be patched in place: the terminal cannot address rows it has scrolled away.
+func TestInlineFlush_ChangeInScrollback_Repaints(t *testing.T) {
+	r, outBuf := newInlineTestRenderer()
+	const height = testTermHeight + 5
+
+	r.InlineFlush(rowsBuffer(10, strings.Repeat("A", height), 5))
+	outBuf.Reset()
+
+	next := rowsBuffer(10, strings.Repeat("A", height), 5)
+	next.SetCell(0, 0, 'Z', style.ColorWhite, style.ColorBlack, 0)
+	r.InlineFlush(next)
+
+	if !strings.Contains(outBuf.String(), inlineEraseAll) {
+		t.Error("expected a full repaint when a scrolled-away row changes")
+	}
+}
+
+func TestInlineFlush_AppendPastLastRow_AdvancesViewport(t *testing.T) {
+	r, _ := newInlineTestRenderer()
+
+	r.InlineFlush(rowsBuffer(10, strings.Repeat("A", testTermHeight), 1))
+	if r.inlineViewportTop != 0 {
+		t.Fatalf("expected viewportTop=0 after filling the screen, got %d", r.inlineViewportTop)
+	}
+
+	r.InlineFlush(rowsBuffer(10, strings.Repeat("A", testTermHeight+2), 1))
+
+	if r.inlineViewportTop != 2 {
+		t.Errorf("expected viewportTop=2 after two rows scrolled away, got %d", r.inlineViewportTop)
+	}
+	if r.inlineCursorRow != testTermHeight+1 {
+		t.Errorf("expected cursorRow=%d, got %d", testTermHeight+1, r.inlineCursorRow)
+	}
+}
+
+func TestInlineScroll(t *testing.T) {
+	tests := []struct {
+		name            string
+		viewportTop     int
+		cursorRow       int
+		target          int
+		wantViewportTop int
+		wantCursorRow   int
+		wantOutput      string
+	}{
+		{
+			name: "target on screen", viewportTop: 0, cursorRow: 4, target: 3,
+			wantViewportTop: 0, wantCursorRow: 4, wantOutput: "",
+		},
+		{
+			name: "target on the last row", viewportTop: 0, cursorRow: 0, target: testTermHeight - 1,
+			wantViewportTop: 0, wantCursorRow: 0, wantOutput: "",
+		},
+		{
+			name: "target below the last row", viewportTop: 0, cursorRow: 5, target: testTermHeight + 1,
+			wantViewportTop: 2, wantCursorRow: testTermHeight + 1,
+			wantOutput: "\x1b[14B\r\n\r\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r, _ := newInlineTestRenderer()
+			r.inlineViewportTop, r.inlineCursorRow = tt.viewportTop, tt.cursorRow
+
+			var out bytes.Buffer
+			viewportTop, cursorRow := r.inlineScroll(&out, tt.target, testTermHeight)
+
+			if viewportTop != tt.wantViewportTop || cursorRow != tt.wantCursorRow {
+				t.Errorf("got viewportTop=%d cursorRow=%d, want %d and %d",
+					viewportTop, cursorRow, tt.wantViewportTop, tt.wantCursorRow)
+			}
+			if out.String() != tt.wantOutput {
+				t.Errorf("output is %q, want %q", out.String(), tt.wantOutput)
+			}
+		})
+	}
+}
+
+func TestInlineChangedRows(t *testing.T) {
+	tests := []struct {
+		name                string
+		prev, next          string
+		wantFirst, wantLast int
+	}{
+		{name: "identical", prev: "abc", next: "abc", wantFirst: -1, wantLast: -1},
+		{name: "middle row", prev: "abc", next: "aXc", wantFirst: 1, wantLast: 1},
+		{name: "appended", prev: "abc", next: "abcde", wantFirst: 3, wantLast: 4},
+		{name: "dropped", prev: "abcde", next: "abc", wantFirst: 3, wantLast: 4},
+		{name: "changed and appended", prev: "abc", next: "aXcde", wantFirst: 1, wantLast: 4},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			first, last := inlineChangedRows(rowsBuffer(10, tt.prev, 5), rowsBuffer(10, tt.next, 5), 0)
+			if first != tt.wantFirst || last != tt.wantLast {
+				t.Errorf("got first=%d last=%d, want %d and %d", first, last, tt.wantFirst, tt.wantLast)
+			}
+		})
+	}
+}
+
+func TestInlineFlush_NothingChanged_ZeroOutput(t *testing.T) {
+	r, outBuf := newInlineTestRenderer()
+	r.InlineFlush(rowsBuffer(10, "Hello", 5))
+	outBuf.Reset()
+
+	r.InlineFlush(rowsBuffer(10, "Hello", 5))
+
+	if outBuf.Len() != 0 {
+		t.Errorf("expected 0 bytes for an identical frame, got %d", outBuf.Len())
+	}
+}
+
+func TestInlineFlush_OnlyChangedRowsRewritten(t *testing.T) {
+	r, outBuf := newInlineTestRenderer()
+	r.InlineFlush(rowsBuffer(10, "abcde", 5))
+	outBuf.Reset()
+
+	r.InlineFlush(rowsBuffer(10, "abXde", 5))
+	output := outBuf.String()
+
+	if c := strings.Count(output, inlineEraseRow); c != 1 {
+		t.Errorf("expected 1 erase for 1 dirty row, got %d", c)
+	}
+	if !strings.Contains(output, "XXXXX") {
+		t.Error("expected the changed row content in the output")
+	}
+	for _, unchanged := range []string{"aaaaa", "bbbbb", "ddddd", "eeeee"} {
+		if strings.Contains(output, unchanged) {
+			t.Errorf("unchanged row %q should not be rewritten", unchanged)
 		}
 	}
-	for x := range 30 {
-		buf2.SetCell(x, 3, 'X', style.ColorWhite, style.ColorBlack, 0)
-		buf2.SetCell(x, 7, 'Y', style.ColorWhite, style.ColorBlack, 0)
-	}
-	r.InlineFlush(buf2)
-	diffBytes := outBuf.Len()
+}
 
-	// Two rewritten rows produce substantially less output than a complete flush.
-	if diffBytes >= firstBytes {
-		t.Errorf("diff (%d bytes) should be much smaller than full flush (%d bytes)", diffBytes, firstBytes)
+func TestInlineFlush_HeightGrew_AppendsNewRows(t *testing.T) {
+	r, outBuf := newInlineTestRenderer()
+	r.InlineFlush(rowsBuffer(10, "abc", 5))
+	outBuf.Reset()
+
+	r.InlineFlush(rowsBuffer(10, "abcde", 5))
+	output := outBuf.String()
+
+	if c := strings.Count(output, inlineEraseRow); c != 2 {
+		t.Errorf("expected 2 erases for 2 new rows, got %d", c)
 	}
-	// Exactly two rows are erased.
-	if c := strings.Count(outBuf.String(), "\x1b[2K"); c != 2 {
-		t.Errorf("expected 2 erases, got %d", c)
+	if !strings.Contains(output, "ddddd") || !strings.Contains(output, "eeeee") {
+		t.Error("expected both appended rows in the output")
+	}
+	for _, unchanged := range []string{"aaaaa", "bbbbb", "ccccc"} {
+		if strings.Contains(output, unchanged) {
+			t.Errorf("unchanged row %q should not be rewritten", unchanged)
+		}
+	}
+	if r.inlineCursorRow != 4 {
+		t.Errorf("expected cursorRow=4, got %d", r.inlineCursorRow)
+	}
+}
+
+func TestInlineFlush_HeightShrunk_ErasesRemovedRows(t *testing.T) {
+	r, outBuf := newInlineTestRenderer()
+	r.InlineFlush(rowsBuffer(10, "abcde", 5))
+	outBuf.Reset()
+
+	r.InlineFlush(rowsBuffer(10, "abc", 5))
+	output := outBuf.String()
+
+	if c := strings.Count(output, inlineEraseRow); c != 2 {
+		t.Errorf("expected 2 erases for 2 removed rows, got %d", c)
+	}
+	for _, unchanged := range []string{"aaaaa", "bbbbb", "ccccc"} {
+		if strings.Contains(output, unchanged) {
+			t.Errorf("unchanged row %q should not be rewritten", unchanged)
+		}
+	}
+	if r.inlineCursorRow != 2 {
+		t.Errorf("expected cursorRow=2, got %d", r.inlineCursorRow)
+	}
+}
+
+func TestInlineFlush_WidthChange_Repaints(t *testing.T) {
+	r, outBuf := newInlineTestRenderer()
+	r.InlineFlush(rowsBuffer(10, "abc", 5))
+	outBuf.Reset()
+
+	r.InlineFlush(rowsBuffer(15, "abc", 5))
+	output := outBuf.String()
+
+	if !strings.Contains(output, inlineEraseAll) {
+		t.Error("expected a full repaint after a width change")
+	}
+	if c := strings.Count(output, inlineEraseRow); c != 3 {
+		t.Errorf("expected 3 row erases from the repaint, got %d", c)
+	}
+}
+
+func TestInlineFlush_HeightChange_Repaints(t *testing.T) {
+	r, outBuf := newInlineTestRenderer()
+	r.InlineFlush(rowsBuffer(10, "abc", 5))
+	outBuf.Reset()
+
+	r.height = testTermHeight - 5
+	r.InlineFlush(rowsBuffer(10, "abc", 5))
+
+	if !strings.Contains(outBuf.String(), inlineEraseAll) {
+		t.Error("expected a full repaint after a terminal height change")
+	}
+}
+
+func TestInlineFlush_MovesUpToAChangedRow(t *testing.T) {
+	r, outBuf := newInlineTestRenderer()
+	r.InlineFlush(rowsBuffer(10, "abcde", 5))
+	outBuf.Reset()
+
+	r.InlineFlush(rowsBuffer(10, "Zbcde", 5))
+	output := outBuf.String()
+
+	// The cursor sat on row four and the change is on row zero.
+	if !strings.Contains(output, "\x1b[4A") {
+		t.Errorf("expected a four-row move up, got %q", output)
+	}
+	// Every flush parks on the last row of content.
+	if !strings.Contains(output, "\x1b[4B") {
+		t.Errorf("expected a four-row move back down, got %q", output)
+	}
+	if r.inlineCursorRow != 4 {
+		t.Errorf("expected cursorRow=4, got %d", r.inlineCursorRow)
 	}
 }
 
 func TestRenderInlineFrame_LayoutWidthMargin(t *testing.T) {
 	r, _ := newInlineTestRenderer()
 	r.renderInlineFrame()
-	if r.root.LayoutNode().Width.Value != 39 {
-		t.Errorf("expected layout width=39, got %v", r.root.LayoutNode().Width.Value)
+	if r.root.LayoutNode().Width.Value != testTermWidth-1 {
+		t.Errorf("expected layout width=%d, got %v", testTermWidth-1, r.root.LayoutNode().Width.Value)
 	}
 }
 
 func TestRenderInlineFrame_DynamicHeight(t *testing.T) {
 	r, _ := newInlineTestRenderer()
-	r.root.Add(render.NewBaseRenderable(render.WithID("c1"), render.WithWidth(layout.Points(39)), render.WithHeight(layout.Points(3))))
-	r.renderInlineFrame()
-	// Three content rows plus the trailing row produce four.
-	if r.lastInlineHeight != 4 {
-		t.Errorf("expected 4 (3+1), got %d", r.lastInlineHeight)
+	addRows := func(id string, rows int) {
+		r.root.Add(render.NewBaseRenderable(render.WithID(id),
+			render.WithWidth(layout.Points(testTermWidth-1)), render.WithHeight(layout.Points(rows))))
 	}
-	r.root.Add(render.NewBaseRenderable(render.WithID("c2"), render.WithWidth(layout.Points(39)), render.WithHeight(layout.Points(5))))
+
+	addRows("c1", 3)
 	r.renderInlineFrame()
-	// Eight content rows plus the trailing row produce nine.
-	if r.lastInlineHeight != 9 {
-		t.Errorf("expected 9 (8+1), got %d", r.lastInlineHeight)
+	if r.inlineCursorRow != 2 {
+		t.Errorf("three rows: expected cursorRow=2, got %d", r.inlineCursorRow)
+	}
+
+	addRows("c2", 5)
+	r.renderInlineFrame()
+	if r.inlineCursorRow != 7 {
+		t.Errorf("eight rows: expected cursorRow=7, got %d", r.inlineCursorRow)
 	}
 }
 
-func TestProcessResize_InlineMode_Initial(t *testing.T) {
+func TestProcessResize_InlineMode(t *testing.T) {
 	r, _ := newInlineTestRenderer()
-	// Before any frame, there is no prior output to erase.
+	r.InlineFlush(rowsBuffer(10, "abc", 5))
+
 	r.processResize(100, 50)
+
 	if r.width != 100 {
 		t.Errorf("expected width=100, got %d", r.width)
 	}
-	// Resize preserves zero so the first frame does not clear existing terminal output.
-	if r.lastInlineHeight != 0 {
-		t.Errorf("expected lastInlineHeight=0 (initial), got %d", r.lastInlineHeight)
+	if r.root.LayoutNode().Width.Value != 100 {
+		t.Errorf("expected layout width=100, got %v", r.root.LayoutNode().Width.Value)
 	}
-}
-
-func TestProcessResize_InlineMode_AfterRender(t *testing.T) {
-	r, _ := newInlineTestRenderer()
-	r.lastInlineHeight = 5 // Simulate prior inline output.
-	r.processResize(100, 50)
-	// A prior frame forces overflow-style clearing after resize.
-	if r.lastInlineHeight != 51 {
-		t.Errorf("expected lastInlineHeight=51 (termHeight+1), got %d", r.lastInlineHeight)
+	// The flush detects the height change and repaints; resize leaves the
+	// tracked terminal state alone.
+	if r.inlineTermHeight != testTermHeight {
+		t.Errorf("expected the tracked height to stay %d, got %d", testTermHeight, r.inlineTermHeight)
 	}
 }
 
@@ -557,9 +450,13 @@ func TestPrepareLayout_ExecuteRender_Split(t *testing.T) {
 
 func TestDestroy_InlineMode(t *testing.T) {
 	r, outBuf := newInlineTestRenderer()
-	r.lastInlineHeight = 5
+	r.InlineFlush(rowsBuffer(10, "abcde", 5))
+	outBuf.Reset()
+
 	r.Destroy()
-	if !strings.Contains(outBuf.String(), "\r\n") {
-		t.Error("expected \\r\\n on destroy")
+
+	// Restoring terminal modes follows, so the newline leads the output.
+	if !strings.HasPrefix(outBuf.String(), "\r\n") {
+		t.Errorf("expected a trailing newline below inline output, got %q", outBuf.String())
 	}
 }

@@ -378,6 +378,14 @@ func (t *Backend) DisableBracketedPaste() {
 	t.writeRaw("\x1b[?2004l")
 }
 
+// AlternateScreen reports whether the alternate screen buffer is active.
+func (t *Backend) AlternateScreen() bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	return t.alternateScreen
+}
+
 // EnterAlternateScreen switches to the alternate screen buffer.
 func (t *Backend) EnterAlternateScreen() {
 	t.mu.Lock()

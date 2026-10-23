@@ -2,11 +2,10 @@ package terminal
 
 import "github.com/unaquatic/fluid/render"
 
-// DrawCommand is one ordered widget-render, clipping-stack, or opacity-stack
-// operation.
+// DrawCommand is one ordered widget-render or clipping-stack operation.
 type DrawCommand struct {
-	// Action identifies the command type: "render", "pushScissorRect",
-	// "popScissorRect", "pushOpacity", or "popOpacity".
+	// Action identifies the command type: "render", "pushScissorRect", or
+	// "popScissorRect".
 	Action string
 
 	// Target is set only for a "render" action.
@@ -16,7 +15,4 @@ type DrawCommand struct {
 	X, Y, Width, Height int
 	// ScreenX and ScreenY are the corresponding hit-grid coordinates.
 	ScreenX, ScreenY int
-
-	// Opacity is set only for a "pushOpacity" action.
-	Opacity float32
 }

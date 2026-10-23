@@ -52,7 +52,7 @@ func (r *RootRenderable) UnregisterLifecyclePass(num uint64) {
 //  1. Run registered lifecycle callbacks.
 //  2. Resolve flexbox layout.
 //  3. Synchronize widget positions and run post-layout hooks.
-//  4. Build and execute render, clipping, and opacity commands.
+//  4. Build and execute render and clipping commands.
 func (r *RootRenderable) Render(buf *buffer.Buffer, deltaTime float64) {
 	prepStats := r.PrepareLayout(deltaTime)
 	execStats := r.ExecuteRender(buf, deltaTime)
@@ -96,26 +96,136 @@ func (r *RootRenderable) PrepareLayout(deltaTime float64) FrameStats {
 	}
 }
 
+// SyncPositions copies prepared layout into resolved geometry and runs
+// post-layout hooks. Call it after PrepareLayout and before Damage or Draw.
+//
+// It always walks the complete scene. Skipping a subtree would leave stale
+// geometry behind and hide the damage a moved renderable causes.
+func (r *RootRenderable) SyncPositions(deltaTime float64) FrameStats {
+	t0 := time.Now()
+	nodeCount := 0
+	r.syncPositionsRecursive(r.BaseRenderable, deltaTime, 0, 0, &nodeCount)
+	return FrameStats{Sync: time.Since(t0), NodeCount: nodeCount}
+}
+
+// TakeDamage returns the region of the scene that changed since the last frame,
+// or an empty rectangle when nothing did. Call it after SyncPositions.
+//
+// It consumes the regions that nothing will repaint. A hidden or destroyed
+// renderable never paints again, so the region it vacated is reported once and
+// then forgotten. A visible renderable keeps reporting until it paints, which
+// is what clears it.
+func (r *RootRenderable) TakeDamage() buffer.Rect {
+	var damage buffer.Rect
+	r.collectDamage(r.BaseRenderable, nil, &damage)
+	return damage
+}
+
+// ResetDamage discards the damage of every renderable in the scene. Call it
+// when the frame repaints in full, which leaves nothing for the next one to
+// restore.
+func (r *RootRenderable) ResetDamage() {
+	r.TakeDamage()
+}
+
+// collectDamage accumulates the damage of node's subtree.
+//
+// A clipping container bounds the damage of everything inside it, because
+// nothing inside can reach a cell the container clips away. Without that bound
+// a node scissored out of view never paints, so its geometry never matches its
+// last paint and it reports damage on every frame forever.
+func (r *RootRenderable) collectDamage(node render.Renderable, scissor *buffer.Rect, damage *buffer.Rect) {
+	nodeDamage := node.Damage()
+	if scissor != nil {
+		nodeDamage = nodeDamage.Intersect(*scissor)
+	}
+	*damage = damage.Union(nodeDamage)
+	node.ClearDamage()
+	node.ClearChildDirty()
+
+	// A hidden or destroyed subtree reports everything it covered, so its root
+	// already carries what its descendants left behind.
+	if node.IsDestroyed() || !node.Visible() {
+		return
+	}
+
+	childScissor := scissor
+	if rect, clips := clipRect(node); clips {
+		childScissor = &rect
+	}
+
+	stacked := stacksFromStart(node.LayoutNode())
+	for _, child := range node.ChildrenRaw() {
+		// A clean child of a container that stacks from the start holds no
+		// change, and nothing before the first change could have moved.
+		if stacked && !changedBelow(child) {
+			continue
+		}
+		stacked = false
+		r.collectDamage(child, childScissor, damage)
+	}
+}
+
+// changedBelow reports whether node or anything under it changed since the last
+// frame, which is what traversal must descend for.
+func changedBelow(node render.Renderable) bool {
+	return node.IsDirty() || node.ChildDirty()
+}
+
+// stacksFromStart reports whether n places its children from the start of the
+// main axis, where a change to one child cannot move the children before it.
+//
+// Centring, end alignment, and space distribution all move earlier children
+// when a later one resizes, and wrapping moves them across lines.
+func stacksFromStart(n *layout.LayoutNode) bool {
+	return n.JustifyContent == layout.JustifyStart &&
+		n.FlexWrap == layout.WrapNone &&
+		!n.FlexDirection.IsReverse()
+}
+
 // ExecuteRender synchronizes positions from prepared layout, builds commands,
 // and executes them into buf. Call it after PrepareLayout.
 func (r *RootRenderable) ExecuteRender(buf *buffer.Buffer, deltaTime float64) FrameStats {
+	sync := r.SyncPositions(deltaTime)
+	stats := r.Draw(buf, deltaTime, buffer.Rect{})
+	stats.Sync = sync.Sync
+	stats.NodeCount = sync.NodeCount
+	return stats
+}
+
+// Draw builds and executes render commands for the renderables intersecting
+// damage. An empty rectangle draws the complete scene. Call it after
+// SyncPositions.
+//
+// Callers must clear the damaged region first, because renderables paint their
+// content over whatever the buffer already holds.
+//
+// Painting is confined to the damaged region. A renderable that draws outside
+// its own rectangle would otherwise write cells the frame never cleared, which
+// no longer match what the caller records as painted.
+func (r *RootRenderable) Draw(buf *buffer.Buffer, deltaTime float64, damage buffer.Rect) FrameStats {
+	var damaged *buffer.Rect
+	if !damage.IsEmpty() {
+		damaged = &damage
+	}
+
+	// Build the ordered command stream for the damaged region.
 	t0 := time.Now()
-
-	// Synchronize positions and run post-layout hooks.
-	nodeCount := 0
-	r.syncPositionsRecursive(r.BaseRenderable, deltaTime, 0, 0, &nodeCount)
-	t1 := time.Now()
-
-	// Build the complete ordered command stream.
 	var commands []DrawCommand
-	r.collectRenderCommands(r.BaseRenderable, &commands)
-	t2 := time.Now()
+	r.collectRenderCommandsWithScissor(r.BaseRenderable, &commands, nil, damaged)
+	t1 := time.Now()
 
 	// Visible render commands repopulate the hit grid.
 	r.Context().ClearHitGrid()
 
+	// Confine every write to the damage. Nested pushes intersect, so a clipping
+	// container still narrows this further.
+	if damaged != nil {
+		buf.PushScissorRect(damage.X, damage.Y, damage.Width, damage.Height)
+	}
+
 	// Execute render and stack operations in order.
-	t3 := time.Now()
+	t2 := time.Now()
 	for _, cmd := range commands {
 		switch cmd.Action {
 		case "render":
@@ -128,20 +238,19 @@ func (r *RootRenderable) ExecuteRender(buf *buffer.Buffer, deltaTime float64) Fr
 		case "popScissorRect":
 			buf.PopScissorRect()
 			r.Context().PopHitGridScissorRect()
-		case "pushOpacity":
-			buf.PushOpacity(cmd.Opacity)
-		case "popOpacity":
-			buf.PopOpacity()
 		}
 	}
-	t4 := time.Now()
+	t3 := time.Now()
 
+	if damaged != nil {
+		buf.PopScissorRect()
+	}
+
+	// Sync and NodeCount belong to SyncPositions, which Draw does not run.
 	return FrameStats{
-		Sync:      t1.Sub(t0),
-		Commands:  t2.Sub(t1),
-		Render:    t4.Sub(t3),
-		CmdCount:  len(commands),
-		NodeCount: nodeCount,
+		Commands: t1.Sub(t0),
+		Render:   t3.Sub(t2),
+		CmdCount: len(commands),
 	}
 }
 
@@ -154,7 +263,13 @@ func (r *RootRenderable) syncPositionsRecursive(node render.Renderable, deltaTim
 	r.syncPositionsWithClip(node, deltaTime, parentTX, parentTY, nil, nodeCount)
 }
 
-func (r *RootRenderable) syncPositionsWithClip(node render.Renderable, deltaTime float64, parentTX, parentTY int, clip *scissorRect, nodeCount *int) {
+// syncPositionsWithClip resolves the geometry of node and every descendant it
+// reached. A hidden or destroyed subtree paints nothing and is not descended
+// into.
+//
+// A subtree the clip culls is not descended into either. Every pass culls on
+// the same cullRect, so the command pass discards that subtree too.
+func (r *RootRenderable) syncPositionsWithClip(node render.Renderable, deltaTime float64, parentTX, parentTY int, clip *buffer.Rect, nodeCount *int) {
 	if node.IsDestroyed() || !node.Visible() {
 		return
 	}
@@ -162,15 +277,16 @@ func (r *RootRenderable) syncPositionsWithClip(node render.Renderable, deltaTime
 	*nodeCount++
 
 	// Copy computed geometry and trigger resize handling when dimensions changed.
+	prev := node.Rect()
 	node.UpdateFromLayoutWithOffset(parentTX, parentTY)
 
+	// A node that moved or resized carries every descendant with it, so none of
+	// them can keep the geometry of the previous frame.
+	moved := node.Rect() != prev
+
 	// Do not run post-layout hooks or descend when the node is outside the clip.
-	if clip != nil {
-		nx, ny, nw, nh := node.X(), node.Y(), node.Width(), node.Height()
-		if nx+nw <= clip.x || nx >= clip.x+clip.w ||
-			ny+nh <= clip.y || ny >= clip.y+clip.h {
-			return
-		}
+	if excludes(clip, node.Rect()) {
+		return
 	}
 
 	// Post-layout hooks can update descendant translation.
@@ -182,15 +298,18 @@ func (r *RootRenderable) syncPositionsWithClip(node render.Renderable, deltaTime
 
 	// A clipping container supplies the child culling rectangle.
 	childClip := clip
-	overflow := node.LayoutNode().Overflow
-	if overflow == layout.OverflowScroll || overflow == layout.OverflowHidden {
-		childClip = &scissorRect{
-			x: node.X(), y: node.Y(),
-			w: node.Width(), h: node.Height(),
-		}
+	if rect, clips := clipRect(node); clips {
+		childClip = &rect
 	}
 
+	stacked := !moved && stacksFromStart(node.LayoutNode())
 	for _, child := range node.ChildrenRaw() {
+		// A clean child of a container that stayed put holds the geometry of
+		// the previous frame, and so does its subtree.
+		if stacked && !changedBelow(child) {
+			continue
+		}
+		stacked = false
 		r.syncPositionsWithClip(child, deltaTime, childTX, childTY, childClip, nodeCount)
 	}
 }
@@ -211,41 +330,63 @@ func (r *RootRenderable) UpdateLayout() []DrawCommand {
 }
 
 // scissorRect contains a clipping region used for subtree culling.
-type scissorRect struct {
-	x, y, w, h int
+// clipRect returns the rectangle node bounds its descendants to, and reports
+// whether node bounds them at all. Every pass uses this one, so they agree on
+// what a container hides.
+//
+// It is the container's whole box, not the box its scissor command carries,
+// which padding insets further. Culling on the wider rectangle only keeps
+// renderables the buffer then clips away.
+func clipRect(node render.Renderable) (buffer.Rect, bool) {
+	switch node.LayoutNode().Overflow {
+	case layout.OverflowScroll, layout.OverflowHidden:
+		return node.Rect(), true
+	}
+	return buffer.Rect{}, false
+}
+
+// excludes reports whether rect lies entirely outside clip. A nil clip excludes
+// nothing.
+func excludes(clip *buffer.Rect, rect buffer.Rect) bool {
+	if clip == nil {
+		return false
+	}
+	return rect.Right() <= clip.X || rect.X >= clip.Right() ||
+		rect.Bottom() <= clip.Y || rect.Y >= clip.Bottom()
 }
 
 // collectRenderCommands builds a depth-first command stream from synchronized
 // widget positions. Nodes outside an active clipping region are omitted with
 // their subtrees.
 func (r *RootRenderable) collectRenderCommands(node render.Renderable, commands *[]DrawCommand) {
-	r.collectRenderCommandsWithScissor(node, commands, nil)
+	r.collectRenderCommandsWithScissor(node, commands, nil, nil)
 }
 
-func (r *RootRenderable) collectRenderCommandsWithScissor(node render.Renderable, commands *[]DrawCommand, clip *scissorRect) {
+// collectRenderCommandsWithScissor appends the command stream for node's
+// subtree. Either region may be nil.
+//
+// scissor comes from a clipping container and applies to descendants, so a
+// subtree outside it cannot paint and is culled whole.
+//
+// damage is fixed for the frame. A subtree paints inside its root, so a node
+// outside the damage encloses nothing inside it and is culled whole too.
+func (r *RootRenderable) collectRenderCommandsWithScissor(node render.Renderable, commands *[]DrawCommand, scissor, damage *buffer.Rect) {
 	if node.IsDestroyed() || !node.Visible() {
 		return
 	}
 
-	// Cull a complete subtree when its root lies outside the active clip.
-	if clip != nil {
-		nx, ny, nw, nh := node.X(), node.Y(), node.Width(), node.Height()
-		if nx+nw <= clip.x || nx >= clip.x+clip.w ||
-			ny+nh <= clip.y || ny >= clip.y+clip.h {
-			return
-		}
+	// Cull a complete subtree when its root lies outside the active scissor.
+	if excludes(scissor, node.Rect()) {
+		return
 	}
 
-	needsScissor := node.LayoutNode().Overflow == layout.OverflowHidden ||
-		node.LayoutNode().Overflow == layout.OverflowScroll
-	needsOpacity := node.Opacity() < 1.0
-
-	if needsOpacity {
-		*commands = append(*commands, DrawCommand{
-			Action:  "pushOpacity",
-			Opacity: node.Opacity(),
-		})
+	// A subtree whose root misses the damage holds nothing inside it, because a
+	// subtree paints inside its root.
+	if excludes(damage, node.Rect()) {
+		return
 	}
+
+	cull, needsScissor := clipRect(node)
 
 	// Render the container before clipping its descendants so its border remains
 	// visible.
@@ -292,34 +433,30 @@ func (r *RootRenderable) collectRenderCommandsWithScissor(node render.Renderable
 		})
 	}
 
-	// Use the emitted scissor rectangle when culling descendants.
-	childClip := clip
+	// Cull descendants on the container's whole box, which is what layout
+	// traversal culls on too. The emitted scissor still clips painting to the
+	// narrower inset box.
+	childScissor := scissor
 	if needsScissor {
-		childClip = &scissorRect{x: sx, y: sy, w: sw, h: sh}
+		childScissor = &cull
 	}
 
-	r.collectChildCommands(node, commands, childClip)
+	r.collectChildCommands(node, commands, childScissor, damage)
 
 	if needsScissor {
 		*commands = append(*commands, DrawCommand{
 			Action: "popScissorRect",
 		})
 	}
-
-	if needsOpacity {
-		*commands = append(*commands, DrawCommand{
-			Action: "popOpacity",
-		})
-	}
 }
 
 // collectChildCommands appends child command streams. In a scroll container,
 // sticky children follow non-sticky siblings so they paint on top.
-func (r *RootRenderable) collectChildCommands(node render.Renderable, commands *[]DrawCommand, clip *scissorRect) {
+func (r *RootRenderable) collectChildCommands(node render.Renderable, commands *[]DrawCommand, scissor, damage *buffer.Rect) {
 	children := node.ChildrenRaw()
 	if node.LayoutNode().Overflow != layout.OverflowScroll {
 		for _, child := range children {
-			r.collectRenderCommandsWithScissor(child, commands, clip)
+			r.collectRenderCommandsWithScissor(child, commands, scissor, damage)
 		}
 		return
 	}
@@ -328,13 +465,13 @@ func (r *RootRenderable) collectChildCommands(node render.Renderable, commands *
 		if child.LayoutNode().Sticky != layout.StickyNone {
 			continue
 		}
-		r.collectRenderCommandsWithScissor(child, commands, clip)
+		r.collectRenderCommandsWithScissor(child, commands, scissor, damage)
 	}
 	for _, child := range children {
 		if child.LayoutNode().Sticky == layout.StickyNone {
 			continue
 		}
-		r.collectRenderCommandsWithScissor(child, commands, clip)
+		r.collectRenderCommandsWithScissor(child, commands, scissor, damage)
 	}
 }
 

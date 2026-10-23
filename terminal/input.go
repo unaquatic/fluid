@@ -15,7 +15,7 @@ func (r *Renderer) inputLoop() {
 	buf := make([]byte, 4096)
 	for {
 		n, err := r.backend.stdin.Read(buf)
-		if err != nil || r.destroyed {
+		if err != nil || r.destroyed.Load() {
 			return
 		}
 		if n == 0 {
@@ -111,15 +111,15 @@ func (r *Renderer) dispatchMouseEvent(evt input.TerminalEvent) {
 	x, y := me.X, me.Y
 
 	// Resolve the topmost renderable at the pointer coordinates.
-	r.mu.Lock()
 	var target render.Renderable
-	if r.hitGrid != nil {
+	if r.HitTesting() {
+		r.mu.Lock()
 		id := r.hitGrid.Check(x, y)
+		r.mu.Unlock()
 		if id != 0 {
 			target = render.LookupRenderable(id)
 		}
 	}
-	r.mu.Unlock()
 
 	me.Target = target
 

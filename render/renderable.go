@@ -53,6 +53,24 @@ type Renderable interface {
 	SetVisible(v bool)
 	// IsDirty reports whether the renderable requires repainting.
 	IsDirty() bool
+	// MarkDirty marks the renderable for repainting and records the change on
+	// its ancestors.
+	MarkDirty()
+	// ChildDirty reports whether a descendant changed since the last frame.
+	ChildDirty() bool
+	// MarkChildDirty records that a descendant changed, so scene traversal
+	// descends here. It adds no damage of its own.
+	MarkChildDirty()
+	// ClearChildDirty forgets the record once traversal has used it.
+	ClearChildDirty()
+	// Damage returns the region the renderable must repaint, or an empty
+	// rectangle when it is unchanged.
+	Damage() buffer.Rect
+	// ClearDamage forgets a vacated region once it has been repainted.
+	ClearDamage()
+	// Rect returns the renderable's resolved geometry, which bounds everywhere
+	// the renderable and its descendants paint.
+	Rect() buffer.Rect
 	// RequestRender marks the renderable dirty and requests a scene repaint.
 	RequestRender()
 	// IsDestroyed reports whether Destroy was called.
@@ -70,10 +88,6 @@ type Renderable interface {
 	Width() int
 	// Height returns the resolved height.
 	Height() int
-	// SetOpacity sets opacity, where zero is transparent and one is opaque.
-	SetOpacity(o float32)
-	// Opacity returns the current opacity.
-	Opacity() float32
 	// TranslateX returns the horizontal offset inherited by descendants after
 	// layout.
 	TranslateX() int
@@ -160,15 +174,6 @@ type Renderable interface {
 	Context() Context
 	// SetContext attaches a renderer context.
 	SetContext(ctx Context)
-
-	// Buffered rendering.
-
-	// Buffered reports whether the renderable uses a private frame buffer.
-	Buffered() bool
-	// SetBuffered controls private frame-buffer rendering.
-	SetBuffered(b bool)
-	// FrameBuffer returns the private frame buffer, or nil if none is allocated.
-	FrameBuffer() *buffer.Buffer
 
 	// Continuous rendering.
 

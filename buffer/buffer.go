@@ -1,6 +1,7 @@
 package buffer
 
 import (
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -19,28 +20,45 @@ func (r Rect) Contains(x, y int) bool {
 	return x >= r.X && x < r.X+r.Width && y >= r.Y && y < r.Y+r.Height
 }
 
-// Intersect returns the intersection of r and other. A disjoint intersection
-// has zero width or height.
+// Intersect returns the intersection of r and other, or the zero rectangle
+// when they do not overlap.
 func (r Rect) Intersect(other Rect) Rect {
 	x1 := max(r.X, other.X)
 	y1 := max(r.Y, other.Y)
 	x2 := min(r.Right(), other.Right())
 	y2 := min(r.Bottom(), other.Bottom())
 
-	w := x2 - x1
-	h := y2 - y1
-	if w < 0 {
-		w = 0
+	// An empty result carries no position. Callers read X and Y without
+	// rechecking IsEmpty, so a positioned empty rectangle misdirects them.
+	if x2 <= x1 || y2 <= y1 {
+		return Rect{}
 	}
-	if h < 0 {
-		h = 0
-	}
-	return Rect{X: x1, Y: y1, Width: w, Height: h}
+	return Rect{X: x1, Y: y1, Width: x2 - x1, Height: y2 - y1}
 }
 
 // IsEmpty reports whether r has no area.
 func (r Rect) IsEmpty() bool {
 	return r.Width <= 0 || r.Height <= 0
+}
+
+// Union returns the smallest rectangle containing both r and other, or the zero
+// rectangle when both are empty. An empty operand contributes nothing.
+func (r Rect) Union(other Rect) Rect {
+	switch {
+	case r.IsEmpty() && other.IsEmpty():
+		// Neither operand has area, so neither contributes a position.
+		return Rect{}
+	case r.IsEmpty():
+		return other
+	case other.IsEmpty():
+		return r
+	}
+
+	x1 := min(r.X, other.X)
+	y1 := min(r.Y, other.Y)
+	x2 := max(r.Right(), other.Right())
+	y2 := max(r.Bottom(), other.Bottom())
+	return Rect{X: x1, Y: y1, Width: x2 - x1, Height: y2 - y1}
 }
 
 // Right returns the exclusive right edge of r.
@@ -99,13 +117,12 @@ type BoxDrawOptions struct {
 	TitleAlignment      string // One of "left", "center", or "right".
 }
 
-// Buffer is a 2D grid of styled cells with clipping and opacity support.
+// Buffer is a 2D grid of styled cells with clipping support.
 type Buffer struct {
 	width        int
 	height       int
 	cells        []Cell // Cells are stored in row-major order.
 	scissor      scissorStack
-	opacity      opacityStack
 	respectAlpha bool // Whether DrawFrameBuffer alpha blends this buffer as a source.
 	id           string
 }
@@ -206,22 +223,13 @@ func (b *Buffer) isClipped(x, y int) bool {
 	return !b.scissor.Contains(x, y)
 }
 
-// applyOpacity multiplies both alpha channels by the effective opacity.
-func (b *Buffer) applyOpacity(fg, bg *style.Color) {
-	op := b.opacity.Current()
-	if op < 1.0 {
-		fg.A = uint8(float32(fg.A) * op)
-		bg.A = uint8(float32(bg.A) * op)
-	}
-}
-
-// SetCellCombining sets the Combining field for the cell at (x, y).
-// It does nothing when (x, y) is outside the buffer.
+// SetCellCombining sets the grapheme-cluster continuation for the cell at
+// (x, y). It does nothing when (x, y) is outside the buffer.
 func (b *Buffer) SetCellCombining(x, y int, combining string) {
 	if !b.inBounds(x, y) {
 		return
 	}
-	b.cells[b.cellIndex(x, y)].Combining = combining
+	b.cells[b.cellIndex(x, y)].combining = combiningHandle(combining)
 }
 
 // SetGraphemeCluster writes cluster at (x, y). It stores the first code point
@@ -282,7 +290,7 @@ func (b *Buffer) Cell(x, y int) Cell {
 }
 
 // SetCell writes char at (x, y), subject to the current clipping region and
-// opacity. It does nothing when the coordinates are outside either region.
+// It does nothing when the coordinates are outside either region.
 //
 // A wide character occupies a head cell followed by continuation cells. If
 // the complete character does not fit, SetCell discards the write to prevent
@@ -296,14 +304,14 @@ func (b *Buffer) SetCell(x, y int, char rune, fg, bg style.Color, attrs uint32) 
 func (b *Buffer) detachWide(x, y int) {
 	head := x
 	if c := b.Cell(x, y); c.IsContinuation() {
-		head += c.Width
+		head += int(c.Width)
 	}
-	w := b.Cell(head, y).Width
+	w := int(b.Cell(head, y).Width)
 	if head < 0 || w <= max(x-head, 1) {
 		return
 	}
 	for col := head; col < head+min(w, b.width-head); col++ {
-		if col != x && (col == head || b.Cell(col, y).Width == head-col) {
+		if col != x && (col == head || int(b.Cell(col, y).Width) == head-col) {
 			b.blankAt(col, y)
 		}
 	}
@@ -335,16 +343,16 @@ func (b *Buffer) blankAt(x, y int) {
 func (b *Buffer) setCluster(x, y int, char rune, combining string, w int, fg, bg style.Color, attrs uint32) {
 	b.SetCellDirect(x, y, Cell{
 		Char:       char,
-		Combining:  combining,
+		combining:  combiningHandle(combining),
 		Fg:         fg,
 		Bg:         bg,
 		Attributes: attrs,
-		Width:      w,
+		Width:      int16(w),
 	})
 }
 
 // SetCellDirect writes cell at (x, y), subject to the current clipping region
-// and opacity.
+
 // Transparent backgrounds preserve the existing cell's background.
 // Multi-column cells create continuations with matching styles. If the entire
 // cell does not fit within the buffer and clipping region, the write is
@@ -353,18 +361,18 @@ func (b *Buffer) SetCellDirect(x, y int, cell Cell) {
 	if !b.inBounds(x, y) || b.isClipped(x, y) {
 		return
 	}
-	if cell.Width > b.width-x {
+	width := int(cell.Width)
+	if width > b.width-x {
 		return
 	}
-	for offset := 1; offset < cell.Width; offset++ {
+	for offset := 1; offset < width; offset++ {
 		if b.isClipped(x+offset, y) {
 			return
 		}
 	}
-	b.applyOpacity(&cell.Fg, &cell.Bg)
 	// Rewriting a continuation must not detach it from its existing head.
 	if !cell.IsContinuation() {
-		for offset := range max(cell.Width, 1) {
+		for offset := range max(width, 1) {
 			b.detachWide(x+offset, y)
 		}
 	}
@@ -373,25 +381,23 @@ func (b *Buffer) SetCellDirect(x, y int, cell Cell) {
 		cell.Bg = b.cells[idx].Bg
 	}
 	b.cells[idx] = cell
-	for offset := 1; offset < cell.Width; offset++ {
+	for offset := 1; offset < width; offset++ {
 		b.cells[idx+offset] = Cell{
 			Fg:         cell.Fg,
 			Bg:         cell.Bg,
 			Attributes: cell.Attributes,
-			Width:      -offset,
+			Width:      int16(-offset),
 		}
 	}
 }
 
 // SetCellBlended alpha blends char over the cell at (x, y), subject to the
-// current clipping region and opacity. It discards a wide character that does
+// current clipping region. It discards a wide character that does
 // not fit in the buffer.
 func (b *Buffer) SetCellBlended(x, y int, char rune, fg, bg style.Color, attrs uint32) {
 	if !b.inBounds(x, y) || b.isClipped(x, y) {
 		return
 	}
-
-	b.applyOpacity(&fg, &bg)
 
 	w := RuneWidth(char)
 
@@ -405,7 +411,7 @@ func (b *Buffer) SetCellBlended(x, y int, char rune, fg, bg style.Color, attrs u
 		Fg:         fg,
 		Bg:         bg,
 		Attributes: attrs,
-		Width:      w,
+		Width:      int16(w),
 	}
 
 	b.detachWide(x, y)
@@ -531,7 +537,6 @@ func (b *Buffer) FillRect(x, y, w, h int, bg style.Color) {
 			if b.inBounds(col, row) && !b.isClipped(col, row) {
 				fg := style.ColorWhite
 				cellBg := bg
-				b.applyOpacity(&fg, &cellBg)
 				b.detachWide(col, row)
 				idx := b.cellIndex(col, row)
 				b.cells[idx] = Cell{
@@ -702,7 +707,7 @@ func (b *Buffer) DrawVLine(x, y, length int, char rune, fg, bg style.Color) {
 
 // DrawFrameBuffer copies src to b at (destX, destY). The first optional source
 // rectangle restricts the copied region. The copy respects b's clipping region
-// and opacity. If src.RespectAlpha reports true, the copy alpha blends each
+// If src.RespectAlpha reports true, the copy alpha blends each
 // source cell over its destination.
 func (b *Buffer) DrawFrameBuffer(destX, destY int, src *Buffer, srcRect ...Rect) {
 	sr := src.Bounds()
@@ -726,13 +731,6 @@ func (b *Buffer) DrawFrameBuffer(destX, destY int, src *Buffer, srcRect ...Rect)
 				continue
 			}
 
-			// Destination opacity attenuates the copied source cell.
-			op := b.opacity.Current()
-			if op < 1.0 {
-				srcCell.Fg.A = uint8(float32(srcCell.Fg.A) * op)
-				srcCell.Bg.A = uint8(float32(srcCell.Bg.A) * op)
-			}
-
 			b.detachWide(dx, dy)
 			idx := b.cellIndex(dx, dy)
 			if src.respectAlpha {
@@ -753,8 +751,51 @@ func (b *Buffer) CopyFrom(src *Buffer) {
 	copy(b.cells, src.cells)
 }
 
+// CopyRowsFrom replaces rows [y, y+height) of b with the corresponding rows of
+// src, copying only the rows both buffers hold.
+//
+// Buffers of differing width lay their rows out differently, so no row
+// corresponds and it copies nothing.
+func (b *Buffer) CopyRowsFrom(src *Buffer, y, height int) {
+	if b.width != src.width {
+		return
+	}
+
+	top := max(y, 0)
+	bottom := min(y+height, min(b.height, src.height))
+	if top >= bottom {
+		return
+	}
+	copy(b.cells[top*b.width:bottom*b.width], src.cells[top*b.width:bottom*b.width])
+}
+
+// SetHeight changes b's height, keeping the rows both sizes hold and clearing
+// the rows the change adds. Existing cells are reused when they have room, so
+// growing by a row costs a row rather than a copy of the whole buffer.
+//
+// It resets the clipping stack, as Resize does.
+func (b *Buffer) SetHeight(height int) {
+	if height < 0 {
+		height = 0
+	}
+
+	need := b.width * height
+	if need > cap(b.cells) {
+		b.cells = slices.Grow(b.cells, need-len(b.cells))
+	}
+
+	kept := min(len(b.cells), need)
+	b.cells = b.cells[:need]
+	for i := kept; i < need; i++ {
+		b.cells[i] = CellClear
+	}
+
+	b.height = height
+	b.scissor.Clear()
+}
+
 // Resize changes the dimensions of b, clears its cells, and resets its
-// clipping and opacity stacks.
+// clipping stack.
 func (b *Buffer) Resize(width, height int) {
 	if width < 0 {
 		width = 0
@@ -767,7 +808,6 @@ func (b *Buffer) Resize(width, height int) {
 	b.cells = make([]Cell, width*height)
 	b.fill(CellClear)
 	b.scissor.Clear()
-	b.opacity.Clear()
 }
 
 // PushScissorRect restricts subsequent drawing to the intersection of the
@@ -785,28 +825,6 @@ func (b *Buffer) PopScissorRect() {
 // ClearScissorRects removes all clipping restrictions.
 func (b *Buffer) ClearScissorRects() {
 	b.scissor.Clear()
-}
-
-// PushOpacity multiplies subsequent drawing opacity by opacity, clamped to the
-// range [0, 1].
-func (b *Buffer) PushOpacity(opacity float32) {
-	b.opacity.Push(opacity)
-}
-
-// PopOpacity restores the opacity that preceded the most recent PushOpacity
-// call.
-func (b *Buffer) PopOpacity() {
-	b.opacity.Pop()
-}
-
-// CurrentOpacity returns the product of the stacked opacity multipliers.
-func (b *Buffer) CurrentOpacity() float32 {
-	return b.opacity.Current()
-}
-
-// ClearOpacity removes all opacity multipliers and restores full opacity.
-func (b *Buffer) ClearOpacity() {
-	b.opacity.Clear()
 }
 
 // Chars returns a row-major snapshot of the primary code point in each cell.

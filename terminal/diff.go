@@ -35,14 +35,14 @@ func flushRune(buf *buffer.Buffer, x, y int, cell buffer.Cell) (rune, bool) {
 func clusterIntact(buf *buffer.Buffer, x, y int) bool {
 	head := x
 	if c := buf.Cell(x, y); c.IsContinuation() {
-		head += c.Width
+		head += int(c.Width)
 	}
-	w := buf.Cell(head, y).Width
+	w := int(buf.Cell(head, y).Width)
 	if head < 0 || w <= max(x-head, 1) || w > buf.Width()-head {
 		return false
 	}
 	for offset := 1; offset < w; offset++ {
-		if buf.Cell(head+offset, y).Width != -offset {
+		if int(buf.Cell(head+offset, y).Width) != -offset {
 			return false
 		}
 	}
@@ -56,7 +56,7 @@ func clusterIntact(buf *buffer.Buffer, x, y int) bool {
 // grapheme handling. Flush code re-anchors after them so disagreement does not
 // accumulate across the row.
 func widthUncertain(c buffer.Cell) bool {
-	return c.IsWide() || c.Combining != ""
+	return c.IsWide() || c.HasCombining()
 }
 
 // anchorColumn writes an absolute, one-based CHA sequence for zero-based x.
@@ -126,8 +126,8 @@ func (r *Renderer) DiffAndFlush(current, next *buffer.Buffer) {
 			output.WriteRune(ch)
 			cursorX++
 			if ch == nxt.Char {
-				output.WriteString(nxt.Combining)
-				cursorX += max(nxt.Width-1, 0)
+				output.WriteString(nxt.Combining())
+				cursorX += max(int(nxt.Width)-1, 0)
 				if widthUncertain(nxt) {
 					// Force absolute positioning before the next emitted cell.
 					cursorX = -1
@@ -252,7 +252,7 @@ func (r *Renderer) FullFlush(buf *buffer.Buffer) {
 
 			output.WriteRune(ch)
 			if ch == cell.Char {
-				output.WriteString(cell.Combining)
+				output.WriteString(cell.Combining())
 				anchored = !widthUncertain(cell)
 			}
 		}

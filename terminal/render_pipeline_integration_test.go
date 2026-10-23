@@ -1,11 +1,12 @@
 package terminal
 
-// These integration tests exercise scene rendering, clipping, opacity, hit
+// These integration tests exercise scene rendering, clipping, hit
 // testing, event-driven updates, and painter-order behavior without depending
 // on package widget.
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -382,66 +383,8 @@ func TestPipeline_ScissorClipsHitGrid(t *testing.T) {
 	}
 }
 
-// TestPipeline_OpacityCompositing verifies that opacity attenuates the overlay
-// rather than producing an opaque replacement.
-func TestPipeline_OpacityCompositing(t *testing.T) {
-	root, _ := setupRoot(10, 3)
-
-	// Paint an opaque red background first.
-	bg := render.NewBaseRenderable(
-		render.WithID("bg"),
-		render.WithWidth(layout.Points(10)),
-		render.WithHeight(layout.Points(3)),
-	)
-	bg.RenderBeforeHook = func(buf *buffer.Buffer, dt float64) {
-		for y := range 3 {
-			for x := range 10 {
-				buf.SetCell(x, y, ' ', style.ColorWhite, style.ColorRed, 0)
-			}
-		}
-	}
-	root.Add(bg)
-
-	// Paint a half-opacity blue absolute overlay on the same area.
-	overlay := render.NewBaseRenderable(
-		render.WithID("overlay"),
-		render.WithOpacity(0.5),
-		render.WithWidth(layout.Points(10)),
-		render.WithHeight(layout.Points(3)),
-		render.WithPosition(layout.PositionAbsolute),
-		render.WithTop(layout.Points(0)),
-		render.WithLeft(layout.Points(0)),
-	)
-	overlay.RenderBeforeHook = func(buf *buffer.Buffer, dt float64) {
-		cx := overlay.X()
-		cy := overlay.Y()
-		for y := range 3 {
-			for x := range 10 {
-				buf.SetCell(cx+x, cy+y, ' ', style.ColorWhite, style.ColorBlue, 0)
-			}
-		}
-	}
-	root.Add(overlay)
-
-	buf := buffer.New(10, 3)
-	root.Render(buf, 0.016)
-
-	// The resulting cell differs from either opaque endpoint.
-	cell := buf.Cell(0, 0)
-	if cell.Bg.Equals(style.ColorRed) {
-		t.Error("expected bg NOT to be pure red after 50% blue overlay")
-	}
-	if cell.Bg.Equals(style.ColorBlue) {
-		t.Error("expected bg NOT to be pure blue (opacity < 1)")
-	}
-	// The overlay contributes a blue channel.
-	if cell.Bg.B < 1 {
-		t.Errorf("expected blended color with blue component > 0, got %v", cell.Bg)
-	}
-}
-
-// TestPipeline_FullOpacity verifies exact output at full opacity.
-func TestPipeline_FullOpacity(t *testing.T) {
+// TestPipeline_ExactCellOutput verifies the exact cell a child paints.
+func TestPipeline_ExactCellOutput(t *testing.T) {
 	root, _ := setupRoot(5, 1)
 
 	child := makeRenderChild("opaque", 0, 0, 5, 1, 'O', style.ColorGreen, style.ColorBlack)
@@ -719,36 +662,6 @@ func TestPipeline_HookOrdering(t *testing.T) {
 	}
 }
 
-// TestPipeline_PostProcessModifiesBuffer verifies frame modification after scene
-// rendering.
-func TestPipeline_PostProcessModifiesBuffer(t *testing.T) {
-	r, _ := setupRenderer(10, 1)
-	r.config.BackgroundColor = style.ColorBlack
-
-	// Scene rendering writes X first.
-	child := render.NewBaseRenderable(
-		render.WithID("content"),
-		render.WithWidth(layout.Points(10)),
-		render.WithHeight(layout.Points(1)),
-	)
-	child.RenderBeforeHook = func(buf *buffer.Buffer, dt float64) {
-		buf.SetCell(child.X(), child.Y(), 'X', style.ColorWhite, style.ColorBlack, 0)
-	}
-	r.root.Add(child)
-
-	// Post-processing replaces that cell with P.
-	r.AddPostProcessFn(func(buf *buffer.Buffer, dt float64) {
-		buf.SetCell(0, 0, 'P', style.ColorYellow, style.ColorBlack, 0)
-	})
-
-	r.renderFrame()
-
-	buf := r.CurrentBuffer()
-	if cell := buf.Cell(0, 0); cell.Char != 'P' {
-		t.Errorf("expected 'P' from post-process, got %q", cell.Char)
-	}
-}
-
 // TestPipeline_MultipleFramesNoArtifacts verifies that shorter replacement
 // content leaves no glyphs from a previous frame.
 func TestPipeline_MultipleFramesNoArtifacts(t *testing.T) {
@@ -792,5 +705,29 @@ func TestPipeline_MultipleFramesNoArtifacts(t *testing.T) {
 	cell5 := buf2.Cell(5, 0)
 	if cell5.Char == '1' {
 		t.Error("frame 2: artifact from frame 1 found at position 5")
+	}
+}
+
+// TestPipeline_FullscreenStatsCountNodes covers the statistics a fullscreen
+// frame reports. Draw never walks the scene, so ExecuteRender has to carry the
+// node count over from SyncPositions.
+func TestPipeline_FullscreenStatsCountNodes(t *testing.T) {
+	r, _ := setupRenderer(10, 4)
+	for i := range 3 {
+		r.root.Add(render.NewBaseRenderable(
+			render.WithID(fmt.Sprintf("child-%d", i)),
+			render.WithWidth(layout.Points(10)),
+			render.WithHeight(layout.Points(1)),
+		))
+	}
+
+	r.renderFrame()
+
+	// Three children plus the root.
+	if got := r.root.LastFrameStats.NodeCount; got != 4 {
+		t.Errorf("NodeCount is %d, want 4", got)
+	}
+	if got := r.root.LastFrameStats.CmdCount; got != 4 {
+		t.Errorf("CmdCount is %d, want 4", got)
 	}
 }

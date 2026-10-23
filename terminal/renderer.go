@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"bytes"
 	"context"
 	"log"
 	"os"
@@ -26,13 +27,9 @@ type Renderer struct {
 	backend *Backend
 	config  Config
 
-	currentBuffer *buffer.Buffer // The frame represented on screen.
-	nextBuffer    *buffer.Buffer // The frame currently being built.
-
 	width, height int
 
 	controlState ControlState
-	destroyed    bool
 
 	// Input state.
 	parser        *input.Parser
@@ -55,8 +52,8 @@ type Renderer struct {
 	stopChan    chan struct{}
 	dirty       atomic.Bool
 
-	// Post-processing callbacks.
-	postProcessFns []func(*buffer.Buffer, float64)
+	// destroyed is set once by Destroy and read from the input loop.
+	destroyed atomic.Bool
 
 	// Frame statistics.
 	stats         Stats
@@ -81,10 +78,24 @@ type Renderer struct {
 	// Live-render references.
 	liveCount int32 // Accessed atomically.
 
-	// Inline rendering state.
-	lastInlineHeight      int            // Previous content rows plus its trailing cursor row.
+	// Frame state owned by the event-loop goroutine. These fields carry no
+	// lock: reach them from setup, or through Enqueue, and never from another
+	// goroutine.
+	//
+	// Inline output holds every row of inlineCurrentBuf in the terminal, but
+	// only rows inlineViewportTop and below remain addressable; earlier rows
+	// have scrolled into the scrollback.
+	currentBuffer         *buffer.Buffer // The frame represented on screen.
+	nextBuffer            *buffer.Buffer // The frame currently being built.
+	invalidated           bool           // Whether the next fullscreen frame requires FullFlush.
 	lastInlineLayoutWidth int            // The width used for the previous inline layout.
 	inlineCurrentBuf      *buffer.Buffer // The frame represented by current inline output.
+	inlineViewportTop     int            // The frame row shown on the terminal's first row.
+	inlineCursorRow       int            // The frame row holding the terminal cursor.
+	inlineTermHeight      int            // The terminal height used for the previous flush.
+	inlineEraseNext       bool           // Whether the next flush erases the screen first.
+	inlineDamaged         buffer.Rect    // The region repainted into the frame being flushed.
+	inlineCursorCell      buffer.Rect    // The cell the inline cursor inverted, which must be restored.
 
 	// Optional diagnostic log.
 	dbg     *log.Logger
@@ -93,8 +104,7 @@ type Renderer struct {
 	// Closed when Destroy completes.
 	done chan struct{}
 
-	mu          sync.Mutex
-	invalidated bool // Whether the next fullscreen frame requires FullFlush.
+	mu sync.Mutex
 
 	// Width-probe result from setup.
 	probedWidths []int
@@ -123,27 +133,26 @@ func NewRenderer(config ...Config) (*Renderer, error) {
 	eventBus := input.NewEventBus()
 
 	r := &Renderer{
-		root:           root,
-		hitGrid:        hitGrid,
-		backend:        backend,
-		config:         cfg,
-		currentBuffer:  currentBuffer,
-		nextBuffer:     nextBuffer,
-		width:          w,
-		height:         h,
-		controlState:   StateIdle,
-		parser:         parser,
-		eventBus:       eventBus,
-		pendingWork:    make(chan func()),
-		wake:           make(chan struct{}, 1),
-		stopChan:       make(chan struct{}, 1),
-		done:           make(chan struct{}),
-		invalidated:    true,
-		postProcessFns: cfg.PostProcessFns,
-		stats:          NewStats(60),
-		lastFrameTime:  time.Now(),
-		sel:            render.NewSelection(),
-		linkRegistry:   NewLinkRegistry(),
+		root:          root,
+		hitGrid:       hitGrid,
+		backend:       backend,
+		config:        cfg,
+		currentBuffer: currentBuffer,
+		nextBuffer:    nextBuffer,
+		width:         w,
+		height:        h,
+		controlState:  StateIdle,
+		parser:        parser,
+		eventBus:      eventBus,
+		pendingWork:   make(chan func()),
+		wake:          make(chan struct{}, 1),
+		stopChan:      make(chan struct{}, 1),
+		done:          make(chan struct{}),
+		invalidated:   true,
+		stats:         NewStats(60),
+		lastFrameTime: time.Now(),
+		sel:           render.NewSelection(),
+		linkRegistry:  NewLinkRegistry(),
 	}
 
 	// Failure to open an optional debug log does not prevent renderer creation.
@@ -195,11 +204,7 @@ func (r *Renderer) IsRunning() bool {
 }
 
 // IsDestroyed reports whether Destroy was called.
-func (r *Renderer) IsDestroyed() bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.destroyed
-}
+func (r *Renderer) IsDestroyed() bool { return r.destroyed.Load() }
 
 // ControlState returns the current lifecycle state.
 func (r *Renderer) ControlState() ControlState {
@@ -389,19 +394,18 @@ func (r *Renderer) Stop() {
 // Destroy idempotently stops rendering, restores terminal modes, destroys the
 // scene, clears subscriptions, and closes Done.
 func (r *Renderer) Destroy() {
-	r.mu.Lock()
-	if r.destroyed {
-		r.mu.Unlock()
+	if r.destroyed.Swap(true) {
 		return
 	}
-	r.destroyed = true
-	r.mu.Unlock()
 
 	r.Stop()
 
-	// Leave a clean line below inline output for subsequent terminal output.
-	if r.config.InlineMode && r.lastInlineHeight > 0 {
-		r.backend.WriteOut([]byte("\r\n"))
+	// Leave the cursor on a clean line below inline output.
+	if r.config.InlineMode && r.inlineCurrentBuf != nil {
+		var out bytes.Buffer
+		inlineMoveRows(&out, r.inlineCurrentBuf.Height()-1-r.inlineCursorRow)
+		out.WriteString("\r\n")
+		r.backend.WriteOut(out.Bytes())
 	}
 
 	_ = r.backend.Restore()
@@ -441,23 +445,45 @@ func (r *Renderer) signal() {
 	}
 }
 
+// HitTesting reports whether pointer targets are resolved against the scene.
+//
+// Inline mode does not hit test. Its frame is addressed in content rows, of
+// which the terminal shows only the rows below the viewport, while a mouse
+// report names a viewport row. Leaving the mouse to the terminal also keeps its
+// own selection and scrollback bindings working.
+func (r *Renderer) HitTesting() bool {
+	return r.hitGrid != nil && !r.InlineMode()
+}
+
 // AddToHitGrid registers a clipped renderable area in the hit grid.
 func (r *Renderer) AddToHitGrid(x, y, w, h int, id uint64) {
+	if !r.HitTesting() {
+		return
+	}
 	r.hitGrid.AddClipped(x, y, w, h, id)
 }
 
 // PushHitGridScissorRect restricts subsequent hit-grid registrations.
 func (r *Renderer) PushHitGridScissorRect(x, y, w, h int) {
+	if !r.HitTesting() {
+		return
+	}
 	r.hitGrid.PushScissorRect(x, y, w, h)
 }
 
 // PopHitGridScissorRect restores the preceding hit-grid clipping region.
 func (r *Renderer) PopHitGridScissorRect() {
+	if !r.HitTesting() {
+		return
+	}
 	r.hitGrid.PopScissorRect()
 }
 
 // ClearHitGrid clears the hit grid and all scissor rects.
 func (r *Renderer) ClearHitGrid() {
+	if !r.HitTesting() {
+		return
+	}
 	r.hitGrid.Clear()
 	r.hitGrid.ClearScissorRects()
 }
@@ -579,16 +605,12 @@ func (r *Renderer) processResize(w, h int) {
 	}
 
 	if r.config.InlineMode {
-		// Inline layout uses terminal width and content-derived height.
+		// Inline layout uses terminal width and content-derived height. A height
+		// change is detected by the flush, which then rewrites every row.
 		r.invalidated = true
 		r.hitGrid.Resize(w, h)
 		r.root.LayoutNode().Width = layout.Points(w)
 		r.root.LayoutNode().MarkDirty()
-		// Force an overflow-style clear only after output exists or when explicitly
-		// requested for startup.
-		if r.lastInlineHeight > 0 || r.config.ClearScreenOnStart {
-			r.lastInlineHeight = h + 1
-		}
 	} else {
 		// Fullscreen resize invalidates both frame buffers for a complete repaint.
 		r.currentBuffer.Resize(w, h)
@@ -634,16 +656,6 @@ func (r *Renderer) renderFrame() {
 	if r.dbg != nil && r.invalidated {
 		fc := atomic.LoadUint64(&r.frameCount)
 		r.dbg.Printf("[frame] #%d  buf=%dx%d", fc, r.nextBuffer.Width(), r.nextBuffer.Height())
-	}
-
-	// Post-processing modifies the complete frame before flushing.
-	r.mu.Lock()
-	fns := make([]func(*buffer.Buffer, float64), len(r.postProcessFns))
-	copy(fns, r.postProcessFns)
-	r.mu.Unlock()
-
-	for _, fn := range fns {
-		fn(r.nextBuffer, deltaTime)
 	}
 
 	// The first frame and resized frames require a complete repaint.
@@ -849,26 +861,6 @@ func (r *Renderer) SetTitle(title string) {
 	r.backend.SetTitle(title)
 }
 
-// AddPostProcessFn appends a callback run after scene rendering and before
-// flushing.
-func (r *Renderer) AddPostProcessFn(fn func(*buffer.Buffer, float64)) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.postProcessFns = append(r.postProcessFns, fn)
-}
-
-// RemovePostProcessFn currently does nothing because Go function values cannot
-// be compared for identity.
-func (r *Renderer) RemovePostProcessFn(fn func(*buffer.Buffer, float64)) {
-}
-
-// ClearPostProcessFns removes all post-process functions.
-func (r *Renderer) ClearPostProcessFns() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.postProcessFns = nil
-}
-
 // Stats returns a snapshot of aggregate rendering statistics.
 func (r *Renderer) Stats() Stats {
 	r.mu.Lock()
@@ -897,7 +889,9 @@ func (r *Renderer) setup() error {
 		return err
 	}
 
-	if r.config.UseMouse {
+	// Inline mode does not hit test, so mouse reports would be discarded while
+	// suppressing the terminal's own selection and scrolling.
+	if r.config.UseMouse && !r.config.InlineMode {
 		r.backend.EnableMouse(r.config.EnableMouseMovement)
 	}
 
@@ -908,6 +902,7 @@ func (r *Renderer) setup() error {
 	if r.config.InlineMode {
 		// Inline mode retains normal scrollback and draws a visual cursor in cells.
 		r.backend.HideCursor()
+		r.inlineEraseNext = r.config.ClearScreenOnStart
 	} else {
 		// Non-inline rendering begins from a cleared screen.
 		r.backend.Clear()

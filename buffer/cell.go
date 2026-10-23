@@ -1,18 +1,44 @@
 package buffer
 
 import (
+	"unique"
+
 	"github.com/unaquatic/fluid/style"
 	"github.com/unaquatic/fluid/textbuf"
 )
 
 // Cell stores one terminal cell or one part of a multi-column grapheme cluster.
+//
+// The fields are ordered and sized to keep a cell at 32 bytes. A buffer holds
+// one cell per terminal column per row, and inline rendering sizes a buffer to
+// the whole transcript, so the width of this struct sets the memory cost of the
+// renderer.
 type Cell struct {
 	Char       rune        // The first code point; zero represents an empty cell.
-	Combining  string      // Subsequent code points in the same grapheme cluster.
 	Fg         style.Color // The foreground color.
 	Bg         style.Color // The background color.
 	Attributes uint32      // The low 8 bits are style flags; the upper bits are a link ID.
-	Width      int         // A head's column width, or a continuation's negative offset to its head.
+	Width      int16       // A head's column width, or a continuation's negative offset to its head.
+
+	// combining holds the interned code points that follow Char in the same
+	// grapheme cluster. Handles are comparable and globally unique, so cells
+	// copied or compared between buffers keep their meaning.
+	combining unique.Handle[string]
+}
+
+// noCombining marks a cell holding a single code point.
+//
+// It is the zero Handle rather than a handle to the empty string, because a
+// zeroed buffer must already mean "no continuation". Handle.Value dereferences
+// an interior pointer, so the zero Handle must never reach it.
+var noCombining unique.Handle[string]
+
+// combiningHandle interns s, or returns noCombining when s is empty.
+func combiningHandle(s string) unique.Handle[string] {
+	if s == "" {
+		return noCombining
+	}
+	return unique.Make(s)
 }
 
 // CellClear is the default empty cell.
@@ -25,14 +51,32 @@ var CellClear = Cell{
 
 // NewCell returns a cell whose width is derived from char.
 func NewCell(char rune, fg, bg style.Color, attrs uint32) Cell {
-	w := RuneWidth(char)
 	return Cell{
 		Char:       char,
 		Fg:         fg,
 		Bg:         bg,
 		Attributes: attrs,
-		Width:      w,
+		Width:      int16(RuneWidth(char)),
 	}
+}
+
+// Combining returns the code points following Char in this cell's grapheme
+// cluster, or the empty string when the cell holds a single code point.
+func (c Cell) Combining() string {
+	if c.combining == noCombining {
+		return ""
+	}
+	return c.combining.Value()
+}
+
+// HasCombining reports whether the cell holds more than one code point.
+func (c Cell) HasCombining() bool { return c.combining != noCombining }
+
+// WithCombining returns a copy of c carrying the given cluster continuation.
+// An empty continuation clears it.
+func (c Cell) WithCombining(s string) Cell {
+	c.combining = combiningHandle(s)
+	return c
 }
 
 // IsWide reports whether c is the head of a multi-column character.
@@ -53,7 +97,7 @@ func (c Cell) IsEmpty() bool {
 // Equals reports whether c and other have equal content and style.
 func (c Cell) Equals(other Cell) bool {
 	return c.Char == other.Char &&
-		c.Combining == other.Combining &&
+		c.combining == other.combining &&
 		c.Fg.Equals(other.Fg) &&
 		c.Bg.Equals(other.Bg) &&
 		c.Attributes == other.Attributes &&

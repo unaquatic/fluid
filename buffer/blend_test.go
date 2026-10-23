@@ -169,21 +169,3 @@ func TestDrawFrameBuffer_ScissorClipping(t *testing.T) {
 
 	dst.PopScissorRect()
 }
-
-func TestDrawFrameBuffer_OpacityApplied(t *testing.T) {
-	dst := New(10, 1)
-	dst.Clear(style.ColorBlack)
-
-	src := New(1, 1)
-	src.SetCell(0, 0, 'A', style.ColorFromInts(255, 255, 255, 255), style.ColorFromInts(255, 0, 0, 255), 0)
-
-	dst.PushOpacity(0.5)
-	dst.DrawFrameBuffer(0, 0, src)
-	dst.PopOpacity()
-
-	c := dst.Cell(0, 0)
-	// Half opacity reduces the source foreground alpha to about 128.
-	if c.Fg.A < 125 || c.Fg.A > 130 {
-		t.Errorf("with opacity 0.5, Fg.A = %d, want ~128", c.Fg.A)
-	}
-}

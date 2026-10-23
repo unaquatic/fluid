@@ -18,12 +18,12 @@ func TestWideClusterStorage(t *testing.T) {
 			}
 			b := New(width+2, 1)
 			used := b.DrawClusters(cluster+"X", 0, 0, b.Width(), style.ColorWhite, style.ColorBlack, 0, nil)
-			if used != width+1 || b.Cell(0, 0).Width != width || b.Cell(width, 0).Char != 'X' {
+			if used != width+1 || int(b.Cell(0, 0).Width) != width || b.Cell(width, 0).Char != 'X' {
 				t.Fatalf("incorrect cluster placement: used %d, head %+v", used, b.Cell(0, 0))
 			}
 			for offset := 1; offset < width; offset++ {
 				c := b.Cell(offset, 0)
-				if !c.IsContinuation() || c.Width != -offset {
+				if !c.IsContinuation() || int(c.Width) != -offset {
 					t.Errorf("column %d = %+v, want offset %d", offset, c, -offset)
 				}
 			}
@@ -31,7 +31,7 @@ func TestWideClusterStorage(t *testing.T) {
 			head.Fg, head.Bg = head.Bg, head.Fg
 			b.SetCellDirect(0, 0, head)
 			for offset := 1; offset < width; offset++ {
-				want := Cell{Fg: head.Fg, Bg: head.Bg, Width: -offset}
+				want := Cell{Fg: head.Fg, Bg: head.Bg, Width: int16(-offset)}
 				if !b.Cell(offset, 0).Equals(want) {
 					t.Errorf("direct update did not reconstruct column %d", offset)
 				}

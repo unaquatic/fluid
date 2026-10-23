@@ -7,6 +7,11 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
+// floatEq reports whether a and b are equal within a small tolerance.
+func floatEq(a, b float32) bool {
+	return math.Abs(float64(a-b)) < 1e-6
+}
+
 func TestChars(t *testing.T) {
 	b := New(3, 1)
 	b.SetCell(0, 0, 'A', style.ColorWhite, style.ColorBlack, 0)

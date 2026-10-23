@@ -141,42 +141,6 @@ func TestRootRenderable_ScissorForOverflowHidden(t *testing.T) {
 	}
 }
 
-func TestRootRenderable_OpacityCommands(t *testing.T) {
-	root := NewRootRenderable(80, 24)
-
-	child := render.NewBaseRenderable(
-		render.WithID("child"),
-		render.WithOpacity(0.5),
-		render.WithWidth(layout.Points(20)),
-		render.WithHeight(layout.Points(5)),
-	)
-	root.Add(child)
-
-	root.CalculateLayout()
-	commands := root.UpdateLayout()
-
-	hasPush := false
-	hasPop := false
-	for _, cmd := range commands {
-		if cmd.Action == "pushOpacity" {
-			hasPush = true
-			if cmd.Opacity != 0.5 {
-				t.Errorf("expected opacity=0.5, got %f", cmd.Opacity)
-			}
-		}
-		if cmd.Action == "popOpacity" {
-			hasPop = true
-		}
-	}
-
-	if !hasPush {
-		t.Error("expected pushOpacity command for opacity<1")
-	}
-	if !hasPop {
-		t.Error("expected popOpacity command for opacity<1")
-	}
-}
-
 func TestRootRenderable_ChildrenOrder(t *testing.T) {
 	root := NewRootRenderable(80, 24)
 

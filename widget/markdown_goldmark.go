@@ -2,6 +2,7 @@ package widget
 
 import (
 	"strings"
+	"sync"
 
 	"github.com/yuin/goldmark"
 	goldmarkast "github.com/yuin/goldmark/ast"
@@ -26,6 +27,13 @@ func NewGoldmarkParser() *GoldmarkParser {
 	gm := goldmark.New(goldmark.WithExtensions(goldmarkext.GFM))
 	return &GoldmarkParser{parser: gm.Parser()}
 }
+
+// sharedGoldmarkParser returns the parser used by every Markdown widget that
+// does not supply its own. A Goldmark parser holds fixed trigger tables of
+// about thirteen kilobytes, so one per widget dominated the memory of a long
+// document. Goldmark guards its own initialization with a sync.Once and only
+// reads those tables while parsing, so a single instance serves all of them.
+var sharedGoldmarkParser = sync.OnceValue(NewGoldmarkParser)
 
 // Parse converts Markdown source into spaced MdBlock trees.
 func (g *GoldmarkParser) Parse(content string, styles MdStyles) []MdBlock {

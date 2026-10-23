@@ -64,8 +64,6 @@ func TestBaseRenderable_Options(t *testing.T) {
 	r := NewBaseRenderable(
 		WithVisible(false),
 		WithFocusable(true),
-		WithOpacity(0.5),
-		WithBuffered(true),
 		WithLive(true),
 		WithSelectable(true),
 	)
@@ -75,12 +73,6 @@ func TestBaseRenderable_Options(t *testing.T) {
 	}
 	if !r.Focusable() {
 		t.Error("expected focusable=true")
-	}
-	if r.Opacity() != 0.5 {
-		t.Errorf("expected opacity=0.5, got %f", r.Opacity())
-	}
-	if !r.Buffered() {
-		t.Error("expected buffered=true")
 	}
 	if !r.Live() {
 		t.Error("expected live=true")
@@ -136,9 +128,6 @@ func TestBaseRenderable_Defaults(t *testing.T) {
 	}
 	if r.Focused() {
 		t.Error("expected focused=false by default")
-	}
-	if r.Opacity() != 1.0 {
-		t.Errorf("expected opacity=1.0, got %f", r.Opacity())
 	}
 	if r.IsDestroyed() {
 		t.Error("expected destroyed=false by default")
@@ -332,28 +321,84 @@ func TestBaseRenderable_ContextOnAdd(t *testing.T) {
 	}
 }
 
-func TestBaseRenderable_DirtyOnAdd(t *testing.T) {
+// TestBaseRenderable_ChildDirtyOnAdd covers the record an insertion leaves on
+// the ancestors, which lets a scene walk skip a subtree holding no change. The
+// ancestors stay clean, because marking them dirty would repaint everything
+// they cover.
+func TestBaseRenderable_ChildDirtyOnAdd(t *testing.T) {
+	grandparent := NewBaseRenderable(WithID("grandparent"))
+	grandparent.SetContext(&mockContext{})
+	grandparent.SetBounds(0, 0, 10, 20)
+
 	parent := NewBaseRenderable(WithID("parent"))
+	parent.SetBounds(0, 0, 10, 20)
+	grandparent.Add(parent)
+	grandparent.dirty = false
 	parent.dirty = false
 
 	child := NewBaseRenderable(WithID("child"))
+	child.SetBounds(0, 18, 10, 2)
 	parent.Add(child)
 
-	if !parent.IsDirty() {
-		t.Error("expected parent to be dirty after Add")
+	if parent.IsDirty() || grandparent.IsDirty() {
+		t.Error("expected the ancestors to stay clean after Add")
+	}
+	if !parent.ChildDirty() || !grandparent.ChildDirty() {
+		t.Error("expected the record to reach every ancestor")
+	}
+	// The child carries the region the insertion actually affects.
+	want := buffer.Rect{X: 0, Y: 18, Width: 10, Height: 2}
+	if got := child.Damage(); got != want {
+		t.Errorf("child damage is %+v, want %+v", got, want)
 	}
 }
 
+// TestBaseRenderable_MarkDirtyStopsAtAMarkedAncestor covers the climb's early
+// exit, which keeps a deep scene from rewalking a chain already marked.
+func TestBaseRenderable_MarkDirtyStopsAtAMarkedAncestor(t *testing.T) {
+	root := NewBaseRenderable(WithID("root"))
+	root.SetContext(&mockContext{})
+	mid := NewBaseRenderable(WithID("mid"))
+	leaf := NewBaseRenderable(WithID("leaf"))
+	root.Add(mid)
+	mid.Add(leaf)
+
+	root.ClearChildDirty()
+	mid.MarkChildDirty()
+	root.ClearChildDirty()
+	leaf.dirty = false
+
+	leaf.MarkDirty()
+
+	if !leaf.IsDirty() {
+		t.Error("expected the leaf to be dirty")
+	}
+	if root.ChildDirty() {
+		t.Error("expected the climb to stop at the ancestor already carrying the record")
+	}
+}
+
+// TestBaseRenderable_DirtyOnRemove covers the opposite case. A detached child is
+// beyond scene traversal and can never report the region it vacated, so the
+// parent has to carry it.
 func TestBaseRenderable_DirtyOnRemove(t *testing.T) {
 	parent := NewBaseRenderable(WithID("parent"))
+	parent.SetContext(&mockContext{})
+	parent.SetBounds(0, 0, 10, 20)
+
 	child := NewBaseRenderable(WithID("child"))
+	child.SetBounds(0, 18, 10, 2)
 	parent.Add(child)
+	parent.paintRect = parent.Rect()
 	parent.dirty = false
 
 	parent.Remove("child")
 
 	if !parent.IsDirty() {
 		t.Error("expected parent to be dirty after Remove")
+	}
+	if got := parent.Damage(); !got.Contains(0, 19) {
+		t.Errorf("parent damage %+v omits the region the child vacated", got)
 	}
 }
 
@@ -385,20 +430,6 @@ func TestBaseRenderable_SetVisible(t *testing.T) {
 	}
 	if !r.IsDirty() {
 		t.Error("expected dirty after visibility change")
-	}
-}
-
-func TestBaseRenderable_OpacityClamp(t *testing.T) {
-	r := NewBaseRenderable()
-
-	r.SetOpacity(-0.5)
-	if r.Opacity() != 0 {
-		t.Errorf("expected opacity=0 for negative input, got %f", r.Opacity())
-	}
-
-	r.SetOpacity(2.0)
-	if r.Opacity() != 1.0 {
-		t.Errorf("expected opacity=1.0 for >1 input, got %f", r.Opacity())
 	}
 }
 
@@ -639,28 +670,6 @@ func TestBaseRenderable_Translation(t *testing.T) {
 	}
 	if r.TranslateY() != 20 {
 		t.Errorf("expected translateY=20, got %d", r.TranslateY())
-	}
-}
-
-func TestBaseRenderable_BufferedMode(t *testing.T) {
-	r := NewBaseRenderable()
-	r.width = 10
-	r.height = 5
-
-	if r.Buffered() {
-		t.Error("expected buffered=false by default")
-	}
-	if r.FrameBuffer() != nil {
-		t.Error("expected nil frame buffer by default")
-	}
-
-	r.SetBuffered(true)
-
-	if !r.Buffered() {
-		t.Error("expected buffered=true after SetBuffered(true)")
-	}
-	if r.FrameBuffer() == nil {
-		t.Error("expected non-nil frame buffer after SetBuffered(true)")
 	}
 }
 

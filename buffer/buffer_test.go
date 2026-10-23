@@ -150,8 +150,8 @@ func TestSetGraphemeCluster_SpacingMark(t *testing.T) {
 	if c.Char != '\u0E01' {
 		t.Errorf("Char = %q, want '\u0E01'", c.Char)
 	}
-	if c.Combining != "\u0E33" {
-		t.Errorf("Combining = %q, want %q", c.Combining, "\u0E33")
+	if c.Combining() != "\u0E33" {
+		t.Errorf("Combining = %q, want %q", c.Combining(), "\u0E33")
 	}
 	if c.Width != 2 {
 		t.Errorf("Width = %d, want 2", c.Width)
@@ -199,7 +199,7 @@ func TestDrawClusters_ColumnAccounting(t *testing.T) {
 					ch = ' '
 				}
 				advanced += textbuf.RuneWidth(ch)
-				for _, r := range c.Combining {
+				for _, r := range c.Combining() {
 					advanced += textbuf.RuneWidth(r)
 				}
 			}
@@ -230,7 +230,7 @@ func TestDetachWide_OverdrawKeepsRowWidth(t *testing.T) {
 				continue
 			}
 			n += textbuf.RuneWidth(c.Char)
-			for _, r := range c.Combining {
+			for _, r := range c.Combining() {
 				n += textbuf.RuneWidth(r)
 			}
 		}
@@ -290,7 +290,7 @@ func TestDetachWide_OverdrawKeepsRowWidth(t *testing.T) {
 			if got := b.Cell(5, 0).Char; got != tt.wantAt5 {
 				t.Errorf("cell 5 Char = %q, want %q", got, tt.wantAt5)
 			}
-			if got := b.Cell(4, 0).Width; got != tt.wantWidth {
+			if got := int(b.Cell(4, 0).Width); got != tt.wantWidth {
 				t.Errorf("cell 4 Width = %d, want %d", got, tt.wantWidth)
 			}
 			if got := advanced(b); got != width {
@@ -542,7 +542,6 @@ func TestResize(t *testing.T) {
 	b := New(5, 5)
 	b.SetCell(2, 2, 'X', style.ColorWhite, style.ColorBlack, 0)
 	b.PushScissorRect(0, 0, 5, 5)
-	b.PushOpacity(0.5)
 
 	b.Resize(10, 10)
 
@@ -554,11 +553,6 @@ func TestResize(t *testing.T) {
 	c := b.Cell(2, 2)
 	if c.Char != ' ' {
 		t.Error("after Resize cells should be cleared")
-	}
-
-	// Resize also restores full opacity.
-	if b.CurrentOpacity() != 1.0 {
-		t.Error("after Resize opacity should be 1.0")
 	}
 }
 
@@ -637,24 +631,6 @@ func TestScissorRect_BlocksWrite(t *testing.T) {
 	}
 }
 
-func TestOpacity_AffectsCells(t *testing.T) {
-	b := New(10, 1)
-
-	b.PushOpacity(0.5)
-	b.SetCell(0, 0, 'A', style.ColorWhite, style.ColorBlack, 0)
-
-	c := b.Cell(0, 0)
-	// Half opacity reduces each initially opaque alpha channel to about 128.
-	if c.Fg.A < 125 || c.Fg.A > 130 {
-		t.Errorf("Fg.A = %d, want ~128", c.Fg.A)
-	}
-	if c.Bg.A < 125 || c.Bg.A > 130 {
-		t.Errorf("Bg.A = %d, want ~128 (Black.A=255 * 0.5)", c.Bg.A)
-	}
-
-	b.PopOpacity()
-}
-
 func TestCopyFrom(t *testing.T) {
 	a := New(5, 3)
 	a.SetCell(1, 1, 'Q', style.ColorRed, style.ColorBlue, 0)
@@ -728,6 +704,122 @@ func TestRect_Intersect_NoOverlap(t *testing.T) {
 	r := a.Intersect(b)
 	if !r.IsEmpty() {
 		t.Errorf("non-overlapping Intersect should be empty, got %+v", r)
+	}
+}
+
+// TestRectEmptyResultsAreZero pins the property callers rely on: an empty
+// result carries no position, so reading X or Y without rechecking IsEmpty
+// cannot pick up a stale coordinate.
+func TestRectEmptyResultsAreZero(t *testing.T) {
+	tests := []struct {
+		name string
+		got  Rect
+	}{
+		{
+			name: "intersect misses entirely",
+			got:  Rect{Width: 39, Height: 2}.Intersect(Rect{Y: 8, Width: 39, Height: 2}),
+		},
+		{
+			name: "intersect touches along an edge",
+			got:  Rect{Y: 4, Width: 39, Height: 2}.Intersect(Rect{Width: 39, Height: 4}),
+		},
+		{
+			name: "union of two flat operands",
+			got:  Rect{}.Union(Rect{X: 39, Y: 7, Width: 0, Height: 2}),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.got != (Rect{}) {
+				t.Errorf("got %+v, want the zero rectangle", tt.got)
+			}
+		})
+	}
+}
+
+// TestCopyRowsFromClampsToBothBuffers covers a shorter source. Copying the rows
+// both buffers hold beats refusing the call, which leaves the destination
+// silently describing something the source never held.
+func TestCopyRowsFromClampsToBothBuffers(t *testing.T) {
+	dst := New(4, 6)
+	dst.Clear(style.ColorBlack)
+	src := New(4, 3)
+	for y := range 3 {
+		src.SetCell(0, y, 'x', style.ColorWhite, style.ColorBlack, 0)
+	}
+
+	dst.CopyRowsFrom(src, 1, 4) // Rows 1-4 requested, rows 1-2 available.
+
+	for y := 1; y < 3; y++ {
+		if got := dst.Cell(0, y).Char; got != 'x' {
+			t.Errorf("row %d holds %q, want %q", y, got, 'x')
+		}
+	}
+	if got := dst.Cell(0, 3).Char; got == 'x' {
+		t.Error("row 3 was copied from beyond the source")
+	}
+}
+
+// TestSetHeightKeepsRowsInPlace covers the reason SetHeight exists. A frame as
+// tall as a whole transcript must not be copied to gain or lose a row.
+func TestSetHeightKeepsRowsInPlace(t *testing.T) {
+	b := New(4, 4)
+	for y := range 4 {
+		b.SetCell(0, y, rune('a'+y), style.ColorWhite, style.ColorBlack, 0)
+	}
+
+	b.SetHeight(6)
+
+	if b.Height() != 6 {
+		t.Fatalf("height is %d, want 6", b.Height())
+	}
+	for y := range 4 {
+		if got := b.Cell(0, y).Char; got != rune('a'+y) {
+			t.Errorf("row %d holds %q, want %q", y, got, rune('a'+y))
+		}
+	}
+	// Added rows read as clear, exactly as a fresh buffer does.
+	for y := 4; y < 6; y++ {
+		if got := b.Cell(0, y); got != CellClear {
+			t.Errorf("added row %d holds %+v, want CellClear", y, got)
+		}
+	}
+}
+
+func TestSetHeightShrinkThenGrowClearsReusedRows(t *testing.T) {
+	b := New(4, 6)
+	for y := range 6 {
+		b.SetCell(0, y, 'x', style.ColorWhite, style.ColorBlack, 0)
+	}
+
+	b.SetHeight(2)
+	if b.Height() != 2 {
+		t.Fatalf("height is %d, want 2", b.Height())
+	}
+	b.SetHeight(5)
+
+	// Rows reclaimed from the backing array must not resurface as stale content.
+	for y := 2; y < 5; y++ {
+		if got := b.Cell(0, y); got != CellClear {
+			t.Errorf("reused row %d holds %+v, want CellClear", y, got)
+		}
+	}
+	if got := b.Cell(0, 0).Char; got != 'x' {
+		t.Errorf("kept row holds %q, want %q", got, 'x')
+	}
+}
+
+func TestSetHeightZeroAndNegative(t *testing.T) {
+	for _, h := range []int{0, -3} {
+		b := New(4, 4)
+		b.SetHeight(h)
+		if b.Height() != 0 {
+			t.Errorf("SetHeight(%d) gave height %d, want 0", h, b.Height())
+		}
+		if got := b.Cell(0, 0); got != CellClear {
+			t.Errorf("SetHeight(%d) left %+v readable", h, got)
+		}
 	}
 }
 

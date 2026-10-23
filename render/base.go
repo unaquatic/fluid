@@ -2,9 +2,10 @@ package render
 
 import (
 	"fmt"
-	"math"
+	"runtime"
 	"sync"
 	"sync/atomic"
+	"weak"
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
@@ -15,15 +16,28 @@ import (
 var nextNum uint64 // Accessed atomically when assigning numeric IDs.
 
 // renderablesByNum resolves hit-grid IDs to renderables.
-var renderablesByNum sync.Map // map[uint64]Renderable
+//
+// Entries are weak, so registration never keeps a renderable alive: a discarded
+// widget tree is collected whether or not anything calls Destroy. A cleanup
+// removes the key once its renderable is gone.
+var renderablesByNum sync.Map // map[uint64]weak.Pointer[BaseRenderable]
 
-// LookupRenderable returns the renderable registered under num, or nil.
+// LookupRenderable returns the renderable registered under num, or nil when
+// nothing is registered or the renderable has been collected.
 func LookupRenderable(num uint64) Renderable {
 	v, ok := renderablesByNum.Load(num)
 	if !ok {
 		return nil
 	}
-	return v.(Renderable)
+	b := v.(weak.Pointer[BaseRenderable]).Value()
+	if b == nil {
+		return nil
+	}
+	// Callers need the concrete widget to reach overridden methods.
+	if b.self != nil {
+		return b.self
+	}
+	return b
 }
 
 // RenderableOption configures a BaseRenderable during construction.
@@ -42,16 +56,6 @@ func WithVisible(v bool) RenderableOption {
 // WithFocusable sets whether the renderable can initially receive focus.
 func WithFocusable(f bool) RenderableOption {
 	return func(b *BaseRenderable) { b.focusable = f }
-}
-
-// WithOpacity sets the initial opacity.
-func WithOpacity(o float32) RenderableOption {
-	return func(b *BaseRenderable) { b.opacity = o }
-}
-
-// WithBuffered controls the initial private frame-buffer mode.
-func WithBuffered(v bool) RenderableOption {
-	return func(b *BaseRenderable) { b.buffered = v }
 }
 
 // WithLive controls the initial continuous-rendering mode.
@@ -199,7 +203,8 @@ type BaseRenderable struct {
 
 	// Resolved geometry copied from layout traversal.
 	x, y, width, height   int
-	prevWidth, prevHeight int // The dimensions used to detect resize callbacks.
+	prevWidth, prevHeight int         // The dimensions used to detect resize callbacks.
+	paintRect             buffer.Rect // The region covered by the most recent paint.
 
 	// Configuration and state.
 	visible    bool
@@ -207,19 +212,15 @@ type BaseRenderable struct {
 	focused    bool
 	live       bool
 	selectable bool
-	buffered   bool
 	destroyed  bool
 
-	opacity       float32
 	translateX    int
 	translateY    int
 	stickyOffsetX int // A horizontal post-layout offset for sticky positioning.
 	stickyOffsetY int // A vertical post-layout offset for sticky positioning.
 
-	dirty bool
-
-	// Private frame buffer used by buffered rendering.
-	frameBuffer *buffer.Buffer
+	dirty      bool
+	childDirty bool // Reports whether a descendant changed since the last frame.
 
 	// Local continuous-rendering request count.
 	liveCount int
@@ -260,7 +261,6 @@ func NewBaseRenderable(opts ...RenderableOption) *BaseRenderable {
 		num:        num,
 		id:         fmt.Sprintf("renderable-%d", num),
 		visible:    true,
-		opacity:    1.0,
 		focusable:  false,
 		dirty:      true,
 		layoutNode: layout.NewNode(),
@@ -271,8 +271,11 @@ func NewBaseRenderable(opts ...RenderableOption) *BaseRenderable {
 		opt(b)
 	}
 
-	// Registration allows the hit grid to resolve the numeric ID.
-	renderablesByNum.Store(num, b)
+	// Registration allows the hit grid to resolve the numeric ID. The cleanup
+	// runs after b is collected and cannot reference it, so neither the entry
+	// nor the cleanup keeps b alive.
+	renderablesByNum.Store(num, weak.Make(b))
+	runtime.AddCleanup(b, func(num uint64) { renderablesByNum.Delete(num) }, num)
 
 	return b
 }
@@ -324,10 +327,9 @@ func (b *BaseRenderable) Add(child Renderable, index ...int) int {
 		return -1
 	}
 
-	// Replace an embedded BaseRenderable's registry entry with the concrete widget.
-	renderablesByNum.Store(child.Num(), child)
-
 	// Store the concrete widget so internal calls reach overridden methods.
+	// LookupRenderable reads it too, which is why the registry needs no entry
+	// of its own for the concrete type.
 	type selfSettable interface{ SetSelf(Renderable) }
 	if ss, ok := child.(selfSettable); ok {
 		ss.SetSelf(child)
@@ -354,7 +356,9 @@ func (b *BaseRenderable) Add(child Renderable, index ...int) int {
 		b.children = append(b.children, child)
 	}
 
-	b.dirty = true
+	// The new child reports its own region, so b has nothing to add and stays
+	// clean. Only the record reaches the ancestors, so traversal descends here.
+	b.MarkChildDirty()
 	b.ctx.RequestRender()
 	return idx
 }
@@ -368,8 +372,16 @@ func (b *BaseRenderable) Remove(id string) {
 
 			child.SetParent(nil)
 			b.children = append(b.children[:i], b.children[i+1:]...)
-			b.dirty = true
-			b.ctx.RequestRender()
+
+			// A sticky offset pins a child to the viewport of the scroll
+			// container that resolved it, so it is meaningless once the child
+			// leaves. A parent that does not scroll never recomputes it.
+			child.SetStickyOffsetX(0)
+			child.SetStickyOffsetY(0)
+
+			// The child painted inside b, so b already carries the region it
+			// vacated and repaints it as a dirty renderable.
+			b.RequestRender()
 			return
 		}
 	}
@@ -451,11 +463,73 @@ func (b *BaseRenderable) SetGone(g bool) {
 // IsDirty reports whether b requires repainting.
 func (b *BaseRenderable) IsDirty() bool { return b.dirty }
 
+// Rect returns b's resolved geometry.
+func (b *BaseRenderable) Rect() buffer.Rect {
+	return buffer.Rect{X: b.x, Y: b.y, Width: b.width, Height: b.height}
+}
+
+// Damage returns the region b must repaint, or an empty rectangle when b is
+// unchanged. A renderable that moved or resized damages both the region it
+// occupied and the region it now occupies.
+//
+// A hidden or destroyed renderable damages the region it last painted, which
+// encloses its descendants because a subtree paints inside its root. A detached
+// one is beyond the reach of traversal, and its parent encloses it too.
+func (b *BaseRenderable) Damage() buffer.Rect {
+	switch {
+	case b.destroyed, !b.visible:
+		return b.paintRect
+	case b.dirty:
+		return b.paintRect.Union(b.Rect())
+	default:
+		return buffer.Rect{}
+	}
+}
+
+// ClearDamage forgets the region b vacated, once that region has been
+// repainted. Painting clears the damage of a visible renderable, but a hidden
+// one is never painted again.
+func (b *BaseRenderable) ClearDamage() {
+	if b.destroyed || !b.visible {
+		b.paintRect = buffer.Rect{}
+	}
+}
+
 // RequestRender marks b dirty and requests a scene repaint.
 func (b *BaseRenderable) RequestRender() {
-	b.dirty = true
+	b.MarkDirty()
 	b.ctx.RequestRender()
 }
+
+// MarkDirty marks b for repainting and records the change on b's ancestors, so
+// scene traversal descends to b.
+//
+// Only b repaints. An ancestor carries the record alone, which adds no damage,
+// because marking it dirty would repaint everything it covers.
+func (b *BaseRenderable) MarkDirty() {
+	b.dirty = true
+	if b.parent != nil {
+		b.parent.MarkChildDirty()
+	}
+}
+
+// ChildDirty reports whether a descendant changed since the last frame.
+func (b *BaseRenderable) ChildDirty() bool { return b.childDirty }
+
+// MarkChildDirty records that a descendant changed. The climb stops at the
+// first ancestor already carrying the record, whose own ancestors carry it too.
+func (b *BaseRenderable) MarkChildDirty() {
+	if b.childDirty {
+		return
+	}
+	b.childDirty = true
+	if b.parent != nil {
+		b.parent.MarkChildDirty()
+	}
+}
+
+// ClearChildDirty forgets the record once scene traversal has used it.
+func (b *BaseRenderable) ClearChildDirty() { b.childDirty = false }
 
 // IsDestroyed reports whether Destroy was called.
 func (b *BaseRenderable) IsDestroyed() bool { return b.destroyed }
@@ -482,20 +556,6 @@ func (b *BaseRenderable) SetBounds(x, y, w, h int) {
 	b.width = w
 	b.height = h
 }
-
-// SetOpacity sets b's opacity, clamped to [0, 1].
-func (b *BaseRenderable) SetOpacity(o float32) {
-	if o < 0 {
-		o = 0
-	}
-	if o > 1 {
-		o = 1
-	}
-	b.opacity = o
-}
-
-// Opacity returns b's opacity.
-func (b *BaseRenderable) Opacity() float32 { return b.opacity }
 
 // TranslateX returns the horizontal offset inherited by descendants.
 func (b *BaseRenderable) TranslateX() int { return b.translateX }
@@ -541,6 +601,13 @@ func (b *BaseRenderable) UpdateFromLayoutWithOffset(offsetX, offsetY int) {
 	b.width = computed.Width
 	b.height = computed.Height
 
+	// Geometry that no longer matches the last paint leaves stale cells behind,
+	// so both the old and the new region need repainting. The mark reaches the
+	// ancestors so the damage pass, which runs next, descends to b.
+	if b.Rect() != b.paintRect {
+		b.MarkDirty()
+	}
+
 	// Notify through the concrete widget only when resolved dimensions change.
 	if b.width != b.prevWidth || b.height != b.prevHeight {
 		b.prevWidth = b.width
@@ -564,18 +631,12 @@ func (b *BaseRenderable) Render(buf *buffer.Buffer, deltaTime float64) {
 		return
 	}
 
-	// Buffered rendering draws into the private buffer before compositing it.
-	if b.buffered && b.frameBuffer != nil {
-		b.frameBuffer.Clear()
-		b.renderContent(b.frameBuffer, deltaTime)
-		buf.DrawFrameBuffer(b.x, b.y, b.frameBuffer)
-	} else {
-		b.renderContent(buf, deltaTime)
-	}
+	b.renderContent(buf, deltaTime)
 
 	// Only visible renderables register hit-test regions.
 	b.ctx.AddToHitGrid(b.x, b.y, b.width, b.height, b.num)
 
+	b.paintRect = b.Rect()
 	b.dirty = false
 }
 
@@ -784,21 +845,6 @@ func (b *BaseRenderable) StringWidth(s string) int {
 	return textbuf.StringWidth(s)
 }
 
-// Buffered reports whether b uses private frame-buffer rendering.
-func (b *BaseRenderable) Buffered() bool { return b.buffered }
-
-// SetBuffered controls private frame-buffer rendering and allocates the buffer
-// when enabling it after b has nonzero dimensions.
-func (b *BaseRenderable) SetBuffered(v bool) {
-	b.buffered = v
-	if v && b.frameBuffer == nil && b.width > 0 && b.height > 0 {
-		b.frameBuffer = buffer.New(b.width, b.height)
-	}
-}
-
-// FrameBuffer returns b's private frame buffer, or nil if none is allocated.
-func (b *BaseRenderable) FrameBuffer() *buffer.Buffer { return b.frameBuffer }
-
 // Live reports whether b requested continuous rendering.
 func (b *BaseRenderable) Live() bool { return b.live }
 
@@ -822,34 +868,3 @@ func (b *BaseRenderable) SetLive(l bool) {
 
 // LiveCount returns b's local continuous-render request count.
 func (b *BaseRenderable) LiveCount() int { return b.liveCount }
-
-// Property returns the named animatable value. It supports "opacity",
-// "translateX", and "translateY", and returns zero for any other name.
-func (b *BaseRenderable) Property(name string) float64 {
-	switch name {
-	case "opacity":
-		return float64(b.opacity)
-	case "translateX":
-		return float64(b.translateX)
-	case "translateY":
-		return float64(b.translateY)
-	default:
-		return 0
-	}
-}
-
-// SetProperty updates a supported animatable value and requests a repaint. It
-// supports "opacity", "translateX", and "translateY" and ignores other names.
-func (b *BaseRenderable) SetProperty(name string, value float64) {
-	switch name {
-	case "opacity":
-		b.SetOpacity(float32(value))
-	case "translateX":
-		b.translateX = int(math.Round(value))
-	case "translateY":
-		b.translateY = int(math.Round(value))
-	default:
-		return
-	}
-	b.RequestRender()
-}
