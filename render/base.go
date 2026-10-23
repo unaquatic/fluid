@@ -381,21 +381,21 @@ func (b *BaseRenderable) Add(child Renderable, index ...int) int {
 	child.SetParent(b)
 	child.SetContext(b.ctx)
 
-	// Also wire up the layout node tree
-	b.layoutNode.AddChild(child.LayoutNode())
-
 	idx := len(b.children)
 	if len(index) > 0 && index[0] >= 0 && index[0] <= len(b.children) {
 		idx = index[0]
-		// Insert at position
+		// Insert at position in both render tree and layout tree.
+		b.layoutNode.AddChildAt(child.LayoutNode(), idx)
 		b.children = append(b.children, nil)
 		copy(b.children[idx+1:], b.children[idx:])
 		b.children[idx] = child
 	} else {
+		b.layoutNode.AddChild(child.LayoutNode())
 		b.children = append(b.children, child)
 	}
 
 	b.dirty = true
+	b.ctx.RequestRender()
 	return idx
 }
 
@@ -409,6 +409,7 @@ func (b *BaseRenderable) Remove(id string) {
 			child.SetParent(nil)
 			b.children = append(b.children[:i], b.children[i+1:]...)
 			b.dirty = true
+			b.ctx.RequestRender()
 			return
 		}
 	}
@@ -474,7 +475,7 @@ func (b *BaseRenderable) SetVisible(v bool) {
 			b.layoutNode.Visibility = layout.Hidden
 		}
 		b.layoutNode.MarkDirty()
-		b.dirty = true
+		b.RequestRender()
 	}
 }
 
@@ -489,7 +490,7 @@ func (b *BaseRenderable) SetGone(g bool) {
 		b.layoutNode.Visibility = layout.Visible
 	}
 	b.layoutNode.MarkDirty()
-	b.dirty = true
+	b.RequestRender()
 }
 
 // IsDirty returns whether this renderable needs re-rendering.
@@ -600,7 +601,14 @@ func (b *BaseRenderable) UpdateFromLayoutWithOffset(offsetX, offsetY int) {
 	if b.width != b.prevWidth || b.height != b.prevHeight {
 		b.prevWidth = b.width
 		b.prevHeight = b.height
-		b.OnResize(b.width, b.height)
+		// Dispatch through self (the outer Renderable) so widget
+		// overrides of OnResize are reached. Same pattern as
+		// renderContent → self.RenderSelf.
+		if b.self != nil {
+			b.self.OnResize(b.width, b.height)
+		} else {
+			b.OnResize(b.width, b.height)
+		}
 		if b.OnSizeChangeHandler != nil {
 			b.OnSizeChangeHandler()
 		}

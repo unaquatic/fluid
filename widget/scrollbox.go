@@ -54,6 +54,7 @@ type ScrollBox struct {
 
 	// Sticky positioning.
 	stickyGap int // pixels between consecutive sticky children (default 0)
+
 }
 
 // ScrollBoxOption configures a ScrollBox during construction.
@@ -89,7 +90,7 @@ func NewScrollBox(opts ...ScrollBoxOption) *ScrollBox {
 		if e.Scroll != nil {
 			oldY := sb.scrollY
 			oldX := sb.scrollX
-			sb.handleScroll(e.Scroll.DeltaX, e.Scroll.DeltaY)
+			sb.handleScroll(e.Scroll.DeltaX, e.Scroll.DeltaY, e.Modifiers.Ctrl)
 			if sb.scrollY != oldY || sb.scrollX != oldX {
 				e.StopPropagation()
 			}
@@ -109,7 +110,7 @@ func (sb *ScrollBox) ScrollX() int { return sb.scrollX }
 // Marks userScrolled unless we end up at the auto-scroll edge.
 func (sb *ScrollBox) SetScrollY(y int) {
 	sb.scrollY = sb.clampScrollY(y)
-	if !sb.isAtAutoScrollEdge() && sb.maxScrollY() > 1 {
+	if !sb.isAtAutoScrollEdge() && sb.maxScrollY() > 0 {
 		sb.userScrolled = true
 	}
 	if sb.anchorScroll {
@@ -123,7 +124,7 @@ func (sb *ScrollBox) SetScrollY(y int) {
 // SetScrollX sets the horizontal scroll offset.
 func (sb *ScrollBox) SetScrollX(x int) {
 	sb.scrollX = sb.clampScrollX(x)
-	if !sb.isAtAutoScrollEdge() && sb.maxScrollX() > 1 {
+	if !sb.isAtAutoScrollEdge() && sb.maxScrollX() > 0 {
 		sb.userScrolled = true
 	}
 	sb.updateAutoScrollState()
@@ -273,6 +274,16 @@ func (sb *ScrollBox) OnPostLayout(deltaTime float64) {
 	if maxWidth != sb.contentWidth {
 		sb.contentWidth = maxWidth
 	}
+
+	// Re-run auto-scroll every frame. Content-size changes above already
+	// call recalculateAutoScroll via SetContentHeight, but the viewport
+	// (inner size) can also change without a content-size delta — for
+	// example when a sibling below the ScrollBox is hidden and the
+	// flex-grow share expands, or when padding/border toggles. Running
+	// unconditionally here keeps scrollY pinned to the configured edge
+	// in all of those cases. The call is a no-op when autoScroll is
+	// None or the user has scrolled away from the edge.
+	sb.recalculateAutoScroll()
 
 	// Keep the anchor fresh after layout settles so the next content-size
 	// change can restore from up-to-date child positions.
@@ -502,12 +513,16 @@ func (sb *ScrollBox) scrollYFromAnchor() int {
 // Internal — scroll mechanics
 // ---------------------------------------------------------------------------
 
-func (sb *ScrollBox) handleScroll(deltaX, deltaY int) {
+func (sb *ScrollBox) handleScroll(deltaX, deltaY int, ctrl bool) {
+	mult := 1
+	if ctrl {
+		mult = 4
+	}
 	if deltaY != 0 {
-		sb.SetScrollY(sb.scrollY + deltaY)
+		sb.SetScrollY(sb.scrollY + deltaY*mult)
 	}
 	if deltaX != 0 {
-		sb.SetScrollX(sb.scrollX + deltaX)
+		sb.SetScrollX(sb.scrollX + deltaX*mult)
 	}
 	// Note: SetScrollY/SetScrollX already set userScrolled when the
 	// resulting position is away from the auto-scroll edge. We must NOT

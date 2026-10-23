@@ -54,10 +54,10 @@ type Renderer struct {
 	dragButton input.MouseButton
 	dragging   bool
 
-	// Render loop
-	renderRequested chan struct{} // buffered channel, size 1
-	stopChan        chan struct{}
-	renderTicker    *time.Ticker
+	// Event loop
+	pendingWork  chan func() // unified work queue — all mutations funnelled here
+	stopChan     chan struct{}
+	renderNeeded bool
 
 	// Post-processing
 	postProcessFns []func(*buffer.Buffer, float64)
@@ -99,13 +99,7 @@ type Renderer struct {
 	done chan struct{}
 
 	mu          sync.Mutex
-	resizeCh    chan resizeEvent // serializes resize onto the render loop
-	invalidated bool             // when true, next frame uses FullFlush instead of DiffAndFlush
-}
-
-// resizeEvent carries a pending terminal resize.
-type resizeEvent struct {
-	width, height int
+	invalidated bool // when true, next frame uses FullFlush instead of DiffAndFlush
 }
 
 // ---------------------------------------------------------------------------
@@ -138,27 +132,26 @@ func NewRenderer(config ...Config) (*Renderer, error) {
 	eventBus := input.NewEventBus()
 
 	r := &Renderer{
-		root:            root,
-		hitGrid:         hitGrid,
-		backend:         backend,
-		config:          cfg,
-		currentBuffer:   currentBuffer,
-		nextBuffer:      nextBuffer,
-		width:           w,
-		height:          h,
-		controlState:    StateIdle,
-		parser:          parser,
-		eventBus:        eventBus,
-		renderRequested: make(chan struct{}, 1),
-		stopChan:        make(chan struct{}),
-		done:            make(chan struct{}),
-		resizeCh:        make(chan resizeEvent, 1),
-		invalidated:     true,
-		postProcessFns:  cfg.PostProcessFns,
-		stats:           NewStats(60),
-		lastFrameTime:   time.Now(),
-		sel:             render.NewSelection(),
-		linkRegistry:    NewLinkRegistry(),
+		root:             root,
+		hitGrid:          hitGrid,
+		backend:          backend,
+		config:           cfg,
+		currentBuffer:    currentBuffer,
+		nextBuffer:       nextBuffer,
+		width:            w,
+		height:           h,
+		controlState:     StateIdle,
+		parser:           parser,
+		eventBus:         eventBus,
+		pendingWork:      make(chan func(), 512),
+		stopChan:         make(chan struct{}, 1),
+		done:             make(chan struct{}),
+		invalidated:      true,
+		postProcessFns:   cfg.PostProcessFns,
+		stats:            NewStats(60),
+		lastFrameTime:    time.Now(),
+		sel:              render.NewSelection(),
+		linkRegistry:     NewLinkRegistry(),
 	}
 
 	// Open debug log file if requested.
@@ -283,7 +276,7 @@ func (r *Renderer) Start() error {
 	r.controlState = StateExplicitStarted
 	r.mu.Unlock()
 
-	go r.renderLoop()
+	go r.eventLoop()
 	go r.inputLoop()
 	go r.watchResize()
 
@@ -307,7 +300,7 @@ func (r *Renderer) Auto() error {
 	r.controlState = StateAutoStarted
 	r.mu.Unlock()
 
-	go r.renderLoop()
+	go r.eventLoop()
 	go r.inputLoop()
 	go r.watchResize()
 
@@ -408,7 +401,7 @@ func (r *Renderer) Suspend() {
 	}
 }
 
-// Stop stops the render loop.
+// Stop stops the event loop.
 func (r *Renderer) Stop() {
 	r.mu.Lock()
 	if r.controlState == StateExplicitStopped || r.controlState == StateIdle {
@@ -418,14 +411,10 @@ func (r *Renderer) Stop() {
 	r.controlState = StateExplicitStopped
 	r.mu.Unlock()
 
-	// Signal the render loop to stop
+	// Signal the event loop to stop
 	select {
 	case r.stopChan <- struct{}{}:
 	default:
-	}
-
-	if r.renderTicker != nil {
-		r.renderTicker.Stop()
 	}
 }
 
@@ -476,11 +465,7 @@ func (r *Renderer) Destroy() {
 
 // RequestRender signals that a render frame is needed.
 func (r *Renderer) RequestRender() {
-	select {
-	case r.renderRequested <- struct{}{}:
-	default:
-		// Already requested
-	}
+	r.Enqueue(func() { r.renderNeeded = true })
 }
 
 // ---------------------------------------------------------------------------
@@ -537,9 +522,11 @@ func (r *Renderer) ClearSelection() {
 	r.sel.Clear()
 }
 
-// RequestLive increments the live rendering reference count.
+// RequestLive increments the live rendering reference count and
+// triggers a render so the event loop wakes up.
 func (r *Renderer) RequestLive() {
 	atomic.AddInt32(&r.liveCount, 1)
+	r.RequestRender()
 }
 
 // DropLive decrements the live rendering reference count.
@@ -548,77 +535,79 @@ func (r *Renderer) DropLive() {
 }
 
 // ---------------------------------------------------------------------------
-// Render Loop
+// Event Loop
 // ---------------------------------------------------------------------------
 
-// renderLoop runs the main render loop as a goroutine.
-func (r *Renderer) renderLoop() {
-	r.mu.Lock()
-	fps := r.config.TargetFPS
-	if fps <= 0 {
-		fps = 30
-	}
-	r.mu.Unlock()
-
-	r.renderTicker = time.NewTicker(time.Second / time.Duration(fps))
-	defer r.renderTicker.Stop()
-
-	for {
-		select {
-		case <-r.stopChan:
-			return
-		case <-r.renderTicker.C:
-			// Process any pending resizes on the render loop (no race).
-			r.drainResizes()
-
-			r.mu.Lock()
-			state := r.controlState
-			r.mu.Unlock()
-
-			switch state {
-			case StateAutoStarted:
-				// Auto mode: only render if dirty or live
-				hasLive := atomic.LoadInt32(&r.liveCount) > 0
-				select {
-				case <-r.renderRequested:
-					r.renderFrame()
-				default:
-					if hasLive {
-						r.renderFrame()
-					}
-				}
-
-			case StateExplicitStarted:
-				r.renderFrame()
-
-			case StateExplicitPaused, StateExplicitSuspended:
-				// Skip rendering
-
-			case StateExplicitStopped:
-				return
-			}
+// Enqueue schedules a function to run on the event loop goroutine.
+// This is the safe way to mutate the widget tree from any goroutine.
+// The function will execute before the next render frame.
+func (r *Renderer) Enqueue(fn func()) {
+	select {
+	case r.pendingWork <- fn:
+	default:
+		if r.dbg != nil {
+			r.dbg.Printf("[enqueue] dropped callback — channel full")
 		}
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Resize (processed on the render loop)
-// ---------------------------------------------------------------------------
+// eventLoop runs the unified event + render loop as a goroutine.
+// All tree mutations (input dispatch, enqueued callbacks, resizes) and
+// rendering happen on this single goroutine, eliminating data races.
+func (r *Renderer) eventLoop() {
+	for {
+		// Block until at least one work item arrives.
+		select {
+		case fn := <-r.pendingWork:
+			fn()
+		case <-r.stopChan:
+			return
+		}
 
-// drainResizes processes any pending resize events before rendering.
-// Runs on the render loop goroutine so there is no race with renderFrame.
-func (r *Renderer) drainResizes() {
+		// Drain all remaining pending work (batch before rendering).
+		r.drainPending()
+
+		// Check lifecycle state.
+		r.mu.Lock()
+		state := r.controlState
+		r.mu.Unlock()
+
+		switch state {
+		case StateExplicitPaused, StateExplicitSuspended:
+			continue
+		case StateExplicitStopped:
+			return
+		}
+
+		// In explicit/continuous mode, always render.
+		if state == StateExplicitStarted {
+			r.renderNeeded = true
+		}
+
+		if r.renderNeeded {
+			r.renderFrame()
+			r.renderNeeded = false
+		}
+	}
+}
+
+// drainPending processes all remaining pending work without blocking.
+func (r *Renderer) drainPending() {
 	for {
 		select {
-		case ev := <-r.resizeCh:
-			r.processResize(ev.width, ev.height)
+		case fn := <-r.pendingWork:
+			fn()
 		default:
 			return
 		}
 	}
 }
 
-// processResize applies a terminal resize. Must be called from the render loop.
+// ---------------------------------------------------------------------------
+// Resize (processed on the event loop)
+// ---------------------------------------------------------------------------
+
+// processResize applies a terminal resize. Must be called from the event loop.
 func (r *Renderer) processResize(w, h int) {
 	r.mu.Lock()
 	r.width = w

@@ -13,8 +13,8 @@ import (
 // Input Loop
 // ---------------------------------------------------------------------------
 
-// inputLoop reads raw input from the terminal and dispatches events.
-// Runs as a goroutine.
+// inputLoop reads raw input from the terminal and enqueues dispatch
+// closures onto the event loop. Runs as a background goroutine.
 func (r *Renderer) inputLoop() {
 	buf := make([]byte, 4096)
 	for {
@@ -28,7 +28,11 @@ func (r *Renderer) inputLoop() {
 
 		events := r.parser.Parse(buf[:n])
 		for _, evt := range events {
-			r.dispatchEvent(evt)
+			select {
+			case r.pendingWork <- func() { r.dispatchEvent(evt) }:
+			case <-r.stopChan:
+				return
+			}
 		}
 	}
 }
@@ -287,29 +291,11 @@ func (r *Renderer) watchResize() {
 			r.mu.Unlock()
 
 			if changed {
-				r.handleResize(w, h)
+				r.Enqueue(func() { r.processResize(w, h) })
 			}
 		case <-r.stopChan:
 			return
 		}
-	}
-}
-
-// handleResize sends a resize event to the render loop for processing.
-// The actual resize is done in processResize on the render loop goroutine,
-// eliminating any race between resize and render.
-func (r *Renderer) handleResize(w, h int) {
-	// Non-blocking send — drop if a resize is already pending (the render
-	// loop will pick up the latest one).
-	select {
-	case r.resizeCh <- resizeEvent{w, h}:
-	default:
-		// Channel full — drain and replace with latest size.
-		select {
-		case <-r.resizeCh:
-		default:
-		}
-		r.resizeCh <- resizeEvent{w, h}
 	}
 
 	// Request render so the loop wakes up to process the resize.

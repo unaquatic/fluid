@@ -738,6 +738,9 @@ func intrinsicMainSize(node *LayoutNode, parentDir FlexDirection, mainAvailable,
 			if child.Position == PositionAbsolute {
 				continue
 			}
+			if child.Visibility == Gone {
+				continue
+			}
 
 			// Use the child's resolved main-axis size as its cross
 			// constraint when measuring along parentDir.
@@ -761,6 +764,9 @@ func intrinsicMainSize(node *LayoutNode, parentDir FlexDirection, mainAvailable,
 		// dimension (height for Column).
 		for _, child := range node.Children {
 			if child.Position == PositionAbsolute {
+				continue
+			}
+			if child.Visibility == Gone {
 				continue
 			}
 
@@ -787,7 +793,7 @@ func intrinsicMainSize(node *LayoutNode, parentDir FlexDirection, mainAvailable,
 func preResolveMainSizes(node *LayoutNode, dir FlexDirection, mainAvailable, crossAvailable int) []int {
 	var items []*LayoutNode
 	for _, child := range node.Children {
-		if child.Position != PositionAbsolute {
+		if child.Position != PositionAbsolute && child.Visibility != Gone {
 			items = append(items, child)
 		}
 	}

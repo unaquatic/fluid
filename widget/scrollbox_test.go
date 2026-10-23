@@ -829,7 +829,7 @@ func TestScrollBox_AnchorScroll_HandleScrollBackToBottomReengagesAutoScroll(t *t
 	// maxScrollY = 60 - 15 = 45.
 
 	// Scroll up via handleScroll (simulates mouse wheel up).
-	sb.handleScroll(0, -30) // scrollY = 45 - 30 = 15
+	sb.handleScroll(0, -30, false) // scrollY = 45 - 30 = 15
 	if sb.ScrollY() != 15 {
 		t.Fatalf("expected scrollY=15 after scroll up, got %d", sb.ScrollY())
 	}
@@ -838,7 +838,7 @@ func TestScrollBox_AnchorScroll_HandleScrollBackToBottomReengagesAutoScroll(t *t
 	}
 
 	// Scroll back to bottom via handleScroll (simulates mouse wheel down).
-	sb.handleScroll(0, 100) // clamped to maxScrollY = 45
+	sb.handleScroll(0, 100, false) // clamped to maxScrollY = 45
 	if !sb.IsAtBottom() {
 		t.Fatalf("expected at bottom after mouse scroll down, scrollY=%d", sb.ScrollY())
 	}

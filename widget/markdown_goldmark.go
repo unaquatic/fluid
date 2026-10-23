@@ -229,7 +229,15 @@ func (g *GoldmarkParser) convertListItem(li *goldmarkast.ListItem, src []byte, s
 	}
 }
 
+// codeTabWidth is the number of spaces a tab expands to inside rendered
+// code blocks. Matches textbuf.TextBuffer's default tab width so Markdown
+// code blocks line up with standalone widget.Code views.
+const codeTabWidth = 4
+
 // extractLines reads the text lines from a code block node.
+// Tabs are expanded to spaces because the Markdown renderer paints chunks
+// directly via buffer.SetGraphemeCluster, which would otherwise drop the
+// tab character (its grapheme width is 0).
 func (g *GoldmarkParser) extractLines(n goldmarkast.Node, src []byte) []string {
 	type hasLines interface {
 		Lines() *goldmarktext.Segments
@@ -242,9 +250,19 @@ func (g *GoldmarkParser) extractLines(n goldmarkast.Node, src []byte) []string {
 	var out []string
 	for i := 0; i < lines.Len(); i++ {
 		seg := lines.At(i)
-		out = append(out, strings.TrimRight(string(seg.Value(src)), "\n"))
+		line := strings.TrimRight(string(seg.Value(src)), "\n")
+		out = append(out, expandCodeTabs(line))
 	}
 	return out
+}
+
+// expandCodeTabs expands tab characters to codeTabWidth spaces. Used for
+// code block lines before they reach the renderer.
+func expandCodeTabs(line string) string {
+	if !strings.ContainsRune(line, '\t') {
+		return line
+	}
+	return strings.ReplaceAll(line, "\t", strings.Repeat(" ", codeTabWidth))
 }
 
 // ---------------------------------------------------------------------------

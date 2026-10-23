@@ -38,10 +38,10 @@ type Select struct {
 	wrapSelection       bool
 	showDescription     bool
 	inlineDescription   bool
-	nameWidth           int  // fixed width for name column when inlineDescription is true
-	itemPaddingX        int  // left/right padding inside each option row
-	focusedUseBold      bool // use bold text instead of background color for focused item
-	showSelectionArrow  bool // show → arrow on selected item
+	nameWidth           int    // fixed width for name column when inlineDescription is true
+	itemPaddingX        int    // left/right padding inside each option row
+	focusedUseBold      bool   // use bold text instead of background color for focused item
+	showSelectionArrow  bool   // show → arrow on selected item
 	selectionIndicator  string // drawn before the selected item name (e.g. "> ")
 
 	// Event callbacks
@@ -474,4 +474,5 @@ func SelectWithFlexGrow(v int) SelectOpt {
 func (s *Select) SetHeight(h layout.Scalar) {
 	s.LayoutNode().Height = h
 	s.LayoutNode().MarkDirty()
+	s.RequestRender()
 }

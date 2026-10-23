@@ -10,8 +10,12 @@ import "math"
 // for large trees (thousands of nodes) where layout can take 100-200ms.
 //
 // Each node clears its own dirty flag after being processed (no recursive
-// clearDirty). The loop handles concurrent tree modification: if MarkDirty
-// runs during layout and re-dirties the root, we re-run.
+// clearDirty). The loop handles the case where a MeasureFunc re-dirties
+// the tree during layout: the node is re-laid out.
+//
+// IMPORTANT: All tree mutations (AddChild, SetContent, MarkDirty, etc.)
+// must happen on the same goroutine that calls ComputeLayout. The
+// renderer's event loop enforces this — see Renderer.Enqueue().
 func (n *LayoutNode) ComputeLayout(availableWidth, availableHeight int) {
 	for n.dirty {
 		n.layoutFlexContainer(availableWidth, availableHeight, 0, 0)

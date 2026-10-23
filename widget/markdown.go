@@ -1,6 +1,8 @@
 package widget
 
 import (
+	"math"
+	"reflect"
 	"strings"
 	"sync"
 	"unicode"
@@ -18,10 +20,9 @@ import (
 type Markdown struct {
 	*render.BaseRenderable
 
-	mu        sync.Mutex // protects content + contentDirty from concurrent access
-	content   string
-	streaming bool
-	wrapMode  WrapMode
+	mu       sync.Mutex // protects content + contentDirty from concurrent access
+	content  string
+	wrapMode WrapMode
 
 	// Two-phase pipeline:
 	// Phase 1 (parse): content → blocks (width-independent)
@@ -215,9 +216,61 @@ func NewMarkdown(content string, opts ...MarkdownOption) *Markdown {
 		if widthMode == layout.MeasureUndefined {
 			w = 80
 		}
+
+		// Unconstrained probe guard: the flex engine's perpendicular
+		// intrinsicMainSize probes with large widths (math.MaxInt16
+		// minus container padding) to find the natural size. These
+		// are never the final layout width. Return the cached line
+		// count WITHOUT modifying lastWrapWidth so the == fast path
+		// below isn't poisoned by alternating probe/real widths.
+		//
+		// Any width above half of MaxInt16 is clearly a probe — real
+		// terminal widths are at most a few hundred columns.
+		if w >= math.MaxInt16/2 && (m.lastWrapWidth > 0 || len(m.blocks) == 0) {
+			h := len(m.renderedLines)
+			if heightMode == layout.MeasureExactly {
+				h = height
+			} else if heightMode == layout.MeasureAtMost && h > height {
+				h = height
+			}
+			return layout.MeasureResult{Width: w, Height: h}
+		}
+
+		// Fast path: reuse the cached line count when the proposed
+		// width exactly matches the last wrap width and nothing is
+		// dirty. We use == (not >=) so that an actual width change
+		// (terminal resize) triggers a re-wrap in the same layout
+		// pass — no second pass needed.
+		//
+		// Also fast-path empty blocks — they always produce 0 lines
+		// regardless of width, so there's nothing to wrap.
+		//
+		// Must also check wrapDirty: SetBlocks marks wrapDirty=true
+		// without bumping contentDirty, so renderedLines may be stale
+		// relative to the current m.blocks. Skipping this check leads
+		// to the parent sizing the content box to the pre-swap line
+		// count, clipping any new lines on render.
+		if !m.contentDirty && !m.wrapDirty && (len(m.blocks) == 0 || (m.lastWrapWidth > 0 && w == m.lastWrapWidth)) {
+			h := len(m.renderedLines)
+			if heightMode == layout.MeasureExactly {
+				h = height
+			} else if heightMode == layout.MeasureAtMost && h > height {
+				h = height
+			}
+			return layout.MeasureResult{Width: w, Height: h}
+		}
+
 		// Re-wrap to the proposed width so line count is accurate.
 		m.wrapToWidth(w)
-		h := max(len(m.renderedLines), 1)
+		// Height is the number of rendered lines, with no floor: a block
+		// that emits nothing (e.g. MdBlockRule under the current
+		// thematic-break-as-spacing rendering) must report Height=0 so
+		// the parent doesn't allocate an empty row for it. Without this,
+		// StreamMarkdown — which puts each block in its own Markdown
+		// child — would leave a phantom blank row wherever a previous
+		// streamed message contained "\n\n---\n\n", visible as ghost
+		// rows above the message's debug footer.
+		h := len(m.renderedLines)
 		if heightMode == layout.MeasureExactly {
 			h = height
 		} else if heightMode == layout.MeasureAtMost && h > height {
@@ -267,11 +320,27 @@ func (m *Markdown) AppendContent(text string) {
 	m.RequestRender()
 }
 
-// SetStreaming sets streaming mode.
-func (m *Markdown) SetStreaming(v bool) { m.streaming = v }
+// SetBlocks replaces the parsed block list directly, bypassing the
+// content→parse phase. Only the wrap phase runs on the next render.
+// Used by StreamMarkdown to distribute pre-parsed blocks to children.
+//
+// If the new blocks are deeply equal to the current ones, this is a
+// no-op (keeps cached renderedLines and wrapDirty state intact). This
+// lets streaming updates cheaply skip unchanged earlier children.
+func (m *Markdown) SetBlocks(blocks []MdBlock) {
+	m.mu.Lock()
+	m.contentDirty = false // blocks are already parsed
+	m.mu.Unlock()
 
-// Streaming returns whether streaming mode is active.
-func (m *Markdown) Streaming() bool { return m.streaming }
+	if reflect.DeepEqual(m.blocks, blocks) {
+		return
+	}
+
+	m.blocks = blocks
+	m.wrapDirty = true
+	m.LayoutNode().MarkDirty()
+	m.RequestRender()
+}
 
 // LineCount returns the number of rendered (post-wrap) lines.
 func (m *Markdown) LineCount() int {
@@ -331,11 +400,6 @@ func (m *Markdown) wrapToWidth(w int) {
 		return
 	}
 	m.wrapBlocks(w)
-}
-
-// OnResize triggers re-wrap when size changes.
-func (m *Markdown) OnResize(width, height int) {
-	m.wrapDirty = true
 }
 
 // ---------------------------------------------------------------------------
@@ -436,7 +500,10 @@ func isContinuationBlock(prev, cur MdBlockKind) bool {
 	if prev == MdBlockCode && cur == MdBlockCode {
 		return true
 	}
-	if prev == MdBlockHeading && cur == MdBlockHeading {
+	// A thematic break already contributes its own leading blank via the
+	// spacer inserted before it; skip the trailing spacer so the rule plus
+	// its surrounding gap totals a single blank row between neighbours.
+	if prev == MdBlockRule {
 		return true
 	}
 	return false
@@ -496,8 +563,10 @@ func (m *Markdown) wrapBlockList(blocks []MdBlock, w int, indent int) {
 				indent, w,
 			)
 		case MdBlockCode:
-			codeIndent := indentStr + "  "
-			m.renderCodeBlock(blk, codeIndent)
+			// Top-level code blocks sit flush with the container edge.
+			// Nested code (inside lists or blockquotes) keeps its parent
+			// indent so it aligns with sibling content.
+			m.renderCodeBlock(blk, indentStr)
 		case MdBlockList, MdBlockOrderedList:
 			// Container: render children (ListItems).
 			m.wrapBlockList(blk.Children, w, indent)
@@ -535,16 +604,14 @@ func (m *Markdown) wrapBlockList(blocks []MdBlock, w int, indent int) {
 			}
 
 		case MdBlockRule:
-			ruleWidth := 40
-			if avail > 0 && avail < ruleWidth {
-				ruleWidth = avail
-			}
-			m.renderedLines = append(m.renderedLines, mdLine{
-				chunks: []style.TextChunk{
-					{Text: indentStr},
-					{Text: strings.Repeat(string(symbol.Horizontal), ruleWidth), Fg: &m.ruleFg},
-				},
-			})
+			// Render thematic breaks as invisible vertical spacing rather
+			// than a drawn line: the rule border is dropped and
+			// replaced with a tall margin.
+			// The rule itself emits nothing; InsertBlockSpacing contributes
+			// a single blank line before the rule (and suppresses the one
+			// after via isContinuationBlock) so surrounding paragraphs are
+			// separated by exactly one blank row — the same gap as a plain
+			// paragraph break.
 		case MdBlockBlank:
 			m.renderedLines = append(m.renderedLines, mdLine{})
 		case MdBlockTable:
@@ -896,6 +963,7 @@ func (m *Markdown) WrapModeValue() WrapMode { return m.wrapMode }
 func (m *Markdown) SetHeight(s layout.Scalar) {
 	m.LayoutNode().Height = s
 	m.LayoutNode().MarkDirty()
+	m.RequestRender()
 }
 
 // ---------------------------------------------------------------------------
@@ -912,9 +980,19 @@ func MarkdownWithBg(c style.Color) MarkdownOption {
 	return func(m *Markdown) { m.bg = c }
 }
 
-// MarkdownWithStreaming sets streaming mode.
-func MarkdownWithStreaming(v bool) MarkdownOption {
-	return func(m *Markdown) { m.streaming = v }
+// MarkdownWithCodeFg sets the default foreground color for inline code spans
+// and monochrome fenced code blocks. Syntax-highlighted code still uses its
+// theme's per-token colors.
+func MarkdownWithCodeFg(c style.Color) MarkdownOption {
+	return func(m *Markdown) { m.codeFg = c }
+}
+
+// MarkdownWithCodeBg sets the background color for inline code spans and
+// fenced code blocks. Syntax-highlighted code uses this as the default bg
+// for tokens that don't specify their own. Pass the surrounding container
+// color when you want code to blend in with the message body.
+func MarkdownWithCodeBg(c style.Color) MarkdownOption {
+	return func(m *Markdown) { m.codeBg = c }
 }
 
 // MarkdownWithWrapMode sets the wrap mode.
@@ -952,4 +1030,41 @@ func MarkdownWithParser(p MarkdownParser) MarkdownOption {
 // blocks. When nil, a ChromaHighlighter with the "monokai" theme is used.
 func MarkdownWithHighlighter(h SyntaxHighlighter) MarkdownOption {
 	return func(m *Markdown) { m.highlighter = h }
+}
+
+// MarkdownWithTheme applies every color role the Markdown widget uses from
+// the given Theme. Later MarkdownWith... options (e.g. MarkdownWithFg) take
+// precedence, so callers can override individual roles on top of a theme.
+// If t is nil the widget's built-in defaults are retained.
+//
+// A Chroma highlighter is installed using a style derived from Theme.Code
+// so syntax-highlighted code harmonises with the rest of the palette.
+// Callers that need a specific pre-built Chroma theme can chain
+// MarkdownWithHighlighter after MarkdownWithTheme.
+func MarkdownWithTheme(t *style.Theme) MarkdownOption {
+	return func(m *Markdown) {
+		if t == nil {
+			return
+		}
+		m.fg = t.TextStrong
+		m.bg = t.Surface
+		m.h1Fg = t.MarkdownHeading[0]
+		m.h2Fg = t.MarkdownHeading[1]
+		m.h3Fg = t.MarkdownHeading[2]
+		m.h4Fg = t.MarkdownHeading[3]
+		m.h5Fg = t.MarkdownHeading[4]
+		m.h6Fg = t.MarkdownHeading[5]
+		m.codeFg = t.CodeFg
+		m.codeBg = t.CodeBg
+		m.linkFg = t.MarkdownLink
+		m.quoteFg = t.MarkdownQuoteFg
+		m.quoteBorder = t.MarkdownQuoteBd
+		m.bulletFg = t.MarkdownBullet
+		m.ruleFg = t.MarkdownRule
+		// Always derive the Chroma style from the theme's palette so
+		// syntax colors harmonise with the rest of the UI. Callers
+		// who want a specific pre-built Chroma theme can still install
+		// one manually via MarkdownWithHighlighter after the theme.
+		m.highlighter = NewChromaHighlighterWithStyle(ChromaStyleFromTheme(t))
+	}
 }
