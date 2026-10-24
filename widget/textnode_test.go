@@ -13,11 +13,11 @@ func TestNewTextNode(t *testing.T) {
 	if n.ID() == "" {
 		t.Error("expected auto-generated ID")
 	}
-	if n.Fg() != nil {
-		t.Error("expected nil Fg by default")
+	if !n.Fg().IsTransparent() {
+		t.Error("expected no Fg by default")
 	}
-	if n.Bg() != nil {
-		t.Error("expected nil Bg by default")
+	if !n.Bg().IsTransparent() {
+		t.Error("expected no Bg by default")
 	}
 	if n.Attributes() != 0 {
 		t.Error("expected 0 attributes by default")
@@ -34,7 +34,7 @@ func TestTextNode_WithOptions(t *testing.T) {
 	if n.ID() != "test-span" {
 		t.Errorf("expected id 'test-span', got %q", n.ID())
 	}
-	if n.Fg() == nil || !n.Fg().Equals(fg) {
+	if !n.Fg().Equals(fg) {
 		t.Error("expected red Fg")
 	}
 	if n.Attributes() != style.AttrBold {
@@ -86,7 +86,7 @@ func TestTextNode_GatherChunks_Simple(t *testing.T) {
 	if chunks[0].Text != "hello world" {
 		t.Errorf("expected 'hello world', got %q", chunks[0].Text)
 	}
-	if chunks[0].Fg == nil || !chunks[0].Fg.Equals(style.ColorWhite) {
+	if !chunks[0].Fg.Equals(style.ColorWhite) {
 		t.Error("expected white Fg")
 	}
 }
@@ -102,7 +102,7 @@ func TestTextNode_GatherChunks_WithFg(t *testing.T) {
 	if chunks[0].Text != "hello" {
 		t.Errorf("expected 'hello', got %q", chunks[0].Text)
 	}
-	if chunks[0].Fg == nil || !chunks[0].Fg.Equals(style.ColorRed) {
+	if !chunks[0].Fg.Equals(style.ColorRed) {
 		t.Errorf("expected Red fg, got %v", chunks[0].Fg)
 	}
 }
@@ -120,7 +120,7 @@ func TestTextNode_GatherChunks_Inheritance(t *testing.T) {
 	if len(chunks) != 1 {
 		t.Fatalf("expected 1 chunk, got %d", len(chunks))
 	}
-	if chunks[0].Fg == nil || !chunks[0].Fg.Equals(style.ColorRed) {
+	if !chunks[0].Fg.Equals(style.ColorRed) {
 		t.Errorf("expected inherited Red fg, got %v", chunks[0].Fg)
 	}
 }
@@ -136,7 +136,7 @@ func TestTextNode_GatherChunks_Override(t *testing.T) {
 	if len(chunks) != 1 {
 		t.Fatalf("expected 1 chunk, got %d", len(chunks))
 	}
-	if chunks[0].Fg == nil || !chunks[0].Fg.Equals(style.ColorBlue) {
+	if !chunks[0].Fg.Equals(style.ColorBlue) {
 		t.Errorf("expected Blue fg override, got %v", chunks[0].Fg)
 	}
 }
@@ -273,7 +273,7 @@ func TestTextNode_DeepNesting(t *testing.T) {
 	if len(chunks) != 1 {
 		t.Fatalf("expected 1 chunk, got %d", len(chunks))
 	}
-	if chunks[0].Fg == nil || !chunks[0].Fg.Equals(style.ColorRed) {
+	if !chunks[0].Fg.Equals(style.ColorRed) {
 		t.Errorf("expected Red fg from root, got %v", chunks[0].Fg)
 	}
 	if chunks[0].Attributes&style.AttrBold == 0 {
@@ -348,7 +348,7 @@ func TestNewSpanNode(t *testing.T) {
 	red := style.ColorRed
 	n := NewSpanNode(TextNodeWithFg(red))
 	n.AddString("colored")
-	if n.Fg() == nil || !n.Fg().Equals(red) {
+	if !n.Fg().Equals(red) {
 		t.Error("expected red Fg on span")
 	}
 }
@@ -395,7 +395,7 @@ func TestSpanText(t *testing.T) {
 	if chunks[0].Text != "hello" {
 		t.Errorf("expected 'hello', got %q", chunks[0].Text)
 	}
-	if chunks[0].Fg == nil || !chunks[0].Fg.Equals(style.ColorGreen) {
+	if !chunks[0].Fg.Equals(style.ColorGreen) {
 		t.Errorf("expected Green fg, got %v", chunks[0].Fg)
 	}
 }

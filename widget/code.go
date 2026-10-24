@@ -70,7 +70,7 @@ type Code struct {
 	// Selection
 	selectable_ bool
 	selectionBg style.Color
-	selectionFg *style.Color
+	selectionFg style.Color
 
 	// Active line highlighting
 	activeLine   int // -1 = none
@@ -812,7 +812,7 @@ func (c *Code) syncSelection() {
 		return
 	}
 	bg := c.selectionBg
-	c.textSurface.SetLocalSelection(localSel.AnchorX, localSel.AnchorY, localSel.FocusX, localSel.FocusY, &bg, c.selectionFg)
+	c.textSurface.SetLocalSelection(localSel.AnchorX, localSel.AnchorY, localSel.FocusX, localSel.FocusY, bg, c.selectionFg)
 }
 
 // LogicalLineForVisualLine returns the logical source line for a wrapped visual line.
@@ -843,8 +843,8 @@ func (c *Code) LineHighlights(lineIdx int) []style.TextChunk {
 		bg := sp.Bg
 		chunks[i] = style.TextChunk{
 			Text:       sp.Text,
-			Fg:         &fg,
-			Bg:         &bg,
+			Fg:         fg,
+			Bg:         bg,
 			Attributes: sp.Attributes,
 		}
 	}
@@ -896,7 +896,7 @@ func CodeWithSelectionBg(color style.Color) CodeOption {
 
 // CodeWithSelectionFg sets the selection foreground color.
 func CodeWithSelectionFg(color style.Color) CodeOption {
-	return func(c *Code) { c.selectionFg = &color }
+	return func(c *Code) { c.selectionFg = color }
 }
 
 // CodeWithScrollX sets the initial horizontal scroll offset.

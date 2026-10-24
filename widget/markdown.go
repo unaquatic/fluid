@@ -441,11 +441,11 @@ func (m *Markdown) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 		for _, chunk := range line.chunks {
 			fg := m.fg
 			bg := m.bg
-			if chunk.Fg != nil {
-				fg = *chunk.Fg
+			if !chunk.Fg.IsTransparent() {
+				fg = chunk.Fg
 			}
-			if chunk.Bg != nil {
-				bg = *chunk.Bg
+			if !chunk.Bg.IsTransparent() {
+				bg = chunk.Bg
 			}
 			attrs := chunk.Attributes
 			remaining := chunk.Text
@@ -498,8 +498,8 @@ func (m *Markdown) renderCodeBlock(blk MdBlock, indent int, w int) {
 	if !m.renderHighlighted(blk, lead, w, gutter, end) {
 		for _, line := range blk.CodeLines {
 			m.addCodeText(
-				style.TextChunk{Text: lead, Fg: &m.codeFg, Bg: &m.codeBg},
-				[]style.TextChunk{{Text: line, Fg: &m.codeFg, Bg: &m.codeBg}}, w, gutter, end,
+				style.TextChunk{Text: lead, Fg: m.codeFg, Bg: m.codeBg},
+				[]style.TextChunk{{Text: line, Fg: m.codeFg, Bg: m.codeBg}}, w, gutter, end,
 			)
 		}
 	}
@@ -535,12 +535,12 @@ func (m *Markdown) renderHighlighted(blk MdBlock, lead string, w, gutter, end in
 			fg, bg := span.Fg, span.Bg
 			body = append(body, style.TextChunk{
 				Text:       span.Text,
-				Fg:         &fg,
-				Bg:         &bg,
+				Fg:         fg,
+				Bg:         bg,
 				Attributes: span.Attributes,
 			})
 		}
-		m.addCodeText(style.TextChunk{Text: lead, Bg: &m.codeBg}, body, w, gutter, end)
+		m.addCodeText(style.TextChunk{Text: lead, Bg: m.codeBg}, body, w, gutter, end)
 	}
 	return true
 }
@@ -579,7 +579,7 @@ func (m *Markdown) addCodeLine(chunks []style.TextChunk, used, gutter, end int) 
 	if used < end {
 		chunks = append(chunks, style.TextChunk{
 			Text: strings.Repeat(" ", end-used),
-			Bg:   &m.codeBg,
+			Bg:   m.codeBg,
 		})
 	}
 	m.renderedLines = append(m.renderedLines, mdLine{chunks: chunks})
@@ -805,8 +805,8 @@ func wrapChunks(body []style.TextChunk, mode WrapMode, first, rest int) [][]styl
 		text string
 		base rune // First rune used to detect whitespace boundaries.
 		w    int
-		fg   *style.Color
-		bg   *style.Color
+		fg   style.Color
+		bg   style.Color
 		attr style.Attrs
 		link string
 	}
@@ -882,8 +882,8 @@ func wrapChunks(body []style.TextChunk, mode WrapMode, first, rest int) [][]styl
 
 		// Merge adjacent clusters with identical styles.
 		var sb strings.Builder
-		var curFg *style.Color
-		var curBg *style.Color
+		var curFg style.Color
+		var curBg style.Color
 		var curAttr style.Attrs
 		var curLink string
 		started := false
@@ -975,7 +975,7 @@ func (m *Markdown) renderTable(rows [][]MdTableCell, aligns []int, maxWidth int)
 	for rowIdx, row := range rows {
 		var chunks []style.TextChunk
 		for c := 0; c < numCols; c++ {
-			chunks = append(chunks, style.TextChunk{Text: string(bc.Vertical), Fg: &borderFg})
+			chunks = append(chunks, style.TextChunk{Text: string(bc.Vertical), Fg: borderFg})
 
 			var cell MdTableCell
 			if c < len(row) {
@@ -1014,7 +1014,7 @@ func (m *Markdown) renderTable(rows [][]MdTableCell, aligns []int, maxWidth int)
 				fg := m.fg
 				chunks = append(chunks, style.TextChunk{
 					Text:       strings.Repeat(" ", leftPad) + text + strings.Repeat(" ", rightPad),
-					Fg:         &fg,
+					Fg:         fg,
 					Attributes: style.AttrBold,
 				})
 			} else if len(cell.Chunks) > 0 {
@@ -1031,7 +1031,7 @@ func (m *Markdown) renderTable(rows [][]MdTableCell, aligns []int, maxWidth int)
 				chunks = append(chunks, style.TextChunk{Text: strings.Repeat(" ", cellWidth)})
 			}
 		}
-		chunks = append(chunks, style.TextChunk{Text: string(bc.Vertical), Fg: &borderFg})
+		chunks = append(chunks, style.TextChunk{Text: string(bc.Vertical), Fg: borderFg})
 		m.renderedLines = append(m.renderedLines, mdLine{chunks: chunks})
 
 		if rowIdx == 0 {
@@ -1055,7 +1055,7 @@ func (m *Markdown) buildTableBorder(colWidths []int, left, mid, right, fill rune
 		}
 	}
 	sb.WriteRune(right)
-	return mdLine{chunks: []style.TextChunk{{Text: sb.String(), Fg: &fg}}}
+	return mdLine{chunks: []style.TextChunk{{Text: sb.String(), Fg: fg}}}
 }
 
 // truncateStringToWidth returns the longest prefix that fits in maxWidth columns.

@@ -1,30 +1,16 @@
 package textbuf
 
+import "maps"
+
 // ExtmarksSnapshot captures extmarks and the next ID for undo or redo.
 type ExtmarksSnapshot struct {
 	extmarks map[int]Extmark
 	nextID   int
 }
 
-// cloneExtmarks copies the map and pointed-to colors. User Data remains a
-// shallow copy.
+// cloneExtmarks copies the map. User Data remains a shallow copy.
 func cloneExtmarks(src map[int]Extmark) map[int]Extmark {
-	if src == nil {
-		return nil
-	}
-	dst := make(map[int]Extmark, len(src))
-	for k, v := range src {
-		if v.Fg != nil {
-			fg := *v.Fg
-			v.Fg = &fg
-		}
-		if v.Bg != nil {
-			bg := *v.Bg
-			v.Bg = &bg
-		}
-		dst[k] = v
-	}
-	return dst
+	return maps.Clone(src)
 }
 
 // ExtmarksHistory tracks extmark snapshots alongside EditBuffer undo and redo.

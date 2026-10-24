@@ -395,7 +395,7 @@ func TestDrawText_WithSelection(t *testing.T) {
 	sel := textbuf.TextSelection{
 		Start:   1,
 		End:     3,
-		BgColor: &blue,
+		BgColor: blue,
 	}
 	b.DrawText("Hello", 0, 0, style.ColorWhite, WithSelection(sel))
 

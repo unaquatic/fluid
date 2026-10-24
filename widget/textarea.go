@@ -30,7 +30,7 @@ type Textarea struct {
 	backgroundColor    style.Color // Active background selected by Focus or Blur.
 	cursorColor        style.Color
 	selectionBg        style.Color
-	selectionFg        *style.Color // Nil preserves the text foreground.
+	selectionFg        style.Color // Transparent preserves the text foreground.
 
 	showCursor bool
 	readOnly   bool
@@ -300,7 +300,7 @@ func (ta *Textarea) SelectAll() {
 	sel := &textbuf.TextSelection{
 		Start:   0,
 		End:     totalLen,
-		BgColor: &ta.selectionBg,
+		BgColor: ta.selectionBg,
 		FgColor: ta.selectionFg,
 	}
 	ta.editSurface.SetSelection(sel)
@@ -491,7 +491,7 @@ func (ta *Textarea) SetKeyAliases(aliases input.KeyAliasMap) {
 
 // SetSelectionFg sets the selection foreground color.
 func (ta *Textarea) SetSelectionFg(c style.Color) {
-	ta.selectionFg = &c
+	ta.selectionFg = c
 }
 
 // SetSelectionBg sets the selection background color.
@@ -767,7 +767,7 @@ func (ta *Textarea) handleMouseDown(e *input.MouseEvent) {
 
 	// Resolve the clicked visual coordinate through EditSurface.
 	ta.editSurface.SetLocalSelection(localX, localY, localX, localY,
-		&ta.selectionBg, ta.selectionFg, true, false)
+		ta.selectionBg, ta.selectionFg, true, false)
 
 	// Store a viewport-local anchor for subsequent drag events.
 	ta.mouseSelAnchorX = localX
@@ -795,7 +795,7 @@ func (ta *Textarea) handleMouseDrag(e *input.MouseEvent) {
 	ok := ta.editSurface.UpdateLocalSelection(
 		ta.mouseSelAnchorX, ta.mouseSelAnchorY,
 		localX, localY,
-		&ta.selectionBg, ta.selectionFg,
+		ta.selectionBg, ta.selectionFg,
 	)
 
 	// Start automatic vertical scrolling within the outer fifth of the viewport.
@@ -1374,7 +1374,7 @@ func (ta *Textarea) syncSelectionToEditBufferView() {
 	sel := &textbuf.TextSelection{
 		Start:   start,
 		End:     end,
-		BgColor: &ta.selectionBg,
+		BgColor: ta.selectionBg,
 		FgColor: ta.selectionFg,
 	}
 	ta.editSurface.SetSelection(sel)
@@ -1565,7 +1565,7 @@ func TextareaWithSelectionBg(c style.Color) TextareaOption {
 
 // TextareaWithSelectionFg sets the selection foreground color.
 func TextareaWithSelectionFg(c style.Color) TextareaOption {
-	return func(ta *Textarea) { ta.selectionFg = &c }
+	return func(ta *Textarea) { ta.selectionFg = c }
 }
 
 // TextareaWithOnCursorChange sets the callback invoked after cursor movement.

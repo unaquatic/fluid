@@ -178,11 +178,11 @@ func TestMarkdownWithTheme_InstallsThemeHighlighter(t *testing.T) {
 func TestCode_SetThemeRestylesTokens(t *testing.T) {
 	monokai, darcula := style.DefaultDark(), style.DarculaSolid()
 	c := NewCode("func main() {}", CodeWithFiletype("go"), CodeWithTheme(monokai))
-	if got := c.LineHighlights(0)[0]; *got.Fg != monokai.Code.Keyword.Fg {
+	if got := c.LineHighlights(0)[0]; got.Fg != monokai.Code.Keyword.Fg {
 		t.Fatalf("keyword fg = %s, want %s", got.Fg.ToHex(), monokai.Code.Keyword.Fg.ToHex())
 	}
 	c.SetTheme(darcula)
-	if got := c.LineHighlights(0)[0]; *got.Fg != darcula.Code.Keyword.Fg {
+	if got := c.LineHighlights(0)[0]; got.Fg != darcula.Code.Keyword.Fg {
 		t.Errorf("keyword fg after SetTheme = %s, want %s", got.Fg.ToHex(), darcula.Code.Keyword.Fg.ToHex())
 	}
 }

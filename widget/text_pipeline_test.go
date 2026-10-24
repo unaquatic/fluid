@@ -229,7 +229,7 @@ func TestTextMutation_ModifyChildNode(t *testing.T) {
 
 	// Mutate the child foreground before rerendering.
 	blue := style.ColorBlue
-	span.SetFg(&blue)
+	span.SetFg(blue)
 
 	buf2 := buffer.New(10, 1)
 	txt.RenderSelf(buf2, 0)

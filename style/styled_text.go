@@ -9,10 +9,12 @@ import (
 type TextChunk struct {
 	// Text is the text of the run.
 	Text string
-	// Fg is the foreground color; nil inherits the surrounding foreground.
-	Fg *Color
-	// Bg is the background color; nil inherits the surrounding background.
-	Bg *Color
+	// Fg is the foreground color; a transparent one inherits the
+	// surrounding foreground.
+	Fg Color
+	// Bg is the background color; a transparent one inherits the
+	// surrounding background.
+	Bg Color
 	// Attributes is a bitmask of the Attr flags, such as AttrBold.
 	Attributes Attrs
 	// Link is the link URL, or empty for no link.
@@ -101,7 +103,7 @@ func TextInverse(text string) TextChunk {
 func Fg(ci ColorInput) func(string) TextChunk {
 	c := ParseColor(ci)
 	return func(text string) TextChunk {
-		return TextChunk{Text: text, Fg: &c}
+		return TextChunk{Text: text, Fg: c}
 	}
 }
 
@@ -109,7 +111,7 @@ func Fg(ci ColorInput) func(string) TextChunk {
 func Bg(ci ColorInput) func(string) TextChunk {
 	c := ParseColor(ci)
 	return func(text string) TextChunk {
-		return TextChunk{Text: text, Bg: &c}
+		return TextChunk{Text: text, Bg: c}
 	}
 }
 
@@ -122,156 +124,130 @@ func Link(url string) func(string) TextChunk {
 
 // Styled returns a text chunk with s applied.
 func Styled(text string, s Style) TextChunk {
-	fg := s.Fg
-	bg := s.Bg
 	return TextChunk{
 		Text:       text,
-		Fg:         &fg,
-		Bg:         &bg,
+		Fg:         s.Fg,
+		Bg:         s.Bg,
 		Attributes: s.Attributes,
 	}
 }
 
 // FgBlack returns a text chunk with a black foreground.
 func FgBlack(text string) TextChunk {
-	c := ColorBlack
-	return TextChunk{Text: text, Fg: &c}
+	return TextChunk{Text: text, Fg: ColorBlack}
 }
 
 // FgRed returns a text chunk with a red foreground.
 func FgRed(text string) TextChunk {
-	c := ColorRed
-	return TextChunk{Text: text, Fg: &c}
+	return TextChunk{Text: text, Fg: ColorRed}
 }
 
 // FgGreen returns a text chunk with a green foreground.
 func FgGreen(text string) TextChunk {
-	c := ColorGreen
-	return TextChunk{Text: text, Fg: &c}
+	return TextChunk{Text: text, Fg: ColorGreen}
 }
 
 // FgYellow returns a text chunk with a yellow foreground.
 func FgYellow(text string) TextChunk {
-	c := ColorYellow
-	return TextChunk{Text: text, Fg: &c}
+	return TextChunk{Text: text, Fg: ColorYellow}
 }
 
 // FgBlue returns a text chunk with a blue foreground.
 func FgBlue(text string) TextChunk {
-	c := ColorBlue
-	return TextChunk{Text: text, Fg: &c}
+	return TextChunk{Text: text, Fg: ColorBlue}
 }
 
 // FgMagenta returns a text chunk with a magenta foreground.
 func FgMagenta(text string) TextChunk {
-	c := ColorMagenta
-	return TextChunk{Text: text, Fg: &c}
+	return TextChunk{Text: text, Fg: ColorMagenta}
 }
 
 // FgCyan returns a text chunk with a cyan foreground.
 func FgCyan(text string) TextChunk {
-	c := ColorCyan
-	return TextChunk{Text: text, Fg: &c}
+	return TextChunk{Text: text, Fg: ColorCyan}
 }
 
 // FgWhite returns a text chunk with a white foreground.
 func FgWhite(text string) TextChunk {
-	c := ColorWhite
-	return TextChunk{Text: text, Fg: &c}
+	return TextChunk{Text: text, Fg: ColorWhite}
 }
 
 // FgBrightBlack returns a text chunk with a bright-black foreground.
 func FgBrightBlack(text string) TextChunk {
-	c := ColorBrightBlack
-	return TextChunk{Text: text, Fg: &c}
+	return TextChunk{Text: text, Fg: ColorBrightBlack}
 }
 
 // FgBrightRed returns a text chunk with a bright-red foreground.
 func FgBrightRed(text string) TextChunk {
-	c := ColorBrightRed
-	return TextChunk{Text: text, Fg: &c}
+	return TextChunk{Text: text, Fg: ColorBrightRed}
 }
 
 // FgBrightGreen returns a text chunk with a bright-green foreground.
 func FgBrightGreen(text string) TextChunk {
-	c := ColorBrightGreen
-	return TextChunk{Text: text, Fg: &c}
+	return TextChunk{Text: text, Fg: ColorBrightGreen}
 }
 
 // FgBrightYellow returns a text chunk with a bright-yellow foreground.
 func FgBrightYellow(text string) TextChunk {
-	c := ColorBrightYellow
-	return TextChunk{Text: text, Fg: &c}
+	return TextChunk{Text: text, Fg: ColorBrightYellow}
 }
 
 // FgBrightBlue returns a text chunk with a bright-blue foreground.
 func FgBrightBlue(text string) TextChunk {
-	c := ColorBrightBlue
-	return TextChunk{Text: text, Fg: &c}
+	return TextChunk{Text: text, Fg: ColorBrightBlue}
 }
 
 // FgBrightMagenta returns a text chunk with a bright-magenta foreground.
 func FgBrightMagenta(text string) TextChunk {
-	c := ColorBrightMagenta
-	return TextChunk{Text: text, Fg: &c}
+	return TextChunk{Text: text, Fg: ColorBrightMagenta}
 }
 
 // FgBrightCyan returns a text chunk with a bright-cyan foreground.
 func FgBrightCyan(text string) TextChunk {
-	c := ColorBrightCyan
-	return TextChunk{Text: text, Fg: &c}
+	return TextChunk{Text: text, Fg: ColorBrightCyan}
 }
 
 // FgBrightWhite returns a text chunk with a bright-white foreground.
 func FgBrightWhite(text string) TextChunk {
-	c := ColorBrightWhite
-	return TextChunk{Text: text, Fg: &c}
+	return TextChunk{Text: text, Fg: ColorBrightWhite}
 }
 
 // BgBlack returns a text chunk with a black background.
 func BgBlack(text string) TextChunk {
-	c := ColorBlack
-	return TextChunk{Text: text, Bg: &c}
+	return TextChunk{Text: text, Bg: ColorBlack}
 }
 
 // BgRed returns a text chunk with a red background.
 func BgRed(text string) TextChunk {
-	c := ColorRed
-	return TextChunk{Text: text, Bg: &c}
+	return TextChunk{Text: text, Bg: ColorRed}
 }
 
 // BgGreen returns a text chunk with a green background.
 func BgGreen(text string) TextChunk {
-	c := ColorGreen
-	return TextChunk{Text: text, Bg: &c}
+	return TextChunk{Text: text, Bg: ColorGreen}
 }
 
 // BgYellow returns a text chunk with a yellow background.
 func BgYellow(text string) TextChunk {
-	c := ColorYellow
-	return TextChunk{Text: text, Bg: &c}
+	return TextChunk{Text: text, Bg: ColorYellow}
 }
 
 // BgBlue returns a text chunk with a blue background.
 func BgBlue(text string) TextChunk {
-	c := ColorBlue
-	return TextChunk{Text: text, Bg: &c}
+	return TextChunk{Text: text, Bg: ColorBlue}
 }
 
 // BgMagenta returns a text chunk with a magenta background.
 func BgMagenta(text string) TextChunk {
-	c := ColorMagenta
-	return TextChunk{Text: text, Bg: &c}
+	return TextChunk{Text: text, Bg: ColorMagenta}
 }
 
 // BgCyan returns a text chunk with a cyan background.
 func BgCyan(text string) TextChunk {
-	c := ColorCyan
-	return TextChunk{Text: text, Bg: &c}
+	return TextChunk{Text: text, Bg: ColorCyan}
 }
 
 // BgWhite returns a text chunk with a white background.
 func BgWhite(text string) TextChunk {
-	c := ColorWhite
-	return TextChunk{Text: text, Bg: &c}
+	return TextChunk{Text: text, Bg: ColorWhite}
 }

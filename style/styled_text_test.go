@@ -67,8 +67,8 @@ func TestPlainChunk(t *testing.T) {
 	if c.Text != "hello" {
 		t.Errorf("text should be 'hello', got %q", c.Text)
 	}
-	if c.Fg != nil || c.Bg != nil {
-		t.Error("plain chunk should have nil Fg and Bg")
+	if !c.Fg.IsTransparent() || !c.Bg.IsTransparent() {
+		t.Error("plain chunk should have no Fg or Bg")
 	}
 	if c.Attributes != AttrNone {
 		t.Errorf("plain chunk should have no attributes, got %d", c.Attributes)
@@ -123,8 +123,8 @@ func TestFgFunction(t *testing.T) {
 	if chunk.Text != "hello" {
 		t.Errorf("text should be 'hello', got %q", chunk.Text)
 	}
-	if chunk.Fg == nil {
-		t.Fatal("Fg should not be nil")
+	if chunk.Fg.IsTransparent() {
+		t.Fatal("Fg should be set")
 	}
 	if !chunk.Fg.Equals(ColorRed) {
 		t.Errorf("fg should be ColorRed, got %s", chunk.Fg)
@@ -134,8 +134,8 @@ func TestFgFunction(t *testing.T) {
 func TestFgFunction_RGBA(t *testing.T) {
 	greenText := Fg(ColorGreen)
 	chunk := greenText("world")
-	if chunk.Fg == nil {
-		t.Fatal("Fg should not be nil")
+	if chunk.Fg.IsTransparent() {
+		t.Fatal("Fg should be set")
 	}
 	if !chunk.Fg.Equals(ColorGreen) {
 		t.Errorf("fg should be ColorGreen, got %s", chunk.Fg)
@@ -145,8 +145,8 @@ func TestFgFunction_RGBA(t *testing.T) {
 func TestBgFunction(t *testing.T) {
 	blueBg := Bg(ColorString("#0000ff"))
 	chunk := blueBg("hello")
-	if chunk.Bg == nil {
-		t.Fatal("Bg should not be nil")
+	if chunk.Bg.IsTransparent() {
+		t.Fatal("Bg should be set")
 	}
 	if !chunk.Bg.Equals(ColorBlue) {
 		t.Errorf("bg should be ColorBlue, got %s", chunk.Bg)
@@ -174,10 +174,10 @@ func TestStyledChunk(t *testing.T) {
 	if chunk.Text != "styled" {
 		t.Errorf("text should be 'styled', got %q", chunk.Text)
 	}
-	if chunk.Fg == nil || !chunk.Fg.Equals(ColorRed) {
+	if !chunk.Fg.Equals(ColorRed) {
 		t.Error("fg should be ColorRed")
 	}
-	if chunk.Bg == nil || !chunk.Bg.Equals(ColorBlue) {
+	if !chunk.Bg.Equals(ColorBlue) {
 		t.Error("bg should be ColorBlue")
 	}
 	if chunk.Attributes != AttrBold {
@@ -187,126 +187,126 @@ func TestStyledChunk(t *testing.T) {
 
 func TestFgBlack(t *testing.T) {
 	c := FgBlack("text")
-	if c.Fg == nil || !c.Fg.Equals(ColorBlack) {
+	if !c.Fg.Equals(ColorBlack) {
 		t.Error("should have ColorBlack fg")
 	}
 }
 
 func TestFgRed(t *testing.T) {
 	c := FgRed("text")
-	if c.Fg == nil || !c.Fg.Equals(ColorRed) {
+	if !c.Fg.Equals(ColorRed) {
 		t.Error("should have ColorRed fg")
 	}
 }
 
 func TestFgGreen(t *testing.T) {
 	c := FgGreen("text")
-	if c.Fg == nil || !c.Fg.Equals(ColorGreen) {
+	if !c.Fg.Equals(ColorGreen) {
 		t.Error("should have ColorGreen fg")
 	}
 }
 
 func TestFgYellow(t *testing.T) {
 	c := FgYellow("text")
-	if c.Fg == nil || !c.Fg.Equals(ColorYellow) {
+	if !c.Fg.Equals(ColorYellow) {
 		t.Error("should have ColorYellow fg")
 	}
 }
 
 func TestFgBlue(t *testing.T) {
 	c := FgBlue("text")
-	if c.Fg == nil || !c.Fg.Equals(ColorBlue) {
+	if !c.Fg.Equals(ColorBlue) {
 		t.Error("should have ColorBlue fg")
 	}
 }
 
 func TestFgMagenta(t *testing.T) {
 	c := FgMagenta("text")
-	if c.Fg == nil || !c.Fg.Equals(ColorMagenta) {
+	if !c.Fg.Equals(ColorMagenta) {
 		t.Error("should have Magenta fg")
 	}
 }
 
 func TestFgCyan(t *testing.T) {
 	c := FgCyan("text")
-	if c.Fg == nil || !c.Fg.Equals(ColorCyan) {
+	if !c.Fg.Equals(ColorCyan) {
 		t.Error("should have Cyan fg")
 	}
 }
 
 func TestFgWhite(t *testing.T) {
 	c := FgWhite("text")
-	if c.Fg == nil || !c.Fg.Equals(ColorWhite) {
+	if !c.Fg.Equals(ColorWhite) {
 		t.Error("should have ColorWhite fg")
 	}
 }
 
 func TestFgBrightRed(t *testing.T) {
 	c := FgBrightRed("text")
-	if c.Fg == nil || !c.Fg.Equals(ColorBrightRed) {
+	if !c.Fg.Equals(ColorBrightRed) {
 		t.Error("should have BrightRed fg")
 	}
 }
 
 func TestFgBrightGreen(t *testing.T) {
 	c := FgBrightGreen("text")
-	if c.Fg == nil || !c.Fg.Equals(ColorBrightGreen) {
+	if !c.Fg.Equals(ColorBrightGreen) {
 		t.Error("should have BrightGreen fg")
 	}
 }
 
 func TestBgBlack(t *testing.T) {
 	c := BgBlack("text")
-	if c.Bg == nil || !c.Bg.Equals(ColorBlack) {
+	if !c.Bg.Equals(ColorBlack) {
 		t.Error("should have ColorBlack bg")
 	}
 }
 
 func TestBgRed(t *testing.T) {
 	c := BgRed("text")
-	if c.Bg == nil || !c.Bg.Equals(ColorRed) {
+	if !c.Bg.Equals(ColorRed) {
 		t.Error("should have ColorRed bg")
 	}
 }
 
 func TestBgGreen(t *testing.T) {
 	c := BgGreen("text")
-	if c.Bg == nil || !c.Bg.Equals(ColorGreen) {
+	if !c.Bg.Equals(ColorGreen) {
 		t.Error("should have ColorGreen bg")
 	}
 }
 
 func TestBgYellow(t *testing.T) {
 	c := BgYellow("text")
-	if c.Bg == nil || !c.Bg.Equals(ColorYellow) {
+	if !c.Bg.Equals(ColorYellow) {
 		t.Error("should have ColorYellow bg")
 	}
 }
 
 func TestBgBlue(t *testing.T) {
 	c := BgBlue("text")
-	if c.Bg == nil || !c.Bg.Equals(ColorBlue) {
+	if !c.Bg.Equals(ColorBlue) {
 		t.Error("should have ColorBlue bg")
 	}
 }
 
 func TestBgMagenta(t *testing.T) {
 	c := BgMagenta("text")
-	if c.Bg == nil || !c.Bg.Equals(ColorMagenta) {
+	if !c.Bg.Equals(ColorMagenta) {
 		t.Error("should have Magenta bg")
 	}
 }
 
 func TestBgCyan(t *testing.T) {
 	c := BgCyan("text")
-	if c.Bg == nil || !c.Bg.Equals(ColorCyan) {
+	if !c.Bg.Equals(ColorCyan) {
 		t.Error("should have Cyan bg")
 	}
 }
 
 func TestBgWhite(t *testing.T) {
 	c := BgWhite("text")
-	if c.Bg == nil || !c.Bg.Equals(ColorWhite) {
+	if !c.Bg.Equals(ColorWhite) {
 		t.Error("should have ColorWhite bg")
 	}
 }
@@ -330,7 +330,7 @@ func TestComposedStyledText(t *testing.T) {
 	}
 
 	// The first chunk keeps its red foreground.
-	if st.Chunks[0].Fg == nil || !st.Chunks[0].Fg.Equals(ColorRed) {
+	if !st.Chunks[0].Fg.Equals(ColorRed) {
 		t.Error("first chunk should have ColorRed fg")
 	}
 

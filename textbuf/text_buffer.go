@@ -56,10 +56,12 @@ type TextBuffer struct {
 type Highlight struct {
 	// Start and End are the inclusive start and exclusive end columns.
 	Start, End int
-	// Fg is the foreground color; nil leaves the text's foreground.
-	Fg *style.Color
-	// Bg is the background color; nil leaves the text's background.
-	Bg *style.Color
+	// Fg is the foreground color; a transparent one leaves the text's
+	// foreground.
+	Fg style.Color
+	// Bg is the background color; a transparent one leaves the text's
+	// background.
+	Bg style.Color
 	// Attributes is a bitmask of the style.Attr flags, such as style.AttrBold.
 	Attributes style.Attrs
 	// Ref is a caller-defined identifier used for removal.

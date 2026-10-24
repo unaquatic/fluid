@@ -35,10 +35,10 @@ func NodeChild(n *TextNode) TextChild {
 // combine with inherited attributes. GatherChunks flattens the tree for rendering.
 type TextNode struct {
 	id         string
-	fg         *style.Color // Nil inherits the parent foreground.
-	bg         *style.Color // Nil inherits the parent background.
-	attributes style.Attrs  // Combined with inherited attributes.
-	link       string       // An empty value inherits the parent link.
+	fg         style.Color // Transparent inherits the parent foreground.
+	bg         style.Color // Transparent inherits the parent background.
+	attributes style.Attrs // Combined with inherited attributes.
+	link       string      // An empty value inherits the parent link.
 
 	children []TextChild
 	parent   *TextNode
@@ -72,12 +72,12 @@ func TextNodeWithID(id string) TextNodeOption {
 
 // TextNodeWithFg sets the foreground color.
 func TextNodeWithFg(c style.Color) TextNodeOption {
-	return func(n *TextNode) { n.fg = &c }
+	return func(n *TextNode) { n.fg = c }
 }
 
 // TextNodeWithBg sets the background color.
 func TextNodeWithBg(c style.Color) TextNodeOption {
-	return func(n *TextNode) { n.bg = &c }
+	return func(n *TextNode) { n.bg = c }
 }
 
 // TextNodeWithAttributes sets text attributes.
@@ -247,11 +247,13 @@ func (n *TextNode) InsertBefore(child *TextNode, anchorID string) {
 
 // Style access.
 
-// Fg returns the foreground override, or nil when it is inherited.
-func (n *TextNode) Fg() *style.Color { return n.fg }
+// Fg returns the foreground override, or a transparent color when it is
+// inherited.
+func (n *TextNode) Fg() style.Color { return n.fg }
 
-// Bg returns the background override, or nil when it is inherited.
-func (n *TextNode) Bg() *style.Color { return n.bg }
+// Bg returns the background override, or a transparent color when it is
+// inherited.
+func (n *TextNode) Bg() style.Color { return n.bg }
 
 // Attributes returns the attribute bitmask.
 func (n *TextNode) Attributes() style.Attrs { return n.attributes }
@@ -259,14 +261,16 @@ func (n *TextNode) Attributes() style.Attrs { return n.attributes }
 // Link returns the link override, or an empty string when it is inherited.
 func (n *TextNode) Link() string { return n.link }
 
-// SetFg sets the foreground color override.
-func (n *TextNode) SetFg(c *style.Color) {
+// SetFg sets the foreground color override. A transparent color inherits the
+// parent foreground.
+func (n *TextNode) SetFg(c style.Color) {
 	n.fg = c
 	n.markDirty()
 }
 
-// SetBg sets the background color override.
-func (n *TextNode) SetBg(c *style.Color) {
+// SetBg sets the background color override. A transparent color inherits the
+// parent background.
+func (n *TextNode) SetBg(c style.Color) {
 	n.bg = c
 	n.markDirty()
 }
@@ -346,8 +350,8 @@ func (n *TextNode) GatherChunks(inherited InheritedStyle) []style.TextChunk {
 				bg := effective.Bg
 				chunk := style.TextChunk{
 					Text:       child.Text,
-					Fg:         &fg,
-					Bg:         &bg,
+					Fg:         fg,
+					Bg:         bg,
 					Attributes: effective.Attributes,
 				}
 				if effective.Link != "" {
@@ -368,11 +372,11 @@ func (n *TextNode) GatherChunks(inherited InheritedStyle) []style.TextChunk {
 func (n *TextNode) resolveStyle(inherited InheritedStyle) InheritedStyle {
 	result := inherited
 
-	if n.fg != nil {
-		result.Fg = *n.fg
+	if !n.fg.IsTransparent() {
+		result.Fg = n.fg
 	}
-	if n.bg != nil {
-		result.Bg = *n.bg
+	if !n.bg.IsTransparent() {
+		result.Bg = n.bg
 	}
 	// Attributes are additive across the ancestry chain.
 	result.Attributes = inherited.Attributes | n.attributes

@@ -92,10 +92,12 @@ type Viewport struct {
 type TextSelection struct {
 	// Start and End are the inclusive start and exclusive end offsets.
 	Start, End int
-	// BgColor is the selected text's background; nil leaves the text's.
-	BgColor *style.Color
-	// FgColor is the selected text's foreground; nil leaves the text's.
-	FgColor *style.Color
+	// BgColor is the selected text's background; a transparent one leaves
+	// the text's.
+	BgColor style.Color
+	// FgColor is the selected text's foreground; a transparent one leaves
+	// the text's.
+	FgColor style.Color
 }
 
 // Span is a run of text with uniform styling.

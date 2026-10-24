@@ -186,7 +186,7 @@ func ExampleExtmarksController_highlighting() {
 	ec.Create(textbuf.ExtmarkOptions{
 		Start: 0,
 		End:   5,
-		Fg:    &red,
+		Fg:    red,
 	})
 
 	tb := eb.TextBuffer()

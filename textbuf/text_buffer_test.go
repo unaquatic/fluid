@@ -341,7 +341,7 @@ func TestTextBuffer_SyntaxStyle(t *testing.T) {
 	// Attach a syntax registry.
 	ss := style.NewSyntaxStyle()
 	red := style.ColorRed
-	ss.Register("keyword", &red, nil, style.AttrBold)
+	ss.Register("keyword", red, style.Color{}, style.AttrBold)
 
 	tb.SetSyntaxStyle(ss)
 

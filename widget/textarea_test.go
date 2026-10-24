@@ -523,7 +523,7 @@ func TestTextarea_SelectionFg(t *testing.T) {
 	)
 	testutil.SetupWidget(ta, 20, 5)
 
-	if ta.selectionFg == nil {
+	if ta.selectionFg.IsTransparent() {
 		t.Error("expected selectionFg to be set")
 	}
 }

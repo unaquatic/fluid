@@ -67,7 +67,7 @@ type Text struct {
 	truncate    bool
 	selectable_ bool
 	selectionBg style.Color
-	selectionFg *style.Color
+	selectionFg style.Color
 
 	// scrollX and scrollY are offsets in the rendered TextSurface.
 	scrollX int
@@ -411,7 +411,7 @@ func (t *Text) syncSelection() {
 		return
 	}
 	bg := t.selectionBg
-	t.textSurface.SetLocalSelection(localSel.AnchorX, localSel.AnchorY, localSel.FocusX, localSel.FocusY, &bg, t.selectionFg)
+	t.textSurface.SetLocalSelection(localSel.AnchorX, localSel.AnchorY, localSel.FocusX, localSel.FocusY, bg, t.selectionFg)
 }
 
 // isInSelection reports whether a visual coordinate lies within sel.
@@ -558,11 +558,11 @@ func (t *Text) splitChunksIntoHardLines() [][]styledSegment {
 		bg := t.bg
 		attrs := t.attributes
 
-		if chunk.Fg != nil {
-			fg = *chunk.Fg
+		if !chunk.Fg.IsTransparent() {
+			fg = chunk.Fg
 		}
-		if chunk.Bg != nil {
-			bg = *chunk.Bg
+		if !chunk.Bg.IsTransparent() {
+			bg = chunk.Bg
 		}
 		// Chunk attributes add to the widget defaults.
 		attrs = attrs | chunk.Attributes
@@ -901,7 +901,7 @@ func (t *Text) SetFg(c style.Color) {
 	t.fg = c
 	t.linesDirty = true
 	if t.rootTextNode != nil {
-		t.rootTextNode.fg = &c
+		t.rootTextNode.fg = c
 	}
 	t.RequestRender()
 }
@@ -911,7 +911,7 @@ func (t *Text) SetBg(c style.Color) {
 	t.bg = c
 	t.linesDirty = true
 	if t.rootTextNode != nil {
-		t.rootTextNode.bg = &c
+		t.rootTextNode.bg = c
 	}
 	t.RequestRender()
 }
@@ -995,7 +995,7 @@ func TextWithSelectionBg(c style.Color) TextOption {
 
 // TextWithSelectionFg sets the selection foreground color.
 func TextWithSelectionFg(c style.Color) TextOption {
-	return func(t *Text) { t.selectionFg = &c }
+	return func(t *Text) { t.selectionFg = c }
 }
 
 // TextWithID sets the widget ID.

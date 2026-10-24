@@ -128,12 +128,12 @@ func TestGoldenSeq_TextNodeColorChange(t *testing.T) {
 
 	// Change the node foreground to green.
 	green := style.ColorGreen
-	span.SetFg(&green)
+	span.SetFg(green)
 	seq.AddFrames("green", rerender(txt, 10, 1), nil)
 
 	// Change the node foreground to blue.
 	blue := style.ColorBlue
-	span.SetFg(&blue)
+	span.SetFg(blue)
 	seq.AddFrames("blue", rerender(txt, 10, 1), nil)
 
 	testutil.AssertGoldenSequence(t, "text_node_color_change", seq)

@@ -16,7 +16,7 @@ func TestSyntaxStyle_Register(t *testing.T) {
 
 	fg := ColorRed
 	bg := ColorBlue
-	id := ss.Register("keyword", &fg, &bg, AttrBold)
+	id := ss.Register("keyword", fg, bg, AttrBold)
 
 	if id != 1 {
 		t.Errorf("expected first ID=1, got %d", id)
@@ -30,13 +30,13 @@ func TestSyntaxStyle_RegisterMultiple(t *testing.T) {
 	ss := NewSyntaxStyle()
 
 	fg1 := ColorRed
-	id1 := ss.Register("keyword", &fg1, nil, AttrBold)
+	id1 := ss.Register("keyword", fg1, Color{}, AttrBold)
 
 	fg2 := ColorGreen
-	id2 := ss.Register("string", &fg2, nil, AttrNone)
+	id2 := ss.Register("string", fg2, Color{}, AttrNone)
 
 	fg3 := ColorBlue
-	id3 := ss.Register("comment", &fg3, nil, AttrItalic)
+	id3 := ss.Register("comment", fg3, Color{}, AttrItalic)
 
 	if id1 != 1 || id2 != 2 || id3 != 3 {
 		t.Errorf("expected IDs 1,2,3, got %d,%d,%d", id1, id2, id3)
@@ -50,11 +50,11 @@ func TestSyntaxStyle_RegisterOverwrite(t *testing.T) {
 	ss := NewSyntaxStyle()
 
 	fg1 := ColorRed
-	id1 := ss.Register("keyword", &fg1, nil, AttrBold)
+	id1 := ss.Register("keyword", fg1, Color{}, AttrBold)
 
 	// Re-register the same name with a different style.
 	fg2 := ColorBlue
-	id2 := ss.Register("keyword", &fg2, nil, AttrItalic)
+	id2 := ss.Register("keyword", fg2, Color{}, AttrItalic)
 
 	// Replacement preserves the existing ID.
 	if id1 != id2 {
@@ -71,8 +71,8 @@ func TestSyntaxStyle_RegisterOverwrite(t *testing.T) {
 	if s == nil {
 		t.Fatal("expected style, got nil")
 	}
-	if *s.Fg != fg2 {
-		t.Errorf("expected fg ColorBlue after overwrite, got %v", *s.Fg)
+	if s.Fg != fg2 {
+		t.Errorf("expected fg ColorBlue after overwrite, got %v", s.Fg)
 	}
 	if s.Attributes != AttrItalic {
 		t.Errorf("expected AttrItalic after overwrite, got %d", s.Attributes)
@@ -83,9 +83,9 @@ func TestSyntaxStyle_ResolveByName(t *testing.T) {
 	ss := NewSyntaxStyle()
 
 	fg := ColorRed
-	ss.Register("keyword", &fg, nil, AttrBold)
+	ss.Register("keyword", fg, Color{}, AttrBold)
 	fg2 := ColorGreen
-	ss.Register("string", &fg2, nil, AttrNone)
+	ss.Register("string", fg2, Color{}, AttrNone)
 
 	if id := ss.ResolveByName("keyword"); id != 1 {
 		t.Errorf("expected ID 1 for 'keyword', got %d", id)
@@ -103,7 +103,7 @@ func TestSyntaxStyle_GetStyle(t *testing.T) {
 
 	fg := ColorRed
 	bg := ColorBlue
-	id := ss.Register("keyword", &fg, &bg, AttrBold|AttrItalic)
+	id := ss.Register("keyword", fg, bg, AttrBold|AttrItalic)
 
 	s := ss.Style(id)
 	if s == nil {
@@ -112,10 +112,10 @@ func TestSyntaxStyle_GetStyle(t *testing.T) {
 	if s.Name != "keyword" {
 		t.Errorf("expected name 'keyword', got %q", s.Name)
 	}
-	if s.Fg == nil || *s.Fg != fg {
+	if s.Fg != fg {
 		t.Errorf("expected fg ColorRed, got %v", s.Fg)
 	}
-	if s.Bg == nil || *s.Bg != bg {
+	if s.Bg != bg {
 		t.Errorf("expected bg ColorBlue, got %v", s.Bg)
 	}
 	if s.Attributes != AttrBold|AttrItalic {
@@ -143,17 +143,17 @@ func TestSyntaxStyle_GetStyle_Invalid(t *testing.T) {
 func TestSyntaxStyle_NilColors(t *testing.T) {
 	ss := NewSyntaxStyle()
 
-	id := ss.Register("plain", nil, nil, AttrNone)
+	id := ss.Register("plain", Color{}, Color{}, AttrNone)
 
 	s := ss.Style(id)
 	if s == nil {
 		t.Fatal("expected style")
 	}
-	if s.Fg != nil {
-		t.Error("expected nil Fg")
+	if !s.Fg.IsTransparent() {
+		t.Error("expected no Fg")
 	}
-	if s.Bg != nil {
-		t.Error("expected nil Bg")
+	if !s.Bg.IsTransparent() {
+		t.Error("expected no Bg")
 	}
 }
 
@@ -162,7 +162,7 @@ func TestSyntaxStyle_IDsAreSequential(t *testing.T) {
 
 	for i := range 50 {
 		name := "style_" + string(rune('a'+i))
-		id := ss.Register(name, nil, nil, AttrNone)
+		id := ss.Register(name, Color{}, Color{}, AttrNone)
 		if id != i+1 {
 			t.Fatalf("expected sequential ID %d, got %d", i+1, id)
 		}

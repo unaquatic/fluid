@@ -192,20 +192,17 @@ func (b *Buffer) DrawPackedBuffer(data []byte, posX, posY, termW, termH int) {
 
 // DrawGrayscaleBuffer renders a srcW by srcH grid of intensities as ASCII art,
 // with one source value per terminal cell. Intensities are clamped to [0, 1].
-// A nil foreground uses white, and a nil background uses transparency.
-func (b *Buffer) DrawGrayscaleBuffer(posX, posY int, intensities []float32, srcW, srcH int, fg, bg *style.Color) {
+// A transparent foreground uses white.
+func (b *Buffer) DrawGrayscaleBuffer(posX, posY int, intensities []float32, srcW, srcH int, fg, bg style.Color) {
 	if srcW == 0 || srcH == 0 {
 		return
 	}
 
 	baseFg := style.ColorWhite
-	if fg != nil {
-		baseFg = *fg
+	if !fg.IsTransparent() {
+		baseFg = fg
 	}
-	baseBg := style.ColorTransparent
-	if bg != nil {
-		baseBg = *bg
-	}
+	baseBg := bg
 
 	for sy := range srcH {
 		destY := posY + sy
@@ -243,9 +240,8 @@ func (b *Buffer) DrawGrayscaleBuffer(posX, posY int, intensities []float32, srcW
 
 // DrawGrayscaleBufferSupersampled renders a srcW by srcH intensity grid at half
 // its width and height. Each terminal cell represents the average of a 2 by 2
-// source block. A nil foreground uses white, and a nil background uses
-// transparency.
-func (b *Buffer) DrawGrayscaleBufferSupersampled(posX, posY int, intensities []float32, srcW, srcH int, fg, bg *style.Color) {
+// source block. A transparent foreground uses white.
+func (b *Buffer) DrawGrayscaleBufferSupersampled(posX, posY int, intensities []float32, srcW, srcH int, fg, bg style.Color) {
 	termW := srcW / 2
 	termH := srcH / 2
 	if termW == 0 || termH == 0 {
@@ -253,13 +249,10 @@ func (b *Buffer) DrawGrayscaleBufferSupersampled(posX, posY int, intensities []f
 	}
 
 	baseFg := style.ColorWhite
-	if fg != nil {
-		baseFg = *fg
+	if !fg.IsTransparent() {
+		baseFg = fg
 	}
-	baseBg := style.ColorTransparent
-	if bg != nil {
-		baseBg = *bg
-	}
+	baseBg := bg
 
 	maxIdx := srcH * srcW
 

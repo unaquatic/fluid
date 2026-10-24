@@ -69,7 +69,7 @@ func (r Rect) Right() int { return r.X + r.Width }
 func (r Rect) Bottom() int { return r.Y + r.Height }
 
 type drawTextConfig struct {
-	bg        *style.Color
+	bg        style.Color
 	attrs     style.Attrs
 	selection *textbuf.TextSelection
 	maxWidth  int // Zero extends drawing to the buffer edge.
@@ -81,7 +81,7 @@ type DrawTextOption func(*drawTextConfig)
 // WithBg sets the background color of text drawn by DrawText.
 func WithBg(bg style.Color) DrawTextOption {
 	return func(c *drawTextConfig) {
-		c.bg = &bg
+		c.bg = bg
 	}
 }
 
@@ -463,7 +463,7 @@ func (b *Buffer) DrawText(text string, x, y int, fg style.Color, opts ...DrawTex
 		opt(&cfg)
 	}
 
-	hasBg := cfg.bg != nil
+	hasBg := !cfg.bg.IsTransparent()
 
 	maxX := b.width
 	if cfg.maxWidth > 0 && x+cfg.maxWidth < maxX {
@@ -485,7 +485,7 @@ func (b *Buffer) DrawText(text string, x, y int, fg style.Color, opts ...DrawTex
 				}
 				var tabBg style.Color
 				if hasBg {
-					tabBg = *cfg.bg
+					tabBg = cfg.bg
 				} else if b.inBounds(cx, y) {
 					tabBg = b.cells[b.cellIndex(cx, y)].Bg
 				} else {
@@ -509,7 +509,7 @@ func (b *Buffer) DrawText(text string, x, y int, fg style.Color, opts ...DrawTex
 		cellFg := fg
 		var cellBg style.Color
 		if hasBg {
-			cellBg = *cfg.bg
+			cellBg = cfg.bg
 		} else if b.inBounds(cx, y) {
 			cellBg = b.cells[b.cellIndex(cx, y)].Bg
 		} else {
@@ -519,11 +519,11 @@ func (b *Buffer) DrawText(text string, x, y int, fg style.Color, opts ...DrawTex
 
 		// Selection colors override the text colors.
 		if cfg.selection != nil && charIdx >= cfg.selection.Start && charIdx < cfg.selection.End {
-			if cfg.selection.BgColor != nil {
-				cellBg = *cfg.selection.BgColor
+			if !cfg.selection.BgColor.IsTransparent() {
+				cellBg = cfg.selection.BgColor
 			}
-			if cfg.selection.FgColor != nil {
-				cellFg = *cfg.selection.FgColor
+			if !cfg.selection.FgColor.IsTransparent() {
+				cellFg = cfg.selection.FgColor
 			}
 		}
 

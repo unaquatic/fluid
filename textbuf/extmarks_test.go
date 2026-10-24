@@ -550,7 +550,7 @@ func TestExtmarks_UndoHighlightsMatchRestoredText(t *testing.T) {
 	fg := style.ColorFromHex("#FF0000")
 
 	// Track "CD" at [3,5), after "AB\n".
-	ec.Create(ExtmarkOptions{Start: 3, End: 5, Fg: &fg})
+	ec.Create(ExtmarkOptions{Start: 3, End: 5, Fg: fg})
 
 	tb := ec.editBuffer.TextBuffer()
 
@@ -588,7 +588,7 @@ func TestExtmarks_RedoHighlightsMatchRestoredText(t *testing.T) {
 	defer ec.Destroy()
 
 	fg := style.ColorFromHex("#FF0000")
-	ec.Create(ExtmarkOptions{Start: 3, End: 5, Fg: &fg})
+	ec.Create(ExtmarkOptions{Start: 3, End: 5, Fg: fg})
 
 	tb := ec.editBuffer.TextBuffer()
 
@@ -725,7 +725,7 @@ func TestExtmarks_HighlightsApplied(t *testing.T) {
 	fg := style.ColorRed
 	ec.Create(ExtmarkOptions{
 		Start: 0, End: 5,
-		Fg: &fg,
+		Fg: fg,
 	})
 
 	// A styled extmark creates a TextBuffer highlight.
@@ -743,7 +743,7 @@ func TestExtmarks_HighlightsClearedOnDelete(t *testing.T) {
 	fg := style.ColorRed
 	id := ec.Create(ExtmarkOptions{
 		Start: 0, End: 5,
-		Fg: &fg,
+		Fg: fg,
 	})
 	ec.Delete(id)
 
@@ -812,7 +812,7 @@ func TestExtmarks_DeleteSelectedText(t *testing.T) {
 
 	// Delete the separate selection "Hello" at [0,5).
 	bg := style.ColorBlue
-	ev.SetSelection(&TextSelection{Start: 0, End: 5, BgColor: &bg})
+	ev.SetSelection(&TextSelection{Start: 0, End: 5, BgColor: bg})
 	ev.DeleteSelectedText()
 
 	em := ec.Get(id)
@@ -950,33 +950,27 @@ func TestExtmarksHistory_Clear(t *testing.T) {
 	}
 }
 
-func TestCloneExtmarks_DeepCopiesColors(t *testing.T) {
+func TestCloneExtmarks_CopiesColors(t *testing.T) {
 	fg := style.ColorFromHex("#FF0000")
 	bg := style.ColorFromHex("#00FF00")
 	src := map[int]Extmark{
-		1: {ID: 1, Start: 0, End: 5, Fg: &fg, Bg: &bg},
+		1: {ID: 1, Start: 0, End: 5, Fg: fg, Bg: bg},
 	}
 
 	dst := cloneExtmarks(src)
 
-	// Cloned colors use independent pointers.
-	if dst[1].Fg == src[1].Fg {
-		t.Error("cloneExtmarks should allocate a new Fg pointer")
-	}
-	if dst[1].Bg == src[1].Bg {
-		t.Error("cloneExtmarks should allocate a new Bg pointer")
-	}
-
 	// Cloned colors preserve channel values.
-	if *dst[1].Fg != *src[1].Fg {
+	if dst[1].Fg != src[1].Fg {
 		t.Error("cloned Fg value should match original")
 	}
-	if *dst[1].Bg != *src[1].Bg {
+	if dst[1].Bg != src[1].Bg {
 		t.Error("cloned Bg value should match original")
 	}
 
 	// Source mutations do not affect cloned colors.
-	src[1].Fg.R = 0
+	e := src[1]
+	e.Fg.R = 0
+	src[1] = e
 	if dst[1].Fg.R == 0 {
 		t.Error("mutating source Fg should not affect clone")
 	}
@@ -987,7 +981,7 @@ func TestExtmarks_UndoPreservesColors(t *testing.T) {
 	defer ec.Destroy()
 
 	fg := style.ColorFromHex("#FF0000")
-	ec.Create(ExtmarkOptions{Start: 0, End: 5, Fg: &fg})
+	ec.Create(ExtmarkOptions{Start: 0, End: 5, Fg: fg})
 
 	// Create and restore one history entry.
 	eb.InsertChar('X')
@@ -997,16 +991,9 @@ func TestExtmarks_UndoPreservesColors(t *testing.T) {
 	if em == nil {
 		t.Fatal("extmark should exist after undo")
 	}
-	if em.Fg == nil {
-		t.Fatal("Fg should not be nil after undo")
-	}
-
-	// Restored color values match without aliasing the original pointer.
-	if *em.Fg != fg {
-		t.Errorf("Fg value mismatch after undo: got %v, want %v", *em.Fg, fg)
-	}
-	if em.Fg == &fg {
-		t.Error("restored Fg should be an independent pointer, not the original")
+	// Restored color values match.
+	if em.Fg != fg {
+		t.Errorf("Fg value mismatch after undo: got %v, want %v", em.Fg, fg)
 	}
 }
 

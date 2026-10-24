@@ -34,7 +34,7 @@ type EditSurface struct {
 
 	// Tab-indicator configuration mirrored to surface.
 	tabIndicator      rune
-	tabIndicatorColor *style.Color
+	tabIndicatorColor style.Color
 
 	// Movement and deletion interceptors installed by ExtmarksController.
 	overrideMoveUpVisual       func()
@@ -143,7 +143,7 @@ func (ev *EditSurface) SetTabIndicator(indicator rune) {
 
 // SetTabIndicatorColor stores and forwards the tab-indicator color.
 func (ev *EditSurface) SetTabIndicatorColor(color style.Color) {
-	ev.tabIndicatorColor = &color
+	ev.tabIndicatorColor = color
 	ev.surface.SetTabIndicatorColor(color)
 }
 
@@ -479,7 +479,7 @@ func (ev *EditSurface) doDeleteSelectedText() {
 
 // SetLocalSelection maps viewport-relative endpoints into a selection. It can
 // also move the cursor to the focus and scroll to follow it.
-func (ev *EditSurface) SetLocalSelection(anchorX, anchorY, focusX, focusY int, bg, fg *style.Color, updateCursor, followCursor bool) bool {
+func (ev *EditSurface) SetLocalSelection(anchorX, anchorY, focusX, focusY int, bg, fg style.Color, updateCursor, followCursor bool) bool {
 	ok := ev.surface.SetLocalSelection(anchorX, anchorY, focusX, focusY, bg, fg)
 	if ok && updateCursor {
 		// Move the cursor to a valid focus offset when requested.
@@ -495,12 +495,12 @@ func (ev *EditSurface) SetLocalSelection(anchorX, anchorY, focusX, focusY int, b
 }
 
 // UpdateSelection updates the selection end offset.
-func (ev *EditSurface) UpdateSelection(end int, bg, fg *style.Color) {
+func (ev *EditSurface) UpdateSelection(end int, bg, fg style.Color) {
 	ev.surface.UpdateSelection(end, bg, fg)
 }
 
 // UpdateLocalSelection replaces selection from viewport-relative coordinates.
-func (ev *EditSurface) UpdateLocalSelection(anchorX, anchorY, focusX, focusY int, bg, fg *style.Color) bool {
+func (ev *EditSurface) UpdateLocalSelection(anchorX, anchorY, focusX, focusY int, bg, fg style.Color) bool {
 	return ev.surface.UpdateLocalSelection(anchorX, anchorY, focusX, focusY, bg, fg)
 }
 

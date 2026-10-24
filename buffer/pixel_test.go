@@ -317,7 +317,7 @@ func TestDrawGrayscaleBuffer(t *testing.T) {
 	b := New(3, 1)
 	intensities := []float32{0.0, 0.5, 1.0}
 
-	b.DrawGrayscaleBuffer(0, 0, intensities, 3, 1, nil, nil)
+	b.DrawGrayscaleBuffer(0, 0, intensities, 3, 1, style.Color{}, style.Color{})
 
 	// Values below the visibility threshold leave their cells unchanged.
 	c0 := b.Cell(0, 0)
@@ -344,7 +344,7 @@ func TestDrawGrayscaleBuffer_CustomColors(t *testing.T) {
 	fg := style.ColorRed
 	intensities := []float32{1.0}
 
-	b.DrawGrayscaleBuffer(0, 0, intensities, 1, 1, &fg, nil)
+	b.DrawGrayscaleBuffer(0, 0, intensities, 1, 1, fg, style.Color{})
 
 	c := b.Cell(0, 0)
 	// The custom foreground supplies the color channels.
@@ -358,7 +358,7 @@ func TestDrawGrayscaleBuffer_NegativePos(t *testing.T) {
 	intensities := []float32{1.0, 1.0, 1.0}
 
 	// A negative destination offset clips the first source value.
-	b.DrawGrayscaleBuffer(-1, 0, intensities, 3, 1, nil, nil)
+	b.DrawGrayscaleBuffer(-1, 0, intensities, 3, 1, style.Color{}, style.Color{})
 
 	// The second source value is drawn into destination cell 0.
 	c0 := b.Cell(0, 0)
@@ -375,7 +375,7 @@ func TestDrawGrayscaleBufferSupersampled(t *testing.T) {
 		0.6, 0.8,
 	}
 
-	b.DrawGrayscaleBufferSupersampled(0, 0, intensities, 2, 2, nil, nil)
+	b.DrawGrayscaleBufferSupersampled(0, 0, intensities, 2, 2, style.Color{}, style.Color{})
 
 	c := b.Cell(0, 0)
 	// The four source values average to a visible intensity of 0.8.
@@ -388,7 +388,7 @@ func TestDrawGrayscaleBufferSupersampled_ZeroDim(t *testing.T) {
 	b := New(5, 5)
 	b.SetCell(0, 0, 'X', style.ColorWhite, style.ColorBlack, 0)
 	// A source width below two produces no terminal columns.
-	b.DrawGrayscaleBufferSupersampled(0, 0, []float32{1.0}, 1, 2, nil, nil)
+	b.DrawGrayscaleBufferSupersampled(0, 0, []float32{1.0}, 1, 2, style.Color{}, style.Color{})
 	c := b.Cell(0, 0)
 	if c.Char != 'X' {
 		t.Error("zero termW should be no-op")

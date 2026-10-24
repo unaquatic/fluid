@@ -283,19 +283,10 @@ func (e Entry) WithBg(c Color) Entry {
 	return e
 }
 
-// Chunk returns text styled by e. Transparent colors remain nil so the chunk
-// inherits its surrounding colors.
+// Chunk returns text styled by e. Transparent colors stay transparent, so
+// the chunk inherits its surrounding colors.
 func (e Entry) Chunk(text string) TextChunk {
-	c := TextChunk{Text: text, Attributes: e.Attrs}
-	if e.Fg.A != 0 {
-		fg := e.Fg
-		c.Fg = &fg
-	}
-	if e.Bg.A != 0 {
-		bg := e.Bg
-		c.Bg = &bg
-	}
-	return c
+	return TextChunk{Text: text, Fg: e.Fg, Bg: e.Bg, Attributes: e.Attrs}
 }
 
 // Merge overlays nontransparent colors from over on e and unions their
@@ -314,14 +305,8 @@ func (e Entry) Merge(over Entry) Entry {
 // Apply adds e's attributes and fills only colors missing from c.
 func (e Entry) Apply(c TextChunk) TextChunk {
 	c.Attributes |= e.Attrs
-	if c.Fg == nil && e.Fg.A != 0 {
-		fg := e.Fg
-		c.Fg = &fg
-	}
-	if c.Bg == nil && e.Bg.A != 0 {
-		bg := e.Bg
-		c.Bg = &bg
-	}
+	c.Fg = OrInherit(c.Fg, e.Fg)
+	c.Bg = OrInherit(c.Bg, e.Bg)
 	return c
 }
 

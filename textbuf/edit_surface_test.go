@@ -351,7 +351,7 @@ func TestEditBufferView_DeleteSelectedText(t *testing.T) {
 
 	// Select "lo wo" at offsets [3,8).
 	bg := style.ColorFromInts(0, 0, 255, 255)
-	ev.SetSelection(&TextSelection{Start: 3, End: 8, BgColor: &bg})
+	ev.SetSelection(&TextSelection{Start: 3, End: 8, BgColor: bg})
 
 	ev.DeleteSelectedText()
 
@@ -390,7 +390,7 @@ func TestEditBufferView_SetLocalSelection(t *testing.T) {
 	bg := style.ColorFromInts(0, 0, 255, 255)
 
 	// Create a selection that moves the cursor without scrolling it.
-	ok := ev.SetLocalSelection(2, 0, 7, 0, &bg, nil, true, false)
+	ok := ev.SetLocalSelection(2, 0, 7, 0, bg, style.Color{}, true, false)
 	if !ok {
 		t.Fatal("expected SetLocalSelection to return true")
 	}
@@ -416,7 +416,7 @@ func TestEditBufferView_SetLocalSelection_NoCursorUpdate(t *testing.T) {
 	ev := NewEditSurface(eb, 80, 24)
 
 	// Create another selection without cursor movement.
-	ok := ev.SetLocalSelection(2, 0, 7, 0, nil, nil, false, false)
+	ok := ev.SetLocalSelection(2, 0, 7, 0, style.Color{}, style.Color{}, false, false)
 	if !ok {
 		t.Fatal("expected SetLocalSelection to return true")
 	}
@@ -436,7 +436,7 @@ func TestEditBufferView_UpdateSelection(t *testing.T) {
 	ev := NewEditSurface(eb, 80, 24)
 
 	bg := style.ColorFromInts(0, 0, 255, 255)
-	ev.UpdateSelection(5, &bg, nil)
+	ev.UpdateSelection(5, bg, style.Color{})
 
 	sel := ev.Selection()
 	if sel == nil {
@@ -454,7 +454,7 @@ func TestEditBufferView_UpdateLocalSelection(t *testing.T) {
 
 	ev := NewEditSurface(eb, 80, 24)
 
-	ok := ev.UpdateLocalSelection(1, 0, 4, 0, nil, nil)
+	ok := ev.UpdateLocalSelection(1, 0, 4, 0, style.Color{}, style.Color{})
 	if !ok {
 		t.Fatal("expected UpdateLocalSelection to return true")
 	}
@@ -469,7 +469,7 @@ func TestEditBufferView_ResetLocalSelection(t *testing.T) {
 	eb.SetText("hello")
 
 	ev := NewEditSurface(eb, 80, 24)
-	ev.SetLocalSelection(0, 0, 3, 0, nil, nil, false, false)
+	ev.SetLocalSelection(0, 0, 3, 0, style.Color{}, style.Color{}, false, false)
 
 	ev.ResetLocalSelection()
 	if ev.Selection() != nil {
@@ -600,11 +600,11 @@ func TestEditBufferView_SetTabIndicatorColor(t *testing.T) {
 
 	c := style.ColorFromInts(77, 77, 77, 255)
 	ev.SetTabIndicatorColor(c)
-	if ev.tabIndicatorColor == nil || *ev.tabIndicatorColor != c {
+	if ev.tabIndicatorColor != c {
 		t.Errorf("expected tab indicator color %v", c)
 	}
 	// The underlying surface receives the same color.
-	if ev.surface.tabIndicatorColor == nil || *ev.surface.tabIndicatorColor != c {
+	if ev.surface.tabIndicatorColor != c {
 		t.Error("expected underlying surface tab indicator color to be set")
 	}
 }

@@ -102,7 +102,7 @@ func TestDrawTextBufferView_Selection(t *testing.T) {
 
 	surface := textbuf.NewTextSurface(tb)
 	selBg := style.ColorFromInts(0, 0, 255, 255)
-	surface.SetSelection(&textbuf.TextSelection{Start: 1, End: 4, BgColor: &selBg})
+	surface.SetSelection(&textbuf.TextSelection{Start: 1, End: 4, BgColor: selBg})
 
 	buf := New(10, 3)
 	buf.DrawTextSurface(surface, 0, 0)

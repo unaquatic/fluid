@@ -19,10 +19,12 @@ type Extmark struct {
 	End int
 	// Virtual reports whether cursor movement skips the range.
 	Virtual bool
-	// Fg is the foreground color; nil leaves the text's foreground.
-	Fg *style.Color
-	// Bg is the background color; nil leaves the text's background.
-	Bg *style.Color
+	// Fg is the foreground color; a transparent one leaves the text's
+	// foreground.
+	Fg style.Color
+	// Bg is the background color; a transparent one leaves the text's
+	// background.
+	Bg style.Color
 	// Attributes holds decoration bits and an optional packed link ID.
 	Attributes style.Attrs
 	// Priority is caller-defined; textbuf stores it but does not order by it.
@@ -42,10 +44,12 @@ type ExtmarkOptions struct {
 	End int
 	// Virtual reports whether cursor movement skips the range.
 	Virtual bool
-	// Fg is the foreground color; nil leaves the text's foreground.
-	Fg *style.Color
-	// Bg is the background color; nil leaves the text's background.
-	Bg *style.Color
+	// Fg is the foreground color; a transparent one leaves the text's
+	// foreground.
+	Fg style.Color
+	// Bg is the background color; a transparent one leaves the text's
+	// background.
+	Bg style.Color
 	// Attributes holds decoration bits and an optional packed link ID.
 	Attributes style.Attrs
 	// Priority is caller-defined; textbuf stores it but does not order by it.
@@ -765,7 +769,7 @@ func (ec *ExtmarksController) updateHighlights() {
 	tb.ClearAllHighlights()
 
 	for _, em := range ec.extmarks {
-		if em.Fg == nil && em.Bg == nil && em.Attributes == 0 {
+		if em.Fg.IsTransparent() && em.Bg.IsTransparent() && em.Attributes == 0 {
 			continue
 		}
 		tb.AddHighlightByCharRange(Highlight{

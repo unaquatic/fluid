@@ -128,7 +128,7 @@ func TestTextBufferView_Selection(t *testing.T) {
 
 	v := NewTextSurface(tb)
 	bg := style.ColorFromInts(0, 0, 255, 255)
-	v.SetSelection(&TextSelection{Start: 1, End: 4, BgColor: &bg})
+	v.SetSelection(&TextSelection{Start: 1, End: 4, BgColor: bg})
 
 	sel := v.Selection()
 	if sel == nil {
@@ -323,17 +323,14 @@ func TestTextBufferView_SetTabIndicatorColor(t *testing.T) {
 
 	v := NewTextSurface(tb)
 
-	if v.tabIndicatorColor != nil {
-		t.Error("expected tab indicator color to be nil by default")
+	if !v.tabIndicatorColor.IsTransparent() {
+		t.Error("expected no tab indicator color by default")
 	}
 
 	c := style.ColorFromInts(128, 128, 128, 255)
 	v.SetTabIndicatorColor(c)
-	if v.tabIndicatorColor == nil {
-		t.Fatal("expected tab indicator color to be set")
-	}
-	if *v.tabIndicatorColor != c {
-		t.Errorf("expected color %v, got %v", c, *v.tabIndicatorColor)
+	if v.tabIndicatorColor != c {
+		t.Errorf("expected color %v, got %v", c, v.tabIndicatorColor)
 	}
 }
 
@@ -392,7 +389,7 @@ func TestTextBufferView_SetLocalSelection(t *testing.T) {
 	fg := style.ColorFromInts(255, 255, 255, 255)
 
 	// Select the half-open range containing "ello".
-	ok := v.SetLocalSelection(1, 0, 5, 0, &bg, &fg)
+	ok := v.SetLocalSelection(1, 0, 5, 0, bg, fg)
 	if !ok {
 		t.Fatal("expected SetLocalSelection to return true")
 	}
@@ -404,10 +401,10 @@ func TestTextBufferView_SetLocalSelection(t *testing.T) {
 	if sel.Start > sel.End {
 		t.Errorf("expected Start <= End, got %d > %d", sel.Start, sel.End)
 	}
-	if sel.BgColor == nil || *sel.BgColor != bg {
+	if sel.BgColor != bg {
 		t.Error("expected selection BgColor to match")
 	}
-	if sel.FgColor == nil || *sel.FgColor != fg {
+	if sel.FgColor != fg {
 		t.Error("expected selection FgColor to match")
 	}
 }
@@ -420,7 +417,7 @@ func TestTextBufferView_SetLocalSelection_Invalid(t *testing.T) {
 	v.SetViewport(&Viewport{Width: 80, Height: 10})
 
 	// A row outside the viewport cannot establish a selection.
-	ok := v.SetLocalSelection(0, 99, 5, 99, nil, nil)
+	ok := v.SetLocalSelection(0, 99, 5, 99, style.Color{}, style.Color{})
 	if ok {
 		t.Error("expected SetLocalSelection to return false for out-of-range coords")
 	}
@@ -435,7 +432,7 @@ func TestTextBufferView_UpdateSelection(t *testing.T) {
 	bg := style.ColorFromInts(0, 0, 255, 255)
 
 	// Updating without existing state creates a collapsed selection.
-	v.UpdateSelection(3, &bg, nil)
+	v.UpdateSelection(3, bg, style.Color{})
 	sel := v.Selection()
 	if sel == nil {
 		t.Fatal("expected selection to be created")
@@ -445,13 +442,13 @@ func TestTextBufferView_UpdateSelection(t *testing.T) {
 	}
 
 	// A later update moves the end offset.
-	v.UpdateSelection(8, nil, nil)
+	v.UpdateSelection(8, style.Color{}, style.Color{})
 	sel = v.Selection()
 	if sel.End != 8 {
 		t.Errorf("expected end=8, got %d", sel.End)
 	}
-	// Nil colors preserve the existing selection colors.
-	if sel.BgColor == nil || *sel.BgColor != bg {
+	// Transparent colors preserve the existing selection colors.
+	if sel.BgColor != bg {
 		t.Error("expected BgColor to be preserved")
 	}
 }
@@ -463,7 +460,7 @@ func TestTextBufferView_UpdateLocalSelection(t *testing.T) {
 	v := NewTextSurface(tb)
 	v.SetViewport(&Viewport{Width: 80, Height: 10})
 
-	ok := v.UpdateLocalSelection(2, 0, 8, 0, nil, nil)
+	ok := v.UpdateLocalSelection(2, 0, 8, 0, style.Color{}, style.Color{})
 	if !ok {
 		t.Fatal("expected UpdateLocalSelection to return true")
 	}
@@ -480,7 +477,7 @@ func TestTextBufferView_ResetLocalSelection(t *testing.T) {
 	v := NewTextSurface(tb)
 	v.SetViewport(&Viewport{Width: 80, Height: 10})
 
-	v.SetLocalSelection(0, 0, 3, 0, nil, nil)
+	v.SetLocalSelection(0, 0, 3, 0, style.Color{}, style.Color{})
 	if v.Selection() == nil {
 		t.Fatal("expected selection to be set")
 	}

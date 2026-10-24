@@ -5,10 +5,12 @@ package style
 type SyntaxTokenStyle struct {
 	// Name is the token name the style was registered under.
 	Name string
-	// Fg is the foreground color; nil inherits the default foreground.
-	Fg *Color
-	// Bg is the background color; nil inherits the default background.
-	Bg *Color
+	// Fg is the foreground color; a transparent one inherits the default
+	// foreground.
+	Fg Color
+	// Bg is the background color; a transparent one inherits the default
+	// background.
+	Bg Color
 	// Attributes is a bitmask of the Attr flags, such as AttrBold.
 	Attributes Attrs
 }
@@ -29,7 +31,7 @@ func NewSyntaxStyle() *SyntaxStyle {
 
 // Register stores a named token style and returns its ID. Registering an
 // existing name replaces its style without changing its ID.
-func (ss *SyntaxStyle) Register(name string, fg, bg *Color, attributes Attrs) int {
+func (ss *SyntaxStyle) Register(name string, fg, bg Color, attributes Attrs) int {
 	if id, ok := ss.byName[name]; ok {
 		ss.styles[id] = SyntaxTokenStyle{
 			Name:       name,
