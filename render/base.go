@@ -40,146 +40,146 @@ func LookupRenderable(num uint64) Renderable {
 	return b
 }
 
-// RenderableOption configures a BaseRenderable during construction.
-type RenderableOption func(*BaseRenderable)
+// Option configures a BaseRenderable during construction.
+type Option func(*BaseRenderable)
 
 // WithID sets the initial string identifier.
-func WithID(id string) RenderableOption {
+func WithID(id string) Option {
 	return func(b *BaseRenderable) { b.id = id }
 }
 
 // WithVisible sets whether the renderable is initially visible.
-func WithVisible(v bool) RenderableOption {
+func WithVisible(v bool) Option {
 	return func(b *BaseRenderable) { b.visible = v }
 }
 
 // WithFocusable sets whether the renderable can initially receive focus.
-func WithFocusable(f bool) RenderableOption {
+func WithFocusable(f bool) Option {
 	return func(b *BaseRenderable) { b.focusable = f }
 }
 
 // WithLive controls the initial continuous-rendering mode.
-func WithLive(l bool) RenderableOption {
+func WithLive(l bool) Option {
 	return func(b *BaseRenderable) { b.live = l }
 }
 
 // WithSelectable sets whether the renderable initially supports text selection.
-func WithSelectable(s bool) RenderableOption {
+func WithSelectable(s bool) Option {
 	return func(b *BaseRenderable) { b.selectable = s }
 }
 
 // WithWidth sets the preferred layout width.
-func WithWidth(s layout.Scalar) RenderableOption {
+func WithWidth(s layout.Scalar) Option {
 	return func(b *BaseRenderable) { b.layoutNode.Width = s }
 }
 
 // WithHeight sets the preferred layout height.
-func WithHeight(s layout.Scalar) RenderableOption {
+func WithHeight(s layout.Scalar) Option {
 	return func(b *BaseRenderable) { b.layoutNode.Height = s }
 }
 
 // WithFlexGrow sets the layout growth factor.
-func WithFlexGrow(v int) RenderableOption {
+func WithFlexGrow(v int) Option {
 	return func(b *BaseRenderable) { b.layoutNode.FlexGrow = v }
 }
 
 // WithFlexShrink sets the layout shrink factor.
-func WithFlexShrink(v int) RenderableOption {
+func WithFlexShrink(v int) Option {
 	return func(b *BaseRenderable) { b.layoutNode.FlexShrink = v }
 }
 
 // WithFlexDirection sets the layout main axis and item order.
-func WithFlexDirection(d layout.FlexDirection) RenderableOption {
+func WithFlexDirection(d layout.FlexDirection) Option {
 	return func(b *BaseRenderable) { b.layoutNode.FlexDirection = d }
 }
 
 // WithJustifyContent sets main-axis item distribution.
-func WithJustifyContent(j layout.JustifyContent) RenderableOption {
+func WithJustifyContent(j layout.JustifyContent) Option {
 	return func(b *BaseRenderable) { b.layoutNode.JustifyContent = j }
 }
 
 // WithAlignItems sets cross-axis item alignment.
-func WithAlignItems(a layout.Align) RenderableOption {
+func WithAlignItems(a layout.Align) Option {
 	return func(b *BaseRenderable) { b.layoutNode.AlignItems = a }
 }
 
 // WithPadding sets padding on all four sides.
-func WithPadding(s layout.Scalar) RenderableOption {
+func WithPadding(s layout.Scalar) Option {
 	return func(b *BaseRenderable) { b.layoutNode.SetPadding(s) }
 }
 
 // WithMargin sets all four margins.
-func WithMargin(s layout.Scalar) RenderableOption {
+func WithMargin(s layout.Scalar) Option {
 	return func(b *BaseRenderable) { b.layoutNode.SetMargin(s) }
 }
 
 // WithPosition sets whether the renderable participates in flex flow.
-func WithPosition(p layout.Position) RenderableOption {
+func WithPosition(p layout.Position) Option {
 	return func(b *BaseRenderable) { b.layoutNode.Position = p }
 }
 
 // WithOverflow sets how content outside the layout bounds is handled.
-func WithOverflow(o layout.Overflow) RenderableOption {
+func WithOverflow(o layout.Overflow) Option {
 	return func(b *BaseRenderable) { b.layoutNode.Overflow = o }
 }
 
 // WithFlexBasis sets the initial main-axis size.
-func WithFlexBasis(s layout.Scalar) RenderableOption {
+func WithFlexBasis(s layout.Scalar) Option {
 	return func(b *BaseRenderable) { b.layoutNode.FlexBasis = s }
 }
 
 // WithAlignSelf sets the renderable's cross-axis alignment override.
-func WithAlignSelf(a layout.Align) RenderableOption {
+func WithAlignSelf(a layout.Align) Option {
 	return func(b *BaseRenderable) { b.layoutNode.AlignSelf = a }
 }
 
 // WithFlexWrap sets the line-wrapping mode.
-func WithFlexWrap(w layout.FlexWrap) RenderableOption {
+func WithFlexWrap(w layout.FlexWrap) Option {
 	return func(b *BaseRenderable) { b.layoutNode.FlexWrap = w }
 }
 
 // WithGap sets the fallback gap between flex items.
-func WithGap(v int) RenderableOption {
+func WithGap(v int) Option {
 	return func(b *BaseRenderable) { b.layoutNode.Gap = v }
 }
 
 // WithMinWidth sets the minimum width.
-func WithMinWidth(s layout.Scalar) RenderableOption {
+func WithMinWidth(s layout.Scalar) Option {
 	return func(b *BaseRenderable) { b.layoutNode.MinWidth = s }
 }
 
 // WithMaxWidth sets the maximum width.
-func WithMaxWidth(s layout.Scalar) RenderableOption {
+func WithMaxWidth(s layout.Scalar) Option {
 	return func(b *BaseRenderable) { b.layoutNode.MaxWidth = s }
 }
 
 // WithMinHeight sets the minimum height.
-func WithMinHeight(s layout.Scalar) RenderableOption {
+func WithMinHeight(s layout.Scalar) Option {
 	return func(b *BaseRenderable) { b.layoutNode.MinHeight = s }
 }
 
 // WithMaxHeight sets the maximum height.
-func WithMaxHeight(s layout.Scalar) RenderableOption {
+func WithMaxHeight(s layout.Scalar) Option {
 	return func(b *BaseRenderable) { b.layoutNode.MaxHeight = s }
 }
 
 // WithTop sets the top positioning offset.
-func WithTop(s layout.Scalar) RenderableOption {
+func WithTop(s layout.Scalar) Option {
 	return func(b *BaseRenderable) { b.layoutNode.Top = s }
 }
 
 // WithRight sets the right positioning offset.
-func WithRight(s layout.Scalar) RenderableOption {
+func WithRight(s layout.Scalar) Option {
 	return func(b *BaseRenderable) { b.layoutNode.Right = s }
 }
 
 // WithBottom sets the bottom positioning offset.
-func WithBottom(s layout.Scalar) RenderableOption {
+func WithBottom(s layout.Scalar) Option {
 	return func(b *BaseRenderable) { b.layoutNode.Bottom = s }
 }
 
 // WithLeft sets the left positioning offset.
-func WithLeft(s layout.Scalar) RenderableOption {
+func WithLeft(s layout.Scalar) Option {
 	return func(b *BaseRenderable) { b.layoutNode.Left = s }
 }
 
@@ -276,7 +276,7 @@ var _ Renderable = (*BaseRenderable)(nil)
 
 // NewBaseRenderable returns a registered renderable with default layout and
 // rendering state.
-func NewBaseRenderable(opts ...RenderableOption) *BaseRenderable {
+func NewBaseRenderable(opts ...Option) *BaseRenderable {
 	num := nextNum.Add(1)
 
 	b := &BaseRenderable{
