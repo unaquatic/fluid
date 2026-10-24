@@ -242,12 +242,12 @@ func NewMarkdown(content string, opts ...MarkdownOption) *Markdown {
 		opt(m)
 	}
 
-	// Use Goldmark and Chroma unless options supplied replacements.
+	// Use Goldmark and a Highlighter unless options supplied replacements.
 	if m.parser == nil {
 		m.parser = sharedGoldmarkParser()
 	}
 	if m.highlighter == nil {
-		m.highlighter = NewChromaHighlighter("monokai")
+		m.highlighter = NewHighlighter(nil)
 	}
 
 	m.blocks = m.parser.Parse(m.content, m.mdStyles())
@@ -1232,7 +1232,7 @@ func MarkdownWithParser(p MarkdownParser) MarkdownOption {
 }
 
 // MarkdownWithHighlighter sets a custom SyntaxHighlighter for fenced code
-// blocks. When nil, a ChromaHighlighter with the "monokai" theme is used.
+// blocks. When nil, a Highlighter of style.DefaultDark is used.
 func MarkdownWithHighlighter(h SyntaxHighlighter) MarkdownOption {
 	return func(m *Markdown) { m.highlighter = h }
 }
@@ -1240,8 +1240,8 @@ func MarkdownWithHighlighter(h SyntaxHighlighter) MarkdownOption {
 // MarkdownWithTheme applies Markdown and code roles from t.
 // Later options override individual roles. A nil theme leaves defaults unchanged.
 //
-// It also installs a Chroma style derived from t.Code. Apply MarkdownWithHighlighter
-// afterward to use a different highlighter.
+// It also installs a Highlighter of t's code palette. Apply
+// MarkdownWithHighlighter afterward to use a different highlighter.
 func MarkdownWithTheme(t *style.Theme) MarkdownOption {
 	return func(m *Markdown) {
 		if t == nil {
@@ -1265,6 +1265,6 @@ func MarkdownWithTheme(t *style.Theme) MarkdownOption {
 		m.listEnum = t.ResolveMarkdownListEnum()
 		m.rule = t.ResolveMarkdownRule()
 		// Keep fenced-code token colors consistent with the selected UI theme.
-		m.highlighter = NewChromaHighlighterWithStyle(ChromaStyleForTheme(t))
+		m.highlighter = NewHighlighter(t)
 	}
 }

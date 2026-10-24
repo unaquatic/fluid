@@ -44,9 +44,9 @@ type Diff struct {
 	patch       string // Raw unified diff text.
 	viewMode    DiffViewMode
 	filetype    string            // Language used for syntax highlighting.
-	theme       string            // Chroma theme name.
+	theme       *style.Theme      // Theme whose code palette colors tokens.
 	wrapMode    *WrapMode         // Nil uses Code's default WrapWord mode.
-	highlighter SyntaxHighlighter // Nil uses Code's default Chroma highlighter.
+	highlighter SyntaxHighlighter // Nil uses Code's default Highlighter.
 
 	showLineNumbers bool
 	inlineHighlight bool // Enables character-level change highlighting.
@@ -104,7 +104,7 @@ func NewDiff(patch string, opts ...DiffOption) *Diff {
 		),
 		patch:           patch,
 		viewMode:        DiffUnified,
-		theme:           "monokai",
+		theme:           defaultTheme(),
 		showLineNumbers: true,
 		inlineHighlight: true,
 		showSigns:       true,
@@ -217,19 +217,25 @@ func (d *Diff) SetFiletype(ft string) {
 // Filetype returns the current filetype.
 func (d *Diff) Filetype() string { return d.filetype }
 
-// SetTheme sets the theme for syntax highlighting.
-func (d *Diff) SetTheme(name string) {
-	if d.theme == name {
+// SetTheme sets the theme whose code palette colors the diff's source. A
+// nil theme selects style.DefaultDark.
+func (d *Diff) SetTheme(t *style.Theme) {
+	if t == nil {
+		t = defaultTheme()
+	}
+	if d.theme == t {
 		return
 	}
-	d.theme = name
+	d.theme = t
 	d.needsRebuild = true
 	d.rebuild()
 	d.RequestRender()
 }
 
-// Theme returns the current theme.
-func (d *Diff) Theme() string { return d.theme }
+// Theme returns the theme whose code palette colors the diff's source.
+// Without one set, it is a default theme that every such Diff shares, which
+// must not be changed.
+func (d *Diff) Theme() *style.Theme { return d.theme }
 
 // LineCount returns the total number of display lines.
 func (d *Diff) LineCount() int {
@@ -930,9 +936,15 @@ func DiffWithFiletype(ft string) DiffOption {
 	return func(d *Diff) { d.filetype = ft }
 }
 
-// DiffWithTheme sets the syntax highlighting theme name.
-func DiffWithTheme(name string) DiffOption {
-	return func(d *Diff) { d.theme = name }
+// DiffWithTheme sets the theme whose code palette colors the diff's source.
+// A nil theme selects style.DefaultDark.
+func DiffWithTheme(t *style.Theme) DiffOption {
+	return func(d *Diff) {
+		if t == nil {
+			t = defaultTheme()
+		}
+		d.theme = t
+	}
 }
 
 // DiffWithShowLineNumbers controls whether gutters display line numbers.
@@ -996,7 +1008,8 @@ func DiffWithWrapMode(m WrapMode) DiffOption {
 }
 
 // DiffWithHighlighter sets a custom SyntaxHighlighter for the diff and its
-// child Code widgets. When nil (default), a ChromaHighlighter is used.
+// child Code widgets. When nil (default), a Highlighter of the diff's
+// theme is used.
 func DiffWithHighlighter(h SyntaxHighlighter) DiffOption {
 	return func(d *Diff) { d.highlighter = h }
 }

@@ -17,8 +17,8 @@ type HighlightContext struct {
 	Content string
 	// Filetype is the source's language, as the Code widget was given it.
 	Filetype string
-	// Theme is the name of the Chroma theme, such as "monokai".
-	Theme string
+	// Theme is the theme whose code palette colors the source.
+	Theme *style.Theme
 }
 
 // OnHighlightCallback transforms highlighted lines before Code stores them for rendering.
@@ -42,8 +42,8 @@ type Code struct {
 	fg         style.Color
 	bg         style.Color
 	wrapMode   WrapMode
-	theme      string // theme name (e.g. "monokai", "dracula")
-	attributes uint32 // default text attributes
+	theme      *style.Theme // theme whose code palette colors tokens
+	attributes uint32       // default text attributes
 
 	// conceal controls whether formatting text marked as concealed is hidden.
 	conceal bool
@@ -112,7 +112,6 @@ func NewCode(content string, opts ...CodeOption) *Code {
 		fg:                     style.ColorWhite,
 		bg:                     style.ColorTransparent,
 		wrapMode:               WrapWord,
-		theme:                  "monokai",
 		conceal:                true,
 		drawUnstyledText:       true,
 		shouldRenderTextBuffer: true,
@@ -134,9 +133,12 @@ func NewCode(content string, opts ...CodeOption) *Code {
 	tb.SetDefaultBg(c.bg)
 	tb.SetExpandTabs(true)
 
-	// Use Chroma unless the caller supplied a highlighter.
+	// Use a Highlighter unless the caller supplied a highlighter.
+	if c.theme == nil {
+		c.theme = defaultTheme()
+	}
 	if c.highlighter == nil {
-		c.highlighter = NewChromaHighlighter(c.theme)
+		c.highlighter = NewHighlighter(c.theme)
 	}
 
 	// Populate the text buffer before the first measurement or render.
@@ -348,24 +350,30 @@ func (c *Code) Streaming() bool { return c.streaming }
 
 // Theme configuration.
 
-// SetTheme sets the syntax highlighting theme by name (e.g. "monokai", "dracula", "github").
-func (c *Code) SetTheme(name string) {
-	if c.theme == name {
+// SetTheme sets the theme whose code palette colors the source. A nil
+// theme selects style.DefaultDark.
+func (c *Code) SetTheme(t *style.Theme) {
+	if t == nil {
+		t = defaultTheme()
+	}
+	if c.theme == t {
 		return
 	}
-	c.theme = name
+	c.theme = t
 	// Update highlighters that expose mutable theme selection.
-	type themeSetter interface{ SetTheme(string) }
+	type themeSetter interface{ SetTheme(*style.Theme) }
 	if ts, ok := c.highlighter.(themeSetter); ok {
-		ts.SetTheme(name)
+		ts.SetTheme(t)
 	}
 	c.linesDirty = true
 	c.highlightContent()
 	c.RequestRender()
 }
 
-// Theme returns the current theme name.
-func (c *Code) Theme() string { return c.theme }
+// Theme returns the theme whose code palette colors the source. Without one
+// set, it is a default theme that every such Code shares, which must not be
+// changed.
+func (c *Code) Theme() *style.Theme { return c.theme }
 
 // Conceal returns whether concealed text is hidden.
 func (c *Code) Conceal() bool { return c.conceal }
@@ -870,9 +878,10 @@ func CodeWithStreaming(v bool) CodeOption {
 	return func(c *Code) { c.streaming = v }
 }
 
-// CodeWithTheme sets the syntax highlighting theme name.
-func CodeWithTheme(name string) CodeOption {
-	return func(c *Code) { c.theme = name }
+// CodeWithTheme sets the theme whose code palette colors the source. A nil
+// theme selects style.DefaultDark.
+func CodeWithTheme(t *style.Theme) CodeOption {
+	return func(c *Code) { c.theme = t }
 }
 
 // CodeWithSelectable controls whether pointer selections can start in the code.
@@ -956,7 +965,7 @@ func CodeWithOnHighlight(fn OnHighlightCallback) CodeOption {
 }
 
 // CodeWithHighlighter sets a custom SyntaxHighlighter implementation.
-// When nil (default), a ChromaHighlighter is used.
+// When nil (default), a Highlighter of the Code's theme is used.
 func CodeWithHighlighter(h SyntaxHighlighter) CodeOption {
 	return func(c *Code) { c.highlighter = h }
 }

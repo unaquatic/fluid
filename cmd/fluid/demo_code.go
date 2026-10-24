@@ -132,7 +132,7 @@ func runCodeDemo(ctx context.Context, o DemoOptions) error {
 
 	codeWidget := widget.NewCode(sampleGoCode,
 		widget.CodeWithFiletype("go"),
-		widget.CodeWithTheme("dracula"),
+		widget.CodeWithTheme(style.DarculaSolid()),
 		widget.CodeWithWrapMode(widget.WrapNone),
 		widget.CodeWithFlexGrow(1),
 		widget.CodeWithActiveLine(0),

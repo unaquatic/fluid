@@ -128,10 +128,11 @@ func TestCode_SyntaxHighlighting_UnknownLanguage(t *testing.T) {
 
 func TestCode_ThemeSwitch(t *testing.T) {
 	code := "func main() {}"
-	c := NewCode(code, CodeWithFiletype("go"), CodeWithTheme("monokai"))
+	monokai, darcula := style.DefaultDark(), style.DarculaSolid()
+	c := NewCode(code, CodeWithFiletype("go"), CodeWithTheme(monokai))
 
-	if c.Theme() != "monokai" {
-		t.Errorf("expected theme 'monokai', got %q", c.Theme())
+	if c.Theme() != monokai {
+		t.Errorf("expected theme %q, got %q", monokai.Name, c.Theme().Name)
 	}
 
 	testutil.SetupWidget(c, 30, 1)
@@ -141,9 +142,9 @@ func TestCode_ThemeSwitch(t *testing.T) {
 	fgMonokai := buf1.Cell(0, 0).Fg
 
 	// Change the highlighter theme after construction.
-	c.SetTheme("github")
-	if c.Theme() != "github" {
-		t.Errorf("expected theme 'github', got %q", c.Theme())
+	c.SetTheme(darcula)
+	if c.Theme() != darcula {
+		t.Errorf("expected theme %q, got %q", darcula.Name, c.Theme().Name)
 	}
 
 	buf2 := buffer.New(30, 1)
@@ -443,12 +444,13 @@ func TestCode_ActiveLine(t *testing.T) {
 }
 
 func TestCode_Options(t *testing.T) {
+	theme := style.DarculaSolid()
 	c := NewCode("test",
 		CodeWithID("code1"),
 		CodeWithFg(style.ColorGreen),
 		CodeWithBg(style.ColorFromInts(30, 30, 30, 255)),
 		CodeWithFiletype("go"),
-		CodeWithTheme("dracula"),
+		CodeWithTheme(theme),
 		CodeWithWrapMode(WrapWord),
 		CodeWithStreaming(true),
 		CodeWithSelectable(true),
@@ -466,8 +468,8 @@ func TestCode_Options(t *testing.T) {
 	if c.Fg() != style.ColorGreen {
 		t.Error("expected green fg")
 	}
-	if c.Theme() != "dracula" {
-		t.Errorf("expected theme 'dracula', got %q", c.Theme())
+	if c.Theme() != theme {
+		t.Errorf("expected theme %q, got %q", theme.Name, c.Theme().Name)
 	}
 	if c.WrapModeValue() != WrapWord {
 		t.Errorf("expected WrapWord, got %d", c.WrapModeValue())
@@ -1247,11 +1249,12 @@ func TestDiff_SetViewMode(t *testing.T) {
 }
 
 func TestDiff_Options(t *testing.T) {
+	theme := style.DarculaSolid()
 	d := NewDiff("test",
 		DiffWithID("diff1"),
 		DiffWithViewMode(DiffSplit),
 		DiffWithFiletype("go"),
-		DiffWithTheme("dracula"),
+		DiffWithTheme(theme),
 		DiffWithShowLineNumbers(true),
 		DiffWithInlineHighlight(false),
 		DiffWithShowSigns(true),
@@ -1273,8 +1276,8 @@ func TestDiff_Options(t *testing.T) {
 	if d.Filetype() != "go" {
 		t.Errorf("expected filetype 'go', got %q", d.Filetype())
 	}
-	if d.Theme() != "dracula" {
-		t.Errorf("expected theme 'dracula', got %q", d.Theme())
+	if d.Theme() != theme {
+		t.Errorf("expected theme %q, got %q", theme.Name, d.Theme().Name)
 	}
 }
 
