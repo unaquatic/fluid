@@ -485,19 +485,19 @@ func TestCode_Options(t *testing.T) {
 	}
 }
 
-func TestCode_ScrollInfoProvider(t *testing.T) {
-	// This assignment verifies ScrollInfoProvider at compile time.
+func TestCode_Scroller(t *testing.T) {
+	// This assignment verifies Scroller at compile time.
 	c := NewCode("line1\nline2\nline3")
-	var _ ScrollInfoProvider = c
+	var _ Scroller = c
 	if c.ScrollY() != 0 {
 		t.Errorf("expected initial ScrollY=0, got %d", c.ScrollY())
 	}
 }
 
-func TestCode_LineInfoProvider(t *testing.T) {
-	// This assignment verifies LineInfoProvider at compile time.
+func TestCode_LineCounter(t *testing.T) {
+	// This assignment verifies LineCounter at compile time.
 	c := NewCode("line1\nline2\nline3")
-	var _ LineInfoProvider = c
+	var _ LineCounter = c
 	if c.LineCount() != 3 {
 		t.Errorf("expected 3 lines, got %d", c.LineCount())
 	}
@@ -1226,14 +1226,14 @@ func TestDiff_ScrollToBottom(t *testing.T) {
 	}
 }
 
-func TestDiff_ScrollInfoProvider(t *testing.T) {
+func TestDiff_Scroller(t *testing.T) {
 	d := NewDiff("@@ -1 +1 @@\n-old\n+new")
-	var _ ScrollInfoProvider = d // Verify the interface at compile time.
+	var _ Scroller = d // Verify the interface at compile time.
 }
 
-func TestDiff_LineInfoProvider(t *testing.T) {
+func TestDiff_LineCounter(t *testing.T) {
 	d := NewDiff("@@ -1 +1 @@\n-old\n+new")
-	var _ LineInfoProvider = d // Verify the interface at compile time.
+	var _ LineCounter = d // Verify the interface at compile time.
 }
 
 func TestDiff_SetViewMode(t *testing.T) {
@@ -1341,16 +1341,16 @@ func TestTabSelect_Render(t *testing.T) {
 
 // LineNumber behavior.
 
-// mockLineProvider supplies a fixed logical line count.
-type mockLineProvider struct {
+// mockLineCounter supplies a fixed logical line count.
+type mockLineCounter struct {
 	*render.BaseRenderable
 	lineCount int
 }
 
-func (m *mockLineProvider) LineCount() int { return m.lineCount }
+func (m *mockLineCounter) LineCount() int { return m.lineCount }
 
 func TestNewLineNumber(t *testing.T) {
-	target := &mockLineProvider{
+	target := &mockLineCounter{
 		BaseRenderable: render.NewBaseRenderable(),
 		lineCount:      10,
 	}
@@ -1361,7 +1361,7 @@ func TestNewLineNumber(t *testing.T) {
 }
 
 func TestLineNumber_Render(t *testing.T) {
-	target := &mockLineProvider{
+	target := &mockLineCounter{
 		BaseRenderable: render.NewBaseRenderable(),
 		lineCount:      5,
 	}
@@ -1378,20 +1378,20 @@ func TestLineNumber_Render(t *testing.T) {
 	}
 }
 
-// mockCursorProvider supplies line, scroll, and active-line state.
-type mockCursorProvider struct {
+// mockCursorTracker supplies line, scroll, and active-line state.
+type mockCursorTracker struct {
 	*render.BaseRenderable
 	lineCount int
 	scrollY   int
 	cursorRow int
 }
 
-func (m *mockCursorProvider) LineCount() int { return m.lineCount }
-func (m *mockCursorProvider) ScrollY() int   { return m.scrollY }
-func (m *mockCursorProvider) CursorRow() int { return m.cursorRow }
+func (m *mockCursorTracker) LineCount() int                 { return m.lineCount }
+func (m *mockCursorTracker) ScrollY() int                   { return m.scrollY }
+func (m *mockCursorTracker) CursorPosition() (row, col int) { return m.cursorRow, 0 }
 
-// mockVisualLineProvider supplies wrapped-to-logical line mappings.
-type mockVisualLineProvider struct {
+// mockLineMapper supplies wrapped-to-logical line mappings.
+type mockLineMapper struct {
 	*render.BaseRenderable
 	lineCount   int
 	scrollY     int
@@ -1400,11 +1400,11 @@ type mockVisualLineProvider struct {
 	logicalMap  []int // Maps visual line indexes to logical line indexes.
 }
 
-func (m *mockVisualLineProvider) LineCount() int       { return m.lineCount }
-func (m *mockVisualLineProvider) ScrollY() int         { return m.scrollY }
-func (m *mockVisualLineProvider) CursorRow() int       { return m.cursorRow }
-func (m *mockVisualLineProvider) VisualLineCount() int { return m.visualLines }
-func (m *mockVisualLineProvider) LogicalLineForVisualLine(v int) int {
+func (m *mockLineMapper) LineCount() int                 { return m.lineCount }
+func (m *mockLineMapper) ScrollY() int                   { return m.scrollY }
+func (m *mockLineMapper) CursorPosition() (row, col int) { return m.cursorRow, 0 }
+func (m *mockLineMapper) VisualLineCount() int           { return m.visualLines }
+func (m *mockLineMapper) LogicalLineForVisualLine(v int) int {
 	if v >= 0 && v < len(m.logicalMap) {
 		return m.logicalMap[v]
 	}
@@ -1412,7 +1412,7 @@ func (m *mockVisualLineProvider) LogicalLineForVisualLine(v int) int {
 }
 
 func TestLineNumber_ActiveLine(t *testing.T) {
-	target := &mockCursorProvider{
+	target := &mockCursorTracker{
 		BaseRenderable: render.NewBaseRenderable(),
 		lineCount:      5,
 		cursorRow:      2,
@@ -1434,7 +1434,7 @@ func TestLineNumber_ActiveLine(t *testing.T) {
 }
 
 func TestLineNumber_RelativeMode(t *testing.T) {
-	target := &mockCursorProvider{
+	target := &mockCursorTracker{
 		BaseRenderable: render.NewBaseRenderable(),
 		lineCount:      5,
 		cursorRow:      2, // Zero-based logical line two.
@@ -1453,7 +1453,7 @@ func TestLineNumber_RelativeMode(t *testing.T) {
 }
 
 func TestLineNumber_ScrollSync(t *testing.T) {
-	target := &mockCursorProvider{
+	target := &mockCursorTracker{
 		BaseRenderable: render.NewBaseRenderable(),
 		lineCount:      20,
 		scrollY:        5,
@@ -1470,7 +1470,7 @@ func TestLineNumber_ScrollSync(t *testing.T) {
 
 func TestLineNumber_WrapAwareness(t *testing.T) {
 	// Map three logical lines onto five visual lines, with the last two wrapping.
-	target := &mockVisualLineProvider{
+	target := &mockLineMapper{
 		BaseRenderable: render.NewBaseRenderable(),
 		lineCount:      3,
 		visualLines:    5,
@@ -1487,7 +1487,7 @@ func TestLineNumber_WrapAwareness(t *testing.T) {
 }
 
 func TestLineNumber_ComputedWidth(t *testing.T) {
-	target := &mockLineProvider{
+	target := &mockLineCounter{
 		BaseRenderable: render.NewBaseRenderable(),
 		lineCount:      100,
 	}
@@ -1510,7 +1510,7 @@ func TestLineNumber_ComputedWidth(t *testing.T) {
 }
 
 func TestLineNumber_Hidden(t *testing.T) {
-	target := &mockLineProvider{
+	target := &mockLineCounter{
 		BaseRenderable: render.NewBaseRenderable(),
 		lineCount:      5,
 	}
@@ -1527,7 +1527,7 @@ func TestLineNumber_Hidden(t *testing.T) {
 }
 
 func TestLineNumber_Separator(t *testing.T) {
-	target := &mockLineProvider{
+	target := &mockLineCounter{
 		BaseRenderable: render.NewBaseRenderable(),
 		lineCount:      3,
 	}
@@ -1541,7 +1541,7 @@ func TestLineNumber_Separator(t *testing.T) {
 }
 
 func TestLineNumber_Options(t *testing.T) {
-	target := &mockLineProvider{
+	target := &mockLineCounter{
 		BaseRenderable: render.NewBaseRenderable(),
 		lineCount:      5,
 	}
@@ -1578,11 +1578,11 @@ func TestLineNumber_NilTarget(t *testing.T) {
 }
 
 func TestLineNumber_SetTarget(t *testing.T) {
-	target1 := &mockLineProvider{
+	target1 := &mockLineCounter{
 		BaseRenderable: render.NewBaseRenderable(),
 		lineCount:      5,
 	}
-	target2 := &mockLineProvider{
+	target2 := &mockLineCounter{
 		BaseRenderable: render.NewBaseRenderable(),
 		lineCount:      10,
 	}

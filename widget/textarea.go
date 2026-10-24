@@ -239,6 +239,9 @@ func (ta *Textarea) SetCursor(row, col int) {
 	ta.RequestRender()
 }
 
+// A LineNumber beside a Textarea styles the cursor's line as active.
+var _ CursorTracker = (*Textarea)(nil)
+
 // CursorPosition returns the logical row and display-column position.
 func (ta *Textarea) CursorPosition() (row, col int) {
 	return ta.editBuffer().CursorRow(), ta.editBuffer().CursorCol()

@@ -10,24 +10,27 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// LineInfoProvider reports the logical line count displayed by a target widget.
-type LineInfoProvider interface {
+// LineCounter reports the logical line count displayed by a target widget.
+type LineCounter interface {
 	LineCount() int
 }
 
-// ScrollInfoProvider reports a target widget's vertical scroll offset.
-type ScrollInfoProvider interface {
+// Scroller reports a target widget's vertical scroll offset.
+type Scroller interface {
 	ScrollY() int
 }
 
-// CursorInfoProvider reports the logical cursor row used for active-line styling.
-type CursorInfoProvider interface {
-	CursorRow() int
+// CursorTracker reports the cursor position of a target widget, whose
+// logical row LineNumber styles as the active line.
+type CursorTracker interface {
+	// CursorPosition returns the cursor's logical row and display column.
+	CursorPosition() (row, col int)
 }
 
-// VisualLineProvider maps wrapped visual lines to logical source lines.
-// LineNumber leaves continuation rows blank when a target implements this interface.
-type VisualLineProvider interface {
+// LineMapper maps the wrapped visual lines a target widget shows to its
+// logical source lines. LineNumber leaves continuation rows blank when a
+// target implements this interface.
+type LineMapper interface {
 	VisualLineCount() int
 	// LogicalLineForVisualLine returns the logical line for a visual line index.
 	LogicalLineForVisualLine(visualLine int) int
@@ -253,10 +256,10 @@ func (ln *LineNumber) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 
 	// Wrapped targets provide visual-to-logical line mapping.
 	hasVisualLines := false
-	var vlp VisualLineProvider
-	if vl, ok := ln.target.(VisualLineProvider); ok {
+	var lm LineMapper
+	if m, ok := ln.target.(LineMapper); ok {
 		hasVisualLines = true
-		vlp = vl
+		lm = m
 	}
 
 	// numWidth excludes sign and separator columns.
@@ -271,7 +274,7 @@ func (ln *LineNumber) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 
 	// Paint configured target-row backgrounds before drawing the gutter.
 	if ln.lineColors != nil && ln.showLineNumbers {
-		ln.drawContentBackgrounds(buf, x, y, w, h, gutterW, scrollY, lineCount, hasVisualLines, vlp)
+		ln.drawContentBackgrounds(buf, x, y, w, h, gutterW, scrollY, lineCount, hasVisualLines, lm)
 	}
 
 	if !ln.showLineNumbers {
@@ -288,11 +291,11 @@ func (ln *LineNumber) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 		isFirstVisualLine := true
 
 		if hasVisualLines {
-			totalVisual := vlp.VisualLineCount()
+			totalVisual := lm.VisualLineCount()
 			if visualLine < totalVisual {
-				logicalLine = vlp.LogicalLineForVisualLine(visualLine)
+				logicalLine = lm.LogicalLineForVisualLine(visualLine)
 				if visualLine > 0 {
-					prevLogical := vlp.LogicalLineForVisualLine(visualLine - 1)
+					prevLogical := lm.LogicalLineForVisualLine(visualLine - 1)
 					isFirstVisualLine = prevLogical != logicalLine
 				}
 			}
@@ -430,7 +433,7 @@ func (ln *LineNumber) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 }
 
 // drawContentBackgrounds paints configured target-row backgrounds to the right of the gutter.
-func (ln *LineNumber) drawContentBackgrounds(buf *buffer.Buffer, x, y, w, h, gutterW, scrollY, lineCount int, hasVisualLines bool, vlp VisualLineProvider) {
+func (ln *LineNumber) drawContentBackgrounds(buf *buffer.Buffer, x, y, w, h, gutterW, scrollY, lineCount int, hasVisualLines bool, lm LineMapper) {
 	contentX := x + gutterW
 	contentW := w - gutterW
 	if contentW <= 0 {
@@ -443,9 +446,9 @@ func (ln *LineNumber) drawContentBackgrounds(buf *buffer.Buffer, x, y, w, h, gut
 
 		logicalLine := -1
 		if hasVisualLines {
-			totalVisual := vlp.VisualLineCount()
+			totalVisual := lm.VisualLineCount()
 			if visualLine < totalVisual {
-				logicalLine = vlp.LogicalLineForVisualLine(visualLine)
+				logicalLine = lm.LogicalLineForVisualLine(visualLine)
 			}
 		} else {
 			if visualLine < lineCount {
@@ -465,24 +468,25 @@ func (ln *LineNumber) drawContentBackgrounds(buf *buffer.Buffer, x, y, w, h, gut
 
 // getLineCount returns the target's logical line count, or zero when unsupported.
 func (ln *LineNumber) getLineCount() int {
-	if lip, ok := ln.target.(LineInfoProvider); ok {
-		return lip.LineCount()
+	if lc, ok := ln.target.(LineCounter); ok {
+		return lc.LineCount()
 	}
 	return 0
 }
 
 // getScrollY returns the target's vertical offset, or zero when unsupported.
 func (ln *LineNumber) getScrollY() int {
-	if sip, ok := ln.target.(ScrollInfoProvider); ok {
-		return sip.ScrollY()
+	if sc, ok := ln.target.(Scroller); ok {
+		return sc.ScrollY()
 	}
 	return 0
 }
 
 // getActiveLine returns the target's cursor row, or -1 when unsupported.
 func (ln *LineNumber) getActiveLine() int {
-	if cip, ok := ln.target.(CursorInfoProvider); ok {
-		return cip.CursorRow()
+	if ct, ok := ln.target.(CursorTracker); ok {
+		row, _ := ct.CursorPosition()
+		return row
 	}
 	return -1
 }
