@@ -47,9 +47,16 @@ func WithID(id string) Option {
 	return func(b *BaseRenderable) { b.id = id }
 }
 
-// WithVisible sets whether the renderable is initially visible.
+// WithVisible sets whether the renderable is initially visible. A hidden one
+// keeps its layout space, as SetVisible(false) leaves it.
 func WithVisible(v bool) Option {
-	return func(b *BaseRenderable) { b.visible = v }
+	return func(b *BaseRenderable) {
+		if v {
+			b.layoutNode.Visibility = layout.Visible
+		} else {
+			b.layoutNode.Visibility = layout.Hidden
+		}
+	}
 }
 
 // WithFocusable sets whether the renderable can initially receive focus.
@@ -206,7 +213,6 @@ type BaseRenderable struct {
 	paintRect             buffer.Rect // The region covered by the most recent paint.
 
 	// Configuration and state.
-	visible    bool
 	focusable  bool
 	focused    bool
 	live       bool
@@ -281,7 +287,6 @@ func NewBaseRenderable(opts ...Option) *BaseRenderable {
 	b := &BaseRenderable{
 		num:        num,
 		id:         fmt.Sprintf("renderable-%d", num),
-		visible:    true,
 		focusable:  false,
 		dirty:      true,
 		layoutNode: layout.NewNode(),
@@ -450,31 +455,36 @@ func (b *BaseRenderable) FindDescendantByID(id string) Renderable {
 	return nil
 }
 
-// Visible reports whether b is drawn and hit tested.
-func (b *BaseRenderable) Visible() bool { return b.visible }
+// Visible reports whether b is drawn and hit tested: whether its layout
+// node's Visibility is layout.Visible.
+func (b *BaseRenderable) Visible() bool { return b.layoutNode.Visibility == layout.Visible }
+
+// Gone reports whether b takes part in neither layout nor rendering: whether
+// its layout node's Visibility is layout.Gone.
+func (b *BaseRenderable) Gone() bool { return b.layoutNode.Visibility == layout.Gone }
 
 // SetVisible controls rendering and hit testing while preserving layout space.
+// Hiding a visible b makes it layout.Hidden; hiding a gone one leaves it gone.
 // Use SetGone to remove b from layout.
 func (b *BaseRenderable) SetVisible(v bool) {
-	if b.visible != v {
-		b.visible = v
-		if v {
-			b.layoutNode.Visibility = layout.Visible
-		} else {
-			b.layoutNode.Visibility = layout.Hidden
-		}
-		b.layoutNode.MarkDirty()
-		b.RequestRender()
+	if b.Visible() == v {
+		return
 	}
+	if v {
+		b.layoutNode.Visibility = layout.Visible
+	} else {
+		b.layoutNode.Visibility = layout.Hidden
+	}
+	b.layoutNode.MarkDirty()
+	b.RequestRender()
 }
 
-// SetGone controls whether b participates in layout and rendering.
+// SetGone controls whether b participates in layout and rendering. Bringing
+// it back makes it visible.
 func (b *BaseRenderable) SetGone(g bool) {
 	if g {
-		b.visible = false
 		b.layoutNode.Visibility = layout.Gone
 	} else {
-		b.visible = true
 		b.layoutNode.Visibility = layout.Visible
 	}
 	b.layoutNode.MarkDirty()
@@ -498,7 +508,7 @@ func (b *BaseRenderable) Rect() buffer.Rect {
 // one is beyond the reach of traversal, and its parent encloses it too.
 func (b *BaseRenderable) Damage() buffer.Rect {
 	switch {
-	case b.destroyed, !b.visible:
+	case b.destroyed, !b.Visible():
 		return b.paintRect
 	case b.dirty:
 		return b.paintRect.Union(b.Rect())
@@ -511,7 +521,7 @@ func (b *BaseRenderable) Damage() buffer.Rect {
 // repainted. Painting clears the damage of a visible renderable, but a hidden
 // one is never painted again.
 func (b *BaseRenderable) ClearDamage() {
-	if b.destroyed || !b.visible {
+	if b.destroyed || !b.Visible() {
 		b.paintRect = buffer.Rect{}
 	}
 }
@@ -648,7 +658,7 @@ func (b *BaseRenderable) UpdateFromLayoutWithOffset(offsetX, offsetY int) {
 // Render draws b's content and registers its hit-test region. Scene traversal
 // renders children separately.
 func (b *BaseRenderable) Render(buf *buffer.Buffer, deltaTime float64) {
-	if !b.visible {
+	if !b.Visible() {
 		return
 	}
 

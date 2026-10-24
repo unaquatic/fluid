@@ -567,7 +567,6 @@ func TestBaseRenderable_RenderSelf_Default(t *testing.T) {
 
 func TestBaseRenderable_RenderHooks(t *testing.T) {
 	r := NewBaseRenderable()
-	r.visible = true
 	r.width = 10
 	r.height = 5
 
