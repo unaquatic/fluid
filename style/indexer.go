@@ -55,6 +55,17 @@ func (a ANSI) BgSeq(mode ColorMode) string {
 	return fmt.Sprintf("\x1b[%dm", 100+int(a-ANSIBrightBlack))
 }
 
+// Color returns the color fluid assumes entry a draws in: its guess at the
+// terminal theme's color for the 16 ANSI colors, and the standard xterm color
+// for the color cube and gray ramp.
+func (a ANSI) Color() Color {
+	if a <= ANSIBrightWhite {
+		c := ansi16Colors[a]
+		return Color{R: uint8(c[0]), G: uint8(c[1]), B: uint8(c[2]), A: 255}
+	}
+	return xtermColor(int(a))
+}
+
 // ansi16 returns a, or for an entry past the 16 ANSI colors the ANSI color
 // nearest to it.
 func (a ANSI) ansi16() ANSI {

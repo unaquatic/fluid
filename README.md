@@ -75,7 +75,7 @@ Set `FLUID_COLOR` to `truecolor`, `24bit`, `256`, or `16` to choose one yourself
 ## Commands
 
 ```sh
-go run github.com/unaquatic/fluid/cmd/fluid demo markdown          # run a demo; fluid -h lists all 12
+go run github.com/unaquatic/fluid/cmd/fluid demo markdown          # run a demo; fluid -h lists all 13
 go run github.com/unaquatic/fluid/cmd/design -root .               # paint golden frames files in the browser
 go run github.com/unaquatic/fluid/cmd/goldenview -o goldens.html . # draw every golden frames file in color
 ```
