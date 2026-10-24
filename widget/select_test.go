@@ -135,7 +135,7 @@ func TestSelect_Render(t *testing.T) {
 	s.RenderSelf(buf, 0)
 
 	// The first option must produce visible text.
-	text := buf.PlainText(true)
+	text := buf.String()
 	if len(text) == 0 {
 		t.Error("expected non-empty render output")
 	}
@@ -224,7 +224,7 @@ func TestSelect_ArrowColumn(t *testing.T) {
 			buf := buffer.New(20, 2)
 			s.RenderSelf(buf, 0)
 
-			for i, line := range strings.Split(buf.PlainText(true), "\n") {
+			for i, line := range strings.Split(buf.String(), "\n") {
 				if got := strings.TrimRight(line, " "); got != tt.want[i] {
 					t.Errorf("row %d = %q, want %q", i, got, tt.want[i])
 				}
@@ -278,7 +278,7 @@ func TestSelect_SelectedBackground(t *testing.T) {
 	buf := buffer.New(30, 2)
 	s.RenderSelf(buf, 0)
 
-	text := buf.PlainText(true)
+	text := buf.String()
 	t.Logf("rendered text:\n%s", text)
 
 	// The selected first row receives the configured blue background.

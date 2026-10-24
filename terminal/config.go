@@ -235,15 +235,10 @@ func DefaultConfig() Config {
 	}
 }
 
-// mergeConfig overlays the first supplied configuration on DefaultConfig.
-func mergeConfig(configs []Config) Config {
+// mergeConfig overlays user on DefaultConfig, keeping the default of each
+// field user leaves unset.
+func mergeConfig(user Config) Config {
 	cfg := DefaultConfig()
-
-	if len(configs) == 0 {
-		return cfg
-	}
-
-	user := configs[0]
 
 	if user.Stdin != nil {
 		cfg.Stdin = user.Stdin

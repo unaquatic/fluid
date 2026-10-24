@@ -36,24 +36,17 @@ func TestParseBorderStyle(t *testing.T) {
 		{"none", BorderNone},
 	}
 	for _, tt := range tests {
-		if got := ParseBorderStyle(tt.input); got != tt.want {
-			t.Errorf("ParseBorderStyle(%q) = %d, want %d", tt.input, got, tt.want)
+		if got, ok := ParseBorderStyle(tt.input); got != tt.want || !ok {
+			t.Errorf("ParseBorderStyle(%q) = %d, %v, want %d, true", tt.input, got, ok, tt.want)
 		}
 	}
 }
 
-func TestParseBorderStyle_InvalidDefault(t *testing.T) {
-	// Without an explicit fallback, unknown names use BorderSingle.
-	got := ParseBorderStyle("invalid")
-	if got != BorderSingle {
-		t.Errorf("ParseBorderStyle(\"invalid\") = %d, want BorderSingle", got)
-	}
-}
-
-func TestParseBorderStyle_CustomFallback(t *testing.T) {
-	got := ParseBorderStyle("invalid", BorderNone)
-	if got != BorderNone {
-		t.Errorf("ParseBorderStyle(\"invalid\", BorderNone) = %d, want BorderNone", got)
+func TestParseBorderStyle_Invalid(t *testing.T) {
+	// Unknown names return the zero BorderStyle and false.
+	got, ok := ParseBorderStyle("invalid")
+	if got != BorderSingle || ok {
+		t.Errorf("ParseBorderStyle(\"invalid\") = %d, %v, want BorderSingle, false", got, ok)
 	}
 }
 

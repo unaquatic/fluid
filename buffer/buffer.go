@@ -423,13 +423,11 @@ func (b *Buffer) SetCellBlended(x, y int, char rune, fg, bg style.Color, attrs s
 	}
 }
 
-// Clear resets every cell using the first background color, if present. With
-// no argument, it uses CellClear's transparent background.
-func (b *Buffer) Clear(bg ...style.Color) {
+// Clear resets every cell to CellClear with the background bg. A transparent
+// bg keeps CellClear's transparent background.
+func (b *Buffer) Clear(bg style.Color) {
 	c := CellClear
-	if len(bg) > 0 {
-		c.Bg = bg[0]
-	}
+	c.Bg = bg
 	b.fill(c)
 }
 
@@ -693,15 +691,17 @@ func (b *Buffer) DrawVLine(x, y, length int, char rune, fg, bg style.Color) {
 	}
 }
 
-// DrawFrameBuffer copies src to b at (destX, destY). The first optional source
-// rectangle restricts the copied region. The copy respects b's clipping
-// region. If src.RespectAlpha reports true, the copy alpha blends each source
-// cell over its destination.
-func (b *Buffer) DrawFrameBuffer(destX, destY int, src *Buffer, srcRect ...Rect) {
-	sr := src.Bounds()
-	if len(srcRect) > 0 {
-		sr = srcRect[0]
-	}
+// DrawFrameBuffer copies all of src to b at (destX, destY), as
+// DrawFrameBufferRect copies a rectangle of it.
+func (b *Buffer) DrawFrameBuffer(destX, destY int, src *Buffer) {
+	b.DrawFrameBufferRect(destX, destY, src, src.Bounds())
+}
+
+// DrawFrameBufferRect copies the rectangle sr of src to b, with its top-left
+// corner at (destX, destY). The copy respects b's clipping region. If
+// src.RespectAlpha reports true, the copy alpha blends each source cell over
+// its destination.
+func (b *Buffer) DrawFrameBufferRect(destX, destY int, src *Buffer, sr Rect) {
 
 	for sy := sr.Y; sy < sr.Bottom(); sy++ {
 		for sx := sr.X; sx < sr.Right(); sx++ {
@@ -902,14 +902,21 @@ func (b *Buffer) WriteResolvedChars(dst []byte, addLineBreaks bool) int {
 	return n
 }
 
-// PlainText returns the buffer's primary characters as plain text. When the
-// first optional argument is true, it inserts a newline between rows.
-func (b *Buffer) PlainText(addLineBreaks ...bool) string {
-	breaks := false
-	if len(addLineBreaks) > 0 {
-		breaks = addLineBreaks[0]
-	}
+// PlainText returns the buffer's primary characters as plain text, with its
+// rows run together. String separates them with newlines.
+func (b *Buffer) PlainText() string {
+	return b.plainText(false)
+}
 
+// String returns the buffer's primary characters as plain text, one row to a
+// line, so that fmt prints a buffer as the frame it holds.
+func (b *Buffer) String() string {
+	return b.plainText(true)
+}
+
+// plainText returns the buffer's primary characters as plain text, with a
+// newline between rows when breaks is true.
+func (b *Buffer) plainText(breaks bool) string {
 	var sb strings.Builder
 	for y := 0; y < b.height; y++ {
 		if breaks && y > 0 {

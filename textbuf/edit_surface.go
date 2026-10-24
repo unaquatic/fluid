@@ -81,13 +81,16 @@ func (ev *EditSurface) clampScrollPosition() {
 	}
 }
 
-// SetViewport replaces the viewport. When the first optional argument is true,
-// it scrolls to keep the cursor visible.
-func (ev *EditSurface) SetViewport(vp *Viewport, moveCursor ...bool) {
+// SetViewport replaces the viewport without scrolling it. Call ScrollToCursor
+// afterward to bring the cursor into view.
+func (ev *EditSurface) SetViewport(vp *Viewport) {
 	ev.surface.SetViewport(vp)
-	if len(moveCursor) > 0 && moveCursor[0] && vp != nil {
-		ev.ensureCursorVisible()
-	}
+}
+
+// ScrollToCursor scrolls the viewport, if there is one, so that the cursor is
+// visible.
+func (ev *EditSurface) ScrollToCursor() {
+	ev.ensureCursorVisible()
 }
 
 // SetWrapMode sets the underlying line-wrapping mode.

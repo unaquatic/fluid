@@ -39,7 +39,7 @@ func TestDefaultConfig(t *testing.T) {
 }
 
 func TestMergeConfig_Defaults(t *testing.T) {
-	cfg := mergeConfig(nil)
+	cfg := mergeConfig(Config{})
 
 	if !cfg.BackgroundColor.Equals(style.ColorBlack) {
 		t.Errorf("expected default BackgroundColor=Black, got %v", cfg.BackgroundColor)
@@ -47,11 +47,9 @@ func TestMergeConfig_Defaults(t *testing.T) {
 }
 
 func TestMergeConfig_Override(t *testing.T) {
-	cfg := mergeConfig([]Config{
-		{
-			BackgroundColor:    style.ColorRed,
-			KittyKeyboardFlags: KittyFlagDisambiguate,
-		},
+	cfg := mergeConfig(Config{
+		BackgroundColor:    style.ColorRed,
+		KittyKeyboardFlags: KittyFlagDisambiguate,
 	})
 
 	if !cfg.BackgroundColor.Equals(style.ColorRed) {

@@ -143,7 +143,7 @@ func TestDrawFrameBuffer_WithSrcRect(t *testing.T) {
 	src.SetCell(2, 2, 'X', style.ColorWhite, style.ColorRed, 0)
 
 	// Copy only the one-cell source region at (2,2).
-	dst.DrawFrameBuffer(0, 0, src, Rect{X: 2, Y: 2, Width: 1, Height: 1})
+	dst.DrawFrameBufferRect(0, 0, src, Rect{X: 2, Y: 2, Width: 1, Height: 1})
 
 	c := dst.Cell(0, 0)
 	if c.Char != 'X' {

@@ -31,27 +31,22 @@ func (bs BorderStyle) String() string {
 	}
 }
 
-// ParseBorderStyle returns the border style named by s. An unknown name returns
-// the first fallback, or BorderSingle when no fallback is supplied.
-func ParseBorderStyle(s string, fallback ...BorderStyle) BorderStyle {
-	fb := BorderSingle
-	if len(fallback) > 0 {
-		fb = fallback[0]
-	}
+// ParseBorderStyle returns the border style named by s and true, or
+// BorderSingle, the zero BorderStyle, and false when s names none.
+func ParseBorderStyle(s string) (BorderStyle, bool) {
 	switch s {
 	case "single":
-		return BorderSingle
+		return BorderSingle, true
 	case "double":
-		return BorderDouble
+		return BorderDouble, true
 	case "rounded":
-		return BorderRounded
+		return BorderRounded, true
 	case "heavy":
-		return BorderHeavy
+		return BorderHeavy, true
 	case "none":
-		return BorderNone
-	default:
-		return fb
+		return BorderNone, true
 	}
+	return BorderSingle, false
 }
 
 // IsValidBorderStyle reports whether s names a supported border style.

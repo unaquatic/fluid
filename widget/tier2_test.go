@@ -1372,7 +1372,7 @@ func TestLineNumber_Render(t *testing.T) {
 	ln.RenderSelf(buf, 0)
 
 	// A nonempty target must produce visible gutter text.
-	text := buf.PlainText(true)
+	text := buf.String()
 	if len(text) == 0 {
 		t.Error("expected non-empty render output")
 	}
@@ -1446,7 +1446,7 @@ func TestLineNumber_RelativeMode(t *testing.T) {
 	ln.RenderSelf(buf, 0)
 
 	// The active row is absolute while surrounding rows show their distance.
-	text := buf.PlainText(true)
+	text := buf.String()
 	if len(text) == 0 {
 		t.Error("expected non-empty render for relative mode")
 	}

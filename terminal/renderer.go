@@ -116,9 +116,10 @@ type Renderer struct {
 	probeErr     error
 }
 
-// NewRenderer returns an idle renderer using the first supplied configuration.
-func NewRenderer(config ...Config) (*Renderer, error) {
-	cfg := mergeConfig(config)
+// NewRenderer returns an idle renderer configured by cfg, whose unset fields
+// take their defaults.
+func NewRenderer(cfg Config) (*Renderer, error) {
+	cfg = mergeConfig(cfg)
 
 	backend := NewBackend(cfg.Stdin, cfg.Stdout)
 

@@ -53,7 +53,7 @@ import (
 )
 
 func main() {
-    r, _ := terminal.NewRenderer()
+    r, _ := terminal.NewRenderer(terminal.Config{})
     defer r.Destroy()
 
     box := widget.NewBox(

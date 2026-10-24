@@ -561,10 +561,10 @@ func TestPlainText(t *testing.T) {
 	b.DrawText("Hello", 0, 0, style.ColorWhite)
 	b.DrawText("World", 0, 1, style.ColorWhite)
 
-	got := b.PlainText(true)
+	got := b.String()
 	want := "Hello\nWorld"
 	if got != want {
-		t.Errorf("PlainText(true) = %q, want %q", got, want)
+		t.Errorf("String() = %q, want %q", got, want)
 	}
 
 	got = b.PlainText()

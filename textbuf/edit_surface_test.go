@@ -593,8 +593,9 @@ func TestEditBufferView_SetViewport_MoveCursor(t *testing.T) {
 	// Move the cursor to the final line.
 	eb.SetCursor(19, 0)
 
-	// Replace the viewport and request cursor following.
-	ev.SetViewport(&Viewport{X: 0, Y: 0, Width: 80, Height: 5}, true)
+	// Replace the viewport, then scroll it to the cursor.
+	ev.SetViewport(&Viewport{X: 0, Y: 0, Width: 80, Height: 5})
+	ev.ScrollToCursor()
 	// Cursor following adjusts the vertical offset.
 	vp := ev.Viewport()
 	if vp.Y == 0 {
