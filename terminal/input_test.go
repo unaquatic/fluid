@@ -62,7 +62,7 @@ func TestDispatchKeyEvent_EmitsOnBus(t *testing.T) {
 			Name:   "a",
 			Type:   input.KeyPress,
 			Raw:    "a",
-			Source: "raw",
+			Source: input.KeySourceRaw,
 		},
 	})
 
@@ -90,7 +90,7 @@ func TestDispatchKeyEvent_DeliveredToFocused(t *testing.T) {
 			Name:   "x",
 			Type:   input.KeyPress,
 			Raw:    "x",
-			Source: "raw",
+			Source: input.KeySourceRaw,
 		},
 	})
 
@@ -117,7 +117,7 @@ func TestDispatchKeyEvent_InputHandlerStops(t *testing.T) {
 			Name:   "a",
 			Type:   input.KeyPress,
 			Raw:    "a",
-			Source: "raw",
+			Source: input.KeySourceRaw,
 		},
 	})
 
@@ -134,7 +134,7 @@ func keyPressEvent(name string) input.TerminalEvent {
 			Name:   name,
 			Type:   input.KeyPress,
 			Raw:    name,
-			Source: "raw",
+			Source: input.KeySourceRaw,
 		},
 	}
 }
@@ -334,7 +334,7 @@ func TestPrependInputHandler(t *testing.T) {
 			Name:   "a",
 			Type:   input.KeyPress,
 			Raw:    "a",
-			Source: "raw",
+			Source: input.KeySourceRaw,
 		},
 	})
 

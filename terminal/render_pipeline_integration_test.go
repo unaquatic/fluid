@@ -563,7 +563,7 @@ func TestPipeline_EventStateChangeRerender(t *testing.T) {
 	// The key handler changes the label.
 	r.dispatchEvent(input.TerminalEvent{
 		Type: input.EventKeyboard,
-		Key:  &input.KeyEvent{Name: "x", Type: input.KeyPress, Raw: "x", Source: "raw"},
+		Key:  &input.KeyEvent{Name: "x", Type: input.KeyPress, Raw: "x", Source: input.KeySourceRaw},
 	})
 
 	// The second frame contains the updated label.

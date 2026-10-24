@@ -1,6 +1,7 @@
 package input
 
 import (
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
@@ -69,6 +70,27 @@ const (
 	KeyF12       = "f12"
 )
 
+// KeySource identifies the encoding a key event was read from.
+type KeySource int
+
+const (
+	// KeySourceRaw is a legacy terminal key sequence or a printable byte.
+	KeySourceRaw KeySource = iota
+	// KeySourceKitty is a Kitty keyboard protocol sequence.
+	KeySourceKitty
+)
+
+// String returns s's name, such as "kitty".
+func (s KeySource) String() string {
+	switch s {
+	case KeySourceRaw:
+		return "raw"
+	case KeySourceKitty:
+		return "kitty"
+	}
+	return "KeySource(" + strconv.Itoa(int(s)) + ")"
+}
+
 // KeyEvent describes one keyboard input event.
 type KeyEvent struct {
 	// Name is the canonical key name, such as "a", "return", "up", or "f1".
@@ -89,10 +111,8 @@ type KeyEvent struct {
 	Type KeyEventType
 	// Code is the Kitty keyboard protocol code point, when available.
 	Code string
-	// Source is the parser source, either "raw" or "kitty".
-	Source string
-	// Repeated reports whether this is an automatic key repeat.
-	Repeated bool
+	// Source is the encoding the parser read the key from.
+	Source KeySource
 
 	propagationStopped bool
 	defaultPrevented   bool

@@ -605,8 +605,8 @@ func TestParser_Kitty_SimpleKey(t *testing.T) {
 	if ev.Name != "a" {
 		t.Errorf("Name = %q, want 'a'", ev.Name)
 	}
-	if ev.Source != "kitty" {
-		t.Errorf("Source = %q, want 'kitty'", ev.Source)
+	if ev.Source != KeySourceKitty {
+		t.Errorf("Source = %v, want kitty", ev.Source)
 	}
 }
 
@@ -637,9 +637,6 @@ func TestParser_Kitty_EventType(t *testing.T) {
 	ev := events[0].Key
 	if ev.Type != KeyRepeat {
 		t.Errorf("Type = %v, want KeyRepeat", ev.Type)
-	}
-	if !ev.Repeated {
-		t.Error("Repeated should be true for repeat event")
 	}
 
 	// Kitty event type 3 reports a released key.
@@ -685,7 +682,7 @@ func TestParser_Kitty_Disabled(t *testing.T) {
 	p := NewParser()
 	// CSI u must not produce a Kitty event while the protocol is disabled.
 	events := p.Parse([]byte("\x1b[97u"))
-	if len(events) == 1 && events[0].Key != nil && events[0].Key.Source == "kitty" {
+	if len(events) == 1 && events[0].Key != nil && events[0].Key.Source == KeySourceKitty {
 		t.Error("kitty parsing should be disabled by default")
 	}
 }

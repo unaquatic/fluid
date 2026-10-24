@@ -207,7 +207,7 @@ func (p *Parser) parseOne(buf []byte) (TerminalEvent, int) {
 				Name:   KeyReturn,
 				Type:   KeyPress,
 				Raw:    string(buf[:1]),
-				Source: "raw",
+				Source: KeySourceRaw,
 			},
 		}, 1
 	}
@@ -223,7 +223,7 @@ func (p *Parser) parseOne(buf []byte) (TerminalEvent, int) {
 					Ctrl:   true,
 					Type:   KeyPress,
 					Raw:    string(buf[:1]),
-					Source: "raw",
+					Source: KeySourceRaw,
 				},
 			}, 1
 		}
@@ -236,7 +236,7 @@ func (p *Parser) parseOne(buf []byte) (TerminalEvent, int) {
 				Name:   KeyTab,
 				Type:   KeyPress,
 				Raw:    string(buf[:1]),
-				Source: "raw",
+				Source: KeySourceRaw,
 			},
 		}, 1
 	}
@@ -248,7 +248,7 @@ func (p *Parser) parseOne(buf []byte) (TerminalEvent, int) {
 				Name:   KeyReturn,
 				Type:   KeyPress,
 				Raw:    string(buf[:1]),
-				Source: "raw",
+				Source: KeySourceRaw,
 			},
 		}, 1
 	}
@@ -260,7 +260,7 @@ func (p *Parser) parseOne(buf []byte) (TerminalEvent, int) {
 				Name:   KeyBackspace,
 				Type:   KeyPress,
 				Raw:    string(buf[:1]),
-				Source: "raw",
+				Source: KeySourceRaw,
 			},
 		}, 1
 	}
@@ -283,7 +283,7 @@ func (p *Parser) parseEsc(buf []byte) (TerminalEvent, int) {
 				Name:   KeyEscape,
 				Type:   KeyPress,
 				Raw:    string(buf[:1]),
-				Source: "raw",
+				Source: KeySourceRaw,
 			},
 		}, 1
 	}
@@ -323,7 +323,7 @@ func (p *Parser) parseEsc(buf []byte) (TerminalEvent, int) {
 				Name:   KeyEscape,
 				Type:   KeyPress,
 				Raw:    string(buf[:1]),
-				Source: "raw",
+				Source: KeySourceRaw,
 			},
 		}, 1
 	}
@@ -390,7 +390,7 @@ func parseCSIKey(raw []byte, paramStr string, finalByte byte) (TerminalEvent, in
 				Name:   name,
 				Type:   KeyPress,
 				Raw:    string(raw),
-				Source: "raw",
+				Source: KeySourceRaw,
 			},
 		}, consumed
 	}
@@ -403,7 +403,7 @@ func parseCSIKey(raw []byte, paramStr string, finalByte byte) (TerminalEvent, in
 				Name:   name,
 				Type:   KeyPress,
 				Raw:    string(raw),
-				Source: "raw",
+				Source: KeySourceRaw,
 			},
 		}, consumed
 	}
@@ -428,7 +428,7 @@ func parseCSIKey(raw []byte, paramStr string, finalByte byte) (TerminalEvent, in
 							Meta:   meta,
 							Type:   KeyPress,
 							Raw:    string(raw),
-							Source: "raw",
+							Source: KeySourceRaw,
 						},
 					}, consumed
 				}
@@ -448,7 +448,7 @@ func parseCSIKey(raw []byte, paramStr string, finalByte byte) (TerminalEvent, in
 							Meta:   meta,
 							Type:   KeyPress,
 							Raw:    string(raw),
-							Source: "raw",
+							Source: KeySourceRaw,
 						},
 					}, consumed
 				}
@@ -487,7 +487,7 @@ func parseSS3(buf []byte) (TerminalEvent, int) {
 				Name:   name,
 				Type:   KeyPress,
 				Raw:    string(buf[:3]),
-				Source: "raw",
+				Source: KeySourceRaw,
 			},
 		}, 3
 	}
@@ -690,17 +690,16 @@ func parseKittyKey(raw []byte, paramStr string) (TerminalEvent, int) {
 	return TerminalEvent{
 		Type: EventKeyboard,
 		Key: &KeyEvent{
-			Name:     name,
-			Text:     text,
-			Ctrl:     ctrl,
-			Shift:    shift,
-			Alt:      alt,
-			Meta:     meta,
-			Type:     eventType,
-			Code:     strconv.Itoa(codepoint),
-			Raw:      string(raw),
-			Source:   "kitty",
-			Repeated: eventType == KeyRepeat,
+			Name:   name,
+			Text:   text,
+			Ctrl:   ctrl,
+			Shift:  shift,
+			Alt:    alt,
+			Meta:   meta,
+			Type:   eventType,
+			Code:   strconv.Itoa(codepoint),
+			Raw:    string(raw),
+			Source: KeySourceKitty,
 		},
 	}, consumed
 }
@@ -757,7 +756,7 @@ func parseUTF8(buf []byte) (TerminalEvent, int) {
 			Text:   text,
 			Type:   KeyPress,
 			Raw:    string(buf[:size]),
-			Source: "raw",
+			Source: KeySourceRaw,
 		},
 	}, size
 }
