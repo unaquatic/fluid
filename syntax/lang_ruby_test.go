@@ -66,4 +66,7 @@ var rubyTests = []kindCase{
 	{name: "unclosed heredoc", src: "x = <<~EOS\nbody", open: true, want: []Token{
 		tok(String, "EOS"), tok(String, "body"),
 	}},
+	{name: "block pass symbol", src: "names.map(&:upcase)", want: []Token{
+		tok(Variable, "names"), tok(Function, "map"), tok(Operator, "&"), tok(String, ":upcase"),
+	}},
 }

@@ -51,4 +51,9 @@ var cppTests = []kindCase{
 	{name: "comments", src: "// line\n/* block */ int x;", want: []Token{
 		tok(Comment, "// line"), tok(Comment, "/* block */"), tok(BuiltinType, "int"),
 	}},
+	{name: "digit separators", src: "auto b = 0b1010'1010; long long n = 9'223'372'036'854'775'807LL; char c = 'a';", want: []Token{
+		tok(Keyword, "auto"), tok(Variable, "b"), tok(Number, "0b1010'1010"), tok(BuiltinType, "long"), tok(BuiltinType, "long"),
+		tok(Variable, "n"), tok(Number, "9'223'372'036'854'775'807LL"), tok(BuiltinType, "char"), tok(Variable, "c"),
+		tok(String, "'a'"),
+	}},
 }

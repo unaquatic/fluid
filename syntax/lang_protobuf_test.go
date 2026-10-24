@@ -36,4 +36,8 @@ var protobufTests = []kindCase{
 	{name: "comments", src: "// line\n/* block\n */ message M {}", want: []Token{
 		tok(Comment, "// line"), tok(Comment, "/* block"), tok(Comment, " */"), tok(Keyword, "message"),
 	}},
+	{name: "enum values", src: "enum Status {\n  STATUS_OK = 0;\n  STATUS_ERR = 1;\n}", want: []Token{
+		tok(Keyword, "enum"), tok(Type, "Status"), tok(Constant, "STATUS_OK"), tok(Number, "0"), tok(Constant, "STATUS_ERR"),
+		tok(Number, "1"),
+	}},
 }

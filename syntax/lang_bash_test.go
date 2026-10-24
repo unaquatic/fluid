@@ -92,4 +92,11 @@ var bashTests = []kindCase{
 		tok(Keyword, "do"), tok(Keyword, "break"), tok(Number, "2"), tok(Keyword, "continue"), tok(Keyword, "done"),
 		tok(Keyword, "exit"), tok(Text, "echo"),
 	}},
+	{name: "case pattern commands", src: "case $x in\n  a|b) echo one ;;\n  *) exit 1 ;;\nesac\n(cd /tmp) && echo $(pwd) test", want: []Token{
+		tok(Keyword, "case"), tok(Variable, "$x"), tok(Keyword, "in"), tok(Text, "a"), tok(Operator, "|"), tok(Text, "b"),
+		tok(Punctuation, ")"), tok(BuiltinFunction, "echo"), tok(Text, "one"), tok(Operator, ";;"), tok(Text, "*"),
+		tok(Punctuation, ")"), tok(Keyword, "exit"), tok(Number, "1"), tok(Operator, ";;"), tok(Keyword, "esac"),
+		tok(Punctuation, "("), tok(BuiltinFunction, "cd"), tok(Text, "/tmp"), tok(Punctuation, ")"), tok(Operator, "&&"),
+		tok(BuiltinFunction, "echo"), tok(Operator, "$("), tok(BuiltinFunction, "pwd"), tok(Punctuation, ")"), tok(Text, "test"),
+	}},
 }

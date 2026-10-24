@@ -66,6 +66,7 @@ func cLang() *Language {
 			Quotes:        cQuotes("L", "u", "U", "u8"),
 			Preproc:       true,
 			CapsConstants: true,
+			DigitQuotes:   true,
 		},
 	}
 }
@@ -86,6 +87,7 @@ func cppLang() *Language {
 			Quotes:        cQuotes("L", "u", "U", "u8"),
 			Preproc:       true,
 			CapsConstants: true,
+			DigitQuotes:   true,
 			Special:       cppSpecial,
 		},
 	}
@@ -140,9 +142,10 @@ func csharpLang() *Language {
 				{Open: `"`, Close: `"`, Escapes: true},
 				{Open: `'`, Close: `'`, Escapes: true},
 			},
-			Preproc:       true,
-			CapitalTypes:  true,
-			CapsConstants: true,
+			Preproc:        true,
+			CapitalTypes:   true,
+			CapitalMembers: true,
+			CapsConstants:  true,
 		},
 	}
 }
@@ -574,10 +577,11 @@ func protobufLang() *Language {
 			Declarators: map[string]Kind{
 				"message": Type, "enum": Type, "service": Type, "rpc": Function,
 			},
-			LineComments: []string{"//"},
-			BlockComment: slashComments,
-			Quotes:       cQuotes(),
-			CapitalTypes: true,
+			LineComments:  []string{"//"},
+			BlockComment:  slashComments,
+			Quotes:        cQuotes(),
+			CapitalTypes:  true,
+			CapsConstants: true,
 		},
 	}
 }

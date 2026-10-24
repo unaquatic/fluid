@@ -58,4 +58,11 @@ var htmlTests = []kindCase{
 	{name: "unclosed script", src: "<script>\nlet x", open: true, want: []Token{
 		tok(Tag, "script"), tok(Keyword, "let"),
 	}},
+	{name: "unquoted attribute values", src: "<input type=text value = 42 disabled><br class=x/>\n<script type=module>let a = 1</script>", want: []Token{
+		tok(Punctuation, "<"), tok(Tag, "input"), tok(Attribute, "type"), tok(Operator, "="), tok(String, "text"),
+		tok(Attribute, "value"), tok(Operator, "="), tok(String, "42"), tok(Attribute, "disabled"), tok(Punctuation, ">"),
+		tok(Punctuation, "<"), tok(Tag, "br"), tok(Attribute, "class"), tok(Operator, "="), tok(String, "x"),
+		tok(Punctuation, "/>"), tok(Punctuation, "<"), tok(Tag, "script"), tok(Attribute, "type"), tok(Operator, "="),
+		tok(String, "module"), tok(Punctuation, ">"), tok(Keyword, "let"), tok(Variable, "a"), tok(Number, "1"),
+	}},
 }

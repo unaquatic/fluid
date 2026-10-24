@@ -58,4 +58,7 @@ var kotlinTests = []kindCase{
 	{name: "numbers", src: "val n = 1_000L + 0xFF + 0b1 + 1.5f + 2e3", want: []Token{
 		tok(Number, "1_000L"), tok(Number, "0xFF"), tok(Number, "0b1"), tok(Number, "1.5f"), tok(Number, "2e3"),
 	}},
+	{name: "elvis operator", src: "val n = x ?: 0", want: []Token{
+		tok(Keyword, "val"), tok(Variable, "n"), tok(Variable, "x"), tok(Operator, "?:"), tok(Number, "0"),
+	}},
 }

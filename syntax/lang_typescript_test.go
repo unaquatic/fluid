@@ -51,4 +51,10 @@ var typescriptTests = []kindCase{
 		tok(Keyword, "declare"), tok(Keyword, "module"), tok(String, `"x"`), tok(Keyword, "export"),
 		tok(BuiltinVariable, "exports"),
 	}},
+	{name: "keywords as keys and parameters", src: "interface A { type?: string; module: string }\nfunction f(type: string, this: A) {}\ntype B = { declare: boolean };", want: []Token{
+		tok(Keyword, "interface"), tok(Type, "A"), tok(Property, "type"), tok(Operator, "?:"), tok(BuiltinType, "string"),
+		tok(Property, "module"), tok(BuiltinType, "string"), tok(Keyword, "function"), tok(Function, "f"),
+		tok(Property, "type"), tok(BuiltinType, "string"), tok(Keyword, "this"), tok(Type, "A"), tok(Keyword, "type"),
+		tok(Type, "B"), tok(Property, "declare"), tok(BuiltinType, "boolean"),
+	}},
 }

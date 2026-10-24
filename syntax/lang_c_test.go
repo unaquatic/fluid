@@ -65,4 +65,9 @@ var cTests = []kindCase{
 	{name: "unclosed block comment", src: "/* open\nstill", open: true, want: []Token{
 		tok(Comment, "/* open"), tok(Comment, "still"),
 	}},
+	{name: "digit separators", src: "int n = 1'000'000; unsigned m = 0xFF'FFu; double d = 1'000.5e3;\nswitch (c) { case 'x': break; }", want: []Token{
+		tok(BuiltinType, "int"), tok(Variable, "n"), tok(Number, "1'000'000"), tok(BuiltinType, "unsigned"), tok(Variable, "m"),
+		tok(Number, "0xFF'FFu"), tok(BuiltinType, "double"), tok(Variable, "d"), tok(Number, "1'000.5e3"), tok(Keyword, "switch"),
+		tok(Variable, "c"), tok(Keyword, "case"), tok(String, "'x'"), tok(Keyword, "break"),
+	}},
 }

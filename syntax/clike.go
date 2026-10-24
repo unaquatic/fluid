@@ -11,11 +11,12 @@ import (
 //
 // An identifier is classified by the first rule that holds: its kind in
 // Words, unless a member access, such as ".", "?.", or "->", comes right
-// before it; the kind a Declarators keyword before it gives; Function when
-// it is a macro call or followed by '('; Property when AssignProperties
-// and it is followed by '='; Constant when CapsConstants and it is all
-// capitals; Type when CapitalTypes and it is capitalized; Property after a
-// member access; and Variable otherwise.
+// before it, or KeywordKeys and it is a key; the kind a Declarators keyword
+// before it gives; Function when it is a macro call or followed by '(';
+// Property when AssignProperties and it is followed by '='; Constant when
+// CapsConstants and it is all capitals; Type when CapitalTypes and it is
+// capitalized, but not after a member access when CapitalMembers; Property
+// after a member access; and Variable otherwise.
 type CLike struct {
 	// Words maps keywords and predeclared names to their kinds, such as
 	// "return" to Keyword and "int" to Type.
@@ -64,9 +65,22 @@ type CLike struct {
 	// CapitalTypes reports whether capitalized identifiers name types, as
 	// in Java.
 	CapitalTypes bool
+	// CapitalMembers reports whether a capitalized identifier after a member
+	// access is a Property rather than a Type, as C#'s properties are.
+	CapitalMembers bool
 	// CapsConstants reports whether all-capitals identifiers, such as
 	// MAX_SIZE, name constants.
 	CapsConstants bool
+	// DigitQuotes reports whether a ' between the digits of a number
+	// separates them, as in C23's and C++14's 1'000'000, rather than
+	// opening a character literal.
+	DigitQuotes bool
+	// KeywordKeys reports whether a keyword that names a key or parameter,
+	// before a ':' and after '{', '(', ',', or ';' or first on its line, is
+	// a Property, as type is in JavaScript's { type: 1 } and TypeScript's
+	// f(type: string). The case and default of a switch and TypeScript's
+	// this parameter stay keywords.
+	KeywordKeys bool
 	// AssignProperties reports whether an identifier followed by '=' is a
 	// Property, as are HCL's attributes.
 	AssignProperties bool
@@ -337,7 +351,11 @@ func (c *CLike) code(s *Scanner, fs Frames) Frames {
 		return fs
 	}
 	if IsDigit(b) || (b == '.' && IsDigit(s.Peek(1))) {
-		s.EmitTo(Number, NumberEnd(s.Line, s.Pos))
+		end := NumberEnd(s.Line, s.Pos)
+		if c.DigitQuotes {
+			end = quotedDigitsEnd(s.Line, end)
+		}
+		s.EmitTo(Number, end)
 		return fs
 	}
 	if IdentStart(s.Line, s.Pos, c.IdentChars) {
@@ -381,7 +399,10 @@ func (c *CLike) code(s *Scanner, fs Frames) Frames {
 		} else {
 			s.Emit(Punctuation, 1)
 		}
-	case '+', '-', '*', '/', '%', '=', '&', '|', '^', '!', '<', '>', '~', '?', '@':
+	case '?':
+		// An elvis operator, ?:, is one operator, but not ? before ::.
+		s.Emit(Operator, 1+boolInt(s.Peek(1) == ':' && s.Peek(2) != ':'))
+	case '+', '-', '*', '/', '%', '=', '&', '|', '^', '!', '<', '>', '~', '@':
 		s.Emit(Operator, 1)
 	default:
 		s.EmitRune(Text)
@@ -485,6 +506,9 @@ func (c *CLike) ident(s *Scanner, fs Frames) Frames {
 	if !member || slices.Contains(c.MemberWords, word) {
 		k, ok = c.lookup(c.Words, word)
 	}
+	if ok && k == Keyword && c.KeywordKeys && keyAt(s, end) && word != "case" && word != "default" && word != "this" {
+		k = Property
+	}
 	if !ok {
 		k, end = c.classify(s, word, end, member)
 	}
@@ -506,8 +530,9 @@ func (c *CLike) ident(s *Scanner, fs Frames) Frames {
 		return fs
 	}
 	// A name before a dot qualifies the declared one, as the receiver
-	// type of Kotlin's fun String.ext() does.
-	if nameEnd < len(line) && line[nameEnd] == '.' {
+	// type of Kotlin's fun String.ext() does, and so does one before a
+	// method's colon, as the table of Lua's function obj:m() does.
+	if nameEnd < len(line) && (line[nameEnd] == '.' || methodColon(line, nameEnd, c.IdentChars)) {
 		return fs
 	}
 	s.EmitTo(Text, start)
@@ -540,7 +565,7 @@ func (c *CLike) classify(s *Scanner, word string, end int, member bool) (Kind, i
 		return Property, end
 	case c.CapsConstants && IsCaps(word):
 		return Constant, end
-	case c.CapitalTypes && IsCapitalized(word):
+	case c.CapitalTypes && IsCapitalized(word) && !(member && c.CapitalMembers):
 		return Type, end
 	case member:
 		return Property, end
@@ -559,6 +584,47 @@ func AfterMember(line string, i int) bool {
 		return i < 2 || line[i-2] != '.'
 	}
 	return false
+}
+
+// quotedDigitsEnd returns the offset in line of the end of the number that
+// ends at end, extended over each ' and the group of digits after it, as
+// in 1'000.5 or 0xFF'FF.
+func quotedDigitsEnd(line string, end int) int {
+	for end+1 < len(line) && line[end] == '\'' && isHexDigit(line[end+1]) {
+		if IsDigit(line[end+1]) {
+			end = NumberEnd(line, end+1)
+			continue
+		}
+		end = IdentEnd(line, end+1, "")
+	}
+	return end
+}
+
+// methodColon reports whether line[i] is the ':' of a method name that a
+// '(' follows, as in Lua's obj:m(), rather than of a type annotation or a
+// block, as in Scala's f: Int or Python's class A:.
+func methodColon(line string, i int, identChars string) bool {
+	if line[i] != ':' || !IdentStart(line, i+1, identChars) {
+		return false
+	}
+	end := IdentEnd(line, i+1, identChars)
+	return end < len(line) && line[end] == '('
+}
+
+// keyAt reports whether the identifier that ends at end names a key or a
+// parameter: a ':' or "?:", but not "::", comes after it, and '{', '(',
+// ',', ';', or nothing comes before it on its line.
+func keyAt(s *Scanner, end int) bool {
+	line := s.Line
+	i := SpaceEnd(line, end)
+	if i < len(line) && line[i] == '?' {
+		i++
+	}
+	if i >= len(line) || line[i] != ':' || (i+1 < len(line) && line[i+1] == ':') {
+		return false
+	}
+	p, ok := s.Prev()
+	return !ok || p.Kind == Punctuation && strings.IndexByte("{(,;", p.Text[len(p.Text)-1]) >= 0
 }
 
 // assignedOperator reports whether the '=' after the identifier that ends

@@ -53,6 +53,7 @@ func jsLexer(ts, jsx bool) *CLike {
 		Decorators:    true,
 		CapitalTypes:  true,
 		CapsConstants: true,
+		KeywordKeys:   true,
 		Regex:         true,
 		JSX:           jsx,
 		Special:       jsSpecial,
@@ -181,8 +182,9 @@ func rubySpecial(s *Scanner) bool {
 	case '<':
 		return heredocStart(s, "<<", true, false)
 	case ':':
-		// A symbol, but not the second colon of :: or a ternary's colon.
-		if IdentStart(rest, 1, "") && (s.Pos == 0 || IsSpace(s.Line[s.Pos-1]) || strings.IndexByte("([{,=", s.Line[s.Pos-1]) >= 0) {
+		// A symbol, as in &:name, but not the second colon of :: or a
+		// ternary's colon.
+		if IdentStart(rest, 1, "") && (s.Pos == 0 || IsSpace(s.Line[s.Pos-1]) || strings.IndexByte("([{,=&", s.Line[s.Pos-1]) >= 0) {
 			s.Emit(String, IdentEnd(rest, 1, ""))
 			return true
 		}

@@ -56,4 +56,9 @@ var csharpTests = []kindCase{
 	{name: "comments", src: "// line\n/// <summary>doc</summary>\n/* block */ int x;", want: []Token{
 		tok(Comment, "// line"), tok(Comment, "/// <summary>doc</summary>"), tok(Comment, "/* block */"), tok(BuiltinType, "int"),
 	}},
+	{name: "capitalized members", src: "var n = user.Name; user.Save(); Console.WriteLine(DateTime.Now, Color.RED);", want: []Token{
+		tok(Keyword, "var"), tok(Variable, "n"), tok(Variable, "user"), tok(Property, "Name"), tok(Variable, "user"),
+		tok(Function, "Save"), tok(Type, "Console"), tok(Function, "WriteLine"), tok(Type, "DateTime"), tok(Property, "Now"),
+		tok(Type, "Color"), tok(Constant, "RED"),
+	}},
 }

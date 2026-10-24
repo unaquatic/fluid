@@ -57,4 +57,7 @@ var javaTests = []kindCase{
 	{name: "identifiers with dollar signs", src: "int $x = a$b;", want: []Token{
 		tok(Variable, "$x"), tok(Variable, "a$b"),
 	}},
+	{name: "capitalized members stay types", src: "Map.Entry<K, V> e = null;", want: []Token{
+		tok(Type, "Map"), tok(Type, "Entry"), tok(Type, "K"), tok(Type, "V"), tok(Variable, "e"), tok(Primitive, "null"),
+	}},
 }

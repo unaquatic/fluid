@@ -190,6 +190,14 @@ func (m *Markup) attrs(s *Scanner, fs Frames) Frames {
 			return fs
 		case b == '=':
 			s.Emit(Operator, 1)
+			s.Space()
+			if v := unquotedValue(s.Rest(), m.Svelte); v != "" {
+				if attr == "lang" || attr == "type" {
+					m.setLang(f, `"`+v+`"`)
+				}
+				s.Emit(String, len(v))
+				attr = ""
+			}
 		case b == '"' || b == '\'':
 			if attr == "lang" || attr == "type" {
 				m.setLang(f, s.Rest())
@@ -209,6 +217,23 @@ func (m *Markup) attrs(s *Scanner, fs Frames) Frames {
 		}
 	}
 	return fs
+}
+
+// unquotedValue returns the attribute value without quotes that rest
+// starts with, as in class=btn, up to a space or the tag's '>' or "/>", or
+// "" if a quoted value or, in Svelte, an expression starts there instead.
+func unquotedValue(rest string, svelte bool) string {
+	if rest == "" || rest[0] == '"' || rest[0] == '\'' || rest[0] == '>' || svelte && rest[0] == '{' {
+		return ""
+	}
+	end := strings.IndexAny(rest, " \t>")
+	if end < 0 {
+		end = len(rest)
+	}
+	if end > 0 && end < len(rest) && rest[end] == '>' && rest[end-1] == '/' {
+		end--
+	}
+	return rest[:end]
 }
 
 // setLang chooses the language of a script or style element from the value

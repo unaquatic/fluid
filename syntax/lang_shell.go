@@ -62,9 +62,10 @@ func (sh *Shell) AppendLine(dst []Token, line string, st State) ([]Token, State)
 		cmd = f.N != 0
 		fs = fs[:len(fs)-1]
 	}
-	// expectIn counts the words before the "in" of a for loop, and arith
-	// the arithmetic expressions open, in which << shifts.
-	expectIn, arith := 0, 0
+	// expectIn counts the words before the "in" of a for loop, arith the
+	// arithmetic expressions open, in which << shifts, and parens the
+	// parentheses open, so that a ')' that closes none ends a case pattern.
+	expectIn, arith, parens := 0, 0, 0
 	for !s.Done() {
 		var ok bool
 		if fs, ok = s.Continue(fs); ok {
@@ -75,7 +76,7 @@ func (sh *Shell) AppendLine(dst []Token, line string, st State) ([]Token, State)
 			cmd = false
 			continue
 		}
-		fs, cmd = sh.word(&s, fs, cmd, &expectIn, &arith)
+		fs, cmd = sh.word(&s, fs, cmd, &expectIn, &arith, &parens)
 	}
 	if s.Continued {
 		fs = append(fs, Frame{Mode: modeBody, N: uint8(boolInt(cmd))})
@@ -85,8 +86,9 @@ func (sh *Shell) AppendLine(dst []Token, line string, st State) ([]Token, State)
 
 // word lexes the word or operator at the scanner's position and returns
 // whether a command may come after it. expectIn counts the words left
-// before a for loop's "in", and arith the arithmetic expressions open.
-func (sh *Shell) word(s *Scanner, fs Frames, cmd bool, expectIn, arith *int) (Frames, bool) {
+// before a for loop's "in", arith the arithmetic expressions open, and
+// parens the parentheses open on the line.
+func (sh *Shell) word(s *Scanner, fs Frames, cmd bool, expectIn, arith, parens *int) (Frames, bool) {
 	b := s.Peek(0)
 	prev := byte(' ')
 	if s.Pos > 0 {
@@ -129,6 +131,9 @@ func (sh *Shell) word(s *Scanner, fs Frames, cmd bool, expectIn, arith *int) (Fr
 		fs = append(fs, Frame{Mode: modeQuote, N: shANSI})
 		return fs, false
 	case b == '$':
+		if s.Peek(1) == '(' {
+			*parens++
+		}
 		return fs, sh.dollar(s, Variable)
 	case b == '\\':
 		if s.Pos+1 == len(s.Line) {
@@ -163,9 +168,15 @@ func (sh *Shell) word(s *Scanner, fs Frames, cmd bool, expectIn, arith *int) (Fr
 		return fs, cmd
 	case b == '(' || b == '{':
 		s.Emit(Punctuation, 1)
+		*parens += boolInt(b == '(')
+		return fs, true
+	case b == ')' && *parens == 0:
+		// The end of a case pattern, as in a|b) echo, before its command.
+		s.Emit(Punctuation, 1)
 		return fs, true
 	case b == ')' || b == '}':
 		s.Emit(Punctuation, 1)
+		*parens -= boolInt(b == ')')
 		return fs, false
 	case b == '=':
 		s.Emit(Operator, 1)

@@ -108,4 +108,9 @@ var javascriptTests = []kindCase{
 		tok(BuiltinVariable, "window"), tok(BuiltinVariable, "document"), tok(BuiltinVariable, "globalThis"),
 		tok(BuiltinVariable, "process"), tok(BuiltinVariable, "Reflect"), tok(BuiltinVariable, "Intl"),
 	}},
+	{name: "keywords as keys", src: "const o = { class: 1, new: 2,\n  delete: 3 };\nswitch (k) {\ndefault: x = a ? this : b;\n}", want: []Token{
+		tok(Keyword, "const"), tok(Variable, "o"), tok(Property, "class"), tok(Property, "new"), tok(Property, "delete"),
+		tok(Keyword, "switch"), tok(Variable, "k"), tok(Keyword, "default"), tok(Variable, "x"), tok(Variable, "a"),
+		tok(Keyword, "this"), tok(Variable, "b"),
+	}},
 }

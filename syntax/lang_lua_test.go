@@ -50,4 +50,8 @@ var luaTests = []kindCase{
 		tok(Keyword, "local"), tok(Variable, "g"), tok(BuiltinVariable, "_G"), tok(BuiltinFunction, "print"),
 		tok(BuiltinVariable, "_ENV"), tok(BuiltinVariable, "self"), tok(BuiltinVariable, "string"), tok(Function, "len"),
 	}},
+	{name: "method declaration", src: "function Account:deposit(v) end", want: []Token{
+		tok(Keyword, "function"), tok(Variable, "Account"), tok(Punctuation, ":"), tok(Function, "deposit"),
+		tok(Variable, "v"), tok(Keyword, "end"),
+	}},
 }
