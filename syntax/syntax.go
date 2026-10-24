@@ -188,6 +188,9 @@ var registry = sync.OnceValues(func() ([]*Language, map[string]*Language) {
 // compared in lower case with each language's Name, Aliases, and Filenames;
 // failing that, a file name or path, such as "cmd/main.go", is looked up by
 // its base name and then by its extension.
+//
+// Every caller shares the Language it returns, and its Lexer, so they must
+// not be modified.
 func Lookup(name string) *Language {
 	_, index := registry()
 	name = strings.ToLower(strings.TrimSpace(name))
@@ -206,7 +209,8 @@ func Lookup(name string) *Language {
 	return nil
 }
 
-// Languages returns an iterator over the languages Lookup finds.
+// Languages returns an iterator over the languages Lookup finds, which, as
+// with Lookup, every caller shares and must not modify.
 func Languages() iter.Seq[*Language] {
 	return func(yield func(*Language) bool) {
 		langs, _ := registry()

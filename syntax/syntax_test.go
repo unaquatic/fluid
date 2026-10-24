@@ -25,9 +25,6 @@ type kindCase struct {
 	// comment, so that its last line ends in a State that is not the zero
 	// State.
 	open bool
-	// bug, if not empty, describes a known bug that keeps the lexer from
-	// lexing src as want says; the case is skipped until it is fixed.
-	bug string
 }
 
 // languageTests holds the cases of each language, by its name. Every
@@ -88,9 +85,6 @@ func testLanguage(t *testing.T, name string, names []string, cases []kindCase) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if c.bug != "" {
-				t.Skip("known bug: " + c.bug)
-			}
 			kinds, end := byteKinds(l, c.src)
 			at := 0
 			for _, w := range c.want {
