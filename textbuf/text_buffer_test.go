@@ -264,8 +264,8 @@ func TestTextBuffer_ResetDefaults(t *testing.T) {
 func TestTextBuffer_LoadFile(t *testing.T) {
 	tb := NewTextBuffer()
 	// A missing file reports failure without replacing content.
-	if tb.LoadFile("/tmp/nonexistent_fluid_test_file_xyz") {
-		t.Error("LoadFile should return false for non-existent file")
+	if err := tb.LoadFile("/tmp/nonexistent_fluid_test_file_xyz"); err == nil {
+		t.Error("LoadFile should return an error for a non-existent file")
 	}
 }
 

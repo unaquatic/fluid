@@ -126,15 +126,16 @@ func (tb *TextBuffer) Reset() {
 	tb.epoch++
 }
 
-// LoadFile replaces buffer content with path and reports whether the read
-// succeeded.
-func (tb *TextBuffer) LoadFile(path string) bool {
+// LoadFile replaces the buffer's content with the content of the file at
+// path. If reading the file fails, it returns the error and leaves the
+// content unchanged.
+func (tb *TextBuffer) LoadFile(path string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return false
+		return err
 	}
 	tb.SetText(string(data))
-	return true
+	return nil
 }
 
 // ResetDefaults restores white foreground, transparent background, and no
