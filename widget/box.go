@@ -57,7 +57,7 @@ func NewBox(opts ...BoxOption) *Box {
 
 // applyBorderPadding reserves at least one cell inside each active border side.
 func (b *Box) applyBorderPadding() {
-	sides := style.GetBorderSides(b.border)
+	sides := b.border.SidesConfig()
 	ln := b.LayoutNode()
 
 	if sides.Top {
@@ -110,7 +110,7 @@ func (b *Box) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 	y := b.Y()
 
 	// A partial border is active when any side is enabled.
-	sides := style.GetBorderSides(b.border)
+	sides := b.border.SidesConfig()
 	hasBorder := sides.Top || sides.Right || sides.Bottom || sides.Left
 
 	// Fill only the content area when a border is present.
@@ -150,7 +150,7 @@ func (b *Box) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 
 // InnerRect returns the drawable content area inside active border sides.
 func (b *Box) InnerRect() buffer.Rect {
-	sides := style.GetBorderSides(b.border)
+	sides := b.border.SidesConfig()
 	return buffer.InnerRect(b.X(), b.Y(), b.Width(), b.Height(), sides)
 }
 

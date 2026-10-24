@@ -67,8 +67,8 @@ func CreateTextAttributes(opts AttributeOptions) uint32 {
 	return attr
 }
 
-// GetBaseAttributes returns the decoration bits from attr.
-func GetBaseAttributes(attr uint32) uint32 {
+// BaseAttributes returns the decoration bits from attr.
+func BaseAttributes(attr uint32) uint32 {
 	return attr & AttributeBaseMask
 }
 
@@ -77,8 +77,8 @@ func AttributesWithLink(baseAttrs uint32, linkID uint32) uint32 {
 	return (baseAttrs & AttributeBaseMask) | (linkID << AttributeBaseBits)
 }
 
-// GetLinkID returns the link ID stored in attr.
-func GetLinkID(attr uint32) uint32 {
+// LinkID returns the link ID stored in attr.
+func LinkID(attr uint32) uint32 {
 	return attr >> AttributeBaseBits
 }
 

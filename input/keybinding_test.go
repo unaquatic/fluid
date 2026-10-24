@@ -2,7 +2,7 @@ package input
 
 import "testing"
 
-func TestGetKeyBindingKey(t *testing.T) {
+func TestKeyBindingKey(t *testing.T) {
 	tests := []struct {
 		binding KeyBinding
 		want    string
@@ -15,9 +15,9 @@ func TestGetKeyBindingKey(t *testing.T) {
 		{KeyBinding{Name: "x", Ctrl: true, Alt: true, Shift: true}, "ctrl+alt+shift+x"},
 	}
 	for _, tt := range tests {
-		got := GetKeyBindingKey(tt.binding)
+		got := tt.binding.Key()
 		if got != tt.want {
-			t.Errorf("GetKeyBindingKey(%+v) = %q, want %q", tt.binding, got, tt.want)
+			t.Errorf("%+v.Key() = %q, want %q", tt.binding, got, tt.want)
 		}
 	}
 }

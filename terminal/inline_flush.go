@@ -501,7 +501,7 @@ func (r *Renderer) writeInlineRow(out *bytes.Buffer, buf *buffer.Buffer, y, widt
 			needsReset = false
 		}
 
-		linkID := style.GetLinkID(cell.Attributes)
+		linkID := style.LinkID(cell.Attributes)
 		if linkID != curLinkID {
 			if linkID != 0 {
 				url := r.linkRegistry.URL(linkID)

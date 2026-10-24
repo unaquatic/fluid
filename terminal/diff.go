@@ -106,7 +106,7 @@ func (r *Renderer) DiffAndFlush(current, next *buffer.Buffer) {
 			}
 
 			// Open or close OSC 8 links at link-ID boundaries.
-			linkID := style.GetLinkID(nxt.Attributes)
+			linkID := style.LinkID(nxt.Attributes)
 			if linkID != curLinkID {
 				if linkID != 0 {
 					url := r.linkRegistry.URL(linkID)
@@ -239,7 +239,7 @@ func (r *Renderer) FullFlush(buf *buffer.Buffer) {
 			}
 
 			// Open or close OSC 8 links at link-ID boundaries.
-			linkID := style.GetLinkID(cell.Attributes)
+			linkID := style.LinkID(cell.Attributes)
 			if linkID != curLinkID {
 				if linkID != 0 {
 					url := r.linkRegistry.URL(linkID)

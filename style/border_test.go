@@ -114,44 +114,44 @@ func TestBorderSidesFunc(t *testing.T) {
 	}
 }
 
-func TestGetBorderSides_All(t *testing.T) {
-	config := GetBorderSides(BorderAll())
+func TestBorderSidesConfig_All(t *testing.T) {
+	config := BorderAll().SidesConfig()
 	if !config.Top || !config.Right || !config.Bottom || !config.Left {
-		t.Errorf("GetBorderSides(All) = %+v, want all true", config)
+		t.Errorf("SidesConfig of All = %+v, want all true", config)
 	}
 }
 
-func TestGetBorderSides_None(t *testing.T) {
-	config := GetBorderSides(BorderNoBorder())
+func TestBorderSidesConfig_None(t *testing.T) {
+	config := BorderNoBorder().SidesConfig()
 	if config.Top || config.Right || config.Bottom || config.Left {
-		t.Errorf("GetBorderSides(None) = %+v, want all false", config)
+		t.Errorf("SidesConfig of None = %+v, want all false", config)
 	}
 }
 
-func TestGetBorderSides_Specific(t *testing.T) {
-	config := GetBorderSides(BorderSides(SideTop, SideLeft))
+func TestBorderSidesConfig_Specific(t *testing.T) {
+	config := BorderSides(SideTop, SideLeft).SidesConfig()
 	if !config.Top || config.Right || config.Bottom || !config.Left {
-		t.Errorf("GetBorderSides(Top,Left) = %+v, want Top=true, Left=true", config)
+		t.Errorf("SidesConfig of Top,Left = %+v, want Top=true, Left=true", config)
 	}
 }
 
-func TestGetBorderFromSides_AllTrue(t *testing.T) {
-	b := GetBorderFromSides(AllSides())
+func TestBorderSidesConfigBorder_AllTrue(t *testing.T) {
+	b := AllSides().Border()
 	if !b.All {
-		t.Error("GetBorderFromSides(AllSides) should set All=true")
+		t.Error("Border of AllSides should set All=true")
 	}
 }
 
-func TestGetBorderFromSides_AllFalse(t *testing.T) {
-	b := GetBorderFromSides(NoSides())
+func TestBorderSidesConfigBorder_AllFalse(t *testing.T) {
+	b := NoSides().Border()
 	if b.All || len(b.Sides) > 0 {
-		t.Errorf("GetBorderFromSides(NoSides) = %+v, want empty", b)
+		t.Errorf("Border of NoSides = %+v, want empty", b)
 	}
 }
 
-func TestGetBorderFromSides_Partial(t *testing.T) {
+func TestBorderSidesConfigBorder_Partial(t *testing.T) {
 	config := BorderSidesConfig{Top: true, Right: true}
-	b := GetBorderFromSides(config)
+	b := config.Border()
 	if b.All {
 		t.Error("partial sides should not set All")
 	}
@@ -159,14 +159,14 @@ func TestGetBorderFromSides_Partial(t *testing.T) {
 		t.Fatalf("expected 2 sides, got %d", len(b.Sides))
 	}
 	// Expanding and compacting preserves the selected sides.
-	config2 := GetBorderSides(b)
+	config2 := b.SidesConfig()
 	if config2.Top != config.Top || config2.Right != config.Right ||
 		config2.Bottom != config.Bottom || config2.Left != config.Left {
 		t.Errorf("roundtrip failed: got %+v, want %+v", config2, config)
 	}
 }
 
-func TestGetBorderSides_Roundtrip(t *testing.T) {
+func TestBorderSidesConfig_Roundtrip(t *testing.T) {
 	// All 16 combinations of four sides round-trip.
 	bools := []bool{false, true}
 	for _, top := range bools {
@@ -174,8 +174,8 @@ func TestGetBorderSides_Roundtrip(t *testing.T) {
 			for _, bottom := range bools {
 				for _, left := range bools {
 					config := BorderSidesConfig{Top: top, Right: right, Bottom: bottom, Left: left}
-					b := GetBorderFromSides(config)
-					config2 := GetBorderSides(b)
+					b := config.Border()
+					config2 := b.SidesConfig()
 					if config2 != config {
 						t.Errorf("roundtrip failed for %+v: got %+v", config, config2)
 					}

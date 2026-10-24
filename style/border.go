@@ -119,8 +119,8 @@ func BorderSides(sides ...BorderSide) Border {
 	return Border{Sides: sides}
 }
 
-// GetBorderSides expands b into per-side flags.
-func GetBorderSides(b Border) BorderSidesConfig {
+// SidesConfig expands b into per-side flags.
+func (b Border) SidesConfig() BorderSidesConfig {
 	if b.All {
 		return AllSides()
 	}
@@ -143,8 +143,8 @@ func GetBorderSides(b Border) BorderSidesConfig {
 	return config
 }
 
-// GetBorderFromSides compacts per-side flags into a Border.
-func GetBorderFromSides(config BorderSidesConfig) Border {
+// Border compacts the per-side flags of config into a Border.
+func (config BorderSidesConfig) Border() Border {
 	if config.Top && config.Right && config.Bottom && config.Left {
 		return BorderAll()
 	}

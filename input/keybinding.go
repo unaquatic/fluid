@@ -30,9 +30,9 @@ var DefaultAliases = KeyAliasMap{
 	"esc":   "escape",
 }
 
-// GetKeyBindingKey returns binding's lookup string. It includes only active
-// modifiers in Control, Alt, Meta, Shift order.
-func GetKeyBindingKey(binding KeyBinding) string {
+// Key returns binding's lookup string. It includes only active modifiers in
+// Control, Alt, Meta, Shift order.
+func (binding KeyBinding) Key() string {
 	return buildComboString(binding.Name, binding.Ctrl, binding.Shift, binding.Alt, binding.Meta)
 }
 
@@ -67,13 +67,13 @@ func MergeKeyBindings(defaults, custom []KeyBinding) []KeyBinding {
 	// Index custom combinations before filtering the defaults.
 	customKeys := make(map[string]struct{}, len(custom))
 	for _, c := range custom {
-		customKeys[GetKeyBindingKey(c)] = struct{}{}
+		customKeys[c.Key()] = struct{}{}
 	}
 
 	// Preserve the order of defaults that were not replaced.
 	result := make([]KeyBinding, 0, len(defaults)+len(custom))
 	for _, d := range defaults {
-		if _, overridden := customKeys[GetKeyBindingKey(d)]; !overridden {
+		if _, overridden := customKeys[d.Key()]; !overridden {
 			result = append(result, d)
 		}
 	}

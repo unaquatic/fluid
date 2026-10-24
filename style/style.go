@@ -119,7 +119,7 @@ func (s Style) Equals(other Style) bool {
 // AttrsANSI returns one ANSI SGR sequence for the decoration bits in attrs. It
 // returns an empty string when no supported decorations are set.
 func AttrsANSI(attrs uint32) string {
-	base := GetBaseAttributes(attrs)
+	base := BaseAttributes(attrs)
 	if base == AttrNone {
 		return ""
 	}

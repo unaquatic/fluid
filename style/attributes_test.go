@@ -50,10 +50,10 @@ func TestCreateTextAttributes_All(t *testing.T) {
 	}
 }
 
-func TestGetBaseAttributes(t *testing.T) {
+func TestBaseAttributes(t *testing.T) {
 	// Upper link-ID bits do not affect the extracted decorations.
 	attr := AttrBold | AttrItalic | (42 << AttributeBaseBits)
-	base := GetBaseAttributes(attr)
+	base := BaseAttributes(attr)
 	want := AttrBold | AttrItalic
 	if base != want {
 		t.Errorf("got %d, want %d", base, want)
@@ -66,13 +66,13 @@ func TestAttributesWithLink(t *testing.T) {
 	packed := AttributesWithLink(base, linkID)
 
 	// Packing a link preserves the decoration bits.
-	gotBase := GetBaseAttributes(packed)
+	gotBase := BaseAttributes(packed)
 	if gotBase != base {
 		t.Errorf("base attrs: got %d, want %d", gotBase, base)
 	}
 
 	// The link ID round-trips through the upper bits.
-	gotLink := GetLinkID(packed)
+	gotLink := LinkID(packed)
 	if gotLink != linkID {
 		t.Errorf("link ID: got %d, want %d", gotLink, linkID)
 	}
@@ -82,12 +82,12 @@ func TestAttributesWithLink_ZeroLinkID(t *testing.T) {
 	base := AttrItalic
 	packed := AttributesWithLink(base, 0)
 
-	gotBase := GetBaseAttributes(packed)
+	gotBase := BaseAttributes(packed)
 	if gotBase != base {
 		t.Errorf("base: got %d, want %d", gotBase, base)
 	}
 
-	gotLink := GetLinkID(packed)
+	gotLink := LinkID(packed)
 	if gotLink != 0 {
 		t.Errorf("link: got %d, want 0", gotLink)
 	}
@@ -99,12 +99,12 @@ func TestAttributesWithLink_MaxLinkID(t *testing.T) {
 	maxLinkID := uint32((1 << 24) - 1)
 	packed := AttributesWithLink(base, maxLinkID)
 
-	gotBase := GetBaseAttributes(packed)
+	gotBase := BaseAttributes(packed)
 	if gotBase != base {
 		t.Errorf("base: got %d, want %d", gotBase, base)
 	}
 
-	gotLink := GetLinkID(packed)
+	gotLink := LinkID(packed)
 	if gotLink != maxLinkID {
 		t.Errorf("link: got %d, want %d", gotLink, maxLinkID)
 	}
@@ -144,8 +144,8 @@ func TestLinkIDRoundtrip(t *testing.T) {
 	for _, base := range bases {
 		for _, id := range testIDs {
 			packed := AttributesWithLink(base, id)
-			gotBase := GetBaseAttributes(packed)
-			gotID := GetLinkID(packed)
+			gotBase := BaseAttributes(packed)
+			gotID := LinkID(packed)
 
 			if gotBase != base {
 				t.Errorf("base roundtrip failed for base=%d, id=%d: got %d", base, id, gotBase)

@@ -93,12 +93,12 @@ func TestLinkRegistry_IntegrationWithAttributes(t *testing.T) {
 	attrs := style.AttributesWithLink(style.AttrBold|style.AttrUnderline, linkID)
 
 	// Link attributes preserve the allocated ID for registry lookup.
-	gotBase := style.GetBaseAttributes(attrs)
+	gotBase := style.BaseAttributes(attrs)
 	if gotBase != style.AttrBold|style.AttrUnderline {
 		t.Errorf("expected base attrs Bold|Underline, got %d", gotBase)
 	}
 
-	gotLinkID := style.GetLinkID(attrs)
+	gotLinkID := style.LinkID(attrs)
 	if gotLinkID != linkID {
 		t.Errorf("expected linkID %d, got %d", linkID, gotLinkID)
 	}
