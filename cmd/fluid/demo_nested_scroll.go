@@ -9,6 +9,7 @@ import (
 	"github.com/unaquatic/fluid/render"
 	"github.com/unaquatic/fluid/style"
 	"github.com/unaquatic/fluid/terminal"
+	"github.com/unaquatic/fluid/textbuf"
 	"github.com/unaquatic/fluid/widget"
 )
 
@@ -99,7 +100,7 @@ Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor i
 *End of nested markdown content*
 `
 	md := widget.NewMarkdown(mdContent,
-		widget.MarkdownWithWrapMode(widget.WrapWord),
+		widget.MarkdownWithWrapMode(textbuf.WrapWord),
 	)
 	mdScroll := widget.NewScrollBox(
 		widget.ScrollBoxWithFlexGrow(1),

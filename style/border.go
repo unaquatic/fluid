@@ -109,31 +109,19 @@ func BorderSides(sides ...BorderSide) Border {
 	return b
 }
 
-// BorderCharacters is an alias for [symbol.BorderCharacters], the runes needed
-// to draw border lines and junctions.
-type BorderCharacters = symbol.BorderCharacters
-
-// Preset border character sets provided by the symbol package.
-var (
-	SingleChars  = symbol.SingleChars
-	DoubleChars  = symbol.DoubleChars
-	RoundedChars = symbol.RoundedChars
-	HeavyChars   = symbol.HeavyChars
-)
-
-// CharsForStyle returns the character set for bs. Unsupported styles use the
-// single-line set.
-func CharsForStyle(bs BorderStyle) BorderCharacters {
+// CharsForStyle returns the character set of package symbol for bs.
+// Unsupported styles use the single-line set.
+func CharsForStyle(bs BorderStyle) symbol.BorderCharacters {
 	switch bs {
 	case BorderSingle:
-		return SingleChars
+		return symbol.SingleChars
 	case BorderDouble:
-		return DoubleChars
+		return symbol.DoubleChars
 	case BorderRounded:
-		return RoundedChars
+		return symbol.RoundedChars
 	case BorderHeavy:
-		return HeavyChars
+		return symbol.HeavyChars
 	default:
-		return SingleChars
+		return symbol.SingleChars
 	}
 }

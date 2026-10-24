@@ -451,7 +451,7 @@ func (ta *Textarea) LineHighlights(lineIdx int) []textbuf.Highlight {
 // Textarea configuration.
 
 // SetWrapMode sets the text wrapping mode.
-func (ta *Textarea) SetWrapMode(m WrapMode) {
+func (ta *Textarea) SetWrapMode(m textbuf.WrapMode) {
 	ta.editSurface.SetWrapMode(m)
 	ta.RequestRender()
 }
@@ -1501,7 +1501,7 @@ func TextareaWithReadOnly(v bool) TextareaOption {
 }
 
 // TextareaWithWrapMode sets the wrap mode.
-func TextareaWithWrapMode(m WrapMode) TextareaOption {
+func TextareaWithWrapMode(m textbuf.WrapMode) TextareaOption {
 	return func(ta *Textarea) {
 		ta.editSurface.SetWrapMode(m)
 	}

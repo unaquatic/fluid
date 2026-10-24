@@ -7,6 +7,7 @@ import (
 
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/style"
+	"github.com/unaquatic/fluid/symbol"
 	"github.com/unaquatic/fluid/textbuf"
 )
 
@@ -1101,7 +1102,7 @@ func (b *Buffer) DrawBorder(opts BorderDrawOptions) {
 }
 
 // drawHorizontalBorder draws a top border and any enabled corner cells.
-func (b *Buffer) drawHorizontalBorder(x, y, width int, chars style.BorderCharacters, color, bg style.Color, hasLeft, hasRight bool) {
+func (b *Buffer) drawHorizontalBorder(x, y, width int, chars symbol.BorderCharacters, color, bg style.Color, hasLeft, hasRight bool) {
 	for cx := x; cx < x+width; cx++ {
 		ch := chars.Horizontal
 		if cx == x && hasLeft {

@@ -29,7 +29,7 @@ type InputOption func(*Input)
 func NewInput(opts ...InputOption) *Input {
 	// Disable wrapping and constrain the embedded editor to one row.
 	ta := NewTextarea(
-		TextareaWithWrapMode(WrapNone),
+		TextareaWithWrapMode(textbuf.WrapNone),
 		TextareaWithHeight(layout.Points(1)),
 	)
 

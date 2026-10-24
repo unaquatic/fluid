@@ -8,6 +8,7 @@ import (
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/style"
 	"github.com/unaquatic/fluid/terminal"
+	"github.com/unaquatic/fluid/textbuf"
 	"github.com/unaquatic/fluid/widget"
 )
 
@@ -33,14 +34,14 @@ func runTabDemo(ctx context.Context, o DemoOptions) error {
 	codeWidget := widget.NewCode(sampleTabCode,
 		widget.CodeWithFiletype("go"),
 		widget.CodeWithTheme(style.DarculaSolid()),
-		widget.CodeWithWrapMode(widget.WrapWord),
+		widget.CodeWithWrapMode(textbuf.WrapWord),
 		widget.CodeWithFlexGrow(1),
 	)
 
 	ta := widget.NewTextarea(
 		widget.TextareaWithText("Line 1\n\tIndented once\n\t\tIndented twice\n\t\t\tIndented thrice\nNo indent\n\tMixed:\ttwo\ttabs\n"),
 		widget.TextareaWithFlexGrow(1),
-		widget.TextareaWithWrapMode(widget.WrapWord),
+		widget.TextareaWithWrapMode(textbuf.WrapWord),
 	)
 
 	statusText := widget.NewText(

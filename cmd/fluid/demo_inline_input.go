@@ -8,6 +8,7 @@ import (
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/style"
 	"github.com/unaquatic/fluid/terminal"
+	"github.com/unaquatic/fluid/textbuf"
 	"github.com/unaquatic/fluid/widget"
 )
 
@@ -68,7 +69,7 @@ func runInlineInputDemo(ctx context.Context, o DemoOptions) error {
 		widget.TextareaWithPlaceholder("Type a message... (Enter=newline, Alt+Enter=send)"),
 		widget.TextareaWithBackgroundColor(style.ColorTransparent),
 		widget.TextareaWithWidth(layout.Percent(100)),
-		widget.TextareaWithWrapMode(widget.WrapWord),
+		widget.TextareaWithWrapMode(textbuf.WrapWord),
 	)
 	inputRow.Add(ta)
 

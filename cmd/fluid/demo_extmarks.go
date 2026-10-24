@@ -47,7 +47,7 @@ func runExtmarksDemo(ctx context.Context, o DemoOptions) error {
 	editor := widget.NewTextarea(
 		widget.TextareaWithID("editor"),
 		widget.TextareaWithText(extmarksInitialContent),
-		widget.TextareaWithWrapMode(widget.WrapWord),
+		widget.TextareaWithWrapMode(textbuf.WrapWord),
 		widget.TextareaWithShowCursor(true),
 		widget.TextareaWithFlexGrow(1),
 	)

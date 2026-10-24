@@ -8,6 +8,7 @@ import (
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/style"
 	"github.com/unaquatic/fluid/terminal"
+	"github.com/unaquatic/fluid/textbuf"
 	"github.com/unaquatic/fluid/widget"
 )
 
@@ -130,13 +131,13 @@ func runCodeDemo(ctx context.Context, o DemoOptions) error {
 	codeWidget := widget.NewCode(sampleGoCode,
 		widget.CodeWithFiletype("go"),
 		widget.CodeWithTheme(style.DarculaSolid()),
-		widget.CodeWithWrapMode(widget.WrapNone),
+		widget.CodeWithWrapMode(textbuf.WrapNone),
 		widget.CodeWithFlexGrow(1),
 		widget.CodeWithActiveLine(0),
 	)
 	lineNumbers := widget.NewLineNumber(codeWidget)
 
-	wrapMode := widget.WrapNone
+	wrapMode := textbuf.WrapNone
 	statusText := widget.NewText(
 		"Wrap: OFF | Esc/Q: Exit | Wheel/Up/Down: Scroll | W: Toggle wrap",
 		widget.TextWithHeight(layout.Points(1)),
@@ -175,13 +176,13 @@ func runCodeDemo(ctx context.Context, o DemoOptions) error {
 			return
 		}
 		if k.Name == "w" && !k.Mods.Has(input.ModCtrl) && !k.Mods.Has(input.ModAlt) {
-			if wrapMode == widget.WrapNone {
-				wrapMode = widget.WrapWord
-				codeWidget.SetWrapMode(widget.WrapWord)
+			if wrapMode == textbuf.WrapNone {
+				wrapMode = textbuf.WrapWord
+				codeWidget.SetWrapMode(textbuf.WrapWord)
 				statusText.SetContent("Wrap: WORD | Esc/Q: Exit | Wheel/Up/Down: Scroll | W: Toggle wrap")
 			} else {
-				wrapMode = widget.WrapNone
-				codeWidget.SetWrapMode(widget.WrapNone)
+				wrapMode = textbuf.WrapNone
+				codeWidget.SetWrapMode(textbuf.WrapNone)
 				statusText.SetContent("Wrap: OFF | Esc/Q: Exit | Wheel/Up/Down: Scroll | W: Toggle wrap")
 			}
 			return

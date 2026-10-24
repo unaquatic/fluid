@@ -10,6 +10,7 @@ import (
 	"github.com/unaquatic/fluid/render"
 	"github.com/unaquatic/fluid/style"
 	"github.com/unaquatic/fluid/symbol"
+	"github.com/unaquatic/fluid/textbuf"
 )
 
 // DiffViewMode controls how the diff is displayed.
@@ -45,7 +46,7 @@ type Diff struct {
 	viewMode    DiffViewMode
 	filetype    string            // Language used for syntax highlighting.
 	theme       *style.Theme      // Theme whose code palette colors tokens.
-	wrapMode    *WrapMode         // Nil uses Code's default WrapWord mode.
+	wrapMode    *textbuf.WrapMode // Nil uses Code's default textbuf.WrapWord mode.
 	highlighter SyntaxHighlighter // Nil uses Code's default Highlighter.
 
 	showLineNumbers bool
@@ -370,7 +371,7 @@ func (d *Diff) renderSplitView(buf *buffer.Buffer, x, y, w, h int, deltaTime flo
 	}
 
 	// Match Code's default wrap mode when no explicit mode was configured.
-	effectiveWrap := WrapWord
+	effectiveWrap := textbuf.WrapWord
 	if d.wrapMode != nil {
 		effectiveWrap = *d.wrapMode
 	}
@@ -675,17 +676,17 @@ func (d *Diff) renderSplitLine(buf *buffer.Buffer, bx, by, width int, line wrapp
 }
 
 // splitWrapText applies the shared Text wrapping functions to one diff line.
-func splitWrapText(text string, width int, mode WrapMode, fg, bg style.Color) []wrappedLine {
+func splitWrapText(text string, width int, mode textbuf.WrapMode, fg, bg style.Color) []wrappedLine {
 	segments := []styledSegment{{text: text, fg: fg, bg: bg}}
 
-	if mode == WrapNone || width <= 0 {
+	if mode == textbuf.WrapNone || width <= 0 {
 		return []wrappedLine{segmentsToWrappedLine(segments)}
 	}
 
 	switch mode {
-	case WrapChar:
+	case textbuf.WrapChar:
 		return wrapSegmentsChar(segments, width)
-	case WrapWord:
+	case textbuf.WrapWord:
 		return wrapSegmentsWord(segments, width)
 	default:
 		return []wrappedLine{segmentsToWrappedLine(segments)}
@@ -1002,8 +1003,8 @@ func DiffWithFlexGrow(v int) DiffOption {
 	return func(d *Diff) { d.LayoutNode().FlexGrow = v }
 }
 
-// DiffWithWrapMode sets the content wrapping mode; the default is WrapWord.
-func DiffWithWrapMode(m WrapMode) DiffOption {
+// DiffWithWrapMode sets the content wrapping mode; the default is textbuf.WrapWord.
+func DiffWithWrapMode(m textbuf.WrapMode) DiffOption {
 	return func(d *Diff) { d.wrapMode = &m }
 }
 

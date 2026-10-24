@@ -49,12 +49,6 @@ func (s ControlState) String() string {
 	}
 }
 
-// Selected Kitty keyboard flags re-exported from package input.
-const (
-	KittyFlagDisambiguate  = input.KittyFlagDisambiguate
-	KittyFlagAlternateKeys = input.KittyFlagAlternateKeys
-)
-
 // CursorStyle identifies a terminal cursor shape. The zero value,
 // CursorDefault, leaves the shape to the terminal.
 type CursorStyle int
@@ -188,8 +182,9 @@ type Config struct {
 	// The default is false.
 	UseKittyKeyboard bool
 
-	// KittyKeyboardFlags is the bitwise union of enabled Kitty features.
-	// Default: KittyFlagDisambiguate | KittyFlagAlternateKeys.
+	// KittyKeyboardFlags is the bitwise union of the enabled Kitty features,
+	// the KittyFlag constants of package input. The default is
+	// input.KittyFlagDisambiguate | input.KittyFlagAlternateKeys.
 	KittyKeyboardFlags uint
 
 	// AltSendsEscPrefix enables the parser heuristic for terminals that encode
@@ -231,7 +226,7 @@ func DefaultConfig() Config {
 		EnableMouseMovement: false,
 		BackgroundColor:     style.ColorBlack,
 		UseKittyKeyboard:    false,
-		KittyKeyboardFlags:  KittyFlagDisambiguate | KittyFlagAlternateKeys,
+		KittyKeyboardFlags:  input.KittyFlagDisambiguate | input.KittyFlagAlternateKeys,
 	}
 }
 

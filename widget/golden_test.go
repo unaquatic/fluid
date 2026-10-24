@@ -7,6 +7,7 @@ import (
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/style"
 	"github.com/unaquatic/fluid/testutil"
+	"github.com/unaquatic/fluid/textbuf"
 	"github.com/unaquatic/fluid/widget"
 )
 
@@ -100,14 +101,14 @@ func TestGolden_TextWrapNone(t *testing.T) {
 }
 
 func TestGolden_TextWrapChar(t *testing.T) {
-	txt := widget.NewText("ABCDEFGHIJKLMNO", widget.TextWithWrapMode(widget.WrapChar))
+	txt := widget.NewText("ABCDEFGHIJKLMNO", widget.TextWithWrapMode(textbuf.WrapChar))
 	buf := testutil.RenderWidget(txt, 5, 4)
 	testutil.AssertGoldenFrames(t, "text_wrap_char", buf, nil)
 }
 
 func TestGolden_TextWrapWord(t *testing.T) {
 	txt := widget.NewText("The quick brown fox jumps over",
-		widget.TextWithWrapMode(widget.WrapWord))
+		widget.TextWithWrapMode(textbuf.WrapWord))
 	buf := testutil.RenderWidget(txt, 12, 5)
 	testutil.AssertGoldenFrames(t, "text_wrap_word", buf, nil)
 }
@@ -126,7 +127,7 @@ func TestGolden_TextHardLineBreaks(t *testing.T) {
 
 func TestGolden_TextWrapWordLongWord(t *testing.T) {
 	txt := widget.NewText("A superlongword here",
-		widget.TextWithWrapMode(widget.WrapWord))
+		widget.TextWithWrapMode(textbuf.WrapWord))
 	buf := testutil.RenderWidget(txt, 8, 4)
 	testutil.AssertGoldenFrames(t, "text_wrap_word_long", buf, nil)
 }
@@ -824,7 +825,7 @@ func TestGolden_TextareaWithContent(t *testing.T) {
 
 func TestGolden_CodeBasic(t *testing.T) {
 	c := widget.NewCode("func main() {\n\tfmt.Println(\"hello\")\n}",
-		widget.CodeWithWrapMode(widget.WrapNone))
+		widget.CodeWithWrapMode(textbuf.WrapNone))
 	buf := testutil.RenderWidget(c, 30, 4)
 	testutil.AssertGoldenFrames(t, "code_basic", buf, nil)
 }

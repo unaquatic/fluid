@@ -260,7 +260,7 @@ func TestTextarea_ScrollTo(t *testing.T) {
 func TestTextarea_WrapMode(t *testing.T) {
 	ta := NewTextarea(
 		TextareaWithText("hello world foo bar"),
-		TextareaWithWrapMode(WrapWord),
+		TextareaWithWrapMode(textbuf.WrapWord),
 	)
 	testutil.SetupWidget(ta, 10, 5)
 
@@ -277,7 +277,7 @@ func TestTextarea_WrapMode(t *testing.T) {
 
 func TestTextarea_SetWrapMode(t *testing.T) {
 	ta := setupTextarea("hello world")
-	ta.SetWrapMode(WrapChar)
+	ta.SetWrapMode(textbuf.WrapChar)
 
 	// Character wrapping must render safely.
 	buf := buffer.New(40, 10)

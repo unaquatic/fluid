@@ -49,14 +49,14 @@ func TestMergeConfig_Defaults(t *testing.T) {
 func TestMergeConfig_Override(t *testing.T) {
 	cfg := mergeConfig(Config{
 		BackgroundColor:    style.ColorRed,
-		KittyKeyboardFlags: KittyFlagDisambiguate,
+		KittyKeyboardFlags: input.KittyFlagDisambiguate,
 	})
 
 	if !cfg.BackgroundColor.Equals(style.ColorRed) {
 		t.Errorf("expected BackgroundColor=Red, got %v", cfg.BackgroundColor)
 	}
-	if cfg.KittyKeyboardFlags != KittyFlagDisambiguate {
-		t.Errorf("expected KittyKeyboardFlags=%d, got %d", KittyFlagDisambiguate, cfg.KittyKeyboardFlags)
+	if cfg.KittyKeyboardFlags != input.KittyFlagDisambiguate {
+		t.Errorf("expected KittyKeyboardFlags=%d, got %d", input.KittyFlagDisambiguate, cfg.KittyKeyboardFlags)
 	}
 }
 

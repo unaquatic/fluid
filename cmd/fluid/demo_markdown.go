@@ -8,6 +8,7 @@ import (
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/style"
 	"github.com/unaquatic/fluid/terminal"
+	"github.com/unaquatic/fluid/textbuf"
 	"github.com/unaquatic/fluid/widget"
 )
 
@@ -134,7 +135,7 @@ func runMarkdownDemo(ctx context.Context, o DemoOptions) error {
 	root := r.Root()
 
 	md := widget.NewMarkdown(sampleMarkdown,
-		widget.MarkdownWithWrapMode(widget.WrapWord),
+		widget.MarkdownWithWrapMode(textbuf.WrapWord),
 	)
 	scrollBox := widget.NewScrollBox(
 		widget.ScrollBoxWithFlexGrow(1),

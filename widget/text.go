@@ -11,15 +11,6 @@ import (
 	"github.com/unaquatic/fluid/textbuf"
 )
 
-// WrapMode aliases textbuf.WrapMode for widget text APIs.
-type WrapMode = textbuf.WrapMode
-
-const (
-	WrapNone = textbuf.WrapNone // Preserves logical lines without wrapping.
-	WrapChar = textbuf.WrapChar // Wraps at grapheme-cluster boundaries.
-	WrapWord = textbuf.WrapWord // Wraps at whitespace boundaries when possible.
-)
-
 // wrappedLine contains one line produced by the local wrapping helpers.
 type wrappedLine struct {
 	chunks []wrappedChunk
@@ -63,7 +54,7 @@ type Text struct {
 	fg          style.Color
 	bg          style.Color
 	attributes  style.Attrs
-	wrapMode    WrapMode
+	wrapMode    textbuf.WrapMode
 	truncate    bool
 	selectable_ bool
 	selectionBg style.Color
@@ -117,7 +108,7 @@ func newTextBase(opts ...TextOption) *Text {
 		BaseRenderable: render.NewBaseRenderable(),
 		fg:             style.ColorWhite,
 		bg:             style.ColorTransparent,
-		wrapMode:       WrapNone,
+		wrapMode:       textbuf.WrapNone,
 		selectionBg:    style.ColorFromInts(51, 153, 255, 255),
 		linesDirty:     true,
 		textBuf:        tb,
@@ -927,7 +918,7 @@ func (t *Text) SetAttributes(a style.Attrs) {
 }
 
 // SetWrapMode sets the wrap mode and schedules content synchronization.
-func (t *Text) SetWrapMode(m WrapMode) {
+func (t *Text) SetWrapMode(m textbuf.WrapMode) {
 	t.wrapMode = m
 	t.linesDirty = true
 	t.RequestRender()
@@ -951,7 +942,7 @@ func (t *Text) Bg() style.Color { return t.bg }
 func (t *Text) Attributes() style.Attrs { return t.attributes }
 
 // WrapModeValue returns the configured wrap mode.
-func (t *Text) WrapModeValue() WrapMode { return t.wrapMode }
+func (t *Text) WrapModeValue() textbuf.WrapMode { return t.wrapMode }
 
 // Truncate returns whether truncation is enabled.
 func (t *Text) Truncate() bool { return t.truncate }
@@ -974,7 +965,7 @@ func TextWithAttributes(a style.Attrs) TextOption {
 }
 
 // TextWithWrapMode sets the wrapping mode.
-func TextWithWrapMode(m WrapMode) TextOption {
+func TextWithWrapMode(m textbuf.WrapMode) TextOption {
 	return func(t *Text) { t.wrapMode = m }
 }
 

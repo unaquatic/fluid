@@ -5,6 +5,7 @@ import (
 
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/style"
+	"github.com/unaquatic/fluid/symbol"
 	"github.com/unaquatic/fluid/textbuf"
 )
 
@@ -488,33 +489,33 @@ func TestDrawBox(t *testing.T) {
 	})
 
 	c := b.Cell(0, 0)
-	if c.Char != style.SingleChars.TopLeft {
-		t.Errorf("top-left = %q, want %q", c.Char, style.SingleChars.TopLeft)
+	if c.Char != symbol.SingleChars.TopLeft {
+		t.Errorf("top-left = %q, want %q", c.Char, symbol.SingleChars.TopLeft)
 	}
 
 	c = b.Cell(9, 0)
-	if c.Char != style.SingleChars.TopRight {
-		t.Errorf("top-right = %q, want %q", c.Char, style.SingleChars.TopRight)
+	if c.Char != symbol.SingleChars.TopRight {
+		t.Errorf("top-right = %q, want %q", c.Char, symbol.SingleChars.TopRight)
 	}
 
 	c = b.Cell(0, 4)
-	if c.Char != style.SingleChars.BottomLeft {
-		t.Errorf("bottom-left = %q, want %q", c.Char, style.SingleChars.BottomLeft)
+	if c.Char != symbol.SingleChars.BottomLeft {
+		t.Errorf("bottom-left = %q, want %q", c.Char, symbol.SingleChars.BottomLeft)
 	}
 
 	c = b.Cell(9, 4)
-	if c.Char != style.SingleChars.BottomRight {
-		t.Errorf("bottom-right = %q, want %q", c.Char, style.SingleChars.BottomRight)
+	if c.Char != symbol.SingleChars.BottomRight {
+		t.Errorf("bottom-right = %q, want %q", c.Char, symbol.SingleChars.BottomRight)
 	}
 
 	c = b.Cell(5, 0)
-	if c.Char != style.SingleChars.Horizontal {
-		t.Errorf("top edge = %q, want %q", c.Char, style.SingleChars.Horizontal)
+	if c.Char != symbol.SingleChars.Horizontal {
+		t.Errorf("top edge = %q, want %q", c.Char, symbol.SingleChars.Horizontal)
 	}
 
 	c = b.Cell(0, 2)
-	if c.Char != style.SingleChars.Vertical {
-		t.Errorf("left edge = %q, want %q", c.Char, style.SingleChars.Vertical)
+	if c.Char != symbol.SingleChars.Vertical {
+		t.Errorf("left edge = %q, want %q", c.Char, symbol.SingleChars.Vertical)
 	}
 }
 
@@ -878,40 +879,40 @@ func TestDrawBorder_AllSides_Single(t *testing.T) {
 		ShouldFill:      true,
 	})
 
-	if c := getChar(buf, 0, 0); c != style.SingleChars.TopLeft {
-		t.Errorf("top-left = %q, want %q", c, style.SingleChars.TopLeft)
+	if c := getChar(buf, 0, 0); c != symbol.SingleChars.TopLeft {
+		t.Errorf("top-left = %q, want %q", c, symbol.SingleChars.TopLeft)
 	}
-	if c := getChar(buf, 9, 0); c != style.SingleChars.TopRight {
-		t.Errorf("top-right = %q, want %q", c, style.SingleChars.TopRight)
+	if c := getChar(buf, 9, 0); c != symbol.SingleChars.TopRight {
+		t.Errorf("top-right = %q, want %q", c, symbol.SingleChars.TopRight)
 	}
-	if c := getChar(buf, 0, 4); c != style.SingleChars.BottomLeft {
-		t.Errorf("bottom-left = %q, want %q", c, style.SingleChars.BottomLeft)
+	if c := getChar(buf, 0, 4); c != symbol.SingleChars.BottomLeft {
+		t.Errorf("bottom-left = %q, want %q", c, symbol.SingleChars.BottomLeft)
 	}
-	if c := getChar(buf, 9, 4); c != style.SingleChars.BottomRight {
-		t.Errorf("bottom-right = %q, want %q", c, style.SingleChars.BottomRight)
+	if c := getChar(buf, 9, 4); c != symbol.SingleChars.BottomRight {
+		t.Errorf("bottom-right = %q, want %q", c, symbol.SingleChars.BottomRight)
 	}
 
 	for x := 1; x < 9; x++ {
-		if c := getChar(buf, x, 0); c != style.SingleChars.Horizontal {
-			t.Errorf("top edge (%d,0) = %q, want %q", x, c, style.SingleChars.Horizontal)
+		if c := getChar(buf, x, 0); c != symbol.SingleChars.Horizontal {
+			t.Errorf("top edge (%d,0) = %q, want %q", x, c, symbol.SingleChars.Horizontal)
 		}
 	}
 
 	for x := 1; x < 9; x++ {
-		if c := getChar(buf, x, 4); c != style.SingleChars.Horizontal {
-			t.Errorf("bottom edge (%d,4) = %q, want %q", x, c, style.SingleChars.Horizontal)
+		if c := getChar(buf, x, 4); c != symbol.SingleChars.Horizontal {
+			t.Errorf("bottom edge (%d,4) = %q, want %q", x, c, symbol.SingleChars.Horizontal)
 		}
 	}
 
 	for y := 1; y < 4; y++ {
-		if c := getChar(buf, 0, y); c != style.SingleChars.Vertical {
-			t.Errorf("left edge (0,%d) = %q, want %q", y, c, style.SingleChars.Vertical)
+		if c := getChar(buf, 0, y); c != symbol.SingleChars.Vertical {
+			t.Errorf("left edge (0,%d) = %q, want %q", y, c, symbol.SingleChars.Vertical)
 		}
 	}
 
 	for y := 1; y < 4; y++ {
-		if c := getChar(buf, 9, y); c != style.SingleChars.Vertical {
-			t.Errorf("right edge (9,%d) = %q, want %q", y, c, style.SingleChars.Vertical)
+		if c := getChar(buf, 9, y); c != symbol.SingleChars.Vertical {
+			t.Errorf("right edge (9,%d) = %q, want %q", y, c, symbol.SingleChars.Vertical)
 		}
 	}
 
@@ -933,14 +934,14 @@ func TestDrawBorder_AllSides_Double(t *testing.T) {
 		ShouldFill:      false,
 	})
 
-	if c := getChar(buf, 0, 0); c != style.DoubleChars.TopLeft {
-		t.Errorf("top-left = %q, want %q", c, style.DoubleChars.TopLeft)
+	if c := getChar(buf, 0, 0); c != symbol.DoubleChars.TopLeft {
+		t.Errorf("top-left = %q, want %q", c, symbol.DoubleChars.TopLeft)
 	}
-	if c := getChar(buf, 5, 0); c != style.DoubleChars.Horizontal {
-		t.Errorf("top edge = %q, want %q", c, style.DoubleChars.Horizontal)
+	if c := getChar(buf, 5, 0); c != symbol.DoubleChars.Horizontal {
+		t.Errorf("top edge = %q, want %q", c, symbol.DoubleChars.Horizontal)
 	}
-	if c := getChar(buf, 0, 2); c != style.DoubleChars.Vertical {
-		t.Errorf("left edge = %q, want %q", c, style.DoubleChars.Vertical)
+	if c := getChar(buf, 0, 2); c != symbol.DoubleChars.Vertical {
+		t.Errorf("left edge = %q, want %q", c, symbol.DoubleChars.Vertical)
 	}
 }
 
@@ -953,11 +954,11 @@ func TestDrawBorder_AllSides_Rounded(t *testing.T) {
 		Color:  style.ColorWhite,
 	})
 
-	if c := getChar(buf, 0, 0); c != style.RoundedChars.TopLeft {
-		t.Errorf("top-left = %q, want %q", c, style.RoundedChars.TopLeft)
+	if c := getChar(buf, 0, 0); c != symbol.RoundedChars.TopLeft {
+		t.Errorf("top-left = %q, want %q", c, symbol.RoundedChars.TopLeft)
 	}
-	if c := getChar(buf, 5, 3); c != style.RoundedChars.BottomRight {
-		t.Errorf("bottom-right = %q, want %q", c, style.RoundedChars.BottomRight)
+	if c := getChar(buf, 5, 3); c != symbol.RoundedChars.BottomRight {
+		t.Errorf("bottom-right = %q, want %q", c, symbol.RoundedChars.BottomRight)
 	}
 }
 
@@ -970,11 +971,11 @@ func TestDrawBorder_AllSides_Heavy(t *testing.T) {
 		Color:  style.ColorWhite,
 	})
 
-	if c := getChar(buf, 0, 0); c != style.HeavyChars.TopLeft {
-		t.Errorf("top-left = %q, want %q", c, style.HeavyChars.TopLeft)
+	if c := getChar(buf, 0, 0); c != symbol.HeavyChars.TopLeft {
+		t.Errorf("top-left = %q, want %q", c, symbol.HeavyChars.TopLeft)
 	}
-	if c := getChar(buf, 3, 0); c != style.HeavyChars.Horizontal {
-		t.Errorf("top edge = %q, want %q", c, style.HeavyChars.Horizontal)
+	if c := getChar(buf, 3, 0); c != symbol.HeavyChars.Horizontal {
+		t.Errorf("top edge = %q, want %q", c, symbol.HeavyChars.Horizontal)
 	}
 }
 
@@ -990,7 +991,7 @@ func TestDrawBorder_TopOnly(t *testing.T) {
 	// Without vertical sides, the top border contains no corner runes.
 	for x := range 10 {
 		c := getChar(buf, x, 0)
-		if c != style.SingleChars.Horizontal {
+		if c != symbol.SingleChars.Horizontal {
 			t.Errorf("top-only: (%d,0) = %q, want horizontal", x, c)
 		}
 	}
@@ -1016,14 +1017,14 @@ func TestDrawBorder_LeftRight(t *testing.T) {
 	// With no horizontal sides, both vertical sides span the full height.
 	for y := range 5 {
 		c := getChar(buf, 0, y)
-		if c != style.SingleChars.Vertical {
+		if c != symbol.SingleChars.Vertical {
 			t.Errorf("left edge (0,%d) = %q, want vertical", y, c)
 		}
 	}
 
 	for y := range 5 {
 		c := getChar(buf, 9, y)
-		if c != style.SingleChars.Vertical {
+		if c != symbol.SingleChars.Vertical {
 			t.Errorf("right edge (9,%d) = %q, want vertical", y, c)
 		}
 	}
@@ -1077,11 +1078,11 @@ func TestDrawBorder_Offset(t *testing.T) {
 		Color:  style.ColorWhite,
 	})
 
-	if c := getChar(buf, 5, 3); c != style.SingleChars.TopLeft {
-		t.Errorf("offset top-left = %q, want %q", c, style.SingleChars.TopLeft)
+	if c := getChar(buf, 5, 3); c != symbol.SingleChars.TopLeft {
+		t.Errorf("offset top-left = %q, want %q", c, symbol.SingleChars.TopLeft)
 	}
-	if c := getChar(buf, 12, 6); c != style.SingleChars.BottomRight {
-		t.Errorf("offset bottom-right = %q, want %q", c, style.SingleChars.BottomRight)
+	if c := getChar(buf, 12, 6); c != symbol.SingleChars.BottomRight {
+		t.Errorf("offset bottom-right = %q, want %q", c, symbol.SingleChars.BottomRight)
 	}
 }
 

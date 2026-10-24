@@ -41,7 +41,7 @@ type Code struct {
 	filetype   string // language identifier
 	fg         style.Color
 	bg         style.Color
-	wrapMode   WrapMode
+	wrapMode   textbuf.WrapMode
 	theme      *style.Theme // theme whose code palette colors tokens
 	attributes style.Attrs  // default text attributes
 
@@ -111,7 +111,7 @@ func NewCode(content string, opts ...CodeOption) *Code {
 		content:                content,
 		fg:                     style.ColorWhite,
 		bg:                     style.ColorTransparent,
-		wrapMode:               WrapWord,
+		wrapMode:               textbuf.WrapWord,
 		conceal:                true,
 		drawUnstyledText:       true,
 		shouldRenderTextBuffer: true,
@@ -547,7 +547,7 @@ func (c *Code) ScrollToBottom() {
 // handleScroll processes mouse scroll events.
 func (c *Code) handleScroll(deltaX, deltaY int) {
 	c.SetScrollY(c.scrollY + deltaY)
-	if c.wrapMode == WrapNone {
+	if c.wrapMode == textbuf.WrapNone {
 		c.SetScrollX(c.scrollX + deltaX)
 	}
 }
@@ -726,7 +726,7 @@ func (c *Code) SetBg(bg style.Color) {
 }
 
 // SetWrapMode sets the wrap mode.
-func (c *Code) SetWrapMode(m WrapMode) {
+func (c *Code) SetWrapMode(m textbuf.WrapMode) {
 	if c.wrapMode != m {
 		c.wrapMode = m
 		c.textSurface.SetWrapMode(m)
@@ -741,7 +741,7 @@ func (c *Code) Fg() style.Color { return c.fg }
 func (c *Code) Bg() style.Color { return c.bg }
 
 // WrapModeValue returns the configured wrap mode.
-func (c *Code) WrapModeValue() WrapMode { return c.wrapMode }
+func (c *Code) WrapModeValue() textbuf.WrapMode { return c.wrapMode }
 
 // Rendering.
 
@@ -869,7 +869,7 @@ func CodeWithBg(color style.Color) CodeOption {
 }
 
 // CodeWithWrapMode sets the wrap mode.
-func CodeWithWrapMode(m WrapMode) CodeOption {
+func CodeWithWrapMode(m textbuf.WrapMode) CodeOption {
 	return func(c *Code) { c.wrapMode = m }
 }
 

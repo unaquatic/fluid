@@ -8,6 +8,7 @@ import (
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/style"
 	"github.com/unaquatic/fluid/testutil"
+	"github.com/unaquatic/fluid/textbuf"
 	"github.com/unaquatic/fluid/widget"
 )
 
@@ -198,7 +199,7 @@ func TestGoldenSeq_InputTypingSequence(t *testing.T) {
 
 // TestGoldenSeq_TextWrapGrowingContent captures wrapping as content grows.
 func TestGoldenSeq_TextWrapGrowingContent(t *testing.T) {
-	txt := widget.NewText("", widget.TextWithWrapMode(widget.WrapWord))
+	txt := widget.NewText("", widget.TextWithWrapMode(textbuf.WrapWord))
 	testutil.SetupWidget(txt, 10, 4)
 
 	seq := testutil.NewGoldenSequence()
@@ -257,7 +258,7 @@ func TestGoldenSeq_BoxFocusBorderColor(t *testing.T) {
 // TestGoldenSeq_TextWrapThenScroll tests wrapped text that is scrolled.
 func TestGoldenSeq_TextWrapThenScroll(t *testing.T) {
 	txt := widget.NewText("Line 1 content\nLine 2 content\nLine 3 content\nLine 4 content",
-		widget.TextWithWrapMode(widget.WrapWord))
+		widget.TextWithWrapMode(textbuf.WrapWord))
 	testutil.SetupWidget(txt, 10, 3)
 
 	seq := testutil.NewGoldenSequence()

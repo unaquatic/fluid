@@ -8,6 +8,7 @@ import (
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/style"
 	"github.com/unaquatic/fluid/terminal"
+	"github.com/unaquatic/fluid/textbuf"
 	"github.com/unaquatic/fluid/widget"
 )
 
@@ -172,7 +173,7 @@ func runColorsDemo(ctx context.Context, o DemoOptions) error {
 	}
 
 	palettes := widget.NewStyledText(ColorPalettes(),
-		widget.TextWithWrapMode(widget.WrapNone),
+		widget.TextWithWrapMode(textbuf.WrapNone),
 	)
 	scrollBox := widget.NewScrollBox(
 		widget.ScrollBoxWithFlexGrow(1),

@@ -23,7 +23,7 @@ type Markdown struct {
 
 	mu       sync.Mutex // Protects content and contentDirty.
 	content  string
-	wrapMode WrapMode
+	wrapMode textbuf.WrapMode
 
 	// Parsing produces width-independent blocks; wrapping converts them to lines.
 	blocks        []MdBlock
@@ -206,7 +206,7 @@ func NewMarkdown(content string, opts ...MarkdownOption) *Markdown {
 	m := &Markdown{
 		BaseRenderable: render.NewBaseRenderable(),
 		content:        content,
-		wrapMode:       WrapWord,
+		wrapMode:       textbuf.WrapWord,
 		fg:             style.ColorWhite,
 		bg:             style.ColorTransparent,
 		contentDirty:   true,
@@ -471,7 +471,7 @@ func (m *Markdown) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 // Each line fills the block width with codeBg, or, when codeBlockFit is set,
 // the width of the widest line and codeBlockPad columns after it. codeBlockPad
 // moves source text inward by as many columns, and codeBlockRows inserts
-// blank rows above and below. Unless the wrap mode is WrapNone, a source line
+// blank rows above and below. Unless the wrap mode is textbuf.WrapNone, a source line
 // wider than the block wraps onto further rows, as prose does.
 //
 // indent, the columns a nested block's parent indents it by, lies outside
@@ -547,7 +547,7 @@ func (m *Markdown) renderHighlighted(blk MdBlock, lead string, w, gutter, end in
 
 // addCodeText appends one source line of a code block, body after lead, with
 // the background from column gutter to column end. Unless the wrap mode is
-// WrapNone, a body wider than the block at width w wraps onto further rows,
+// textbuf.WrapNone, a body wider than the block at width w wraps onto further rows,
 // each of which starts with lead.
 func (m *Markdown) addCodeText(lead style.TextChunk, body []style.TextChunk, w, gutter, end int) {
 	leadW, bodyW := textbuf.StringWidth(lead.Text), 0
@@ -556,7 +556,7 @@ func (m *Markdown) addCodeText(lead style.TextChunk, body []style.TextChunk, w, 
 	}
 	// The widest block ends codeBlockMargin columns before w.
 	avail := w - m.codeBlockMargin - gutter - leadW
-	if m.wrapMode == WrapNone || avail < 1 || bodyW <= avail {
+	if m.wrapMode == textbuf.WrapNone || avail < 1 || bodyW <= avail {
 		m.addCodeLine(append([]style.TextChunk{lead}, body...), leadW+bodyW, gutter, end)
 		return
 	}
@@ -748,7 +748,7 @@ func (m *Markdown) leftEdge(indent int) []style.TextChunk {
 
 // addWrappedLine appends prefix and body, wrapping body around the prefix width.
 func (m *Markdown) addWrappedLine(prefix []style.TextChunk, prefixWidth int, maxWidth int, body ...style.TextChunk) {
-	if m.wrapMode == WrapNone || maxWidth <= 0 {
+	if m.wrapMode == textbuf.WrapNone || maxWidth <= 0 {
 		// Preserve all chunks on one line when wrapping is disabled.
 		all := make([]style.TextChunk, 0, len(prefix)+len(body))
 		all = append(all, prefix...)
@@ -794,12 +794,12 @@ func (m *Markdown) addWrappedLine(prefix []style.TextChunk, prefixWidth int, max
 }
 
 // wrapChunks splits body into rows, the first at most first cells wide and
-// the others at most rest cells wide. WrapWord breaks after the last
+// the others at most rest cells wide. textbuf.WrapWord breaks after the last
 // whitespace that fits when more text follows, and within a word only when a
 // row has no such whitespace; other modes break at any grapheme cluster.
 // Whitespace that would begin a row after a break is dropped, and a row holds
 // at least one cluster even when that cluster is wider than the row.
-func wrapChunks(body []style.TextChunk, mode WrapMode, first, rest int) [][]style.TextChunk {
+func wrapChunks(body []style.TextChunk, mode textbuf.WrapMode, first, rest int) [][]style.TextChunk {
 	// Flatten styled chunks into indivisible grapheme clusters for wrapping.
 	type styledCluster struct {
 		text string
@@ -841,7 +841,7 @@ func wrapChunks(body []style.TextChunk, mode WrapMode, first, rest int) [][]styl
 
 		lineStart := clusterIdx
 
-		if mode == WrapWord {
+		if mode == textbuf.WrapWord {
 			// Track the last whitespace boundary that fits.
 			lastBreak := -1
 			for clusterIdx < len(allClusters) {
@@ -1092,7 +1092,7 @@ func (m *Markdown) SetBg(c style.Color) {
 }
 
 // SetWrapMode sets the wrap mode.
-func (m *Markdown) SetWrapMode(wm WrapMode) {
+func (m *Markdown) SetWrapMode(wm textbuf.WrapMode) {
 	if m.wrapMode != wm {
 		m.wrapMode = wm
 		m.wrapDirty = true
@@ -1107,7 +1107,7 @@ func (m *Markdown) Fg() style.Color { return m.fg }
 func (m *Markdown) Bg() style.Color { return m.bg }
 
 // WrapModeValue returns the configured wrap mode.
-func (m *Markdown) WrapModeValue() WrapMode { return m.wrapMode }
+func (m *Markdown) WrapModeValue() textbuf.WrapMode { return m.wrapMode }
 
 // SetHeight sets the markdown widget height dynamically after construction.
 func (m *Markdown) SetHeight(s layout.Scalar) {
@@ -1201,7 +1201,7 @@ func MarkdownWithEmph(e style.Entry) MarkdownOption {
 }
 
 // MarkdownWithWrapMode sets the wrap mode.
-func MarkdownWithWrapMode(wm WrapMode) MarkdownOption {
+func MarkdownWithWrapMode(wm textbuf.WrapMode) MarkdownOption {
 	return func(m *Markdown) { m.wrapMode = wm }
 }
 

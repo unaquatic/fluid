@@ -7,6 +7,7 @@ import (
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/style"
 	"github.com/unaquatic/fluid/testutil"
+	"github.com/unaquatic/fluid/textbuf"
 	"github.com/unaquatic/fluid/widget"
 )
 
@@ -114,7 +115,7 @@ func TestTextPipeline_LineBreakNode(t *testing.T) {
 
 // TestTextPipeline_WrapChar verifies character-level wrapping.
 func TestTextPipeline_WrapChar(t *testing.T) {
-	txt := widget.NewText("ABCDE", widget.TextWithWrapMode(widget.WrapChar))
+	txt := widget.NewText("ABCDE", widget.TextWithWrapMode(textbuf.WrapChar))
 	buf := testutil.RenderWidget(txt, 3, 3)
 
 	testutil.AssertRow(t, buf, 0, "ABC")
@@ -123,7 +124,7 @@ func TestTextPipeline_WrapChar(t *testing.T) {
 
 // TestTextPipeline_WrapWord verifies word-level wrapping.
 func TestTextPipeline_WrapWord(t *testing.T) {
-	txt := widget.NewText("Hi world", widget.TextWithWrapMode(widget.WrapWord))
+	txt := widget.NewText("Hi world", widget.TextWithWrapMode(textbuf.WrapWord))
 	buf := testutil.RenderWidget(txt, 5, 3)
 
 	testutil.AssertRow(t, buf, 0, "Hi")
@@ -153,7 +154,7 @@ func TestTextPipeline_MultiChunkWrapPreservesStyle(t *testing.T) {
 		style.FgRed("AAAA"),
 		style.FgBlue("BBBB"),
 	)
-	txt := widget.NewStyledText(st, widget.TextWithWrapMode(widget.WrapChar))
+	txt := widget.NewStyledText(st, widget.TextWithWrapMode(textbuf.WrapChar))
 
 	// At width five, the blue chunk starts on the first row and continues on the second.
 	buf := testutil.RenderWidget(txt, 5, 3)

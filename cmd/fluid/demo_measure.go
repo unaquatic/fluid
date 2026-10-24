@@ -8,6 +8,7 @@ import (
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/style"
 	"github.com/unaquatic/fluid/terminal"
+	"github.com/unaquatic/fluid/textbuf"
 	"github.com/unaquatic/fluid/widget"
 )
 
@@ -30,7 +31,7 @@ func runMeasureDemo(ctx context.Context, o DemoOptions) error {
 	autoHeightTA := widget.NewTextarea(
 		widget.TextareaWithID("auto-height"),
 		widget.TextareaWithText("Type here and watch the box grow.\nAdd more lines with Enter!"),
-		widget.TextareaWithWrapMode(widget.WrapWord),
+		widget.TextareaWithWrapMode(textbuf.WrapWord),
 		widget.TextareaWithShowCursor(true),
 		widget.TextareaWithHeight(layout.Auto()),
 		widget.TextareaWithMaxHeight(layout.Points(10)),
@@ -39,7 +40,7 @@ func runMeasureDemo(ctx context.Context, o DemoOptions) error {
 	fixedTA := widget.NewTextarea(
 		widget.TextareaWithID("fixed"),
 		widget.TextareaWithText("This textarea has a fixed height of 5 lines.\nIt scrolls when content exceeds the viewport.\nLine 3\nLine 4\nLine 5\nLine 6 (scroll to see)"),
-		widget.TextareaWithWrapMode(widget.WrapWord),
+		widget.TextareaWithWrapMode(textbuf.WrapWord),
 		widget.TextareaWithShowCursor(true),
 		widget.TextareaWithHeight(layout.Points(5)),
 	)
@@ -47,7 +48,7 @@ func runMeasureDemo(ctx context.Context, o DemoOptions) error {
 	autoTA := widget.NewTextarea(
 		widget.TextareaWithID("auto"),
 		widget.TextareaWithText("short"),
-		widget.TextareaWithWrapMode(widget.WrapNone),
+		widget.TextareaWithWrapMode(textbuf.WrapNone),
 		widget.TextareaWithShowCursor(true),
 		widget.TextareaWithWidth(layout.Auto()),
 		widget.TextareaWithHeight(layout.Auto()),

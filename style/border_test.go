@@ -3,6 +3,8 @@ package style
 import (
 	"testing"
 	"unicode"
+
+	"github.com/unaquatic/fluid/symbol"
 )
 
 func TestBorderStyle_String(t *testing.T) {
@@ -98,48 +100,48 @@ func TestBorderSides(t *testing.T) {
 
 func TestCharsForStyle_SingleChars(t *testing.T) {
 	chars := CharsForStyle(BorderSingle)
-	if chars != SingleChars {
-		t.Errorf("CharsForStyle(Single) != SingleChars")
+	if chars != symbol.SingleChars {
+		t.Errorf("CharsForStyle(Single) != symbol.SingleChars")
 	}
 }
 
 func TestCharsForStyle_DoubleChars(t *testing.T) {
 	chars := CharsForStyle(BorderDouble)
-	if chars != DoubleChars {
-		t.Errorf("CharsForStyle(Double) != DoubleChars")
+	if chars != symbol.DoubleChars {
+		t.Errorf("CharsForStyle(Double) != symbol.DoubleChars")
 	}
 }
 
 func TestCharsForStyle_RoundedChars(t *testing.T) {
 	chars := CharsForStyle(BorderRounded)
-	if chars != RoundedChars {
-		t.Errorf("CharsForStyle(Rounded) != RoundedChars")
+	if chars != symbol.RoundedChars {
+		t.Errorf("CharsForStyle(Rounded) != symbol.RoundedChars")
 	}
 }
 
 func TestCharsForStyle_HeavyChars(t *testing.T) {
 	chars := CharsForStyle(BorderHeavy)
-	if chars != HeavyChars {
-		t.Errorf("CharsForStyle(Heavy) != HeavyChars")
+	if chars != symbol.HeavyChars {
+		t.Errorf("CharsForStyle(Heavy) != symbol.HeavyChars")
 	}
 }
 
 func TestCharsForStyle_None(t *testing.T) {
-	// BorderNone uses SingleChars when characters are requested directly.
+	// BorderNone uses symbol.SingleChars when characters are requested directly.
 	chars := CharsForStyle(BorderNone)
-	if chars != SingleChars {
-		t.Errorf("CharsForStyle(None) should fallback to SingleChars")
+	if chars != symbol.SingleChars {
+		t.Errorf("CharsForStyle(None) should fallback to symbol.SingleChars")
 	}
 }
 
 // TestAllPresetsHaveValidRunes verifies that every preset contains printable
 // Unicode border runes.
 func TestAllPresetsHaveValidRunes(t *testing.T) {
-	presets := map[string]BorderCharacters{
-		"Single":  SingleChars,
-		"Double":  DoubleChars,
-		"Rounded": RoundedChars,
-		"Heavy":   HeavyChars,
+	presets := map[string]symbol.BorderCharacters{
+		"Single":  symbol.SingleChars,
+		"Double":  symbol.DoubleChars,
+		"Rounded": symbol.RoundedChars,
+		"Heavy":   symbol.HeavyChars,
 	}
 
 	for name, chars := range presets {
@@ -160,65 +162,65 @@ func TestAllPresetsHaveValidRunes(t *testing.T) {
 }
 
 func TestSingleChars_CorrectValues(t *testing.T) {
-	if SingleChars.TopLeft != '┌' {
-		t.Errorf("TopLeft = %q, want '┌'", SingleChars.TopLeft)
+	if symbol.SingleChars.TopLeft != '┌' {
+		t.Errorf("TopLeft = %q, want '┌'", symbol.SingleChars.TopLeft)
 	}
-	if SingleChars.TopRight != '┐' {
-		t.Errorf("TopRight = %q, want '┐'", SingleChars.TopRight)
+	if symbol.SingleChars.TopRight != '┐' {
+		t.Errorf("TopRight = %q, want '┐'", symbol.SingleChars.TopRight)
 	}
-	if SingleChars.BottomLeft != '└' {
-		t.Errorf("BottomLeft = %q, want '└'", SingleChars.BottomLeft)
+	if symbol.SingleChars.BottomLeft != '└' {
+		t.Errorf("BottomLeft = %q, want '└'", symbol.SingleChars.BottomLeft)
 	}
-	if SingleChars.BottomRight != '┘' {
-		t.Errorf("BottomRight = %q, want '┘'", SingleChars.BottomRight)
+	if symbol.SingleChars.BottomRight != '┘' {
+		t.Errorf("BottomRight = %q, want '┘'", symbol.SingleChars.BottomRight)
 	}
-	if SingleChars.Horizontal != '─' {
-		t.Errorf("Horizontal = %q, want '─'", SingleChars.Horizontal)
+	if symbol.SingleChars.Horizontal != '─' {
+		t.Errorf("Horizontal = %q, want '─'", symbol.SingleChars.Horizontal)
 	}
-	if SingleChars.Vertical != '│' {
-		t.Errorf("Vertical = %q, want '│'", SingleChars.Vertical)
+	if symbol.SingleChars.Vertical != '│' {
+		t.Errorf("Vertical = %q, want '│'", symbol.SingleChars.Vertical)
 	}
 }
 
 func TestDoubleChars_CorrectValues(t *testing.T) {
-	if DoubleChars.TopLeft != '╔' {
-		t.Errorf("TopLeft = %q, want '╔'", DoubleChars.TopLeft)
+	if symbol.DoubleChars.TopLeft != '╔' {
+		t.Errorf("TopLeft = %q, want '╔'", symbol.DoubleChars.TopLeft)
 	}
-	if DoubleChars.Horizontal != '═' {
-		t.Errorf("Horizontal = %q, want '═'", DoubleChars.Horizontal)
+	if symbol.DoubleChars.Horizontal != '═' {
+		t.Errorf("Horizontal = %q, want '═'", symbol.DoubleChars.Horizontal)
 	}
-	if DoubleChars.Vertical != '║' {
-		t.Errorf("Vertical = %q, want '║'", DoubleChars.Vertical)
+	if symbol.DoubleChars.Vertical != '║' {
+		t.Errorf("Vertical = %q, want '║'", symbol.DoubleChars.Vertical)
 	}
 }
 
 func TestRoundedChars_CorrectCorners(t *testing.T) {
-	if RoundedChars.TopLeft != '╭' {
-		t.Errorf("TopLeft = %q, want '╭'", RoundedChars.TopLeft)
+	if symbol.RoundedChars.TopLeft != '╭' {
+		t.Errorf("TopLeft = %q, want '╭'", symbol.RoundedChars.TopLeft)
 	}
-	if RoundedChars.TopRight != '╮' {
-		t.Errorf("TopRight = %q, want '╮'", RoundedChars.TopRight)
+	if symbol.RoundedChars.TopRight != '╮' {
+		t.Errorf("TopRight = %q, want '╮'", symbol.RoundedChars.TopRight)
 	}
-	if RoundedChars.BottomLeft != '╰' {
-		t.Errorf("BottomLeft = %q, want '╰'", RoundedChars.BottomLeft)
+	if symbol.RoundedChars.BottomLeft != '╰' {
+		t.Errorf("BottomLeft = %q, want '╰'", symbol.RoundedChars.BottomLeft)
 	}
-	if RoundedChars.BottomRight != '╯' {
-		t.Errorf("BottomRight = %q, want '╯'", RoundedChars.BottomRight)
+	if symbol.RoundedChars.BottomRight != '╯' {
+		t.Errorf("BottomRight = %q, want '╯'", symbol.RoundedChars.BottomRight)
 	}
 	// Rounded borders differ from single borders only at their corners.
-	if RoundedChars.Horizontal != SingleChars.Horizontal {
+	if symbol.RoundedChars.Horizontal != symbol.SingleChars.Horizontal {
 		t.Error("Rounded horizontal should match Single")
 	}
 }
 
 func TestHeavyChars_CorrectValues(t *testing.T) {
-	if HeavyChars.TopLeft != '┏' {
-		t.Errorf("TopLeft = %q, want '┏'", HeavyChars.TopLeft)
+	if symbol.HeavyChars.TopLeft != '┏' {
+		t.Errorf("TopLeft = %q, want '┏'", symbol.HeavyChars.TopLeft)
 	}
-	if HeavyChars.Horizontal != '━' {
-		t.Errorf("Horizontal = %q, want '━'", HeavyChars.Horizontal)
+	if symbol.HeavyChars.Horizontal != '━' {
+		t.Errorf("Horizontal = %q, want '━'", symbol.HeavyChars.Horizontal)
 	}
-	if HeavyChars.Vertical != '┃' {
-		t.Errorf("Vertical = %q, want '┃'", HeavyChars.Vertical)
+	if symbol.HeavyChars.Vertical != '┃' {
+		t.Errorf("Vertical = %q, want '┃'", symbol.HeavyChars.Vertical)
 	}
 }

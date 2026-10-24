@@ -11,6 +11,7 @@ import (
 	"github.com/unaquatic/fluid/render"
 	"github.com/unaquatic/fluid/style"
 	"github.com/unaquatic/fluid/testutil"
+	"github.com/unaquatic/fluid/textbuf"
 )
 
 // Code behavior.
@@ -220,7 +221,7 @@ func TestCode_ScrollY_Clamping(t *testing.T) {
 
 func TestCode_ScrollX(t *testing.T) {
 	// Disable wrapping so the long line has horizontal overflow.
-	c := NewCode("ABCDEFGHIJKLMNOPQRSTUVWXYZ", CodeWithWrapMode(WrapNone))
+	c := NewCode("ABCDEFGHIJKLMNOPQRSTUVWXYZ", CodeWithWrapMode(textbuf.WrapNone))
 	testutil.SetupWidget(c, 10, 1)
 
 	buf := buffer.New(10, 1)
@@ -298,7 +299,7 @@ func TestCode_MouseScroll(t *testing.T) {
 
 func TestCode_WrapModeChar(t *testing.T) {
 	// Twenty characters fill two ten-column visual lines.
-	c := NewCode("12345678901234567890", CodeWithWrapMode(WrapChar))
+	c := NewCode("12345678901234567890", CodeWithWrapMode(textbuf.WrapChar))
 	testutil.SetupWidget(c, 10, 5)
 
 	if c.VisualLineCount() != 2 {
@@ -318,7 +319,7 @@ func TestCode_WrapModeChar(t *testing.T) {
 
 func TestCode_WrapModeWord(t *testing.T) {
 	// A narrow viewport forces several word-boundary wraps.
-	c := NewCode("hello world foo bar", CodeWithWrapMode(WrapWord))
+	c := NewCode("hello world foo bar", CodeWithWrapMode(textbuf.WrapWord))
 	testutil.SetupWidget(c, 12, 5)
 
 	if c.VisualLineCount() < 2 {
@@ -328,7 +329,7 @@ func TestCode_WrapModeWord(t *testing.T) {
 
 func TestCode_WrapVisualToLogicalMapping(t *testing.T) {
 	// The first of two logical lines wraps at width 12; the second does not.
-	c := NewCode("hello world foo bar baz\nend", CodeWithWrapMode(WrapWord))
+	c := NewCode("hello world foo bar baz\nend", CodeWithWrapMode(textbuf.WrapWord))
 	testutil.SetupWidget(c, 12, 10)
 
 	if c.LineCount() != 2 {
@@ -356,17 +357,17 @@ func TestCode_WrapVisualToLogicalMapping(t *testing.T) {
 
 func TestCode_WrapModeNone_NoScrollX(t *testing.T) {
 	// No-wrap content retains horizontal overflow.
-	c := NewCode("ABCDEFGHIJKLMNOPQRSTUVWXYZ", CodeWithWrapMode(WrapNone))
+	c := NewCode("ABCDEFGHIJKLMNOPQRSTUVWXYZ", CodeWithWrapMode(textbuf.WrapNone))
 	testutil.SetupWidget(c, 10, 1)
 
 	// No wrapping produces one visual line.
 	if c.VisualLineCount() != 1 {
-		t.Errorf("expected 1 visual line with WrapNone, got %d", c.VisualLineCount())
+		t.Errorf("expected 1 visual line with textbuf.WrapNone, got %d", c.VisualLineCount())
 	}
 
 	// The long line must have a positive horizontal range.
 	if c.MaxScrollX() <= 0 {
-		t.Error("expected MaxScrollX > 0 with long line and WrapNone")
+		t.Error("expected MaxScrollX > 0 with long line and textbuf.WrapNone")
 	}
 }
 
@@ -451,7 +452,7 @@ func TestCode_Options(t *testing.T) {
 		CodeWithBg(style.ColorFromInts(30, 30, 30, 255)),
 		CodeWithFiletype("go"),
 		CodeWithTheme(theme),
-		CodeWithWrapMode(WrapWord),
+		CodeWithWrapMode(textbuf.WrapWord),
 		CodeWithStreaming(true),
 		CodeWithSelectable(true),
 		CodeWithScrollX(0),
@@ -471,8 +472,8 @@ func TestCode_Options(t *testing.T) {
 	if c.Theme() != theme {
 		t.Errorf("expected theme %q, got %q", theme.Name, c.Theme().Name)
 	}
-	if c.WrapModeValue() != WrapWord {
-		t.Errorf("expected WrapWord, got %d", c.WrapModeValue())
+	if c.WrapModeValue() != textbuf.WrapWord {
+		t.Errorf("expected textbuf.WrapWord, got %d", c.WrapModeValue())
 	}
 	if !c.Streaming() {
 		t.Error("expected streaming=true")
@@ -718,7 +719,7 @@ func TestMarkdown_TableAlignment(t *testing.T) {
 func TestMarkdown_WordWrap(t *testing.T) {
 	// A narrow viewport wraps the long paragraph at word boundaries.
 	longText := "This is a very long paragraph that should wrap at word boundaries when the widget is narrow enough to trigger wrapping behavior."
-	m := NewMarkdown(longText, MarkdownWithWrapMode(WrapWord))
+	m := NewMarkdown(longText, MarkdownWithWrapMode(textbuf.WrapWord))
 	testutil.SetupWidget(m, 30, 20)
 
 	if m.LineCount() < 3 {
@@ -728,11 +729,11 @@ func TestMarkdown_WordWrap(t *testing.T) {
 
 func TestMarkdown_NoWrap(t *testing.T) {
 	longText := "This is a very long line that should not wrap at all"
-	m := NewMarkdown(longText, MarkdownWithWrapMode(WrapNone))
+	m := NewMarkdown(longText, MarkdownWithWrapMode(textbuf.WrapNone))
 	testutil.SetupWidget(m, 20, 5)
 
 	if m.LineCount() != 1 {
-		t.Errorf("expected 1 line with WrapNone, got %d", m.LineCount())
+		t.Errorf("expected 1 line with textbuf.WrapNone, got %d", m.LineCount())
 	}
 }
 
@@ -905,7 +906,7 @@ func TestMarkdown_Options(t *testing.T) {
 		MarkdownWithID("md1"),
 		MarkdownWithFg(style.ColorGreen),
 		MarkdownWithBg(style.ColorFromInts(30, 30, 30, 255)),
-		MarkdownWithWrapMode(WrapChar),
+		MarkdownWithWrapMode(textbuf.WrapChar),
 		MarkdownWithWidth(layout.Points(40)),
 		MarkdownWithHeight(layout.Points(10)),
 		MarkdownWithFlexGrow(1),
@@ -917,8 +918,8 @@ func TestMarkdown_Options(t *testing.T) {
 	if m.Fg() != style.ColorGreen {
 		t.Error("expected green fg")
 	}
-	if m.WrapModeValue() != WrapChar {
-		t.Error("expected WrapChar")
+	if m.WrapModeValue() != textbuf.WrapChar {
+		t.Error("expected textbuf.WrapChar")
 	}
 }
 
