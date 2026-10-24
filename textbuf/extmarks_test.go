@@ -890,7 +890,7 @@ func TestExtmarks_MultiLineDelete(t *testing.T) {
 }
 
 func TestExtmarksHistory_Basic(t *testing.T) {
-	h := &ExtmarksHistory{}
+	h := &extmarksHistory{}
 
 	m := map[int]Extmark{
 		1: {ID: 1, Start: 0, End: 5},
@@ -919,7 +919,7 @@ func TestExtmarksHistory_Basic(t *testing.T) {
 }
 
 func TestExtmarksHistory_ClearOnSave(t *testing.T) {
-	h := &ExtmarksHistory{}
+	h := &extmarksHistory{}
 
 	m1 := map[int]Extmark{1: {ID: 1, Start: 0, End: 5}}
 	m2 := map[int]Extmark{1: {ID: 1, Start: 1, End: 6}}
@@ -927,7 +927,7 @@ func TestExtmarksHistory_ClearOnSave(t *testing.T) {
 	h.SaveSnapshot(m1, 2)
 	// Move the first snapshot into redo.
 	snap := h.Undo()
-	h.PushRedo(ExtmarksSnapshot{extmarks: cloneExtmarks(m2), nextID: 2})
+	h.PushRedo(extmarksSnapshot{extmarks: cloneExtmarks(m2), nextID: 2})
 
 	if !h.CanRedo() {
 		t.Error("should be able to redo")
@@ -941,9 +941,9 @@ func TestExtmarksHistory_ClearOnSave(t *testing.T) {
 }
 
 func TestExtmarksHistory_Clear(t *testing.T) {
-	h := &ExtmarksHistory{}
+	h := &extmarksHistory{}
 	h.SaveSnapshot(map[int]Extmark{}, 1)
-	h.PushRedo(ExtmarksSnapshot{})
+	h.PushRedo(extmarksSnapshot{})
 	h.Clear()
 	if h.CanUndo() || h.CanRedo() {
 		t.Error("both stacks should be empty after clear")

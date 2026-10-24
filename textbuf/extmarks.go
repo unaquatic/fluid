@@ -77,7 +77,7 @@ type ExtmarksController struct {
 	nextID         int
 	destroyed      bool
 
-	history ExtmarksHistory
+	history extmarksHistory
 
 	typeNameToID map[string]int
 	typeIDToName map[int]string
@@ -646,7 +646,7 @@ func (ec *ExtmarksController) installOverrides() {
 		}
 
 		// Preserve current extmarks for redo.
-		ec.history.PushRedo(ExtmarksSnapshot{
+		ec.history.PushRedo(extmarksSnapshot{
 			extmarks: cloneExtmarks(ec.extmarks),
 			nextID:   ec.nextID,
 		})
@@ -668,7 +668,7 @@ func (ec *ExtmarksController) installOverrides() {
 		}
 
 		// Preserve current extmarks for undo.
-		ec.history.PushUndo(ExtmarksSnapshot{
+		ec.history.PushUndo(extmarksSnapshot{
 			extmarks: cloneExtmarks(ec.extmarks),
 			nextID:   ec.nextID,
 		})
@@ -717,12 +717,6 @@ func (ec *ExtmarksController) adjustAfterInsertion(insertOffset, length int) {
 		ec.extmarks[id] = em
 	}
 	ec.updateHighlights()
-}
-
-// AdjustAfterDeletion adjusts extmarks for a display-width deletion beginning at
-// deleteOffset.
-func (ec *ExtmarksController) AdjustAfterDeletion(deleteOffset, length int) {
-	ec.adjustAfterDeletion(deleteOffset, length)
 }
 
 func (ec *ExtmarksController) adjustAfterDeletion(deleteOffset, length int) {
@@ -787,7 +781,7 @@ func (ec *ExtmarksController) saveSnapshot() {
 	ec.history.SaveSnapshot(ec.extmarks, ec.nextID)
 }
 
-func (ec *ExtmarksController) restoreSnapshot(snap *ExtmarksSnapshot) {
+func (ec *ExtmarksController) restoreSnapshot(snap *extmarksSnapshot) {
 	if snap == nil {
 		return
 	}
