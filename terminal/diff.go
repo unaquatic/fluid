@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/style"
@@ -275,15 +276,13 @@ type Stats struct {
 	FrameCount uint64
 	// FPS is the reciprocal of the average frame duration, capped at 999.
 	FPS float64
-	// LastRenderTime is the wall-clock duration of the most recent frame
-	// in seconds.
-	LastRenderTime float64
-	// AvgRenderTime is the average frame duration across the sample window
-	// in seconds.
-	AvgRenderTime float64
-	// MaxRenderTime is the longest frame duration since the last reset, in seconds.
-	MaxRenderTime float64
-	samples       []float64
+	// LastRenderTime is the wall-clock duration of the most recent frame.
+	LastRenderTime time.Duration
+	// AvgRenderTime is the average frame duration across the sample window.
+	AvgRenderTime time.Duration
+	// MaxRenderTime is the longest frame duration since the last reset.
+	MaxRenderTime time.Duration
+	samples       []time.Duration
 	maxSamples    int
 }
 
@@ -295,34 +294,31 @@ func NewStats(maxSamples int) Stats {
 	}
 	return Stats{
 		maxSamples: maxSamples,
-		samples:    make([]float64, 0, maxSamples),
+		samples:    make([]time.Duration, 0, maxSamples),
 	}
 }
 
-// record adds a frame-duration sample in seconds and updates derived values.
-func (s *Stats) record(renderTimeSec float64) {
+// record adds a frame-duration sample and updates derived values.
+func (s *Stats) record(renderTime time.Duration) {
 	s.FrameCount++
-	s.LastRenderTime = renderTimeSec
-
-	if renderTimeSec > s.MaxRenderTime {
-		s.MaxRenderTime = renderTimeSec
-	}
+	s.LastRenderTime = renderTime
+	s.MaxRenderTime = max(s.MaxRenderTime, renderTime)
 
 	// Keep only the most recent samples for the average.
-	s.samples = append(s.samples, renderTimeSec)
+	s.samples = append(s.samples, renderTime)
 	if len(s.samples) > s.maxSamples {
 		s.samples = s.samples[1:]
 	}
 
-	sum := 0.0
+	var sum time.Duration
 	for _, v := range s.samples {
 		sum += v
 	}
-	s.AvgRenderTime = sum / float64(len(s.samples))
+	s.AvgRenderTime = sum / time.Duration(len(s.samples))
 
 	// Derive FPS from the same sliding-window average.
 	if s.AvgRenderTime > 0 {
-		s.FPS = math.Min(1.0/s.AvgRenderTime, 999)
+		s.FPS = math.Min(1/s.AvgRenderTime.Seconds(), 999)
 	}
 }
 

@@ -1,6 +1,8 @@
 package widget
 
 import (
+	"time"
+
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/render"
@@ -61,7 +63,7 @@ func (s *Sparkline) AddPoint(v float64) {
 }
 
 // RenderSelf draws the sparkline.
-func (s *Sparkline) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (s *Sparkline) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	w := s.Width()
 	h := s.Height()
 	if w <= 0 || h <= 0 || len(s.data) == 0 {

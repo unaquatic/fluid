@@ -551,12 +551,12 @@ func TestPrepareLayout_ExecuteRender_Split(t *testing.T) {
 	root.SetHost(&mockHost{hitGrid: hitGrid})
 	child := render.NewBaseRenderable(render.WithID("child"), render.WithWidth(layout.Points(20)), render.WithHeight(layout.Points(5)))
 	root.Add(child)
-	root.PrepareLayout(0.016)
+	root.PrepareLayout(16 * time.Millisecond)
 	if child.LayoutNode().Computed.Width != 20 {
 		t.Errorf("expected 20, got %d", child.LayoutNode().Computed.Width)
 	}
 	buf := buffer.New(40, 20)
-	execStats := root.ExecuteRender(buf, 0.016)
+	execStats := root.ExecuteRender(buf, 16*time.Millisecond)
 	if execStats.CmdCount == 0 {
 		t.Error("expected at least one render command")
 	}

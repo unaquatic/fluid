@@ -693,7 +693,7 @@ func (r *Renderer) renderFrame() {
 	frameStart := time.Now()
 
 	r.mu.Lock()
-	deltaTime := frameStart.Sub(r.lastFrameTime).Seconds()
+	deltaTime := frameStart.Sub(r.lastFrameTime)
 	r.lastFrameTime = frameStart
 	bgColor := r.config.BackgroundColor
 	r.mu.Unlock()
@@ -743,7 +743,7 @@ func (r *Renderer) renderFrame() {
 
 	// Aggregate frame duration only when configured.
 	if r.config.GatherStats {
-		renderTime := time.Since(frameStart).Seconds()
+		renderTime := time.Since(frameStart)
 		r.mu.Lock()
 		r.stats.record(renderTime)
 		r.mu.Unlock()

@@ -1,6 +1,8 @@
 package widget
 
 import (
+	"time"
+
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
 	"github.com/unaquatic/fluid/layout"
@@ -139,7 +141,7 @@ func (s *Select) SetItems(items []SelectItem) {
 func (s *Select) Items() []SelectItem { return s.items }
 
 // RenderSelf draws the select list.
-func (s *Select) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (s *Select) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	w := s.Width()
 	h := s.Height()
 	if w <= 0 || h <= 0 || len(s.items) == 0 {

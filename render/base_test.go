@@ -3,6 +3,7 @@ package render
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
@@ -562,7 +563,7 @@ func TestBaseRenderable_RenderSelf_Default(t *testing.T) {
 	r := NewBaseRenderable()
 	buf := buffer.New(10, 5)
 	// The default RenderSelf is a safe no-op.
-	r.RenderSelf(buf, 0.016)
+	r.RenderSelf(buf, 16*time.Millisecond)
 }
 
 func TestBaseRenderable_RenderHooks(t *testing.T) {
@@ -571,11 +572,11 @@ func TestBaseRenderable_RenderHooks(t *testing.T) {
 	r.height = 5
 
 	var order []string
-	r.RenderBeforeHook = func(b *buffer.Buffer, dt float64) { order = append(order, "before") }
-	r.RenderAfterHook = func(b *buffer.Buffer, dt float64) { order = append(order, "after") }
+	r.RenderBeforeHook = func(b *buffer.Buffer, dt time.Duration) { order = append(order, "before") }
+	r.RenderAfterHook = func(b *buffer.Buffer, dt time.Duration) { order = append(order, "after") }
 
 	buf := buffer.New(80, 24)
-	r.Render(buf, 0.016)
+	r.Render(buf, 16*time.Millisecond)
 
 	if len(order) != 2 || order[0] != "before" || order[1] != "after" {
 		t.Errorf("expected [before, after], got %v", order)
@@ -585,10 +586,10 @@ func TestBaseRenderable_RenderHooks(t *testing.T) {
 func TestBaseRenderable_RenderNotVisibleIsNoop(t *testing.T) {
 	r := NewBaseRenderable(WithVisible(false))
 	called := false
-	r.RenderBeforeHook = func(b *buffer.Buffer, dt float64) { called = true }
+	r.RenderBeforeHook = func(b *buffer.Buffer, dt time.Duration) { called = true }
 
 	buf := buffer.New(10, 5)
-	r.Render(buf, 0.016)
+	r.Render(buf, 16*time.Millisecond)
 
 	if called {
 		t.Error("expected Render to be no-op when not visible")

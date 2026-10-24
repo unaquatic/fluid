@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"sync"
 	"sync/atomic"
+	"time"
 	"weak"
 
 	"github.com/unaquatic/fluid/buffer"
@@ -268,9 +269,9 @@ type BaseRenderable struct {
 
 	// RenderBeforeHook runs before RenderSelf, with the frame buffer and the
 	// seconds since the last frame.
-	RenderBeforeHook func(*buffer.Buffer, float64)
+	RenderBeforeHook func(*buffer.Buffer, time.Duration)
 	// RenderAfterHook runs after RenderSelf, with the same arguments.
-	RenderAfterHook func(*buffer.Buffer, float64)
+	RenderAfterHook func(*buffer.Buffer, time.Duration)
 	// OnLifecyclePass runs before each layout once the renderable is
 	// registered with the root's RegisterLifecyclePass.
 	OnLifecyclePass func()
@@ -657,7 +658,7 @@ func (b *BaseRenderable) UpdateFromLayoutWithOffset(offsetX, offsetY int) {
 
 // Render draws b's content and registers its hit-test region. Scene traversal
 // renders children separately.
-func (b *BaseRenderable) Render(buf *buffer.Buffer, deltaTime float64) {
+func (b *BaseRenderable) Render(buf *buffer.Buffer, deltaTime time.Duration) {
 	if !b.Visible() {
 		return
 	}
@@ -673,7 +674,7 @@ func (b *BaseRenderable) Render(buf *buffer.Buffer, deltaTime float64) {
 
 // renderContent runs the before hook, concrete RenderSelf implementation, and
 // after hook in order.
-func (b *BaseRenderable) renderContent(buf *buffer.Buffer, deltaTime float64) {
+func (b *BaseRenderable) renderContent(buf *buffer.Buffer, deltaTime time.Duration) {
 	if b.RenderBeforeHook != nil {
 		b.RenderBeforeHook(buf, deltaTime)
 	}
@@ -690,17 +691,17 @@ func (b *BaseRenderable) renderContent(buf *buffer.Buffer, deltaTime float64) {
 }
 
 // RenderSelf is the widget content override point. The default does nothing.
-func (b *BaseRenderable) RenderSelf(buf *buffer.Buffer, deltaTime float64) {}
+func (b *BaseRenderable) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {}
 
 // RenderBefore calls RenderBeforeHook when it is set.
-func (b *BaseRenderable) RenderBefore(buf *buffer.Buffer, deltaTime float64) {
+func (b *BaseRenderable) RenderBefore(buf *buffer.Buffer, deltaTime time.Duration) {
 	if b.RenderBeforeHook != nil {
 		b.RenderBeforeHook(buf, deltaTime)
 	}
 }
 
 // RenderAfter calls RenderAfterHook when it is set.
-func (b *BaseRenderable) RenderAfter(buf *buffer.Buffer, deltaTime float64) {
+func (b *BaseRenderable) RenderAfter(buf *buffer.Buffer, deltaTime time.Duration) {
 	if b.RenderAfterHook != nil {
 		b.RenderAfterHook(buf, deltaTime)
 	}
@@ -823,10 +824,10 @@ func (b *BaseRenderable) SelectedText() string { return "" }
 func (b *BaseRenderable) HasSelection() bool { return false }
 
 // OnUpdate runs before layout and does nothing by default.
-func (b *BaseRenderable) OnUpdate(deltaTime float64) {}
+func (b *BaseRenderable) OnUpdate(deltaTime time.Duration) {}
 
 // OnPostLayout runs after layout and does nothing by default.
-func (b *BaseRenderable) OnPostLayout(deltaTime float64) {}
+func (b *BaseRenderable) OnPostLayout(deltaTime time.Duration) {}
 
 // OnResize handles a resolved size change and does nothing by default.
 func (b *BaseRenderable) OnResize(width, height int) {}

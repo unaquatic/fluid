@@ -2,6 +2,7 @@ package widget
 
 import (
 	"strings"
+	"time"
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
@@ -746,7 +747,7 @@ func (c *Code) WrapModeValue() textbuf.WrapMode { return c.wrapMode }
 // Rendering.
 
 // RenderSelf draws the code content into the buffer.
-func (c *Code) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (c *Code) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	w := c.Width()
 	h := c.Height()
 	if w <= 0 || h <= 0 {

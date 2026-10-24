@@ -2,6 +2,7 @@ package widget
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/layout"
@@ -73,7 +74,7 @@ func (g *Gauge) SetLabel(label string) {
 }
 
 // RenderSelf draws the gauge.
-func (g *Gauge) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (g *Gauge) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	w := g.Width()
 	h := g.Height()
 	if w <= 0 || h <= 0 {

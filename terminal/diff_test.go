@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/style"
@@ -210,15 +211,15 @@ func TestFullFlush_WritesAllCells(t *testing.T) {
 
 func TestRendererStats_Record(t *testing.T) {
 	s := NewStats(10)
-	s.record(0.016) // Approximately one 60-FPS frame.
-	s.record(0.016)
-	s.record(0.016)
+	s.record(16 * time.Millisecond) // Approximately one 60-FPS frame.
+	s.record(16 * time.Millisecond)
+	s.record(16 * time.Millisecond)
 
 	if s.FrameCount != 3 {
 		t.Errorf("expected FrameCount=3, got %d", s.FrameCount)
 	}
-	if s.LastRenderTime != 0.016 {
-		t.Errorf("expected LastRenderTime=0.016, got %f", s.LastRenderTime)
+	if s.LastRenderTime != 16*time.Millisecond {
+		t.Errorf("expected LastRenderTime=16ms, got %v", s.LastRenderTime)
 	}
 	if s.FPS < 50 || s.FPS > 70 {
 		t.Errorf("expected FPS around 60, got %f", s.FPS)
@@ -227,19 +228,19 @@ func TestRendererStats_Record(t *testing.T) {
 
 func TestRendererStats_MaxRenderTime(t *testing.T) {
 	s := NewStats(10)
-	s.record(0.010)
-	s.record(0.050)
-	s.record(0.020)
+	s.record(10 * time.Millisecond)
+	s.record(50 * time.Millisecond)
+	s.record(20 * time.Millisecond)
 
-	if s.MaxRenderTime != 0.050 {
-		t.Errorf("expected MaxRenderTime=0.050, got %f", s.MaxRenderTime)
+	if s.MaxRenderTime != 50*time.Millisecond {
+		t.Errorf("expected MaxRenderTime=50ms, got %v", s.MaxRenderTime)
 	}
 }
 
 func TestRendererStats_Reset(t *testing.T) {
 	s := NewStats(10)
-	s.record(0.016)
-	s.record(0.016)
+	s.record(16 * time.Millisecond)
+	s.record(16 * time.Millisecond)
 	s.reset()
 
 	if s.FrameCount != 0 {
@@ -249,25 +250,25 @@ func TestRendererStats_Reset(t *testing.T) {
 		t.Errorf("expected FPS=0 after reset, got %f", s.FPS)
 	}
 	if s.MaxRenderTime != 0 {
-		t.Errorf("expected MaxRenderTime=0 after reset, got %f", s.MaxRenderTime)
+		t.Errorf("expected MaxRenderTime=0 after reset, got %v", s.MaxRenderTime)
 	}
 }
 
 func TestRendererStats_SlidingWindow(t *testing.T) {
 	s := NewStats(3)
 
-	s.record(0.010)
-	s.record(0.020)
-	s.record(0.030)
-	// The first three samples average 0.020 seconds.
-	if s.AvgRenderTime < 0.019 || s.AvgRenderTime > 0.021 {
-		t.Errorf("expected AvgRenderTime ~0.020, got %f", s.AvgRenderTime)
+	s.record(10 * time.Millisecond)
+	s.record(20 * time.Millisecond)
+	s.record(30 * time.Millisecond)
+	// The first three samples average 20ms.
+	if s.AvgRenderTime != 20*time.Millisecond {
+		t.Errorf("expected AvgRenderTime=20ms, got %v", s.AvgRenderTime)
 	}
 
-	s.record(0.040)
-	// Adding a fourth sample evicts the oldest and produces a 0.030-second average.
-	if s.AvgRenderTime < 0.029 || s.AvgRenderTime > 0.031 {
-		t.Errorf("expected AvgRenderTime ~0.030 after slide, got %f", s.AvgRenderTime)
+	s.record(40 * time.Millisecond)
+	// Adding a fourth sample evicts the oldest and produces a 30ms average.
+	if s.AvgRenderTime != 30*time.Millisecond {
+		t.Errorf("expected AvgRenderTime=30ms after slide, got %v", s.AvgRenderTime)
 	}
 }
 

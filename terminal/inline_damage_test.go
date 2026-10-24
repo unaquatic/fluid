@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/layout"
@@ -30,7 +31,7 @@ func newGlyphRow(id string, glyph rune, width, height int) *glyphRow {
 	return g
 }
 
-func (g *glyphRow) RenderSelf(buf *buffer.Buffer, _ float64) {
+func (g *glyphRow) RenderSelf(buf *buffer.Buffer, _ time.Duration) {
 	for y := range g.Height() {
 		for x := range g.Width() {
 			buf.SetCell(g.X()+x, g.Y()+y, g.glyph, style.ColorWhite, style.ColorBlack, 0)
@@ -420,7 +421,7 @@ func newStrayRow(id string, glyph rune, width, height int) *strayRow {
 	return s
 }
 
-func (s *strayRow) RenderSelf(buf *buffer.Buffer, _ float64) {
+func (s *strayRow) RenderSelf(buf *buffer.Buffer, _ time.Duration) {
 	for y := s.Y() - 1; y < s.Y()+s.Height(); y++ {
 		for x := range s.Width() {
 			buf.SetCell(x, y, s.glyph, style.ColorWhite, style.ColorBlack, 0)
@@ -470,7 +471,7 @@ func newCursorMover(r *Renderer, width, height int) *cursorMover {
 	return c
 }
 
-func (c *cursorMover) RenderSelf(*buffer.Buffer, float64) {
+func (c *cursorMover) RenderSelf(*buffer.Buffer, time.Duration) {
 	c.renderer.SetCursorPosition(c.x, c.y, true)
 }
 

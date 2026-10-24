@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
@@ -62,7 +63,7 @@ func newTextRow(id string, width, height int) *textRow {
 
 // RenderSelf is the widget content override point, so the base keeps its damage
 // bookkeeping, exactly as the real widgets do.
-func (t *textRow) RenderSelf(buf *buffer.Buffer, _ float64) {
+func (t *textRow) RenderSelf(buf *buffer.Buffer, _ time.Duration) {
 	for y := range t.Height() {
 		buf.DrawText(t.text, t.X(), t.Y()+y, style.ColorWhite)
 	}

@@ -2,6 +2,7 @@ package widget
 
 import (
 	"math"
+	"time"
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
@@ -566,7 +567,7 @@ func (ta *Textarea) OnResize(width, height int) {
 // Textarea rendering.
 
 // RenderSelf draws the textarea into the buffer.
-func (ta *Textarea) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (ta *Textarea) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	w := ta.Width()
 	h := ta.Height()
 	if w <= 0 || h <= 0 {
@@ -815,14 +816,14 @@ func (ta *Textarea) handleMouseUp(e *input.MouseEvent) {
 	ta.autoScrollAccumulator = 0
 }
 
-// OnPostLayout advances drag-selection auto-scroll using elapsed milliseconds.
-func (ta *Textarea) OnPostLayout(deltaTime float64) {
+// OnPostLayout advances drag-selection auto-scroll by the time deltaTime
+// since the last frame.
+func (ta *Textarea) OnPostLayout(deltaTime time.Duration) {
 	if ta.autoScrollVelocity == 0 || !ta.mouseSelecting {
 		return
 	}
 
-	deltaSec := deltaTime / 1000.0
-	ta.autoScrollAccumulator += ta.autoScrollVelocity * deltaSec
+	ta.autoScrollAccumulator += ta.autoScrollVelocity * deltaTime.Seconds()
 
 	linesToScroll := int(math.Abs(ta.autoScrollAccumulator))
 	if linesToScroll > 0 {

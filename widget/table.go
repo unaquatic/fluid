@@ -1,6 +1,8 @@
 package widget
 
 import (
+	"time"
+
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
 	"github.com/unaquatic/fluid/layout"
@@ -92,7 +94,7 @@ func (t *Table) SetRows(rows [][]string) {
 func (t *Table) SelectedRow() int { return t.selectedRow }
 
 // RenderSelf draws the table.
-func (t *Table) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (t *Table) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	w := t.Width()
 	h := t.Height()
 	if w <= 0 || h <= 0 {

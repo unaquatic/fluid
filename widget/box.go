@@ -1,6 +1,8 @@
 package widget
 
 import (
+	"time"
+
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/render"
@@ -99,7 +101,7 @@ func (b *Box) applyGap() {
 }
 
 // RenderSelf draws the box background, border, and title.
-func (b *Box) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (b *Box) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	w := b.Width()
 	h := b.Height()
 	if w <= 0 || h <= 0 {

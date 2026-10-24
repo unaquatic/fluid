@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"testing"
+	"time"
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/layout"
@@ -57,7 +58,7 @@ func TestRootRenderable_RenderPipeline(t *testing.T) {
 	root.Add(child)
 
 	buf := buffer.New(80, 24)
-	root.Render(buf, 0.016)
+	root.Render(buf, 16*time.Millisecond)
 
 	// Rendering synchronizes the child's computed geometry.
 	if child.Width() != 20 {
@@ -80,7 +81,7 @@ func TestRootRenderable_LifecyclePass(t *testing.T) {
 	root.RegisterLifecyclePass(child)
 
 	buf := buffer.New(80, 24)
-	root.Render(buf, 0.016)
+	root.Render(buf, 16*time.Millisecond)
 
 	if !lifecycleCalled {
 		t.Error("expected lifecycle pass to call OnLifecyclePass")
@@ -100,7 +101,7 @@ func TestRootRenderable_UnregisterLifecyclePass(t *testing.T) {
 	root.UnregisterLifecyclePass(child.Num())
 
 	buf := buffer.New(80, 24)
-	root.Render(buf, 0.016)
+	root.Render(buf, 16*time.Millisecond)
 
 	if lifecycleCalled {
 		t.Error("expected lifecycle pass NOT to call after unregister")
@@ -202,7 +203,7 @@ func TestRootRenderable_HitGridRebuilt(t *testing.T) {
 	root.Add(child)
 
 	buf := buffer.New(80, 24)
-	root.Render(buf, 0.016)
+	root.Render(buf, 16*time.Millisecond)
 
 	// Rendering registers the child at its synchronized position.
 	id := hitGrid.Check(child.X(), child.Y())

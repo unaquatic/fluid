@@ -1,6 +1,8 @@
 package widget
 
 import (
+	"time"
+
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/render"
@@ -117,7 +119,7 @@ func (sb *ScrollBar) SetScrollPosition(v int) {
 // ScrollBar rendering.
 
 // RenderSelf draws the track and thumb.
-func (sb *ScrollBar) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (sb *ScrollBar) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	w := sb.Width()
 	h := sb.Height()
 	if w <= 0 || h <= 0 {
@@ -243,7 +245,7 @@ func BindScrollBar(scrollBox *ScrollBox, scrollBar *ScrollBar) {
 	// Reserve room for the one-column scrollbar in a row layout.
 	scrollBox.LayoutNode().FlexBasis = layout.Points(0)
 
-	scrollBox.RenderAfterHook = func(_ *buffer.Buffer, _ float64) {
+	scrollBox.RenderAfterHook = func(_ *buffer.Buffer, _ time.Duration) {
 		scrollBar.SetScrollState(
 			scrollBox.ContentHeight(),
 			scrollBox.ViewportHeight(),

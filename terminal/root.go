@@ -53,7 +53,7 @@ func (r *RootRenderable) UnregisterLifecyclePass(num uint64) {
 //  2. Resolve flexbox layout.
 //  3. Synchronize widget positions and run post-layout hooks.
 //  4. Build and execute render and clipping commands.
-func (r *RootRenderable) Render(buf *buffer.Buffer, deltaTime float64) {
+func (r *RootRenderable) Render(buf *buffer.Buffer, deltaTime time.Duration) {
 	prepStats := r.PrepareLayout(deltaTime)
 	execStats := r.ExecuteRender(buf, deltaTime)
 
@@ -73,7 +73,7 @@ func (r *RootRenderable) Render(buf *buffer.Buffer, deltaTime float64) {
 //
 // Inline rendering calls this separately so it can derive content height before
 // allocating its frame buffer.
-func (r *RootRenderable) PrepareLayout(deltaTime float64) FrameStats {
+func (r *RootRenderable) PrepareLayout(deltaTime time.Duration) FrameStats {
 	t0 := time.Now()
 
 	// Run registered lifecycle hooks before layout.
@@ -101,7 +101,7 @@ func (r *RootRenderable) PrepareLayout(deltaTime float64) FrameStats {
 //
 // It always walks the complete scene. Skipping a subtree would leave stale
 // geometry behind and hide the damage a moved renderable causes.
-func (r *RootRenderable) SyncPositions(deltaTime float64) FrameStats {
+func (r *RootRenderable) SyncPositions(deltaTime time.Duration) FrameStats {
 	t0 := time.Now()
 	nodeCount := 0
 	r.syncPositionsRecursive(r.BaseRenderable, deltaTime, 0, 0, &nodeCount)
@@ -185,7 +185,7 @@ func stacksFromStart(n *layout.Node) bool {
 
 // ExecuteRender synchronizes positions from prepared layout, builds commands,
 // and executes them into buf. Call it after PrepareLayout.
-func (r *RootRenderable) ExecuteRender(buf *buffer.Buffer, deltaTime float64) FrameStats {
+func (r *RootRenderable) ExecuteRender(buf *buffer.Buffer, deltaTime time.Duration) FrameStats {
 	sync := r.SyncPositions(deltaTime)
 	stats := r.Draw(buf, deltaTime, buffer.Rect{})
 	stats.Sync = sync.Sync
@@ -203,7 +203,7 @@ func (r *RootRenderable) ExecuteRender(buf *buffer.Buffer, deltaTime float64) Fr
 // Painting is confined to the damaged region. A renderable that draws outside
 // its own rectangle would otherwise write cells the frame never cleared, which
 // no longer match what the caller records as painted.
-func (r *RootRenderable) Draw(buf *buffer.Buffer, deltaTime float64, damage buffer.Rect) FrameStats {
+func (r *RootRenderable) Draw(buf *buffer.Buffer, deltaTime time.Duration, damage buffer.Rect) FrameStats {
 	var damaged *buffer.Rect
 	if !damage.IsEmpty() {
 		damaged = &damage
@@ -259,7 +259,7 @@ func (r *RootRenderable) Draw(buf *buffer.Buffer, deltaTime float64, damage buff
 //
 // Each node receives inherited translation without its own translation. After
 // OnPostLayout, the node's current translation is added for descendants.
-func (r *RootRenderable) syncPositionsRecursive(node render.Renderable, deltaTime float64, parentTX, parentTY int, nodeCount *int) {
+func (r *RootRenderable) syncPositionsRecursive(node render.Renderable, deltaTime time.Duration, parentTX, parentTY int, nodeCount *int) {
 	r.syncPositionsWithClip(node, deltaTime, parentTX, parentTY, nil, nodeCount)
 }
 
@@ -269,7 +269,7 @@ func (r *RootRenderable) syncPositionsRecursive(node render.Renderable, deltaTim
 //
 // A subtree the clip culls is not descended into either. Every pass culls on
 // the same cullRect, so the command pass discards that subtree too.
-func (r *RootRenderable) syncPositionsWithClip(node render.Renderable, deltaTime float64, parentTX, parentTY int, clip *buffer.Rect, nodeCount *int) {
+func (r *RootRenderable) syncPositionsWithClip(node render.Renderable, deltaTime time.Duration, parentTX, parentTY int, clip *buffer.Rect, nodeCount *int) {
 	if node.IsDestroyed() || !node.Visible() {
 		return
 	}

@@ -1,6 +1,8 @@
 package widget
 
 import (
+	"time"
+
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/render"
@@ -59,7 +61,7 @@ func NewCharCell(char rune, fg, bg style.Color) *CharFill {
 }
 
 // RenderSelf fills the widget's layout area with its configured character and colors.
-func (c *CharFill) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (c *CharFill) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	x := c.X()
 	y := c.Y()
 	w := c.Width()

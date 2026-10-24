@@ -1,6 +1,8 @@
 package widget
 
 import (
+	"time"
+
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
 	"github.com/unaquatic/fluid/layout"
@@ -108,7 +110,7 @@ func (ts *TabSelect) SetItems(items []TabSelectItem) {
 }
 
 // RenderSelf draws the tab selector.
-func (ts *TabSelect) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (ts *TabSelect) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	w := ts.Width()
 	h := ts.Height()
 	if w <= 0 || h <= 0 || len(ts.items) == 0 {

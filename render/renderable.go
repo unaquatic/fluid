@@ -1,6 +1,8 @@
 package render
 
 import (
+	"time"
+
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
 	"github.com/unaquatic/fluid/layout"
@@ -110,14 +112,14 @@ type Renderable interface {
 
 	// Render draws this renderable. Scene graph traversal schedules child
 	// renderables separately.
-	Render(buf *buffer.Buffer, deltaTime float64)
+	Render(buf *buffer.Buffer, deltaTime time.Duration)
 	// RenderSelf draws the renderable's own content and is the primary widget
 	// override point.
-	RenderSelf(buf *buffer.Buffer, deltaTime float64)
+	RenderSelf(buf *buffer.Buffer, deltaTime time.Duration)
 	// RenderBefore draws content that must precede RenderSelf.
-	RenderBefore(buf *buffer.Buffer, deltaTime float64)
+	RenderBefore(buf *buffer.Buffer, deltaTime time.Duration)
 	// RenderAfter draws overlays or decorations after the renderable's content.
-	RenderAfter(buf *buffer.Buffer, deltaTime float64)
+	RenderAfter(buf *buffer.Buffer, deltaTime time.Duration)
 
 	// Focus and keyboard input.
 
@@ -158,9 +160,9 @@ type Renderable interface {
 	// Lifecycle.
 
 	// OnUpdate runs before layout for each frame in which the widget is updated.
-	OnUpdate(deltaTime float64)
+	OnUpdate(deltaTime time.Duration)
 	// OnPostLayout runs after layout and before rendering.
-	OnPostLayout(deltaTime float64)
+	OnPostLayout(deltaTime time.Duration)
 	// OnResize handles a change to the renderable's resolved dimensions.
 	OnResize(width, height int)
 	// Destroy detaches and unregisters the renderable.

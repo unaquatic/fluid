@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 	"unicode"
 
 	"github.com/unaquatic/fluid/buffer"
@@ -425,7 +426,7 @@ func (m *Markdown) wrapToWidth(w int) {
 
 // RenderSelf draws wrapped lines as styled grapheme clusters.
 // An enclosing ScrollBox is responsible for clipping and scrolling.
-func (m *Markdown) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (m *Markdown) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	w := m.Width()
 	if w <= 0 {
 		return

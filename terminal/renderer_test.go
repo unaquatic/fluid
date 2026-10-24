@@ -295,7 +295,7 @@ func TestRenderer_RenderFrame(t *testing.T) {
 
 	// Render one child to exercise a complete frame.
 	child := render.NewBaseRenderable(render.WithID("test-child"))
-	child.RenderBeforeHook = func(buf *buffer.Buffer, dt float64) {
+	child.RenderBeforeHook = func(buf *buffer.Buffer, dt time.Duration) {
 		buf.SetCell(0, 0, 'T', style.ColorWhite, style.ColorBlack, 0)
 	}
 	root.Add(child)
@@ -355,8 +355,8 @@ func TestRenderer_ResetStats(t *testing.T) {
 	r.config.GatherStats = true
 
 	r.mu.Lock()
-	r.stats.record(0.016)
-	r.stats.record(0.016)
+	r.stats.record(16 * time.Millisecond)
+	r.stats.record(16 * time.Millisecond)
 	r.mu.Unlock()
 
 	r.ResetStats()

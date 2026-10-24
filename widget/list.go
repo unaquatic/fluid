@@ -1,6 +1,8 @@
 package widget
 
 import (
+	"time"
+
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
 	"github.com/unaquatic/fluid/layout"
@@ -75,7 +77,7 @@ func (l *List) SetItems(items []ListItem) {
 }
 
 // RenderSelf draws the list.
-func (l *List) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (l *List) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	w := l.Width()
 	h := l.Height()
 	if w <= 0 || h <= 0 || len(l.items) == 0 {

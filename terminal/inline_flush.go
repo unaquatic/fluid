@@ -47,7 +47,7 @@ func (r *Renderer) renderInlineFrame() {
 	frameStart := time.Now()
 
 	r.mu.Lock()
-	deltaTime := frameStart.Sub(r.lastFrameTime).Seconds()
+	deltaTime := frameStart.Sub(r.lastFrameTime)
 	r.lastFrameTime = frameStart
 	bgColor := r.config.BackgroundColor
 	termWidth := r.width
@@ -120,7 +120,7 @@ func (r *Renderer) renderInlineFrame() {
 	r.root.LastFrameStats.Total = totalDur
 
 	if r.config.GatherStats {
-		renderTime := time.Since(frameStart).Seconds()
+		renderTime := time.Since(frameStart)
 		r.mu.Lock()
 		r.stats.record(renderTime)
 		r.mu.Unlock()

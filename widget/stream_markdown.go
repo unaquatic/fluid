@@ -3,6 +3,7 @@ package widget
 import (
 	"reflect"
 	"slices"
+	"time"
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/layout"
@@ -270,7 +271,7 @@ func trailBody(body, trailer []style.TextChunk) []style.TextChunk {
 }
 
 // RenderSelf fills the background across the full content area.
-func (sm *StreamMarkdown) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (sm *StreamMarkdown) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	if !sm.bg.IsTransparent() {
 		buf.FillRect(sm.X(), sm.Y(), sm.Width(), sm.Height(), sm.bg)
 	}

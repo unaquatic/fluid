@@ -3,6 +3,7 @@ package widget
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
@@ -323,7 +324,7 @@ func (d *Diff) OnResize(width, height int) {
 // RenderSelf positions and draws the active diff view.
 // Diff renders its Code and LineNumber children manually because pane widths
 // and wrapped row pairing depend on the final viewport size.
-func (d *Diff) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (d *Diff) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	if d.needsRebuild {
 		d.rebuild()
 		d.needsRebuild = false
@@ -345,7 +346,7 @@ func (d *Diff) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 }
 
 // renderUnifiedView draws one full-width gutter and content pane.
-func (d *Diff) renderUnifiedView(buf *buffer.Buffer, x, y, w, h int, deltaTime float64) {
+func (d *Diff) renderUnifiedView(buf *buffer.Buffer, x, y, w, h int, deltaTime time.Duration) {
 	if d.leftCode == nil || d.leftSide == nil {
 		return
 	}
@@ -365,7 +366,7 @@ func (d *Diff) renderUnifiedView(buf *buffer.Buffer, x, y, w, h int, deltaTime f
 
 // renderSplitView draws headers across the viewport and content in paired panes.
 // It wraps each side at render time using the final pane widths.
-func (d *Diff) renderSplitView(buf *buffer.Buffer, x, y, w, h int, deltaTime float64) {
+func (d *Diff) renderSplitView(buf *buffer.Buffer, x, y, w, h int, deltaTime time.Duration) {
 	if d.layout == nil || len(d.layout.Blocks) == 0 {
 		return
 	}

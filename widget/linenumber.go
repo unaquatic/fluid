@@ -3,6 +3,7 @@ package widget
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/layout"
@@ -228,7 +229,7 @@ func (ln *LineNumber) ComputedWidth() int {
 // LineNumber rendering.
 
 // RenderSelf draws the line numbers and per-line content backgrounds.
-func (ln *LineNumber) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (ln *LineNumber) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	w := ln.Width()
 	h := ln.Height()
 	if w <= 0 || h <= 0 {

@@ -2,6 +2,7 @@ package widget
 
 import (
 	"strings"
+	"time"
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
@@ -104,7 +105,7 @@ func (t *Tree) flattenNode(node *TreeNode, depth int) {
 }
 
 // RenderSelf draws the tree.
-func (t *Tree) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (t *Tree) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	w := t.Width()
 	h := t.Height()
 	if w <= 0 || h <= 0 || len(t.flatItems) == 0 {

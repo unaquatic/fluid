@@ -2,6 +2,7 @@ package widget
 
 import (
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/unaquatic/fluid/buffer"
@@ -365,7 +366,7 @@ func (t *Text) ScrollHeight() int {
 // Text rendering.
 
 // RenderSelf draws the text content into the buffer.
-func (t *Text) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (t *Text) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	w := t.Width()
 	h := t.Height()
 	if w <= 0 || h <= 0 {

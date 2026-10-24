@@ -1,6 +1,8 @@
 package widget
 
 import (
+	"time"
+
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
 	"github.com/unaquatic/fluid/layout"
@@ -251,7 +253,7 @@ func (sb *ScrollBox) SetContentWidth(w int) {
 }
 
 // RenderSelf draws the embedded Box; a separate ScrollBar renders any indicator.
-func (sb *ScrollBox) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (sb *ScrollBox) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	sb.Box.RenderSelf(buf, deltaTime)
 }
 
@@ -265,7 +267,7 @@ func (sb *ScrollBox) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 // A child's bottom and right margins count as content, so the space they leave
 // after the last child can be scrolled into view. They resolve against the
 // content box, as layout resolves them. Gone children take no space.
-func (sb *ScrollBox) OnPostLayout(deltaTime float64) {
+func (sb *ScrollBox) OnPostLayout(deltaTime time.Duration) {
 	ln := sb.LayoutNode()
 	sbComputed := ln.Computed
 	contentWidth, contentHeight := contentBoxSize(ln)
