@@ -52,7 +52,7 @@ func TestNewBox_WithOptions(t *testing.T) {
 	if b.BorderStyle() != style.BorderRounded {
 		t.Error("expected rounded border")
 	}
-	if !b.Border().All {
+	if b.Border() != style.BorderAll() {
 		t.Error("expected all borders")
 	}
 	if !b.BorderColor().Equals(style.ColorBlue) {

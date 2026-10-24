@@ -1205,35 +1205,35 @@ func TestDrawBorder_TitleNoTopBorder(t *testing.T) {
 }
 
 func TestInnerRect_AllSides(t *testing.T) {
-	r := InnerRect(0, 0, 10, 8, style.AllSides())
+	r := InnerRect(0, 0, 10, 8, style.BorderAll())
 	if r.X != 1 || r.Y != 1 || r.Width != 8 || r.Height != 6 {
 		t.Errorf("InnerRect(AllSides) = %+v, want {1 1 8 6}", r)
 	}
 }
 
 func TestInnerRect_NoSides(t *testing.T) {
-	r := InnerRect(0, 0, 10, 8, style.NoSides())
+	r := InnerRect(0, 0, 10, 8, style.BorderNoBorder())
 	if r.X != 0 || r.Y != 0 || r.Width != 10 || r.Height != 8 {
 		t.Errorf("InnerRect(NoSides) = %+v, want {0 0 10 8}", r)
 	}
 }
 
 func TestInnerRect_TopBottom(t *testing.T) {
-	r := InnerRect(0, 0, 10, 8, style.BorderSidesConfig{Top: true, Bottom: true})
+	r := InnerRect(0, 0, 10, 8, style.Border{Top: true, Bottom: true})
 	if r.X != 0 || r.Y != 1 || r.Width != 10 || r.Height != 6 {
 		t.Errorf("InnerRect(Top,Bottom) = %+v, want {0 1 10 6}", r)
 	}
 }
 
 func TestInnerRect_LeftRight(t *testing.T) {
-	r := InnerRect(0, 0, 10, 8, style.BorderSidesConfig{Left: true, Right: true})
+	r := InnerRect(0, 0, 10, 8, style.Border{Left: true, Right: true})
 	if r.X != 1 || r.Y != 0 || r.Width != 8 || r.Height != 8 {
 		t.Errorf("InnerRect(Left,Right) = %+v, want {1 0 8 8}", r)
 	}
 }
 
 func TestInnerRect_Offset(t *testing.T) {
-	r := InnerRect(5, 3, 10, 8, style.AllSides())
+	r := InnerRect(5, 3, 10, 8, style.BorderAll())
 	if r.X != 6 || r.Y != 4 || r.Width != 8 || r.Height != 6 {
 		t.Errorf("InnerRect with offset = %+v, want {6 4 8 6}", r)
 	}
@@ -1241,7 +1241,7 @@ func TestInnerRect_Offset(t *testing.T) {
 
 func TestInnerRect_TooSmall(t *testing.T) {
 	// Opposing borders consume both available rows and columns.
-	r := InnerRect(0, 0, 2, 2, style.AllSides())
+	r := InnerRect(0, 0, 2, 2, style.BorderAll())
 	if r.Width != 0 || r.Height != 0 {
 		t.Errorf("InnerRect too small = %+v, want Width=0 Height=0", r)
 	}
@@ -1249,14 +1249,14 @@ func TestInnerRect_TooSmall(t *testing.T) {
 
 func TestInnerRect_TooSmallClamps(t *testing.T) {
 	// Borders larger than the box clamp the interior dimensions to zero.
-	r := InnerRect(0, 0, 1, 1, style.AllSides())
+	r := InnerRect(0, 0, 1, 1, style.BorderAll())
 	if r.Width < 0 || r.Height < 0 {
 		t.Errorf("InnerRect should not have negative dimensions: %+v", r)
 	}
 }
 
 func TestInnerRect_SingleSide(t *testing.T) {
-	r := InnerRect(0, 0, 10, 8, style.BorderSidesConfig{Top: true})
+	r := InnerRect(0, 0, 10, 8, style.Border{Top: true})
 	if r.X != 0 || r.Y != 1 || r.Width != 10 || r.Height != 7 {
 		t.Errorf("InnerRect(Top only) = %+v, want {0 1 10 7}", r)
 	}

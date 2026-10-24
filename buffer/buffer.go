@@ -563,7 +563,7 @@ func (b *Buffer) FillRect(x, y, w, h int, bg style.Color) {
 // DrawBox draws a clipped box with optional border sides, background fill, and
 // title.
 func (b *Buffer) DrawBox(opts BoxDrawOptions) {
-	sides := opts.Border.SidesConfig()
+	sides := opts.Border
 	chars := style.CharsForStyle(opts.BorderStyle)
 
 	startX := max(0, opts.X)
@@ -1044,7 +1044,7 @@ func (b *Buffer) DrawBorder(opts BorderDrawOptions) {
 		return
 	}
 
-	sides := opts.Border.SidesConfig()
+	sides := opts.Border
 	chars := style.CharsForStyle(opts.Style)
 
 	// Fill the area enclosed by the enabled sides.
@@ -1183,7 +1183,7 @@ func (b *Buffer) drawBorderTextSimple(text string, x, y int, fg, bg style.Color)
 // InnerRect returns the content area inside the enabled border sides. Each
 // enabled side consumes one row or column, and the result never has negative
 // dimensions.
-func InnerRect(x, y, w, h int, sides style.BorderSidesConfig) Rect {
+func InnerRect(x, y, w, h int, sides style.Border) Rect {
 	ix, iy, iw, ih := x, y, w, h
 	if sides.Left {
 		ix++

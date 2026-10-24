@@ -74,8 +74,8 @@ const (
 	SideLeft
 )
 
-// BorderSidesConfig selects individual border sides.
-type BorderSidesConfig struct {
+// Border selects the sides of a box to draw. Its zero value draws none.
+type Border struct {
 	// Top selects the top side.
 	Top bool
 	// Right selects the right side.
@@ -86,27 +86,9 @@ type BorderSidesConfig struct {
 	Left bool
 }
 
-// AllSides returns a configuration with every side enabled.
-func AllSides() BorderSidesConfig {
-	return BorderSidesConfig{Top: true, Right: true, Bottom: true, Left: true}
-}
-
-// NoSides returns a configuration with every side disabled.
-func NoSides() BorderSidesConfig {
-	return BorderSidesConfig{}
-}
-
-// Border specifies which sides to draw.
-type Border struct {
-	// All reports whether every side is enabled.
-	All bool
-	// Sides are the enabled sides when All is false.
-	Sides []BorderSide
-}
-
 // BorderAll returns a Border with all sides enabled.
 func BorderAll() Border {
-	return Border{All: true}
+	return Border{Top: true, Right: true, Bottom: true, Left: true}
 }
 
 // BorderNoBorder returns a Border with no sides.
@@ -114,57 +96,22 @@ func BorderNoBorder() Border {
 	return Border{}
 }
 
-// BorderSides returns a Border containing the supplied sides.
+// BorderSides returns a Border with the supplied sides enabled.
 func BorderSides(sides ...BorderSide) Border {
-	return Border{Sides: sides}
-}
-
-// SidesConfig expands b into per-side flags.
-func (b Border) SidesConfig() BorderSidesConfig {
-	if b.All {
-		return AllSides()
-	}
-	if len(b.Sides) == 0 {
-		return NoSides()
-	}
-	config := BorderSidesConfig{}
-	for _, s := range b.Sides {
-		switch s {
+	var b Border
+	for _, side := range sides {
+		switch side {
 		case SideTop:
-			config.Top = true
+			b.Top = true
 		case SideRight:
-			config.Right = true
+			b.Right = true
 		case SideBottom:
-			config.Bottom = true
+			b.Bottom = true
 		case SideLeft:
-			config.Left = true
+			b.Left = true
 		}
 	}
-	return config
-}
-
-// Border compacts the per-side flags of config into a Border.
-func (config BorderSidesConfig) Border() Border {
-	if config.Top && config.Right && config.Bottom && config.Left {
-		return BorderAll()
-	}
-	var sides []BorderSide
-	if config.Top {
-		sides = append(sides, SideTop)
-	}
-	if config.Right {
-		sides = append(sides, SideRight)
-	}
-	if config.Bottom {
-		sides = append(sides, SideBottom)
-	}
-	if config.Left {
-		sides = append(sides, SideLeft)
-	}
-	if len(sides) == 0 {
-		return BorderNoBorder()
-	}
-	return BorderSides(sides...)
+	return b
 }
 
 // BorderCharacters is an alias for [symbol.BorderCharacters], the runes needed
