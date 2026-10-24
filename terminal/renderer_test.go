@@ -395,14 +395,14 @@ func TestRenderer_SetCursorPosition(t *testing.T) {
 func TestRenderer_SetCursorStyle(t *testing.T) {
 	r := newInputTestRenderer()
 
-	r.SetCursorStyle("underline")
+	r.SetCursorStyle(CursorUnderline)
 
 	r.mu.Lock()
 	cs := r.cursorStyle
 	r.mu.Unlock()
 
-	if cs != "underline" {
-		t.Errorf("expected cursor style 'underline', got %q", cs)
+	if cs != CursorUnderline {
+		t.Errorf("expected cursor style underline, got %v", cs)
 	}
 }
 
@@ -432,7 +432,7 @@ func TestRenderer_GetCursorState(t *testing.T) {
 	r := newInputTestRenderer()
 
 	r.SetCursorPosition(5, 10, true)
-	r.SetCursorStyle("block")
+	r.SetCursorStyle(CursorBlock)
 	r.SetCursorColor(style.ColorGreen)
 
 	state := r.CursorState()
@@ -443,8 +443,8 @@ func TestRenderer_GetCursorState(t *testing.T) {
 	if !state.Visible {
 		t.Error("expected visible=true")
 	}
-	if state.Style != "block" {
-		t.Errorf("expected style='block', got %q", state.Style)
+	if state.Style != CursorBlock {
+		t.Errorf("expected style block, got %v", state.Style)
 	}
 	if !state.Color.Equals(style.ColorGreen) {
 		t.Errorf("expected color green, got %v", state.Color)
@@ -474,7 +474,7 @@ func TestRenderer_SetCursorStyleOptions(t *testing.T) {
 	state := r.CursorState()
 
 	if state.Style != CursorLine {
-		t.Errorf("expected style='line', got %q", state.Style)
+		t.Errorf("expected style line, got %v", state.Style)
 	}
 	if !state.Blinking {
 		t.Error("expected blinking=true")
@@ -504,7 +504,7 @@ func TestRenderer_SetCursorStyleOptions_Partial(t *testing.T) {
 	r := newInputTestRenderer()
 
 	// Establish cursor state before a partial update.
-	r.SetCursorStyle("block")
+	r.SetCursorStyle(CursorBlock)
 	r.SetCursorPosition(1, 2, true)
 
 	// Update only the style field.
@@ -515,7 +515,7 @@ func TestRenderer_SetCursorStyleOptions_Partial(t *testing.T) {
 
 	state := r.CursorState()
 	if state.Style != CursorUnderline {
-		t.Errorf("expected style='underline', got %q", state.Style)
+		t.Errorf("expected style underline, got %v", state.Style)
 	}
 	// Unspecified position and visibility remain unchanged.
 	if state.X != 1 || state.Y != 2 {

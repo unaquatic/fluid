@@ -80,7 +80,7 @@ type Backend struct {
 	kittyFlags           uint
 	alternateScreen      bool
 
-	cursorStyle    string // One of "block", "line", or "underline".
+	cursorStyle    CursorStyle
 	cursorBlinking bool
 
 	mu sync.Mutex // Protects terminal output writes.
@@ -260,7 +260,7 @@ func (t *Backend) SetCursorPosition(x, y int, visible bool) {
 }
 
 // SetCursorStyle updates the cursor shape while preserving its blinking state.
-func (t *Backend) SetCursorStyle(cursorStyle string) {
+func (t *Backend) SetCursorStyle(cursorStyle CursorStyle) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -277,8 +277,8 @@ func (t *Backend) SetCursorBlinking(blinking bool) {
 	t.writeCursorShape()
 }
 
-// CursorStyle returns the current cursor style name.
-func (t *Backend) CursorStyle() string {
+// CursorStyle returns the current cursor shape.
+func (t *Backend) CursorStyle() CursorStyle {
 	return t.cursorStyle
 }
 
@@ -290,17 +290,12 @@ func (t *Backend) CursorBlinking() bool {
 // writeCursorShape writes the DECSCUSR sequence for the current shape and blink
 // state. The caller must hold t.mu.
 func (t *Backend) writeCursorShape() {
-	// DECSCUSR uses adjacent odd and even values for blinking and steady shapes.
+	// DECSCUSR uses adjacent odd and even values for blinking and steady
+	// shapes, 2 for a block, 4 for an underline, and 6 for a line, and 0 for
+	// the terminal's default.
 	var base int
-	switch t.cursorStyle {
-	case "block":
-		base = 2
-	case "underline":
-		base = 4
-	case "line", "bar":
-		base = 6
-	default:
-		base = 0
+	if t.cursorStyle >= CursorBlock && t.cursorStyle <= CursorLine {
+		base = 2 * int(t.cursorStyle)
 	}
 
 	if base != 0 && t.cursorBlinking {
@@ -327,7 +322,7 @@ func (t *Backend) ResetCursorColor() {
 }
 
 // SetMousePointer writes pointerStyle using OSC 22 without validating it.
-func (t *Backend) SetMousePointer(pointerStyle string) {
+func (t *Backend) SetMousePointer(pointerStyle MousePointerStyle) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 

@@ -820,7 +820,7 @@ func (r *Renderer) SetCursorPosition(x, y int, visible bool) {
 }
 
 // SetCursorStyle records and immediately writes the cursor shape.
-func (r *Renderer) SetCursorStyle(cursorStyle string) {
+func (r *Renderer) SetCursorStyle(cursorStyle CursorStyle) {
 	r.mu.Lock()
 	r.cursorStyle = cursorStyle
 	r.mu.Unlock()

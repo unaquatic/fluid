@@ -3,6 +3,7 @@ package terminal
 import (
 	"io"
 	"os"
+	"strconv"
 
 	"github.com/unaquatic/fluid/input"
 	"github.com/unaquatic/fluid/style"
@@ -54,20 +55,39 @@ const (
 	KittyFlagAlternateKeys = input.KittyFlagAlternateKeys
 )
 
-// CursorStyle identifies a terminal cursor shape.
-type CursorStyle = string
+// CursorStyle identifies a terminal cursor shape. The zero value,
+// CursorDefault, leaves the shape to the terminal.
+type CursorStyle int
 
 const (
+	// CursorDefault is the terminal's own cursor shape.
+	CursorDefault CursorStyle = iota
 	// CursorBlock is a rectangular cursor.
-	CursorBlock CursorStyle = "block"
-	// CursorLine is a thin vertical cursor.
-	CursorLine CursorStyle = "line"
+	CursorBlock
 	// CursorUnderline is a horizontal cursor below the cell content.
-	CursorUnderline CursorStyle = "underline"
+	CursorUnderline
+	// CursorLine is a thin vertical cursor.
+	CursorLine
 )
 
-// MousePointerStyle identifies a pointer shape for terminals supporting OSC 22.
-type MousePointerStyle = string
+// String returns s's name, such as "block".
+func (s CursorStyle) String() string {
+	switch s {
+	case CursorDefault:
+		return "default"
+	case CursorBlock:
+		return "block"
+	case CursorUnderline:
+		return "underline"
+	case CursorLine:
+		return "line"
+	}
+	return "CursorStyle(" + strconv.Itoa(int(s)) + ")"
+}
+
+// MousePointerStyle identifies a pointer shape for terminals supporting OSC
+// 22, which takes a CSS cursor name, such as "pointer".
+type MousePointerStyle string
 
 const (
 	// MousePointerDefault is the standard arrow pointer.
@@ -87,7 +107,7 @@ const (
 // CursorStyleOptions contains optional cursor and pointer changes. A nil field
 // preserves its current value.
 type CursorStyleOptions struct {
-	// Style overrides the cursor shape (block, line, or underline).
+	// Style overrides the cursor shape.
 	Style *CursorStyle
 	// Blinking overrides the cursor blink state.
 	Blinking *bool
