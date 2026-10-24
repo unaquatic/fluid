@@ -18,7 +18,7 @@ func newTestRenderer(w, h int) (*Renderer, *bytes.Buffer) {
 		currentBuffer: buffer.New(w, h),
 		nextBuffer:    buffer.New(w, h),
 		done:          make(chan struct{}),
-		linkRegistry:  NewLinkRegistry(),
+		linkRegistry:  newLinkRegistry(),
 	}
 	return r, &outBuf
 }
@@ -105,7 +105,7 @@ func TestDiffAndFlush_UnchangedCellsSkipped(t *testing.T) {
 	r.currentBuffer.SetCell(0, 0, 'A', style.ColorWhite, style.ColorBlack, 0)
 	r.nextBuffer.SetCell(0, 0, 'A', style.ColorWhite, style.ColorBlack, 0)
 
-	r.DiffAndFlush(r.currentBuffer, r.nextBuffer)
+	r.diffAndFlush(r.currentBuffer, r.nextBuffer)
 
 	output := outBuf.String()
 	// The unchanged glyph does not appear in the output.
@@ -120,7 +120,7 @@ func TestDiffAndFlush_ChangedCellsWritten(t *testing.T) {
 	// A changed cell produces terminal output.
 	r.nextBuffer.SetCell(0, 0, 'X', style.ColorWhite, style.ColorBlack, 0)
 
-	r.DiffAndFlush(r.currentBuffer, r.nextBuffer)
+	r.diffAndFlush(r.currentBuffer, r.nextBuffer)
 
 	output := outBuf.String()
 	if !strings.Contains(output, "X") {
@@ -134,7 +134,7 @@ func TestDiffAndFlush_CursorPositioning(t *testing.T) {
 	// Place one changed cell at zero-based (5,3).
 	r.nextBuffer.SetCell(5, 3, 'Z', style.ColorWhite, style.ColorBlack, 0)
 
-	r.DiffAndFlush(r.currentBuffer, r.nextBuffer)
+	r.diffAndFlush(r.currentBuffer, r.nextBuffer)
 
 	output := outBuf.String()
 	// CUP converts it to one-based row 4, column 6.
@@ -149,7 +149,7 @@ func TestDiffAndFlush_WideCharContinuationSkipped(t *testing.T) {
 	// Set one wide CJK character.
 	r.nextBuffer.SetCell(0, 0, '\u4e16', style.ColorWhite, style.ColorBlack, 0) // 世 occupies two cells.
 
-	r.DiffAndFlush(r.currentBuffer, r.nextBuffer)
+	r.diffAndFlush(r.currentBuffer, r.nextBuffer)
 
 	output := outBuf.String()
 	// The head emits the wide character once.
@@ -162,7 +162,7 @@ func TestDiffAndFlush_ResetAtEnd(t *testing.T) {
 	r, outBuf := newTestRenderer(5, 1)
 
 	r.nextBuffer.SetCell(0, 0, 'A', style.ColorWhite, style.ColorBlack, 0)
-	r.DiffAndFlush(r.currentBuffer, r.nextBuffer)
+	r.diffAndFlush(r.currentBuffer, r.nextBuffer)
 
 	output := outBuf.String()
 	if !strings.HasSuffix(output, "\x1b[0m") {
@@ -177,7 +177,7 @@ func TestDiffAndFlush_MultipleCellsDifferentPositions(t *testing.T) {
 	r.nextBuffer.SetCell(0, 0, 'A', style.ColorRed, style.ColorBlack, 0)
 	r.nextBuffer.SetCell(5, 3, 'B', style.ColorBlue, style.ColorBlack, 0)
 
-	r.DiffAndFlush(r.currentBuffer, r.nextBuffer)
+	r.diffAndFlush(r.currentBuffer, r.nextBuffer)
 
 	output := outBuf.String()
 	if !strings.Contains(output, "A") {
@@ -210,7 +210,7 @@ func TestFullFlush_WritesAllCells(t *testing.T) {
 }
 
 func TestRendererStats_Record(t *testing.T) {
-	s := NewStats(10)
+	s := newStats(10)
 	s.record(16 * time.Millisecond) // Approximately one 60-FPS frame.
 	s.record(16 * time.Millisecond)
 	s.record(16 * time.Millisecond)
@@ -227,7 +227,7 @@ func TestRendererStats_Record(t *testing.T) {
 }
 
 func TestRendererStats_MaxRenderTime(t *testing.T) {
-	s := NewStats(10)
+	s := newStats(10)
 	s.record(10 * time.Millisecond)
 	s.record(50 * time.Millisecond)
 	s.record(20 * time.Millisecond)
@@ -238,7 +238,7 @@ func TestRendererStats_MaxRenderTime(t *testing.T) {
 }
 
 func TestRendererStats_Reset(t *testing.T) {
-	s := NewStats(10)
+	s := newStats(10)
 	s.record(16 * time.Millisecond)
 	s.record(16 * time.Millisecond)
 	s.reset()
@@ -255,7 +255,7 @@ func TestRendererStats_Reset(t *testing.T) {
 }
 
 func TestRendererStats_SlidingWindow(t *testing.T) {
-	s := NewStats(3)
+	s := newStats(3)
 
 	s.record(10 * time.Millisecond)
 	s.record(20 * time.Millisecond)

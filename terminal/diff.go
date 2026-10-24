@@ -65,9 +65,9 @@ func anchorColumn(out *bytes.Buffer, x int) {
 	fmt.Fprintf(out, "\x1b[%dG", x+1)
 }
 
-// DiffAndFlush compares current and next and writes changed cells to the
+// diffAndFlush compares current and next and writes changed cells to the
 // terminal.
-func (r *Renderer) DiffAndFlush(current, next *buffer.Buffer) {
+func (r *Renderer) diffAndFlush(current, next *buffer.Buffer) {
 	width := next.Width()
 	height := next.Height()
 	var output bytes.Buffer
@@ -286,9 +286,9 @@ type Stats struct {
 	maxSamples    int
 }
 
-// NewStats returns empty statistics with a sliding window of maxSamples. A
+// newStats returns empty statistics with a sliding window of maxSamples. A
 // nonpositive capacity uses 60 samples.
-func NewStats(maxSamples int) Stats {
+func newStats(maxSamples int) Stats {
 	if maxSamples <= 0 {
 		maxSamples = 60
 	}

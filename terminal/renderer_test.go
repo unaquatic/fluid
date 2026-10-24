@@ -110,13 +110,13 @@ func TestNewRenderer_Properties(t *testing.T) {
 func TestNewRenderer_Buffers(t *testing.T) {
 	r := newInputTestRenderer()
 
-	if r.CurrentBuffer() == nil {
-		t.Fatal("expected non-nil CurrentBuffer")
+	if r.currentBuffer == nil {
+		t.Fatal("expected non-nil currentBuffer")
 	}
-	if r.NextBuffer() == nil {
-		t.Fatal("expected non-nil NextBuffer")
+	if r.nextBuffer == nil {
+		t.Fatal("expected non-nil nextBuffer")
 	}
-	if r.CurrentBuffer().Width() != 40 || r.CurrentBuffer().Height() != 20 {
+	if r.currentBuffer.Width() != 40 || r.currentBuffer.Height() != 20 {
 		t.Error("expected buffer dimensions to match terminal size")
 	}
 }
@@ -286,8 +286,8 @@ func TestRenderer_RenderFrame(t *testing.T) {
 		stopChan:      make(chan struct{}, 1),
 		done:          make(chan struct{}),
 		sel:           render.NewSelection(),
-		linkRegistry:  NewLinkRegistry(),
-		stats:         NewStats(60),
+		linkRegistry:  newLinkRegistry(),
+		stats:         newStats(60),
 		lastFrameTime: time.Now(),
 	}
 

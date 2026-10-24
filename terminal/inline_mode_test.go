@@ -78,7 +78,7 @@ func TestSetInlineMode_BeforeSetupWritesNothing(t *testing.T) {
 // output on the normal screen, so a return can compare against it.
 func TestSetInlineMode_KeepsTrackedTerminalState(t *testing.T) {
 	r, _ := startedTestRenderer()
-	r.InlineFlush(rowsBuffer(10, strings.Repeat("A", testTermHeight+5), 5))
+	r.inlineFlush(rowsBuffer(10, strings.Repeat("A", testTermHeight+5), 5))
 	if r.inlineViewportTop == 0 {
 		t.Fatal("expected the tall frame to advance the viewport")
 	}
@@ -103,7 +103,7 @@ func TestSetInlineMode_KeepsTrackedTerminalState(t *testing.T) {
 // to the screen.
 func TestSetInlineMode_BeforeSetupDiscardsTrackedTerminalState(t *testing.T) {
 	r, _ := newInlineTestRenderer()
-	r.InlineFlush(rowsBuffer(10, strings.Repeat("A", testTermHeight+5), 5))
+	r.inlineFlush(rowsBuffer(10, strings.Repeat("A", testTermHeight+5), 5))
 
 	r.SetInlineMode(false)
 

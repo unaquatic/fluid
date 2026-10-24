@@ -120,16 +120,16 @@ func TestRootRenderable_ScissorForOverflowHidden(t *testing.T) {
 	)
 	root.Add(container)
 
-	commands := root.UpdateLayout()
+	commands := root.updateLayout()
 
 	// A clipping container surrounds its child commands with scissor operations.
 	hasPush := false
 	hasPop := false
 	for _, cmd := range commands {
-		if cmd.Action == DrawPushScissor {
+		if cmd.Action == drawPushScissor {
 			hasPush = true
 		}
-		if cmd.Action == DrawPopScissor {
+		if cmd.Action == drawPopScissor {
 			hasPop = true
 		}
 	}
@@ -153,11 +153,11 @@ func TestRootRenderable_ChildrenOrder(t *testing.T) {
 	root.Add(c)
 
 	root.CalculateLayout()
-	commands := root.UpdateLayout()
+	commands := root.updateLayout()
 
 	var renderOrder []string
 	for _, cmd := range commands {
-		if cmd.Action == DrawRender && cmd.Target != nil {
+		if cmd.Action == drawRender && cmd.Target != nil {
 			id := cmd.Target.ID()
 			if id == "a" || id == "b" || id == "c" {
 				renderOrder = append(renderOrder, id)
@@ -181,10 +181,10 @@ func TestRootRenderable_InvisibleChildSkipped(t *testing.T) {
 	root.Add(child)
 
 	root.CalculateLayout()
-	commands := root.UpdateLayout()
+	commands := root.updateLayout()
 
 	for _, cmd := range commands {
-		if cmd.Action == DrawRender && cmd.Target != nil && cmd.Target.ID() == "hidden" {
+		if cmd.Action == drawRender && cmd.Target != nil && cmd.Target.ID() == "hidden" {
 			t.Error("expected invisible child to be skipped in render commands")
 		}
 	}

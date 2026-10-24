@@ -50,8 +50,8 @@ func setupRenderer(w, h int) (*Renderer, *bytes.Buffer) {
 		stopChan:      make(chan struct{}, 1),
 		done:          make(chan struct{}),
 		sel:           render.NewSelection(),
-		linkRegistry:  NewLinkRegistry(),
-		stats:         NewStats(60),
+		linkRegistry:  newLinkRegistry(),
+		stats:         newStats(60),
 		lastFrameTime: time.Now(),
 	}
 
@@ -490,7 +490,7 @@ func TestPipeline_MouseDispatchViaAutoHitGrid(t *testing.T) {
 }
 
 // TestPipeline_RenderFrameProducesCorrectBuffer verifies that renderFrame copies
-// rendered output into CurrentBuffer.
+// rendered output into currentBuffer.
 func TestPipeline_RenderFrameProducesCorrectBuffer(t *testing.T) {
 	r, _ := setupRenderer(10, 3)
 	r.config.BackgroundColor = style.ColorBlack
@@ -513,7 +513,7 @@ func TestPipeline_RenderFrameProducesCorrectBuffer(t *testing.T) {
 	r.renderFrame()
 
 	// renderFrame copies the completed next buffer into currentBuffer.
-	buf := r.CurrentBuffer()
+	buf := r.currentBuffer
 	cell := buf.Cell(0, 0)
 	if cell.Char != 'H' {
 		t.Errorf("expected 'H' at (0,0), got %q", cell.Char)
@@ -555,7 +555,7 @@ func TestPipeline_EventStateChangeRerender(t *testing.T) {
 
 	// The first frame contains the initial label.
 	r.renderFrame()
-	buf1 := r.CurrentBuffer()
+	buf1 := r.currentBuffer
 	if cell := buf1.Cell(0, 0); cell.Char != 'b' {
 		t.Errorf("frame 1: expected 'b' at (0,0), got %q", cell.Char)
 	}
@@ -568,7 +568,7 @@ func TestPipeline_EventStateChangeRerender(t *testing.T) {
 
 	// The second frame contains the updated label.
 	r.renderFrame()
-	buf2 := r.CurrentBuffer()
+	buf2 := r.currentBuffer
 	if cell := buf2.Cell(0, 0); cell.Char != 'a' {
 		t.Errorf("frame 2: expected 'a' at (0,0), got %q", cell.Char)
 	}
@@ -685,7 +685,7 @@ func TestPipeline_MultipleFramesNoArtifacts(t *testing.T) {
 
 	// Render the initial longer content.
 	r.renderFrame()
-	buf1 := r.CurrentBuffer()
+	buf1 := r.currentBuffer
 	if cell := buf1.Cell(0, 0); cell.Char != 'f' {
 		t.Errorf("frame 1: expected 'f', got %q", cell.Char)
 	}
@@ -693,7 +693,7 @@ func TestPipeline_MultipleFramesNoArtifacts(t *testing.T) {
 	// Replace it with shorter content for the next frame.
 	content = "XY"
 	r.renderFrame()
-	buf2 := r.CurrentBuffer()
+	buf2 := r.currentBuffer
 
 	if cell := buf2.Cell(0, 0); cell.Char != 'X' {
 		t.Errorf("frame 2: expected 'X' at (0,0), got %q", cell.Char)

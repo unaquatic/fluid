@@ -55,7 +55,7 @@ func (r *RootRenderable) UnregisterLifecyclePass(num uint64) {
 //  4. Build and execute render and clipping commands.
 func (r *RootRenderable) Render(buf *buffer.Buffer, deltaTime time.Duration) {
 	prepStats := r.PrepareLayout(deltaTime)
-	execStats := r.ExecuteRender(buf, deltaTime)
+	execStats := r.executeRender(buf, deltaTime)
 
 	r.LastFrameStats = FrameStats{
 		Lifecycle: prepStats.Lifecycle,
@@ -183,9 +183,9 @@ func stacksFromStart(n *layout.Node) bool {
 		!n.FlexDirection.IsReverse()
 }
 
-// ExecuteRender synchronizes positions from prepared layout, builds commands,
+// executeRender synchronizes positions from prepared layout, builds commands,
 // and executes them into buf. Call it after PrepareLayout.
-func (r *RootRenderable) ExecuteRender(buf *buffer.Buffer, deltaTime time.Duration) FrameStats {
+func (r *RootRenderable) executeRender(buf *buffer.Buffer, deltaTime time.Duration) FrameStats {
 	sync := r.SyncPositions(deltaTime)
 	stats := r.Draw(buf, deltaTime, buffer.Rect{})
 	stats.Sync = sync.Sync
@@ -211,7 +211,7 @@ func (r *RootRenderable) Draw(buf *buffer.Buffer, deltaTime time.Duration, damag
 
 	// Build the ordered command stream for the damaged region.
 	t0 := time.Now()
-	var commands []DrawCommand
+	var commands []drawCommand
 	r.collectRenderCommandsWithScissor(r.BaseRenderable, &commands, nil, damaged)
 	t1 := time.Now()
 
@@ -228,14 +228,14 @@ func (r *RootRenderable) Draw(buf *buffer.Buffer, deltaTime time.Duration, damag
 	t2 := time.Now()
 	for _, cmd := range commands {
 		switch cmd.Action {
-		case DrawRender:
+		case drawRender:
 			if cmd.Target != nil && !cmd.Target.IsDestroyed() {
 				cmd.Target.Render(buf, deltaTime)
 			}
-		case DrawPushScissor:
+		case drawPushScissor:
 			buf.PushScissorRect(cmd.X, cmd.Y, cmd.Width, cmd.Height)
 			r.Host().PushHitGridScissorRect(cmd.ScreenX, cmd.ScreenY, cmd.Width, cmd.Height)
-		case DrawPopScissor:
+		case drawPopScissor:
 			buf.PopScissorRect()
 			r.Host().PopHitGridScissorRect()
 		}
@@ -319,12 +319,12 @@ func (r *RootRenderable) CalculateLayout() {
 	r.LayoutNode().ComputeLayout(r.Width(), r.Height())
 }
 
-// UpdateLayout synchronizes positions, runs post-layout hooks with zero delta,
+// updateLayout synchronizes positions, runs post-layout hooks with zero delta,
 // and returns render commands without executing them.
-func (r *RootRenderable) UpdateLayout() []DrawCommand {
+func (r *RootRenderable) updateLayout() []drawCommand {
 	nodeCount := 0
 	r.syncPositionsRecursive(r.BaseRenderable, 0, 0, 0, &nodeCount)
-	var commands []DrawCommand
+	var commands []drawCommand
 	r.collectRenderCommands(r.BaseRenderable, &commands)
 	return commands
 }
@@ -358,7 +358,7 @@ func excludes(clip *buffer.Rect, rect buffer.Rect) bool {
 // collectRenderCommands builds a depth-first command stream from synchronized
 // widget positions. Nodes outside an active clipping region are omitted with
 // their subtrees.
-func (r *RootRenderable) collectRenderCommands(node render.Renderable, commands *[]DrawCommand) {
+func (r *RootRenderable) collectRenderCommands(node render.Renderable, commands *[]drawCommand) {
 	r.collectRenderCommandsWithScissor(node, commands, nil, nil)
 }
 
@@ -370,7 +370,7 @@ func (r *RootRenderable) collectRenderCommands(node render.Renderable, commands 
 //
 // damage is fixed for the frame. A subtree paints inside its root, so a node
 // outside the damage encloses nothing inside it and is culled whole too.
-func (r *RootRenderable) collectRenderCommandsWithScissor(node render.Renderable, commands *[]DrawCommand, scissor, damage *buffer.Rect) {
+func (r *RootRenderable) collectRenderCommandsWithScissor(node render.Renderable, commands *[]drawCommand, scissor, damage *buffer.Rect) {
 	if node.IsDestroyed() || !node.Visible() {
 		return
 	}
@@ -390,8 +390,8 @@ func (r *RootRenderable) collectRenderCommandsWithScissor(node render.Renderable
 
 	// Render the container before clipping its descendants so its border remains
 	// visible.
-	*commands = append(*commands, DrawCommand{
-		Action: DrawRender,
+	*commands = append(*commands, drawCommand{
+		Action: drawRender,
 		Target: node,
 	})
 
@@ -422,8 +422,8 @@ func (r *RootRenderable) collectRenderCommandsWithScissor(node render.Renderable
 			sh = 0
 		}
 
-		*commands = append(*commands, DrawCommand{
-			Action:  DrawPushScissor,
+		*commands = append(*commands, drawCommand{
+			Action:  drawPushScissor,
 			X:       sx,
 			Y:       sy,
 			Width:   sw,
@@ -444,15 +444,15 @@ func (r *RootRenderable) collectRenderCommandsWithScissor(node render.Renderable
 	r.collectChildCommands(node, commands, childScissor, damage)
 
 	if needsScissor {
-		*commands = append(*commands, DrawCommand{
-			Action: DrawPopScissor,
+		*commands = append(*commands, drawCommand{
+			Action: drawPopScissor,
 		})
 	}
 }
 
 // collectChildCommands appends child command streams. In a scroll container,
 // sticky children follow non-sticky siblings so they paint on top.
-func (r *RootRenderable) collectChildCommands(node render.Renderable, commands *[]DrawCommand, scissor, damage *buffer.Rect) {
+func (r *RootRenderable) collectChildCommands(node render.Renderable, commands *[]drawCommand, scissor, damage *buffer.Rect) {
 	children := node.ChildrenRaw()
 	if node.LayoutNode().Overflow != layout.OverflowScroll {
 		for _, child := range children {

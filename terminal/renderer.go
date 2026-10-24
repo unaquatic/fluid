@@ -155,10 +155,10 @@ func NewRenderer(cfg Config) (*Renderer, error) {
 		stopChan:      make(chan struct{}, 1),
 		done:          make(chan struct{}),
 		invalidated:   true,
-		stats:         NewStats(60),
+		stats:         newStats(60),
 		lastFrameTime: time.Now(),
 		sel:           render.NewSelection(),
-		linkRegistry:  NewLinkRegistry(),
+		linkRegistry:  newLinkRegistry(),
 	}
 
 	// Failure to open an optional debug log does not prevent renderer creation.
@@ -218,12 +218,6 @@ func (r *Renderer) ControlState() ControlState {
 	defer r.mu.Unlock()
 	return r.controlState
 }
-
-// CurrentBuffer returns the fullscreen buffer representing terminal state.
-func (r *Renderer) CurrentBuffer() *buffer.Buffer { return r.currentBuffer }
-
-// NextBuffer returns the frame buffer used for the next draw.
-func (r *Renderer) NextBuffer() *buffer.Buffer { return r.nextBuffer }
 
 // EventBus returns the renderer's terminal event bus.
 func (r *Renderer) EventBus() *input.EventBus { return r.eventBus }
@@ -715,7 +709,7 @@ func (r *Renderer) renderFrame() {
 		r.FullFlush(r.nextBuffer)
 		r.invalidated = false
 	} else {
-		r.DiffAndFlush(r.currentBuffer, r.nextBuffer)
+		r.diffAndFlush(r.currentBuffer, r.nextBuffer)
 	}
 
 	// Record flush and total frame durations.

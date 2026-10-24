@@ -9,14 +9,14 @@ import (
 )
 
 func TestLinkRegistry_New(t *testing.T) {
-	lr := NewLinkRegistry()
+	lr := newLinkRegistry()
 	if lr.Count() != 0 {
 		t.Errorf("expected 0 links initially, got %d", lr.Count())
 	}
 }
 
 func TestLinkRegistry_Alloc(t *testing.T) {
-	lr := NewLinkRegistry()
+	lr := newLinkRegistry()
 
 	id := lr.Alloc("https://example.com")
 	if id != 1 {
@@ -28,7 +28,7 @@ func TestLinkRegistry_Alloc(t *testing.T) {
 }
 
 func TestLinkRegistry_AllocMultiple(t *testing.T) {
-	lr := NewLinkRegistry()
+	lr := newLinkRegistry()
 
 	id1 := lr.Alloc("https://example.com")
 	id2 := lr.Alloc("https://other.com")
@@ -43,7 +43,7 @@ func TestLinkRegistry_AllocMultiple(t *testing.T) {
 }
 
 func TestLinkRegistry_Dedup(t *testing.T) {
-	lr := NewLinkRegistry()
+	lr := newLinkRegistry()
 
 	id1 := lr.Alloc("https://example.com")
 	id2 := lr.Alloc("https://example.com")
@@ -57,7 +57,7 @@ func TestLinkRegistry_Dedup(t *testing.T) {
 }
 
 func TestLinkRegistry_GetURL(t *testing.T) {
-	lr := NewLinkRegistry()
+	lr := newLinkRegistry()
 
 	lr.Alloc("https://example.com")
 	lr.Alloc("https://other.com")
@@ -74,7 +74,7 @@ func TestLinkRegistry_GetURL(t *testing.T) {
 }
 
 func TestLinkRegistry_GetURL_Invalid(t *testing.T) {
-	lr := NewLinkRegistry()
+	lr := newLinkRegistry()
 
 	// ID zero represents no link.
 	if lr.URL(0) != "" {
@@ -87,7 +87,7 @@ func TestLinkRegistry_GetURL_Invalid(t *testing.T) {
 }
 
 func TestLinkRegistry_IntegrationWithAttributes(t *testing.T) {
-	lr := NewLinkRegistry()
+	lr := newLinkRegistry()
 
 	linkID := lr.Alloc("https://example.com")
 	attrs := (style.AttrBold | style.AttrUnderline).WithLink(linkID)
@@ -110,7 +110,7 @@ func TestLinkRegistry_IntegrationWithAttributes(t *testing.T) {
 }
 
 func TestLinkRegistry_ConcurrentAlloc(t *testing.T) {
-	lr := NewLinkRegistry()
+	lr := newLinkRegistry()
 
 	var wg sync.WaitGroup
 	const n = 100
@@ -144,7 +144,7 @@ func TestLinkRegistry_ConcurrentAlloc(t *testing.T) {
 }
 
 func TestLinkRegistry_ConcurrentDedupAlloc(t *testing.T) {
-	lr := NewLinkRegistry()
+	lr := newLinkRegistry()
 
 	var wg sync.WaitGroup
 	const n = 50

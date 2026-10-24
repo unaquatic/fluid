@@ -112,7 +112,7 @@ func (r *Renderer) renderInlineFrame() {
 
 	tFlush0 := time.Now()
 	if !r.inlineFrameUnchanged() {
-		r.InlineFlush(r.nextBuffer)
+		r.inlineFlush(r.nextBuffer)
 	}
 	flushDur := time.Since(tFlush0)
 	r.root.LastFrameStats.Flush = flushDur
@@ -198,7 +198,7 @@ func (r *Renderer) drawInlineCursor(buf *buffer.Buffer) {
 	r.inlineCursorCell = buffer.Rect{X: x, Y: y, Width: 1, Height: 1}
 }
 
-// InlineFlush updates inline output to match buf.
+// inlineFlush updates inline output to match buf.
 //
 // Rows above the viewport have scrolled into the terminal's scrollback, where
 // they cannot be addressed and are never rewritten. Content reaching past the
@@ -208,7 +208,7 @@ func (r *Renderer) drawInlineCursor(buf *buffer.Buffer) {
 // A first frame writes every row. A width change, a height change, or a change
 // to a row already in the scrollback clears the screen and rewrites every row.
 // Every other frame writes only the rows that differ.
-func (r *Renderer) InlineFlush(buf *buffer.Buffer) {
+func (r *Renderer) inlineFlush(buf *buffer.Buffer) {
 	termHeight := r.inlineTermRows(buf.Height())
 	prev := r.inlineCurrentBuf
 

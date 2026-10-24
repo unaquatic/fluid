@@ -30,12 +30,12 @@ func checkWideClusterFlush(t *testing.T, mode string, width int) {
 	case "full":
 		r.FullFlush(b)
 	case "diff":
-		r.DiffAndFlush(buffer.New(b.Width(), 1), b)
+		r.diffAndFlush(buffer.New(b.Width(), 1), b)
 	case "inline full":
-		r.InlineFlush(b)
+		r.inlineFlush(b)
 	case "inline diff":
-		r.InlineFlush(buffer.New(b.Width(), 1))
-		r.InlineFlush(b)
+		r.inlineFlush(buffer.New(b.Width(), 1))
+		r.inlineFlush(b)
 	}
 	term := newDisagreeingTerm(b.Width()+1, 3, textbuf.RuneWidth)
 	term.feed(out.String())

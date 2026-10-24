@@ -37,8 +37,8 @@ func benchInlineRenderer(width, height int) *Renderer {
 		stopChan:      make(chan struct{}, 1),
 		done:          make(chan struct{}),
 		sel:           render.NewSelection(),
-		linkRegistry:  NewLinkRegistry(),
-		stats:         NewStats(60),
+		linkRegistry:  newLinkRegistry(),
+		stats:         newStats(60),
 	}
 	root.SetHost(r)
 	return r

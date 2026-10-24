@@ -10,8 +10,8 @@ type LinkRegistry struct {
 	dedup map[string]uint32 // URL to existing link ID.
 }
 
-// NewLinkRegistry returns an empty link registry.
-func NewLinkRegistry() *LinkRegistry {
+// newLinkRegistry returns an empty link registry.
+func newLinkRegistry() *LinkRegistry {
 	return &LinkRegistry{
 		urls:  []string{""}, // Reserve ID zero.
 		dedup: make(map[string]uint32),
