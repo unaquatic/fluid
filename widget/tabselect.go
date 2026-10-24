@@ -188,7 +188,7 @@ func (ts *TabSelect) HandleKeyPress(e *input.KeyEvent) bool {
 	handled := true
 
 	switch {
-	case e.Matches(input.KeyLeft) || e.Matches("h"):
+	case e.Matches(input.KeyLeft, 0) || e.Matches("h", 0):
 		if ts.selectedIndex > 0 {
 			ts.selectedIndex--
 			if ts.OnSelectionChanged != nil {
@@ -197,7 +197,7 @@ func (ts *TabSelect) HandleKeyPress(e *input.KeyEvent) bool {
 			ts.RequestRender()
 		}
 
-	case e.Matches(input.KeyRight) || e.Matches("l"):
+	case e.Matches(input.KeyRight, 0) || e.Matches("l", 0):
 		if ts.selectedIndex < len(ts.items)-1 {
 			ts.selectedIndex++
 			if ts.OnSelectionChanged != nil {
@@ -206,15 +206,15 @@ func (ts *TabSelect) HandleKeyPress(e *input.KeyEvent) bool {
 			ts.RequestRender()
 		}
 
-	case e.Matches(input.KeyReturn) || e.Matches(input.KeySpace):
+	case e.Matches(input.KeyReturn, 0) || e.Matches(input.KeySpace, 0):
 		if ts.OnItemSelected != nil {
 			ts.OnItemSelected(ts.selectedIndex)
 		}
 
-	case e.Matches(input.KeyHome):
+	case e.Matches(input.KeyHome, 0):
 		ts.SetSelectedIndex(0)
 
-	case e.Matches(input.KeyEnd):
+	case e.Matches(input.KeyEnd, 0):
 		ts.SetSelectedIndex(len(ts.items) - 1)
 
 	default:

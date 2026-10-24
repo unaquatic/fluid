@@ -220,7 +220,7 @@ func (p *Parser) parseOne(buf []byte) (TerminalEvent, int) {
 				Type: EventKeyboard,
 				Key: &KeyEvent{
 					Name:   name,
-					Ctrl:   true,
+					Mods:   ModCtrl,
 					Type:   KeyPress,
 					Raw:    string(buf[:1]),
 					Source: KeySourceRaw,
@@ -297,16 +297,16 @@ func (p *Parser) parseEsc(buf []byte) (TerminalEvent, int) {
 		// Parse the following key recursively, then add the Alt modifier.
 		ev, consumed := p.parseOne(buf[1:])
 		if consumed > 0 && ev.Type == EventKeyboard && ev.Key != nil {
-			ev.Key.Alt = true
+			ev.Key.Mods |= ModAlt
 			ev.Key.Raw = string(buf[:1+consumed])
 
 			// Some terminals use ESC b/f for Option+Arrow but double ESC for
 			// Shift+Option+Arrow. In that mode, infer Shift for an otherwise
 			// unmodified navigation sequence nested inside ESC.
 			if p.altSendsEscPrefix && buf[1] == 0x1b &&
-				!ev.Key.Shift && !ev.Key.Ctrl && !ev.Key.Meta {
+				ev.Key.Mods&(ModShift|ModCtrl|ModMeta) == 0 {
 				if isNavigationKey(ev.Key.Name) {
-					ev.Key.Shift = true
+					ev.Key.Mods |= ModShift
 				}
 			}
 
@@ -413,7 +413,7 @@ func parseCSIKey(raw []byte, paramStr string, finalByte byte) (TerminalEvent, in
 	if len(parts) == 2 {
 		mod, err := strconv.Atoi(parts[1])
 		if err == nil {
-			shift, alt, ctrl, meta := decodeXtermModifiers(mod)
+			mods := decodeXtermModifiers(mod)
 
 			// CSI 1;modifier X encodes modified arrows and function keys.
 			if parts[0] == "1" || parts[0] == "" {
@@ -422,10 +422,7 @@ func parseCSIKey(raw []byte, paramStr string, finalByte byte) (TerminalEvent, in
 						Type: EventKeyboard,
 						Key: &KeyEvent{
 							Name:   name,
-							Ctrl:   ctrl,
-							Shift:  shift,
-							Alt:    alt,
-							Meta:   meta,
+							Mods:   mods,
 							Type:   KeyPress,
 							Raw:    string(raw),
 							Source: KeySourceRaw,
@@ -442,10 +439,7 @@ func parseCSIKey(raw []byte, paramStr string, finalByte byte) (TerminalEvent, in
 						Type: EventKeyboard,
 						Key: &KeyEvent{
 							Name:   name,
-							Ctrl:   ctrl,
-							Shift:  shift,
-							Alt:    alt,
-							Meta:   meta,
+							Mods:   mods,
 							Type:   KeyPress,
 							Raw:    string(raw),
 							Source: KeySourceRaw,
@@ -462,16 +456,25 @@ func parseCSIKey(raw []byte, paramStr string, finalByte byte) (TerminalEvent, in
 
 // decodeXtermModifiers decodes an xterm modifier parameter. Its value is one
 // plus a bitmask containing Shift, Alt, Control, and Meta in ascending bits.
-func decodeXtermModifiers(mod int) (shift, alt, ctrl, meta bool) {
+func decodeXtermModifiers(mod int) Mods {
 	mod-- // Remove xterm's one-based offset.
 	if mod < 0 {
-		return
+		return 0
 	}
-	shift = mod&1 != 0
-	alt = mod&2 != 0
-	ctrl = mod&4 != 0
-	meta = mod&8 != 0
-	return
+	var mods Mods
+	if mod&1 != 0 {
+		mods |= ModShift
+	}
+	if mod&2 != 0 {
+		mods |= ModAlt
+	}
+	if mod&4 != 0 {
+		mods |= ModCtrl
+	}
+	if mod&8 != 0 {
+		mods |= ModMeta
+	}
+	return mods
 }
 
 // parseSS3 parses a three-byte SS3 key sequence beginning with ESC O.
@@ -556,10 +559,15 @@ func parseMouseComplete(raw []byte) (TerminalEvent, int) {
 	cy--
 
 	// Modifier flags occupy bits 2 through 4 of the button mask.
-	mods := MouseModifiers{
-		Shift: cb&4 != 0,
-		Alt:   cb&8 != 0,
-		Ctrl:  cb&16 != 0,
+	var mods Mods
+	if cb&4 != 0 {
+		mods |= ModShift
+	}
+	if cb&8 != 0 {
+		mods |= ModAlt
+	}
+	if cb&16 != 0 {
+		mods |= ModCtrl
 	}
 
 	isMotion := cb&32 != 0
@@ -569,9 +577,9 @@ func parseMouseComplete(raw []byte) (TerminalEvent, int) {
 	btnBits := cb & 3
 
 	me := &MouseEvent{
-		X:         cx,
-		Y:         cy,
-		Modifiers: mods,
+		X:    cx,
+		Y:    cy,
+		Mods: mods,
 	}
 
 	if isWheel {
@@ -645,14 +653,14 @@ func parseKittyKey(raw []byte, paramStr string) (TerminalEvent, int) {
 		return TerminalEvent{Type: EventType(-1)}, consumed
 	}
 
-	var shift, alt, ctrl, meta bool
+	var mods Mods
 	var eventType KeyEventType = KeyPress
 
 	if len(parts) >= 2 {
 		modParts := strings.Split(parts[1], ":")
 		mod, err := strconv.Atoi(modParts[0])
 		if err == nil {
-			shift, alt, ctrl, meta = decodeXtermModifiers(mod)
+			mods = decodeXtermModifiers(mod)
 		}
 		if len(modParts) >= 2 {
 			et, err := strconv.Atoi(modParts[1])
@@ -692,10 +700,7 @@ func parseKittyKey(raw []byte, paramStr string) (TerminalEvent, int) {
 		Key: &KeyEvent{
 			Name:   name,
 			Text:   text,
-			Ctrl:   ctrl,
-			Shift:  shift,
-			Alt:    alt,
-			Meta:   meta,
+			Mods:   mods,
 			Type:   eventType,
 			Code:   strconv.Itoa(codepoint),
 			Raw:    string(raw),

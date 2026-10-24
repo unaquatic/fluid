@@ -29,15 +29,53 @@ func (t KeyEventType) String() string {
 	}
 }
 
-// Modifier identifies a keyboard modifier.
-type Modifier int
+// Mods is a set of modifier keys held during an input event. Combine them
+// with |, as in ModCtrl|ModShift.
+type Mods uint8
 
 const (
-	ModCtrl Modifier = iota
+	// ModCtrl is Control.
+	ModCtrl Mods = 1 << iota
+	// ModShift is Shift.
 	ModShift
+	// ModAlt is Alt or Option.
 	ModAlt
+	// ModMeta is a distinct Meta, Super, or Command key.
 	ModMeta
 )
+
+// Has reports whether m includes every key in mod.
+func (m Mods) Has(mod Mods) bool {
+	return m&mod == mod
+}
+
+// String returns the keys of m in canonical order, joined by "+", such as
+// "ctrl+alt+meta+shift", or "" when m is empty.
+func (m Mods) String() string {
+	var parts []string
+	if m.Has(ModCtrl) {
+		parts = append(parts, "ctrl")
+	}
+	if m.Has(ModAlt) {
+		parts = append(parts, "alt")
+	}
+	if m.Has(ModMeta) {
+		parts = append(parts, "meta")
+	}
+	if m.Has(ModShift) {
+		parts = append(parts, "shift")
+	}
+	return strings.Join(parts, "+")
+}
+
+// comboString returns name with the modifiers mods before it in canonical
+// order, such as "ctrl+shift+a".
+func comboString(name string, mods Mods) string {
+	if mods == 0 {
+		return name
+	}
+	return mods.String() + "+" + name
+}
 
 const (
 	KeyReturn    = "return"
@@ -97,14 +135,8 @@ type KeyEvent struct {
 	Name string
 	// Text is the printable input text, or empty for a non-printable key.
 	Text string
-	// Ctrl reports whether Control was held.
-	Ctrl bool
-	// Shift reports whether Shift was held.
-	Shift bool
-	// Alt reports whether Alt was held.
-	Alt bool
-	// Meta reports whether a distinct Meta, Super, or Command key was held.
-	Meta bool
+	// Mods are the modifier keys held.
+	Mods Mods
 	// Raw is the original terminal input sequence.
 	Raw string
 	// Type is the key's press, release, or repeat state.
@@ -133,48 +165,12 @@ func (e *KeyEvent) DefaultPrevented() bool { return e.defaultPrevented }
 // String returns the key combination in canonical modifier order, such as
 // "ctrl+shift+a".
 func (e *KeyEvent) String() string {
-	var parts []string
-	if e.Ctrl {
-		parts = append(parts, "ctrl")
-	}
-	if e.Alt {
-		parts = append(parts, "alt")
-	}
-	if e.Meta {
-		parts = append(parts, "meta")
-	}
-	if e.Shift {
-		parts = append(parts, "shift")
-	}
-	parts = append(parts, e.Name)
-	return strings.Join(parts, "+")
+	return comboString(e.Name, e.Mods)
 }
 
-// Matches reports whether the event has name and exactly the supplied
-// modifiers.
-func (e *KeyEvent) Matches(name string, modifiers ...Modifier) bool {
-	if e.Name != name {
-		return false
-	}
-
-	wantCtrl, wantShift, wantAlt, wantMeta := false, false, false, false
-	for _, m := range modifiers {
-		switch m {
-		case ModCtrl:
-			wantCtrl = true
-		case ModShift:
-			wantShift = true
-		case ModAlt:
-			wantAlt = true
-		case ModMeta:
-			wantMeta = true
-		}
-	}
-
-	return e.Ctrl == wantCtrl &&
-		e.Shift == wantShift &&
-		e.Alt == wantAlt &&
-		e.Meta == wantMeta
+// Matches reports whether the event has name and exactly the modifiers mods.
+func (e *KeyEvent) Matches(name string, mods Mods) bool {
+	return e.Name == name && e.Mods == mods
 }
 
 // IsRune reports whether the event represents printable text without Control,
@@ -183,7 +179,7 @@ func (e *KeyEvent) Matches(name string, modifiers ...Modifier) bool {
 // A non-empty Text field identifies printable input. For events constructed
 // without Text, IsRune falls back to a Name containing exactly one rune.
 func (e *KeyEvent) IsRune() bool {
-	if e.Ctrl || e.Alt || e.Meta {
+	if e.Mods&(ModCtrl|ModAlt|ModMeta) != 0 {
 		return false
 	}
 	if len(e.Text) > 0 {

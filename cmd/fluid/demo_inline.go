@@ -80,7 +80,7 @@ func runInlineDemo(ctx context.Context, o DemoOptions) error {
 			return
 		}
 		switch {
-		case e.Key.Name == "escape" || (e.Key.Name == "q" && !e.Key.Ctrl && !e.Key.Alt):
+		case e.Key.Name == "escape" || (e.Key.Name == "q" && !e.Key.Mods.Has(input.ModCtrl) && !e.Key.Mods.Has(input.ModAlt)):
 			r.Destroy()
 		case e.Key.Name == "a":
 			addLine()

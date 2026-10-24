@@ -128,7 +128,7 @@ func (l *List) HandleKeyPress(e *input.KeyEvent) bool {
 
 	handled := true
 	switch {
-	case e.Matches(input.KeyUp) || e.Matches("k"):
+	case e.Matches(input.KeyUp, 0) || e.Matches("k", 0):
 		if l.selectedIndex > 0 {
 			l.selectedIndex--
 		} else if l.wrapSelection {
@@ -137,7 +137,7 @@ func (l *List) HandleKeyPress(e *input.KeyEvent) bool {
 		l.ensureVisible()
 		l.RequestRender()
 
-	case e.Matches(input.KeyDown) || e.Matches("j"):
+	case e.Matches(input.KeyDown, 0) || e.Matches("j", 0):
 		if l.selectedIndex < len(l.items)-1 {
 			l.selectedIndex++
 		} else if l.wrapSelection {
@@ -146,7 +146,7 @@ func (l *List) HandleKeyPress(e *input.KeyEvent) bool {
 		l.ensureVisible()
 		l.RequestRender()
 
-	case e.Matches(input.KeyReturn) || e.Matches(input.KeySpace):
+	case e.Matches(input.KeyReturn, 0) || e.Matches(input.KeySpace, 0):
 		if l.OnItemSelected != nil {
 			l.OnItemSelected(l.selectedIndex, l.items[l.selectedIndex])
 		}

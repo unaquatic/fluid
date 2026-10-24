@@ -112,18 +112,18 @@ func runExtmarksDemo(ctx context.Context, o DemoOptions) error {
 				hexParts[i] = fmt.Sprintf("%02x", b)
 			}
 			debugInfo := fmt.Sprintf("Key: name=%q ctrl=%v shift=%v alt=%v meta=%v | Raw: [%s] src=%s",
-				k.Name, k.Ctrl, k.Shift, k.Alt, k.Meta,
+				k.Name, k.Mods.Has(input.ModCtrl), k.Mods.Has(input.ModShift), k.Mods.Has(input.ModAlt), k.Mods.Has(input.ModMeta),
 				strings.Join(hexParts, " "),
 				k.Source)
 			debugText.SetContent(debugInfo)
 		}
 
-		if k.Name == "escape" || (k.Name == "q" && !k.Ctrl && !k.Alt) {
+		if k.Name == "escape" || (k.Name == "q" && !k.Mods.Has(input.ModCtrl) && !k.Mods.Has(input.ModAlt)) {
 			r.Destroy()
 			return
 		}
 
-		if k.Ctrl && k.Name == "l" {
+		if k.Mods.Has(input.ModCtrl) && k.Name == "l" {
 			k.PreventDefault()
 			offset := editor.CursorOffset()
 			markerText := "[MARKER]"
@@ -141,7 +141,7 @@ func runExtmarksDemo(ctx context.Context, o DemoOptions) error {
 			return
 		}
 
-		if k.Ctrl && k.Name == "d" {
+		if k.Mods.Has(input.ModCtrl) && k.Name == "d" {
 			k.PreventDefault()
 			offset := editor.CursorOffset()
 			ems := ec.AtOffset(offset)
@@ -154,7 +154,7 @@ func runExtmarksDemo(ctx context.Context, o DemoOptions) error {
 			return
 		}
 
-		if k.Ctrl && k.Name == "k" {
+		if k.Mods.Has(input.ModCtrl) && k.Name == "k" {
 			k.PreventDefault()
 			count := len(ec.All())
 			ec.Clear()

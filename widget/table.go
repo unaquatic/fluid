@@ -160,7 +160,7 @@ func (t *Table) HandleKeyPress(e *input.KeyEvent) bool {
 
 	handled := true
 	switch {
-	case e.Matches(input.KeyUp) || e.Matches("k"):
+	case e.Matches(input.KeyUp, 0) || e.Matches("k", 0):
 		if t.selectedRow > 0 {
 			t.selectedRow--
 		} else if t.wrapSelection {
@@ -169,7 +169,7 @@ func (t *Table) HandleKeyPress(e *input.KeyEvent) bool {
 		t.ensureRowVisible()
 		t.RequestRender()
 
-	case e.Matches(input.KeyDown) || e.Matches("j"):
+	case e.Matches(input.KeyDown, 0) || e.Matches("j", 0):
 		if t.selectedRow < len(t.rows)-1 {
 			t.selectedRow++
 		} else if t.wrapSelection {
@@ -178,7 +178,7 @@ func (t *Table) HandleKeyPress(e *input.KeyEvent) bool {
 		t.ensureRowVisible()
 		t.RequestRender()
 
-	case e.Matches(input.KeyReturn):
+	case e.Matches(input.KeyReturn, 0):
 		if t.OnRowSelected != nil && t.selectedRow >= 0 && t.selectedRow < len(t.rows) {
 			t.OnRowSelected(t.selectedRow, t.rows[t.selectedRow])
 		}

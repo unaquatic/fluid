@@ -142,11 +142,11 @@ func runSelectDemo(ctx context.Context, o DemoOptions) error {
 		}
 		k := e.Key
 
-		if k.Name == "escape" || (k.Name == "q" && !k.Ctrl && !k.Alt) {
+		if k.Name == "escape" || (k.Name == "q" && !k.Mods.Has(input.ModCtrl) && !k.Mods.Has(input.ModAlt)) {
 			r.Destroy()
 			return
 		}
-		if k.Name == "tab" && !k.Ctrl && !k.Alt {
+		if k.Name == "tab" && !k.Mods.Has(input.ModCtrl) && !k.Mods.Has(input.ModAlt) {
 			k.PreventDefault()
 			focusIdx = (focusIdx + 1) % len(focusables)
 			r.FocusRenderable(focusables[focusIdx])

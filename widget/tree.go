@@ -170,27 +170,27 @@ func (t *Tree) HandleKeyPress(e *input.KeyEvent) bool {
 
 	handled := true
 	switch {
-	case e.Matches(input.KeyUp) || e.Matches("k"):
+	case e.Matches(input.KeyUp, 0) || e.Matches("k", 0):
 		if t.selectedIndex > 0 {
 			t.selectedIndex--
 			t.ensureVisible()
 			t.RequestRender()
 		}
 
-	case e.Matches(input.KeyDown) || e.Matches("j"):
+	case e.Matches(input.KeyDown, 0) || e.Matches("j", 0):
 		if t.selectedIndex < len(t.flatItems)-1 {
 			t.selectedIndex++
 			t.ensureVisible()
 			t.RequestRender()
 		}
 
-	case e.Matches(input.KeyReturn) || e.Matches(input.KeySpace):
+	case e.Matches(input.KeyReturn, 0) || e.Matches(input.KeySpace, 0):
 		t.toggleSelected()
 
-	case e.Matches(input.KeyLeft):
+	case e.Matches(input.KeyLeft, 0):
 		t.collapseSelected()
 
-	case e.Matches(input.KeyRight):
+	case e.Matches(input.KeyRight, 0):
 		t.expandSelected()
 
 	default:

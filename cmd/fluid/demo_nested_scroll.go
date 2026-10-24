@@ -202,7 +202,7 @@ Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor i
 		if e.Key == nil {
 			return
 		}
-		if e.Key.Name == "escape" || (e.Key.Name == "q" && !e.Key.Ctrl && !e.Key.Alt) {
+		if e.Key.Name == "escape" || (e.Key.Name == "q" && !e.Key.Mods.Has(input.ModCtrl) && !e.Key.Mods.Has(input.ModAlt)) {
 			r.Destroy()
 		}
 	})

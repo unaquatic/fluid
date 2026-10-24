@@ -233,7 +233,7 @@ func TestDispatchKeyEvent_ExitOnCtrlC(t *testing.T) {
 	r.config.ExitOnCtrlC = true
 
 	evt := keyPressEvent("c")
-	evt.Key.Ctrl = true
+	evt.Key.Mods |= input.ModCtrl
 	r.dispatchEvent(evt)
 
 	if !r.IsDestroyed() {
@@ -250,7 +250,7 @@ func TestDispatchKeyEvent_BusVetoesExitOnCtrlC(t *testing.T) {
 	})
 
 	evt := keyPressEvent("c")
-	evt.Key.Ctrl = true
+	evt.Key.Mods |= input.ModCtrl
 	r.dispatchEvent(evt)
 
 	if r.IsDestroyed() {

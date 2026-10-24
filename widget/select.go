@@ -272,19 +272,19 @@ func (s *Select) HandleKeyPress(e *input.KeyEvent) bool {
 	handled := true
 
 	switch {
-	case e.Matches(input.KeyUp) || e.Matches("k"):
+	case e.Matches(input.KeyUp, 0) || e.Matches("k", 0):
 		s.MoveUp()
 
-	case e.Matches(input.KeyDown) || e.Matches("j"):
+	case e.Matches(input.KeyDown, 0) || e.Matches("j", 0):
 		s.MoveDown()
 
-	case e.Matches(input.KeyHome):
+	case e.Matches(input.KeyHome, 0):
 		s.SetSelectedIndex(0)
 
-	case e.Matches(input.KeyEnd):
+	case e.Matches(input.KeyEnd, 0):
 		s.SetSelectedIndex(len(s.items) - 1)
 
-	case e.Matches(input.KeyReturn) || e.Matches(input.KeySpace):
+	case e.Matches(input.KeyReturn, 0) || e.Matches(input.KeySpace, 0):
 		if s.OnItemSelected != nil && s.selectedIndex >= 0 && s.selectedIndex < len(s.items) {
 			s.OnItemSelected(s.selectedIndex, s.items[s.selectedIndex])
 		}

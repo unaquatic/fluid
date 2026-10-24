@@ -85,7 +85,7 @@ func NewScrollBox(opts ...ScrollBoxOption) *ScrollBox {
 		if e.Scroll != nil {
 			oldY := sb.scrollY
 			oldX := sb.scrollX
-			sb.handleScroll(e.Scroll.DeltaX, e.Scroll.DeltaY, e.Modifiers.Ctrl)
+			sb.handleScroll(e.Scroll.DeltaX, e.Scroll.DeltaY, e.Mods.Has(input.ModCtrl))
 			if sb.scrollY != oldY || sb.scrollX != oldX {
 				e.StopPropagation()
 			}
@@ -342,33 +342,33 @@ func (sb *ScrollBox) HandleKeyPress(e *input.KeyEvent) bool {
 
 	switch {
 	// Vertical movement uses one fifth of the viewport.
-	case e.Matches(input.KeyUp) || e.Matches("k"):
+	case e.Matches(input.KeyUp, 0) || e.Matches("k", 0):
 		sb.SetScrollY(sb.scrollY - maxInt(1, vpH/5))
 
-	case e.Matches(input.KeyDown) || e.Matches("j"):
+	case e.Matches(input.KeyDown, 0) || e.Matches("j", 0):
 		sb.SetScrollY(sb.scrollY + maxInt(1, vpH/5))
 
 	// Horizontal movement uses one fifth of the viewport.
-	case e.Matches(input.KeyLeft) || e.Matches("h"):
+	case e.Matches(input.KeyLeft, 0) || e.Matches("h", 0):
 		sb.SetScrollX(sb.scrollX - maxInt(1, vpW/5))
 
-	case e.Matches(input.KeyRight) || e.Matches("l"):
+	case e.Matches(input.KeyRight, 0) || e.Matches("l", 0):
 		sb.SetScrollX(sb.scrollX + maxInt(1, vpW/5))
 
 	// Page movement uses half of the viewport.
-	case e.Matches(input.KeyPageUp):
+	case e.Matches(input.KeyPageUp, 0):
 		sb.SetScrollY(sb.scrollY - maxInt(1, vpH/2))
 
-	case e.Matches(input.KeyPageDown):
+	case e.Matches(input.KeyPageDown, 0):
 		sb.SetScrollY(sb.scrollY + maxInt(1, vpH/2))
 
 	// Home moves to the origin on both axes.
-	case e.Matches(input.KeyHome):
+	case e.Matches(input.KeyHome, 0):
 		sb.SetScrollY(0)
 		sb.SetScrollX(0)
 
 	// End moves to the maximum offset on both axes.
-	case e.Matches(input.KeyEnd):
+	case e.Matches(input.KeyEnd, 0):
 		sb.SetScrollY(sb.maxScrollY())
 		sb.SetScrollX(sb.maxScrollX())
 

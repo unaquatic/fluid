@@ -172,11 +172,11 @@ func runCodeDemo(ctx context.Context, o DemoOptions) error {
 		}
 		k := e.Key
 
-		if k.Name == "escape" || (k.Name == "q" && !k.Ctrl && !k.Alt) {
+		if k.Name == "escape" || (k.Name == "q" && !k.Mods.Has(input.ModCtrl) && !k.Mods.Has(input.ModAlt)) {
 			r.Destroy()
 			return
 		}
-		if k.Name == "w" && !k.Ctrl && !k.Alt {
+		if k.Name == "w" && !k.Mods.Has(input.ModCtrl) && !k.Mods.Has(input.ModAlt) {
 			if wrapMode == widget.WrapNone {
 				wrapMode = widget.WrapWord
 				codeWidget.SetWrapMode(widget.WrapWord)

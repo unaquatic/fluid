@@ -1,6 +1,9 @@
 package input
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // MouseEventType identifies a mouse event subtype.
 type MouseEventType int
@@ -63,16 +66,6 @@ type ScrollInfo struct {
 	DeltaY int
 }
 
-// MouseModifiers reports the modifier keys held during a mouse event.
-type MouseModifiers struct {
-	// Shift reports whether Shift was held.
-	Shift bool
-	// Alt reports whether Alt or Option was held.
-	Alt bool
-	// Ctrl reports whether Ctrl was held.
-	Ctrl bool
-}
-
 // MouseEvent describes one mouse input event.
 type MouseEvent struct {
 	// Type is the kind of event, such as a press, a drag, or a scroll.
@@ -81,8 +74,8 @@ type MouseEvent struct {
 	Button MouseButton
 	// X and Y are the zero-based terminal coordinates.
 	X, Y int
-	// Modifiers are the modifier keys held during the event.
-	Modifiers MouseModifiers
+	// Mods are the modifier keys held during the event.
+	Mods Mods
 	// Scroll is non-nil for MouseScroll events.
 	Scroll *ScrollInfo
 	// IsDragging reports whether a button was held while the mouse moved.
@@ -115,14 +108,8 @@ func (e *MouseEvent) DefaultPrevented() bool { return e.defaultPrevented }
 // String returns a human-readable description of the mouse event.
 func (e *MouseEvent) String() string {
 	s := fmt.Sprintf("%s btn=%d (%d,%d)", e.Type, e.Button, e.X, e.Y)
-	if e.Modifiers.Ctrl {
-		s += " ctrl"
-	}
-	if e.Modifiers.Alt {
-		s += " alt"
-	}
-	if e.Modifiers.Shift {
-		s += " shift"
+	if e.Mods != 0 {
+		s += " " + strings.ReplaceAll(e.Mods.String(), "+", " ")
 	}
 	if e.Scroll != nil {
 		s += fmt.Sprintf(" scroll(%d,%d)", e.Scroll.DeltaX, e.Scroll.DeltaY)

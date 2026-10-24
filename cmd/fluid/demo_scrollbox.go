@@ -166,11 +166,11 @@ func runScrollboxDemo(ctx context.Context, o DemoOptions) error {
 			return
 		}
 		k := e.Key
-		if k.Name == "escape" || (k.Name == "q" && !k.Ctrl && !k.Alt) {
+		if k.Name == "escape" || (k.Name == "q" && !k.Mods.Has(input.ModCtrl) && !k.Mods.Has(input.ModAlt)) {
 			r.Destroy()
 			return
 		}
-		if k.Name == "a" && !k.Ctrl && !k.Alt {
+		if k.Name == "a" && !k.Mods.Has(input.ModCtrl) && !k.Mods.Has(input.ModAlt) {
 			queueLine()
 			return
 		}

@@ -104,13 +104,13 @@ func TestInput_CursorMovement(t *testing.T) {
 	}
 
 	// Control+A moves to logical line start.
-	inp.HandleKeyPress(&input.KeyEvent{Name: "a", Ctrl: true, Type: input.KeyPress})
+	inp.HandleKeyPress(&input.KeyEvent{Name: "a", Mods: input.ModCtrl, Type: input.KeyPress})
 	if inp.CursorPos() != 0 {
 		t.Errorf("expected cursor at 0, got %d", inp.CursorPos())
 	}
 
 	// Control+E moves to logical line end.
-	inp.HandleKeyPress(&input.KeyEvent{Name: "e", Ctrl: true, Type: input.KeyPress})
+	inp.HandleKeyPress(&input.KeyEvent{Name: "e", Mods: input.ModCtrl, Type: input.KeyPress})
 	if inp.CursorPos() != 5 {
 		t.Errorf("expected cursor at 5, got %d", inp.CursorPos())
 	}
@@ -148,7 +148,7 @@ func TestInput_DeleteToEnd(t *testing.T) {
 	inp := setupInput("hello world")
 	inp.SetCursorPos(5)
 
-	inp.HandleKeyPress(&input.KeyEvent{Name: "k", Ctrl: true, Type: input.KeyPress})
+	inp.HandleKeyPress(&input.KeyEvent{Name: "k", Mods: input.ModCtrl, Type: input.KeyPress})
 	if inp.Value() != "hello" {
 		t.Errorf("expected 'hello', got %q", inp.Value())
 	}
@@ -158,7 +158,7 @@ func TestInput_DeleteToStart(t *testing.T) {
 	inp := setupInput("hello world")
 	inp.SetCursorPos(6)
 
-	inp.HandleKeyPress(&input.KeyEvent{Name: "u", Ctrl: true, Type: input.KeyPress})
+	inp.HandleKeyPress(&input.KeyEvent{Name: "u", Mods: input.ModCtrl, Type: input.KeyPress})
 	if inp.Value() != "world" {
 		t.Errorf("expected 'world', got %q", inp.Value())
 	}
@@ -246,7 +246,7 @@ func TestInput_SelectAll(t *testing.T) {
 	inp := setupInput("hello world")
 
 	// The Kitty protocol reports Command+A as Meta+A.
-	inp.HandleKeyPress(&input.KeyEvent{Name: "a", Meta: true, Type: input.KeyPress})
+	inp.HandleKeyPress(&input.KeyEvent{Name: "a", Mods: input.ModMeta, Type: input.KeyPress})
 
 	selected := inp.SelectedText()
 	if selected != "hello world" {
@@ -280,14 +280,14 @@ func TestInput_WordNavigation(t *testing.T) {
 	inp.SetCursorPos(0)
 
 	// Control+Right moves to the next word boundary.
-	inp.HandleKeyPress(&input.KeyEvent{Name: input.KeyRight, Ctrl: true, Type: input.KeyPress})
+	inp.HandleKeyPress(&input.KeyEvent{Name: input.KeyRight, Mods: input.ModCtrl, Type: input.KeyPress})
 	pos := inp.CursorPos()
 	if pos == 0 {
 		t.Error("expected cursor to advance past first word")
 	}
 
 	// Control+Left returns to the previous word boundary.
-	inp.HandleKeyPress(&input.KeyEvent{Name: input.KeyLeft, Ctrl: true, Type: input.KeyPress})
+	inp.HandleKeyPress(&input.KeyEvent{Name: input.KeyLeft, Mods: input.ModCtrl, Type: input.KeyPress})
 	pos = inp.CursorPos()
 	if pos != 0 {
 		t.Errorf("expected cursor at 0, got %d", pos)
@@ -322,10 +322,10 @@ func TestInput_CustomKeyBindings(t *testing.T) {
 
 	// A custom binding can replace the default Control+B movement.
 	inp.Textarea.SetKeyBindings([]input.KeyBinding{
-		{Name: "b", Ctrl: true, Action: ActionBackspace},
+		{Name: "b", Mods: input.ModCtrl, Action: ActionBackspace},
 	})
 
-	inp.HandleKeyPress(&input.KeyEvent{Name: "b", Ctrl: true, Type: input.KeyPress})
+	inp.HandleKeyPress(&input.KeyEvent{Name: "b", Mods: input.ModCtrl, Type: input.KeyPress})
 	if inp.Value() != "hell" {
 		t.Errorf("expected 'hell' after custom Ctrl+B, got %q", inp.Value())
 	}

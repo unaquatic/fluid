@@ -182,7 +182,7 @@ func TestInput_DeleteToEnd(t *testing.T) {
 	testutil.SetupWidget(inp, 20, 1)
 
 	inp.SetCursorPos(5) // after "Hello"
-	e := &input.KeyEvent{Name: "k", Ctrl: true, Type: input.KeyPress}
+	e := &input.KeyEvent{Name: "k", Mods: input.ModCtrl, Type: input.KeyPress}
 	inp.HandleKeyPress(e)
 
 	if inp.Value() != "Hello" {
