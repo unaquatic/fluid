@@ -197,8 +197,8 @@ func TestRenderableTracking(t *testing.T) {
 	r2 := &mockSelectableRenderable{x: 10, y: 0, w: 10, h: 5}
 	r3 := &mockSelectableRenderable{x: 5, y: 5, w: 10, h: 5}
 
-	sel.UpdateSelectedRenderables([]any{r1, r2})
-	sel.UpdateTouchedRenderables([]any{r3})
+	sel.UpdateSelectedRenderables([]SelectableRenderable{r1, r2})
+	sel.UpdateTouchedRenderables([]SelectableRenderable{r3})
 
 	selected := sel.SelectedRenderables()
 	if len(selected) != 2 {
@@ -230,8 +230,8 @@ func TestGetSelectedText_ReadingOrder(t *testing.T) {
 	r2 := &mockSelectableRenderable{x: 0, y: 0, w: 10, h: 1, selectedText: "first"}
 	r3 := &mockSelectableRenderable{x: 0, y: 10, w: 10, h: 1, selectedText: "third"}
 
-	sel.UpdateSelectedRenderables([]any{r1, r2})
-	sel.UpdateTouchedRenderables([]any{r3})
+	sel.UpdateSelectedRenderables([]SelectableRenderable{r1, r2})
+	sel.UpdateTouchedRenderables([]SelectableRenderable{r3})
 
 	text := sel.SelectedText()
 	expected := "first\nsecond\nthird"
@@ -252,7 +252,7 @@ func TestGetSelectedText_NoText(t *testing.T) {
 	sel := NewSelection()
 	r1 := &mockSelectableRenderable{x: 0, y: 0, w: 10, h: 1, selectedText: ""}
 	r2 := &mockSelectableRenderable{x: 0, y: 1, w: 10, h: 1, selectedText: ""}
-	sel.UpdateSelectedRenderables([]any{r1, r2})
+	sel.UpdateSelectedRenderables([]SelectableRenderable{r1, r2})
 
 	text := sel.SelectedText()
 	if text != "" {
@@ -260,11 +260,11 @@ func TestGetSelectedText_NoText(t *testing.T) {
 	}
 }
 
-func TestGetSelectedText_NonSelectableItems(t *testing.T) {
+func TestGetSelectedText_NilItems(t *testing.T) {
 	sel := NewSelection()
 	r1 := &mockSelectableRenderable{x: 0, y: 0, w: 10, h: 1, selectedText: "hello"}
-	// Values that do not implement SelectableRenderable contribute no text.
-	sel.UpdateSelectedRenderables([]any{r1, "not a renderable"})
+	// Nil entries contribute no text.
+	sel.UpdateSelectedRenderables([]SelectableRenderable{nil, r1, nil})
 
 	text := sel.SelectedText()
 	if text != "hello" {
@@ -276,7 +276,7 @@ func TestGetSelectedText_SameRow(t *testing.T) {
 	sel := NewSelection()
 	r1 := &mockSelectableRenderable{x: 20, y: 5, w: 10, h: 1, selectedText: "right"}
 	r2 := &mockSelectableRenderable{x: 0, y: 5, w: 10, h: 1, selectedText: "left"}
-	sel.UpdateSelectedRenderables([]any{r1, r2})
+	sel.UpdateSelectedRenderables([]SelectableRenderable{r1, r2})
 
 	text := sel.SelectedText()
 	if text != "left\nright" {
@@ -432,29 +432,14 @@ func TestSortByReadingOrder(t *testing.T) {
 	r3 := &mockSelectableRenderable{x: 0, y: 0}
 	r4 := &mockSelectableRenderable{x: 5, y: 10}
 
-	sorted := sortByReadingOrder([]any{r1, r2, r3, r4})
+	sorted := sortByReadingOrder([]SelectableRenderable{r1, r2, r3, r4})
 
 	expected := []SelectableRenderable{r3, r2, r1, r4}
 	for i, want := range expected {
-		got, ok := sorted[i].(SelectableRenderable)
-		if !ok {
-			t.Fatalf("sorted[%d] is not SelectableRenderable", i)
-		}
+		got := sorted[i]
 		if got.X() != want.X() || got.Y() != want.Y() {
 			t.Errorf("sorted[%d] = (%d,%d), want (%d,%d)", i, got.X(), got.Y(), want.X(), want.Y())
 		}
-	}
-}
-
-func TestSortByReadingOrder_MixedTypes(t *testing.T) {
-	r1 := &mockSelectableRenderable{x: 0, y: 0}
-	nonRenderable := "not a renderable"
-
-	sorted := sortByReadingOrder([]any{nonRenderable, r1})
-
-	// Selectable values sort before values without geometry.
-	if _, ok := sorted[0].(SelectableRenderable); !ok {
-		t.Error("SelectableRenderable should sort before non-renderable")
 	}
 }
 
@@ -503,7 +488,7 @@ func TestConcurrentGetSelectedText(t *testing.T) {
 
 	r1 := &mockSelectableRenderable{x: 0, y: 0, w: 10, h: 1, selectedText: "hello"}
 	r2 := &mockSelectableRenderable{x: 0, y: 1, w: 10, h: 1, selectedText: "world"}
-	sel.UpdateSelectedRenderables([]any{r1, r2})
+	sel.UpdateSelectedRenderables([]SelectableRenderable{r1, r2})
 
 	var wg sync.WaitGroup
 	for range 50 {
@@ -566,7 +551,7 @@ func TestDragLifecycle(t *testing.T) {
 
 	// Text remains available after dragging ends.
 	r := &mockSelectableRenderable{x: 5, y: 10, w: 10, h: 3, selectedText: "selected text"}
-	sel.UpdateSelectedRenderables([]any{r})
+	sel.UpdateSelectedRenderables([]SelectableRenderable{r})
 	text := sel.SelectedText()
 	if text != "selected text" {
 		t.Errorf("text = %q, want %q", text, "selected text")

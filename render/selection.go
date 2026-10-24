@@ -1,7 +1,8 @@
 package render
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -47,8 +48,8 @@ type Selection struct {
 	isStart    bool // Whether no drag update has followed Start.
 
 	// The renderer updates these lists as selection bounds change.
-	selectedRenderables []any // Renderables fully contained by the selection.
-	touchedRenderables  []any // Renderables that overlap the selection.
+	selectedRenderables []SelectableRenderable // Renderables fully contained by the selection.
+	touchedRenderables  []SelectableRenderable // Renderables that overlap the selection.
 
 	mu sync.Mutex
 }
@@ -182,26 +183,22 @@ func (s *Selection) Clear() {
 }
 
 // SelectedRenderables returns a copy of the fully contained renderables.
-func (s *Selection) SelectedRenderables() []any {
+func (s *Selection) SelectedRenderables() []SelectableRenderable {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	result := make([]any, len(s.selectedRenderables))
-	copy(result, s.selectedRenderables)
-	return result
+	return slices.Clone(s.selectedRenderables)
 }
 
 // TouchedRenderables returns a copy of the overlapping renderables.
-func (s *Selection) TouchedRenderables() []any {
+func (s *Selection) TouchedRenderables() []SelectableRenderable {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	result := make([]any, len(s.touchedRenderables))
-	copy(result, s.touchedRenderables)
-	return result
+	return slices.Clone(s.touchedRenderables)
 }
 
 // UpdateSelectedRenderables replaces the fully contained renderable list. It
 // retains the supplied slice.
-func (s *Selection) UpdateSelectedRenderables(renderables []any) {
+func (s *Selection) UpdateSelectedRenderables(renderables []SelectableRenderable) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.selectedRenderables = renderables
@@ -209,70 +206,42 @@ func (s *Selection) UpdateSelectedRenderables(renderables []any) {
 
 // UpdateTouchedRenderables replaces the overlapping renderable list. It retains
 // the supplied slice.
-func (s *Selection) UpdateTouchedRenderables(renderables []any) {
+func (s *Selection) UpdateTouchedRenderables(renderables []SelectableRenderable) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.touchedRenderables = renderables
 }
 
-// SelectedText joins nonempty text from tracked SelectableRenderable values in
-// top-to-bottom, left-to-right order. It separates renderables with newlines.
+// SelectedText joins nonempty text from the tracked renderables in
+// top-to-bottom, left-to-right order. It separates renderables with newlines
+// and skips nil entries.
 func (s *Selection) SelectedText() string {
 	s.mu.Lock()
 	// Copy the tracked values before calling into renderables without the lock.
-	all := make([]any, 0, len(s.selectedRenderables)+len(s.touchedRenderables))
-	all = append(all, s.selectedRenderables...)
-	all = append(all, s.touchedRenderables...)
+	all := slices.Concat(s.selectedRenderables, s.touchedRenderables)
 	s.mu.Unlock()
-
-	if len(all) == 0 {
-		return ""
-	}
-
-	sorted := sortByReadingOrder(all)
+	all = slices.DeleteFunc(all, func(r SelectableRenderable) bool { return r == nil })
 
 	var b strings.Builder
-	for _, r := range sorted {
-		if sr, ok := r.(SelectableRenderable); ok {
-			text := sr.SelectedText()
-			if text != "" {
-				if b.Len() > 0 {
-					b.WriteByte('\n')
-				}
-				b.WriteString(text)
+	for _, r := range sortByReadingOrder(all) {
+		text := r.SelectedText()
+		if text != "" {
+			if b.Len() > 0 {
+				b.WriteByte('\n')
 			}
+			b.WriteString(text)
 		}
 	}
 	return b.String()
 }
 
-// sortByReadingOrder returns a stable copy ordered from top to bottom, then left
-// to right. Values that do not implement SelectableRenderable follow all
-// selectable values.
-func sortByReadingOrder(renderables []any) []any {
-	result := make([]any, len(renderables))
-	copy(result, renderables)
-
-	sort.SliceStable(result, func(i, j int) bool {
-		ri, oki := result[i].(SelectableRenderable)
-		rj, okj := result[j].(SelectableRenderable)
-
-		if !oki && !okj {
-			return false
-		}
-		if !oki {
-			return false // Keep non-selectable values after selectable values.
-		}
-		if !okj {
-			return true // Move selectable values before non-selectable values.
-		}
-
-		if ri.Y() != rj.Y() {
-			return ri.Y() < rj.Y()
-		}
-		return ri.X() < rj.X()
+// sortByReadingOrder returns a stable copy of renderables ordered from top to
+// bottom, then left to right.
+func sortByReadingOrder(renderables []SelectableRenderable) []SelectableRenderable {
+	result := slices.Clone(renderables)
+	slices.SortStableFunc(result, func(a, b SelectableRenderable) int {
+		return cmp.Or(cmp.Compare(a.Y(), b.Y()), cmp.Compare(a.X(), b.X()))
 	})
-
 	return result
 }
 
