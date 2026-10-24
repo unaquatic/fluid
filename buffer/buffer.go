@@ -300,8 +300,8 @@ func (b *Buffer) Cell(x, y int) Cell {
 	return b.cells[b.cellIndex(x, y)]
 }
 
-// SetCell writes char at (x, y), subject to the current clipping region and
-// It does nothing when the coordinates are outside either region.
+// SetCell writes char at (x, y), subject to the current clipping region. It
+// does nothing when (x, y) is outside the buffer or the clipping region.
 //
 // A wide character occupies a head cell followed by continuation cells. If
 // the complete character does not fit, SetCell discards the write to prevent
@@ -716,9 +716,9 @@ func (b *Buffer) DrawVLine(x, y, length int, char rune, fg, bg style.Color) {
 }
 
 // DrawFrameBuffer copies src to b at (destX, destY). The first optional source
-// rectangle restricts the copied region. The copy respects b's clipping region
-// If src.RespectAlpha reports true, the copy alpha blends each
-// source cell over its destination.
+// rectangle restricts the copied region. The copy respects b's clipping
+// region. If src.RespectAlpha reports true, the copy alpha blends each source
+// cell over its destination.
 func (b *Buffer) DrawFrameBuffer(destX, destY int, src *Buffer, srcRect ...Rect) {
 	sr := src.Bounds()
 	if len(srcRect) > 0 {
