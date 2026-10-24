@@ -24,11 +24,11 @@ type StreamMarkdown struct {
 	fullContent string
 
 	// parser and styles match the options used to construct child widgets.
-	parser MarkdownParser
-	styles MdStyles
+	parser markdownParser
+	styles mdStyles
 
 	// allBlocks is reparsed whenever fullContent changes.
-	allBlocks []MdBlock
+	allBlocks []mdBlock
 
 	// leader leads the content, as SetLeader sets it, and trailer follows
 	// it, as SetTrailer sets it.
@@ -50,7 +50,7 @@ func NewStreamMarkdown(opts ...StreamMarkdownOption) *StreamMarkdown {
 		BaseRenderable: render.NewBaseRenderable(),
 	}
 
-	// MdBlockBlank values provide spacing, so the child layout needs no gap.
+	// mdBlockBlank values provide spacing, so the child layout needs no gap.
 	sm.LayoutNode().FlexDirection = layout.DirectionColumn
 	sm.LayoutNode().AlignItems = layout.AlignStretch
 
@@ -98,7 +98,7 @@ func (sm *StreamMarkdown) SetBg(c style.Color) {
 }
 
 // SetLeader sets text that leads the content, on its first line, as
-// PrependLeader places it, through later content updates too. Empty text
+// withLeader places it, through later content updates too. Empty text
 // removes it. Only the block that the text leads is wrapped again.
 func (sm *StreamMarkdown) SetLeader(t style.StyledText) {
 	if setChunks(&sm.leader, t) {
@@ -112,7 +112,7 @@ func (sm *StreamMarkdown) Leader() style.StyledText {
 }
 
 // SetTrailer sets text that follows the content, on its last line when it
-// fits there, as AppendTrailer places it, through later content updates too.
+// fits there, as withTrailer places it, through later content updates too.
 // Empty text removes it. Only the block that the text follows is wrapped
 // again.
 func (sm *StreamMarkdown) SetTrailer(t style.StyledText) {
@@ -140,43 +140,43 @@ func setChunks(dst *[]style.TextChunk, t style.StyledText) bool {
 	return true
 }
 
-// PrependLeader returns blocks with leader before their first inline text,
+// withLeader returns blocks with leader before their first inline text,
 // parted from it by a space: at the start of the first paragraph, heading,
 // or list item, also of one in a list or a quote. Blocks that start with a
 // code block, table, or rule take leader as a paragraph of its own before
-// them, parted as InsertBlockSpacing parts blocks, and no blocks take it
-// alone. PrependLeader leaves blocks as they are, copying the blocks it
+// them, parted as insertBlockSpacing parts blocks, and no blocks take it
+// alone. withLeader leaves blocks as they are, copying the blocks it
 // changes.
-func PrependLeader(blocks []MdBlock, leader []style.TextChunk) []MdBlock {
+func withLeader(blocks []mdBlock, leader []style.TextChunk) []mdBlock {
 	if len(leader) == 0 {
 		return blocks
 	}
 	if out, ok := prependLeader(blocks, leader); ok {
 		return out
 	}
-	para := MdBlock{Kind: MdBlockParagraph, Body: slices.Clone(leader)}
+	para := mdBlock{Kind: mdBlockParagraph, Body: slices.Clone(leader)}
 	if len(blocks) == 0 {
-		return []MdBlock{para}
+		return []mdBlock{para}
 	}
-	out := []MdBlock{para}
+	out := []mdBlock{para}
 	if needsSpace(para, blocks[0]) {
-		out = append(out, MdBlock{Kind: MdBlockBlank})
+		out = append(out, mdBlock{Kind: mdBlockBlank})
 	}
 	return append(out, blocks...)
 }
 
 // prependLeader adds leader before the first inline text of blocks, as
-// PrependLeader does, and reports whether blocks start with such text.
-func prependLeader(blocks []MdBlock, leader []style.TextChunk) ([]MdBlock, bool) {
+// withLeader does, and reports whether blocks start with such text.
+func prependLeader(blocks []mdBlock, leader []style.TextChunk) ([]mdBlock, bool) {
 	for i, b := range blocks {
 		switch b.Kind {
-		case MdBlockBlank:
+		case mdBlockBlank:
 			continue
-		case MdBlockParagraph, MdBlockHeading, MdBlockListItem:
+		case mdBlockParagraph, mdBlockHeading, mdBlockListItem:
 			// A list item's text is on its marker's line, before its nested
 			// blocks.
 			b.Body = leadBody(leader, b.Body)
-		case MdBlockList, MdBlockOrderedList, MdBlockQuote:
+		case mdBlockList, mdBlockOrderedList, mdBlockQuote:
 			children, ok := prependLeader(b.Children, leader)
 			if !ok {
 				return blocks, false
@@ -201,51 +201,51 @@ func leadBody(leader, body []style.TextChunk) []style.TextChunk {
 	return slices.Concat(leader, []style.TextChunk{{Text: " "}}, body)
 }
 
-// AppendTrailer returns blocks with trailer after their last inline text,
+// withTrailer returns blocks with trailer after their last inline text,
 // parted from it by a space: at the end of the last paragraph, heading, or
 // list item, also of one in a list or a quote. Blocks that end with a code
 // block, table, or rule take trailer as a paragraph of its own after them,
-// parted as InsertBlockSpacing parts blocks, and no blocks take it alone.
-// AppendTrailer leaves blocks as they are, copying the blocks it changes.
-func AppendTrailer(blocks []MdBlock, trailer []style.TextChunk) []MdBlock {
+// parted as insertBlockSpacing parts blocks, and no blocks take it alone.
+// withTrailer leaves blocks as they are, copying the blocks it changes.
+func withTrailer(blocks []mdBlock, trailer []style.TextChunk) []mdBlock {
 	if len(trailer) == 0 {
 		return blocks
 	}
 	if out, ok := appendTrailer(blocks, trailer); ok {
 		return out
 	}
-	para := MdBlock{Kind: MdBlockParagraph, Body: slices.Clone(trailer)}
+	para := mdBlock{Kind: mdBlockParagraph, Body: slices.Clone(trailer)}
 	if len(blocks) == 0 {
-		return []MdBlock{para}
+		return []mdBlock{para}
 	}
 	out := slices.Clip(blocks)
 	if needsSpace(blocks[len(blocks)-1], para) {
-		out = append(out, MdBlock{Kind: MdBlockBlank})
+		out = append(out, mdBlock{Kind: mdBlockBlank})
 	}
 	return append(out, para)
 }
 
 // appendTrailer adds trailer after the last inline text of blocks, as
-// AppendTrailer does, and reports whether blocks end with such text.
-func appendTrailer(blocks []MdBlock, trailer []style.TextChunk) ([]MdBlock, bool) {
+// withTrailer does, and reports whether blocks end with such text.
+func appendTrailer(blocks []mdBlock, trailer []style.TextChunk) ([]mdBlock, bool) {
 	for i, b := range slices.Backward(blocks) {
 		switch b.Kind {
-		case MdBlockBlank:
+		case mdBlockBlank:
 			continue
-		case MdBlockParagraph, MdBlockHeading:
+		case mdBlockParagraph, mdBlockHeading:
 			b.Body = trailBody(b.Body, trailer)
-		case MdBlockListItem:
+		case mdBlockListItem:
 			// The item's text comes before its nested blocks.
 			children, ok := appendTrailer(b.Children, trailer)
 			switch {
 			case ok:
 				b.Children = children
-			case slices.ContainsFunc(b.Children, func(c MdBlock) bool { return c.Kind != MdBlockBlank }):
+			case slices.ContainsFunc(b.Children, func(c mdBlock) bool { return c.Kind != mdBlockBlank }):
 				return blocks, false
 			default:
 				b.Body = trailBody(b.Body, trailer)
 			}
-		case MdBlockList, MdBlockOrderedList, MdBlockQuote:
+		case mdBlockList, mdBlockOrderedList, mdBlockQuote:
 			children, ok := appendTrailer(b.Children, trailer)
 			if !ok {
 				return blocks, false
@@ -281,7 +281,7 @@ func (sm *StreamMarkdown) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration
 // with the leader before the first of them and the trailer after the last.
 // Children are retained when content shrinks so future updates can reuse them.
 func (sm *StreamMarkdown) distributeBlocks() {
-	allBlocks := AppendTrailer(PrependLeader(sm.allBlocks, sm.leader), sm.trailer)
+	allBlocks := withTrailer(withLeader(sm.allBlocks, sm.leader), sm.trailer)
 
 	numChildren := len(allBlocks)
 	if numChildren == 0 {
@@ -296,9 +296,9 @@ func (sm *StreamMarkdown) distributeBlocks() {
 	// Clear retained children that have no corresponding block in this update.
 	for i := 0; i < numChildren; i++ {
 		if i < len(allBlocks) {
-			sm.children[i].SetBlocks(allBlocks[i : i+1])
+			sm.children[i].setBlocks(allBlocks[i : i+1])
 		} else {
-			sm.children[i].SetBlocks(nil)
+			sm.children[i].setBlocks(nil)
 		}
 	}
 }

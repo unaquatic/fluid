@@ -79,8 +79,8 @@ type Diff struct {
 	scrollX int
 
 	// parsed and layout are rebuilt from patch when needsRebuild is true.
-	parsed *StructuredPatch
-	layout *DiffLayout
+	parsed *structuredPatch
+	layout *diffLayout
 
 	// Child widgets
 	leftCode  *Code
@@ -408,7 +408,7 @@ func (d *Diff) renderSplitView(buf *buffer.Buffer, x, y, w, h int, deltaTime tim
 
 	for _, block := range d.layout.Blocks {
 		switch block.Kind {
-		case DiffBlockFullWidth:
+		case diffBlockFullWidth:
 			// Headers and hunk markers span both content panes.
 			fg := d.splitFgForType(block.Type)
 			lines := splitWrapText(block.Text, fullContentW, effectiveWrap, fg, style.ColorTransparent)
@@ -424,7 +424,7 @@ func (d *Diff) renderSplitView(buf *buffer.Buffer, x, y, w, h int, deltaTime tim
 				visualRow++
 			}
 
-		case DiffBlockContext:
+		case diffBlockContext:
 			// Context rows repeat the unchanged content on both sides.
 			bg := d.splitBgForType(diffContext)
 			fg := d.splitFgForType(diffContext)
@@ -479,7 +479,7 @@ func (d *Diff) renderSplitView(buf *buffer.Buffer, x, y, w, h int, deltaTime tim
 				visualRow++
 			}
 
-		case DiffBlockChange:
+		case diffBlockChange:
 			// Pair removed and added lines by index, padding the shorter side.
 			pairLen := max(len(block.Adds), len(block.Removes))
 
@@ -714,8 +714,8 @@ func (d *Diff) rebuild() {
 	d.parsed = nil
 	d.layout = nil
 	if d.patch != "" {
-		d.parsed = ParsePatch(d.patch)
-		d.layout = BuildDiffLayout(d.parsed)
+		d.parsed = parsePatch(d.patch)
+		d.layout = buildDiffLayout(d.parsed)
 
 		if d.viewMode == DiffSplit {
 			d.buildSplitView()
@@ -757,13 +757,13 @@ func (d *Diff) buildUnifiedView() {
 
 	for _, block := range d.layout.Blocks {
 		switch block.Kind {
-		case DiffBlockFullWidth:
+		case diffBlockFullWidth:
 			// File and hunk headers do not display source line numbers.
 			contentLines = append(contentLines, block.Text)
 			hideLineNums[lineIndex] = true
 			lineIndex++
 
-		case DiffBlockContext:
+		case diffBlockContext:
 			// Context rows display their new-file line number.
 			contentLines = append(contentLines, block.Text)
 			if !d.contextBg.IsTransparent() {
@@ -775,7 +775,7 @@ func (d *Diff) buildUnifiedView() {
 			lineNumbers[lineIndex] = block.NewLineNum
 			lineIndex++
 
-		case DiffBlockChange:
+		case diffBlockChange:
 			// Emit all removals before additions in each change block.
 			for _, rm := range block.Removes {
 				contentLines = append(contentLines, rm.Content)

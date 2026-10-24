@@ -1147,7 +1147,7 @@ func TestDiff_InlineDiff_CompletelyDifferent(t *testing.T) {
 }
 
 func TestDiff_ParseHunkHeader(t *testing.T) {
-	p := ParsePatch("@@ -10,5 +20,7 @@ func main()")
+	p := parsePatch("@@ -10,5 +20,7 @@ func main()")
 	if p == nil || len(p.Hunks) == 0 {
 		t.Fatal("expected at least one hunk")
 	}
@@ -1167,7 +1167,7 @@ func TestDiff_ParseHunkHeader(t *testing.T) {
 }
 
 func TestDiff_ParseHunkHeader_SingleLine(t *testing.T) {
-	p := ParsePatch("@@ -1 +1 @@")
+	p := parsePatch("@@ -1 +1 @@")
 	if p == nil || len(p.Hunks) == 0 {
 		t.Fatal("expected at least one hunk")
 	}

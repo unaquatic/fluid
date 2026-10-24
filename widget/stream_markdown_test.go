@@ -76,7 +76,7 @@ func TestStreamMarkdown_IncrementalAppend(t *testing.T) {
 }
 
 func TestStreamMarkdown_CodeBlockNotSplit(t *testing.T) {
-	// A fenced code block remains one MdBlockCode regardless of its line count.
+	// A fenced code block remains one mdBlockCode regardless of its line count.
 	var sb strings.Builder
 	sb.WriteString("```go\n")
 	for i := range 30 {
@@ -91,7 +91,7 @@ func TestStreamMarkdown_CodeBlockNotSplit(t *testing.T) {
 	for _, child := range sm.children {
 		codeCount := 0
 		for _, blk := range child.blocks {
-			if blk.Kind == MdBlockCode {
+			if blk.Kind == mdBlockCode {
 				codeCount++
 			}
 		}
@@ -171,16 +171,16 @@ func TestMarkdown_SetBlocks(t *testing.T) {
 	md := NewMarkdown("", MarkdownWithFg(style.ColorWhite))
 
 	// Reuse blocks produced by the configured parser.
-	parser := NewGoldmarkParser()
-	styles := MdStyles{Fg: style.ColorWhite}
+	parser := newGoldmarkParser()
+	styles := mdStyles{Fg: style.ColorWhite}
 	blocks := parser.Parse("# Hello\n\nWorld\n\n- item", styles)
 
 	if len(blocks) == 0 {
 		t.Fatal("parser returned no blocks")
 	}
 
-	// SetBlocks replaces parsed state and schedules wrapping.
-	md.SetBlocks(blocks)
+	// setBlocks replaces parsed state and schedules wrapping.
+	md.setBlocks(blocks)
 	if len(md.blocks) != len(blocks) {
 		t.Errorf("expected %d blocks, got %d", len(blocks), len(md.blocks))
 	}
