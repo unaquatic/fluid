@@ -72,7 +72,7 @@ func ColorFromInts(r, g, b, a uint8) Color {
 }
 
 // ColorFromFloats returns a color from channel values in the range [0, 1].
-func ColorFromFloats(r, g, b, a float32) Color {
+func ColorFromFloats(r, g, b, a float64) Color {
 	return Color{
 		R: uint8(math.Round(float64(r) * 255)),
 		G: uint8(math.Round(float64(g) * 255)),
@@ -82,8 +82,8 @@ func ColorFromFloats(r, g, b, a float32) Color {
 }
 
 // ToFloats returns c's channels normalized to the range [0, 1].
-func (c Color) ToFloats() (r, g, b, a float32) {
-	return float32(c.R) / 255.0, float32(c.G) / 255.0, float32(c.B) / 255.0, float32(c.A) / 255.0
+func (c Color) ToFloats() (r, g, b, a float64) {
+	return float64(c.R) / 255.0, float64(c.G) / 255.0, float64(c.B) / 255.0, float64(c.A) / 255.0
 }
 
 // ToHex returns c as lowercase #RRGGBB or #RRGGBBAA notation. It omits alpha
@@ -107,11 +107,11 @@ func (c Color) String() string {
 
 // Blend linearly interpolates from c at t=0 to other at t=1. Values outside
 // that range extrapolate and clamp each resulting channel.
-func (c Color) Blend(other Color, t float32) Color {
-	r := float32(c.R) + (float32(other.R)-float32(c.R))*t
-	g := float32(c.G) + (float32(other.G)-float32(c.G))*t
-	b := float32(c.B) + (float32(other.B)-float32(c.B))*t
-	a := float32(c.A) + (float32(other.A)-float32(c.A))*t
+func (c Color) Blend(other Color, t float64) Color {
+	r := float64(c.R) + (float64(other.R)-float64(c.R))*t
+	g := float64(c.G) + (float64(other.G)-float64(c.G))*t
+	b := float64(c.B) + (float64(other.B)-float64(c.B))*t
+	a := float64(c.A) + (float64(other.A)-float64(c.A))*t
 	return Color{
 		R: clampU8(r),
 		G: clampU8(g),
@@ -128,33 +128,33 @@ func ColorBlendPerceptual(overlay, text Color) Color {
 	}
 
 	if text.A == 0 {
-		alpha := float32(overlay.A) / 255.0
-		r := float32(overlay.R) * alpha
-		g := float32(overlay.G) * alpha
-		b := float32(overlay.B) * alpha
+		alpha := float64(overlay.A) / 255.0
+		r := float64(overlay.R) * alpha
+		g := float64(overlay.G) * alpha
+		b := float64(overlay.B) * alpha
 		if r < 0.5 && g < 0.5 && b < 0.5 {
 			return Color{R: 0, G: 0, B: 0, A: 0}
 		}
 		return Color{R: uint8(r), G: uint8(g), B: uint8(b), A: overlay.A}
 	}
 
-	alpha := float32(overlay.A) / 255.0
-	var perceptualAlpha float32
+	alpha := float64(overlay.A) / 255.0
+	var perceptualAlpha float64
 
 	if alpha > 0.8 {
 		normalizedHighAlpha := (alpha - 0.8) * 5.0
-		curvedHighAlpha := pow32(normalizedHighAlpha, 0.2)
+		curvedHighAlpha := math.Pow(normalizedHighAlpha, 0.2)
 		perceptualAlpha = 0.8 + curvedHighAlpha*0.2
 	} else {
-		perceptualAlpha = pow32(alpha, 0.9)
+		perceptualAlpha = math.Pow(alpha, 0.9)
 	}
 
 	oneMinusAlpha := 1.0 - perceptualAlpha
-	blendedR := float32(overlay.R)*perceptualAlpha + float32(text.R)*oneMinusAlpha
-	blendedG := float32(overlay.G)*perceptualAlpha + float32(text.G)*oneMinusAlpha
-	blendedB := float32(overlay.B)*perceptualAlpha + float32(text.B)*oneMinusAlpha
+	blendedR := float64(overlay.R)*perceptualAlpha + float64(text.R)*oneMinusAlpha
+	blendedG := float64(overlay.G)*perceptualAlpha + float64(text.G)*oneMinusAlpha
+	blendedB := float64(overlay.B)*perceptualAlpha + float64(text.B)*oneMinusAlpha
 
-	resultAlpha := alpha + float32(text.A)/255.0*(1.0-alpha)
+	resultAlpha := alpha + float64(text.A)/255.0*(1.0-alpha)
 
 	return Color{R: clampU8(blendedR), G: clampU8(blendedG), B: clampU8(blendedB), A: clampU8(resultAlpha * 255)}
 }
@@ -167,11 +167,11 @@ func (c Color) WithAlpha(a uint8) Color {
 
 // Premultiply returns c with each RGB channel multiplied by its alpha.
 func (c Color) Premultiply() Color {
-	a := float32(c.A) / 255.0
+	a := float64(c.A) / 255.0
 	return Color{
-		R: uint8(float32(c.R) * a),
-		G: uint8(float32(c.G) * a),
-		B: uint8(float32(c.B) * a),
+		R: uint8(float64(c.R) * a),
+		G: uint8(float64(c.G) * a),
+		B: uint8(float64(c.B) * a),
 		A: c.A,
 	}
 }
@@ -182,19 +182,19 @@ func (c Color) IsTransparent() bool {
 }
 
 // Luminance returns c's BT.709 luma in the range [0, 1].
-func (c Color) Luminance() float32 {
-	r := float32(c.R) / 255.0
-	g := float32(c.G) / 255.0
-	b := float32(c.B) / 255.0
+func (c Color) Luminance() float64 {
+	r := float64(c.R) / 255.0
+	g := float64(c.G) / 255.0
+	b := float64(c.B) / 255.0
 	return 0.2126*r + 0.7152*g + 0.0722*b
 }
 
 // DistanceSq returns the squared Euclidean RGB distance from c to other,
 // ignoring alpha.
-func (c Color) DistanceSq(other Color) float32 {
-	dr := float32(int(c.R) - int(other.R))
-	dg := float32(int(c.G) - int(other.G))
-	db := float32(int(c.B) - int(other.B))
+func (c Color) DistanceSq(other Color) float64 {
+	dr := float64(int(c.R) - int(other.R))
+	dg := float64(int(c.G) - int(other.G))
+	db := float64(int(c.B) - int(other.B))
 	return dr*dr + dg*dg + db*db
 }
 
@@ -281,23 +281,23 @@ func parseColorString(s string) Color {
 
 // ColorHSVToRGB converts hue in degrees and normalized saturation and value to
 // an opaque RGB color.
-func ColorHSVToRGB(h, s, v float32) Color {
+func ColorHSVToRGB(h, s, v float64) Color {
 	if s == 0 {
 		val := uint8(v * 255)
 		return Color{val, val, val, 255}
 	}
-	h = float32(math.Mod(float64(h), 360))
+	h = math.Mod(h, 360)
 	if h < 0 {
 		h += 360
 	}
 	h /= 60
-	i := float32(math.Floor(float64(h)))
+	i := math.Floor(h)
 	f := h - i
 	p := v * (1 - s)
 	q := v * (1 - s*f)
 	t := v * (1 - s*(1-f))
 
-	var r, g, b float32
+	var r, g, b float64
 	switch int(i) % 6 {
 	case 0:
 		r, g, b = v, t, p
@@ -319,12 +319,12 @@ func ColorHSVToRGB(h, s, v float32) Color {
 
 // ColorRGBToHSV converts c to hue in degrees and normalized saturation and
 // value, ignoring alpha.
-func ColorRGBToHSV(c Color) (h, s, v float32) {
-	r := float32(c.R) / 255.0
-	g := float32(c.G) / 255.0
-	b := float32(c.B) / 255.0
-	mx := maxf(r, maxf(g, b))
-	mn := minf(r, minf(g, b))
+func ColorRGBToHSV(c Color) (h, s, v float64) {
+	r := float64(c.R) / 255.0
+	g := float64(c.G) / 255.0
+	b := float64(c.B) / 255.0
+	mx := max(r, g, b)
+	mn := min(r, g, b)
 	delta := mx - mn
 	v = mx
 	if mx == 0 {
@@ -366,7 +366,7 @@ func hexDigit(c byte) uint8 {
 
 func hexByte(hi, lo byte) uint8 { return hexDigit(hi)*16 + hexDigit(lo) }
 
-func clampU8(v float32) uint8 {
+func clampU8(v float64) uint8 {
 	if v < 0 {
 		return 0
 	}
@@ -374,24 +374,6 @@ func clampU8(v float32) uint8 {
 		return 255
 	}
 	return uint8(v)
-}
-
-func pow32(base, exp float32) float32 {
-	return float32(math.Pow(float64(base), float64(exp)))
-}
-
-func maxf(a, b float32) float32 {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func minf(a, b float32) float32 {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // ColorMode identifies a terminal color capability level.

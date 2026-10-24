@@ -12,7 +12,7 @@ func assertColorEquals(t *testing.T, got, want Color) {
 	}
 }
 
-func assertFloat32Near(t *testing.T, got, want float32, epsilon float32) {
+func assertFloatNear(t *testing.T, got, want float64, epsilon float64) {
 	t.Helper()
 	diff := got - want
 	if diff < 0 {
@@ -224,12 +224,12 @@ func TestIsTransparent_False(t *testing.T) {
 
 func TestLuminance_ColorWhite(t *testing.T) {
 	l := ColorWhite.Luminance()
-	assertFloat32Near(t, l, 1.0, 0.01)
+	assertFloatNear(t, l, 1.0, 0.01)
 }
 
 func TestLuminance_ColorBlack(t *testing.T) {
 	l := ColorBlack.Luminance()
-	assertFloat32Near(t, l, 0.0, 1e-6)
+	assertFloatNear(t, l, 0.0, 1e-6)
 }
 
 func TestLuminance_ColorGreen_Dominant(t *testing.T) {
@@ -285,16 +285,16 @@ func TestHSVToRGB_ColorBlack(t *testing.T) {
 
 func TestRGBToHSV_ColorRed(t *testing.T) {
 	h, s, v := ColorRGBToHSV(ColorRed)
-	assertFloat32Near(t, h, 0, 1)
-	assertFloat32Near(t, s, 1, 0.01)
-	assertFloat32Near(t, v, 1, 0.01)
+	assertFloatNear(t, h, 0, 1)
+	assertFloatNear(t, s, 1, 0.01)
+	assertFloatNear(t, v, 1, 0.01)
 }
 
 func TestRGBToHSV_ColorGreen(t *testing.T) {
 	h, s, v := ColorRGBToHSV(ColorGreen)
-	assertFloat32Near(t, h, 120, 1)
-	assertFloat32Near(t, s, 1, 0.01)
-	assertFloat32Near(t, v, 1, 0.01)
+	assertFloatNear(t, h, 120, 1)
+	assertFloatNear(t, s, 1, 0.01)
+	assertFloatNear(t, v, 1, 0.01)
 }
 
 func TestRGBToHSV_Roundtrip(t *testing.T) {

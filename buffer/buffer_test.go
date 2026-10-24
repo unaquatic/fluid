@@ -846,7 +846,7 @@ func TestRect_RightBottom(t *testing.T) {
 	}
 }
 
-func floatEq2(a, b float32) bool {
+func floatEq2(a, b float64) bool {
 	d := a - b
 	if d < 0 {
 		d = -d

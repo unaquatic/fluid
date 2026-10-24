@@ -91,7 +91,7 @@ func (g *Gauge) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 			if col < fillWidth {
 				fillColor := g.fillColor
 				if g.useGradient && fillWidth > 0 {
-					t := float32(col) / float32(fillWidth)
+					t := float64(col) / float64(fillWidth)
 					fillColor = g.fillColor.Blend(g.gradientEnd, t)
 				}
 				buf.SetCell(x+col, y+row, symbol.GaugeFill, fillColor, fillColor, 0)

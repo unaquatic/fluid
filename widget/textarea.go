@@ -1490,7 +1490,7 @@ func TextareaWithWrapMode(m textbuf.WrapMode) TextareaOption {
 }
 
 // TextareaWithScrollMargin sets the viewport fraction kept around the cursor.
-func TextareaWithScrollMargin(m float32) TextareaOption {
+func TextareaWithScrollMargin(m float64) TextareaOption {
 	return func(ta *Textarea) {
 		ta.editSurface.SetScrollMargin(m)
 	}

@@ -44,7 +44,7 @@ type quadrantResult struct {
 func renderQuadrantBlock(pixels [4]style.Color) quadrantResult {
 	// Use the most distant pair of colors as clustering candidates.
 	var idxA, idxB int
-	maxDist := float32(-1)
+	maxDist := float64(-1)
 	for i := range 4 {
 		for j := i + 1; j < 4; j++ {
 			d := pixels[i].DistanceSq(pixels[j])
@@ -95,17 +95,17 @@ func getPixelColor(data []byte, idx int, isBGRA bool) style.Color {
 	return style.ColorFromInts(data[idx], data[idx+1], data[idx+2], data[idx+3])
 }
 
-func grayscaleChar(intensity float32) rune {
+func grayscaleChar(intensity float64) rune {
 	if intensity < 0.01 {
 		return ' '
 	}
 	clamped := clampF(intensity, 0, 1)
 	runes := []rune(grayscaleRamp)
-	idx := int(clamped * float32(len(runes)-1))
+	idx := int(clamped * float64(len(runes)-1))
 	return runes[idx]
 }
 
-func clampF(v, lo, hi float32) float32 {
+func clampF(v, lo, hi float64) float64 {
 	if v < lo {
 		return lo
 	}
@@ -193,7 +193,7 @@ func (b *Buffer) DrawPackedBuffer(data []byte, posX, posY, termW, termH int) {
 // DrawGrayscaleBuffer renders a srcW by srcH grid of intensities as ASCII art,
 // with one source value per terminal cell. Intensities are clamped to [0, 1].
 // A transparent foreground uses white.
-func (b *Buffer) DrawGrayscaleBuffer(posX, posY int, intensities []float32, srcW, srcH int, fg, bg style.Color) {
+func (b *Buffer) DrawGrayscaleBuffer(posX, posY int, intensities []float64, srcW, srcH int, fg, bg style.Color) {
 	if srcW == 0 || srcH == 0 {
 		return
 	}
@@ -231,7 +231,7 @@ func (b *Buffer) DrawGrayscaleBuffer(posX, posY int, intensities []float32, srcW
 
 			ch := grayscaleChar(intensity)
 			gray := clampF(intensity, 0, 1)
-			cellFg := baseFg.WithAlpha(uint8(gray * float32(baseFg.A)))
+			cellFg := baseFg.WithAlpha(uint8(gray * float64(baseFg.A)))
 
 			b.SetCellBlended(destX, destY, ch, cellFg, baseBg, 0)
 		}
@@ -241,7 +241,7 @@ func (b *Buffer) DrawGrayscaleBuffer(posX, posY int, intensities []float32, srcW
 // DrawGrayscaleBufferSupersampled renders a srcW by srcH intensity grid at half
 // its width and height. Each terminal cell represents the average of a 2 by 2
 // source block. A transparent foreground uses white.
-func (b *Buffer) DrawGrayscaleBufferSupersampled(posX, posY int, intensities []float32, srcW, srcH int, fg, bg style.Color) {
+func (b *Buffer) DrawGrayscaleBufferSupersampled(posX, posY int, intensities []float64, srcW, srcH int, fg, bg style.Color) {
 	termW := srcW / 2
 	termH := srcH / 2
 	if termW == 0 || termH == 0 {
@@ -284,7 +284,7 @@ func (b *Buffer) DrawGrayscaleBufferSupersampled(posX, posY int, intensities []f
 			blIdx := (qy+1)*srcW + qx
 			brIdx := (qy+1)*srcW + qx + 1
 
-			var tl, tr, bl, br float32
+			var tl, tr, bl, br float64
 			if tlIdx < maxIdx {
 				tl = intensities[tlIdx]
 			}
@@ -305,7 +305,7 @@ func (b *Buffer) DrawGrayscaleBufferSupersampled(posX, posY int, intensities []f
 
 			ch := grayscaleChar(avg)
 			gray := clampF(avg, 0, 1)
-			cellFg := baseFg.WithAlpha(uint8(gray * float32(baseFg.A)))
+			cellFg := baseFg.WithAlpha(uint8(gray * float64(baseFg.A)))
 
 			b.SetCellBlended(destX, destY, ch, cellFg, baseBg, 0)
 		}
@@ -321,5 +321,5 @@ func readPackedRGBA(data []byte, off int) style.Color {
 	g := math.Float32frombits(readPackedU32(data, off+4))
 	b := math.Float32frombits(readPackedU32(data, off+8))
 	a := math.Float32frombits(readPackedU32(data, off+12))
-	return style.ColorFromFloats(r, g, b, a)
+	return style.ColorFromFloats(float64(r), float64(g), float64(b), float64(a))
 }

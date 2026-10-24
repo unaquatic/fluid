@@ -8,7 +8,7 @@ import (
 )
 
 // floatEq reports whether a and b are equal within a small tolerance.
-func floatEq(a, b float32) bool {
+func floatEq(a, b float64) bool {
 	return math.Abs(float64(a-b)) < 1e-6
 }
 
@@ -315,7 +315,7 @@ func TestDrawPackedBuffer_ControlChar(t *testing.T) {
 
 func TestDrawGrayscaleBuffer(t *testing.T) {
 	b := New(3, 1)
-	intensities := []float32{0.0, 0.5, 1.0}
+	intensities := []float64{0.0, 0.5, 1.0}
 
 	b.DrawGrayscaleBuffer(0, 0, intensities, 3, 1, style.Color{}, style.Color{})
 
@@ -342,7 +342,7 @@ func TestDrawGrayscaleBuffer(t *testing.T) {
 func TestDrawGrayscaleBuffer_CustomColors(t *testing.T) {
 	b := New(1, 1)
 	fg := style.ColorRed
-	intensities := []float32{1.0}
+	intensities := []float64{1.0}
 
 	b.DrawGrayscaleBuffer(0, 0, intensities, 1, 1, fg, style.Color{})
 
@@ -355,7 +355,7 @@ func TestDrawGrayscaleBuffer_CustomColors(t *testing.T) {
 
 func TestDrawGrayscaleBuffer_NegativePos(t *testing.T) {
 	b := New(3, 1)
-	intensities := []float32{1.0, 1.0, 1.0}
+	intensities := []float64{1.0, 1.0, 1.0}
 
 	// A negative destination offset clips the first source value.
 	b.DrawGrayscaleBuffer(-1, 0, intensities, 3, 1, style.Color{}, style.Color{})
@@ -370,7 +370,7 @@ func TestDrawGrayscaleBuffer_NegativePos(t *testing.T) {
 func TestDrawGrayscaleBufferSupersampled(t *testing.T) {
 	b := New(1, 1)
 	// A 2 by 2 source produces one terminal cell.
-	intensities := []float32{
+	intensities := []float64{
 		0.8, 1.0,
 		0.6, 0.8,
 	}
@@ -388,7 +388,7 @@ func TestDrawGrayscaleBufferSupersampled_ZeroDim(t *testing.T) {
 	b := New(5, 5)
 	b.SetCell(0, 0, 'X', style.ColorWhite, style.ColorBlack, 0)
 	// A source width below two produces no terminal columns.
-	b.DrawGrayscaleBufferSupersampled(0, 0, []float32{1.0}, 1, 2, style.Color{}, style.Color{})
+	b.DrawGrayscaleBufferSupersampled(0, 0, []float64{1.0}, 1, 2, style.Color{}, style.Color{})
 	c := b.Cell(0, 0)
 	if c.Char != 'X' {
 		t.Error("zero termW should be no-op")

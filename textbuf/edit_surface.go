@@ -24,7 +24,7 @@ type VisualCursor struct {
 type EditSurface struct {
 	surface      *TextSurface
 	editBuf      *EditBuffer
-	scrollMargin float32 // Fraction of viewport height in [0, 0.5].
+	scrollMargin float64 // Fraction of viewport height in [0, 0.5].
 	desiredCol   *int    // Visual column preserved during vertical movement.
 
 	// Placeholder data read by widgets when the buffer is empty.
@@ -100,7 +100,7 @@ func (ev *EditSurface) SetWrapMode(mode WrapMode) {
 
 // SetScrollMargin sets the viewport-height fraction kept around the cursor,
 // clamped to [0, 0.5].
-func (ev *EditSurface) SetScrollMargin(margin float32) {
+func (ev *EditSurface) SetScrollMargin(margin float64) {
 	if margin < 0 {
 		margin = 0
 	}
@@ -522,7 +522,7 @@ func (ev *EditSurface) ensureCursorVisible() {
 	// Recover the cursor's absolute virtual-line index.
 	absVisRow := vc.VisualRow + vp.Y
 
-	marginLines := min(max(int(float32(vp.Height)*ev.scrollMargin), 1), (vp.Height-1)/2)
+	marginLines := min(max(int(float64(vp.Height)*ev.scrollMargin), 1), (vp.Height-1)/2)
 
 	newY := vp.Y
 
