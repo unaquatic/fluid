@@ -219,18 +219,18 @@ func InputWithMaxLength(n int) InputOption {
 	return func(inp *Input) { inp.maxLength = n }
 }
 
-// InputWithTextColor sets the text color.
-func InputWithTextColor(c style.Color) InputOption {
+// InputWithFg sets the text color.
+func InputWithFg(c style.Color) InputOption {
 	return func(inp *Input) { inp.textColor = c }
 }
 
-// InputWithBackgroundColor sets the background color.
-func InputWithBackgroundColor(c style.Color) InputOption {
+// InputWithBg sets the background color.
+func InputWithBg(c style.Color) InputOption {
 	return func(inp *Input) { inp.backgroundColor = c }
 }
 
-// InputWithPlaceholderColor sets the placeholder text color.
-func InputWithPlaceholderColor(c style.Color) InputOption {
+// InputWithPlaceholderFg sets the placeholder text color.
+func InputWithPlaceholderFg(c style.Color) InputOption {
 	return func(inp *Input) {
 		phText, _ := inp.editSurface.PlaceholderText()
 		inp.editSurface.SetPlaceholderText(phText, c)

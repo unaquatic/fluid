@@ -141,10 +141,10 @@ func TestSelect_Render(t *testing.T) {
 	}
 }
 
-// TestSelect_HintColor checks that a hint color colors the hint after each
+// TestSelect_HintFg checks that a hint color colors the hint after each
 // name on every row, the selected one included, and that without one the
 // selected row's hint takes the row's text color.
-func TestSelect_HintColor(t *testing.T) {
+func TestSelect_HintFg(t *testing.T) {
 	hintFg := style.ColorFromInts(112, 112, 112, 255)
 	textFg := style.ColorFromInts(180, 180, 180, 255)
 	selectedFg := style.ColorWhite
@@ -158,16 +158,16 @@ func TestSelect_HintColor(t *testing.T) {
 		opts             []SelectOption
 		selected, normal style.Color
 	}{
-		{name: "hint color", opts: []SelectOption{SelectWithHintColor(hintFg)}, selected: hintFg, normal: hintFg},
+		{name: "hint color", opts: []SelectOption{SelectWithHintFg(hintFg)}, selected: hintFg, normal: hintFg},
 		{name: "description color", selected: selectedFg, normal: textFg},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := NewSelect(items, append([]SelectOption{
-				SelectWithTextColor(textFg),
-				SelectWithDescriptionColor(textFg),
-				SelectWithFocusedTextColor(selectedFg),
-				SelectWithSelectedTextColor(selectedFg),
+				SelectWithFg(textFg),
+				SelectWithDescriptionFg(textFg),
+				SelectWithFocusedFg(selectedFg),
+				SelectWithSelectedFg(selectedFg),
 			}, tt.opts...)...)
 			s.Focus()
 			s.SetBounds(0, 0, 20, 2)
@@ -236,9 +236,9 @@ func TestSelect_ArrowColumn(t *testing.T) {
 func TestSelect_Options(t *testing.T) {
 	s := NewSelect(makeSelectItems(),
 		SelectWithID("my-select"),
-		SelectWithBackgroundColor(style.ColorBlack),
-		SelectWithTextColor(style.ColorWhite),
-		SelectWithFocusedBackgroundColor(style.ColorBlue),
+		SelectWithBg(style.ColorBlack),
+		SelectWithFg(style.ColorWhite),
+		SelectWithFocusedBg(style.ColorBlue),
 		SelectWithShowScrollIndicator(false),
 		SelectWithWrapSelection(false),
 		SelectWithShowDescription(false),
@@ -264,10 +264,10 @@ func TestSelect_SelectedBackground(t *testing.T) {
 	}
 	selectedBg := style.ColorFromInts(51, 153, 255, 255)
 	s := NewSelect(items,
-		SelectWithBackgroundColor(style.ColorFromInts(30, 30, 30, 255)),
-		SelectWithTextColor(style.ColorFromInts(180, 180, 180, 255)),
-		SelectWithSelectedBackgroundColor(selectedBg),
-		SelectWithSelectedTextColor(style.ColorWhite),
+		SelectWithBg(style.ColorFromInts(30, 30, 30, 255)),
+		SelectWithFg(style.ColorFromInts(180, 180, 180, 255)),
+		SelectWithSelectedBg(selectedBg),
+		SelectWithSelectedFg(style.ColorWhite),
 		SelectWithWrapSelection(true),
 		SelectWithShowScrollIndicator(false),
 		SelectWithShowDescription(false),

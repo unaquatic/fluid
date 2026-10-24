@@ -53,7 +53,7 @@ func TestBox_RoundedBorder(t *testing.T) {
 // TestBox_BackgroundFill verifies background color fills the interior.
 func TestBox_BackgroundFill(t *testing.T) {
 	box := widget.NewBox(
-		widget.BoxWithBackgroundColor(style.ColorRed),
+		widget.BoxWithBg(style.ColorRed),
 		widget.BoxWithBorder(style.BorderAll()),
 		widget.BoxWithBorderStyle(style.BorderSingle),
 	)
@@ -71,7 +71,7 @@ func TestBox_BackgroundFill(t *testing.T) {
 // TestBox_NoBorder_BackgroundFillsAll verifies that an unbordered fill covers every cell.
 func TestBox_NoBorder_BackgroundFillsAll(t *testing.T) {
 	box := widget.NewBox(
-		widget.BoxWithBackgroundColor(style.ColorBlue),
+		widget.BoxWithBg(style.ColorBlue),
 		widget.BoxWithShouldFill(true),
 	)
 	buf := testutil.RenderWidget(box, 4, 2)
@@ -286,11 +286,11 @@ func TestBox_NestedBoxes(t *testing.T) {
 
 	header := widget.NewBox(
 		widget.BoxWithHeight(layout.Points(1)),
-		widget.BoxWithBackgroundColor(style.ColorRed),
+		widget.BoxWithBg(style.ColorRed),
 	)
 	body := widget.NewBox(
 		widget.BoxWithFlexGrow(1),
-		widget.BoxWithBackgroundColor(style.ColorBlue),
+		widget.BoxWithBg(style.ColorBlue),
 	)
 
 	outer.Add(header)

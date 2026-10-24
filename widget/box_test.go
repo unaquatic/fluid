@@ -14,7 +14,7 @@ func TestNewBox_Defaults(t *testing.T) {
 	if b == nil {
 		t.Fatal("NewBox returned nil")
 	}
-	if b.BackgroundColor() != style.ColorTransparent {
+	if b.Bg() != style.ColorTransparent {
 		t.Error("expected transparent background by default")
 	}
 	if b.BorderStyle() != style.BorderNone {
@@ -31,7 +31,7 @@ func TestNewBox_Defaults(t *testing.T) {
 func TestNewBox_WithOptions(t *testing.T) {
 	b := NewBox(
 		BoxWithID("test-box"),
-		BoxWithBackgroundColor(style.ColorRed),
+		BoxWithBg(style.ColorRed),
 		BoxWithBorderStyle(style.BorderRounded),
 		BoxWithBorder(style.BorderAll()),
 		BoxWithBorderColor(style.ColorBlue),
@@ -46,7 +46,7 @@ func TestNewBox_WithOptions(t *testing.T) {
 	if b.ID() != "test-box" {
 		t.Errorf("expected id 'test-box', got %q", b.ID())
 	}
-	if !b.BackgroundColor().Equals(style.ColorRed) {
+	if !b.Bg().Equals(style.ColorRed) {
 		t.Error("expected red background")
 	}
 	if b.BorderStyle() != style.BorderRounded {
@@ -71,7 +71,7 @@ func TestNewBox_WithOptions(t *testing.T) {
 
 func TestBox_RenderSelf_FillBackground(t *testing.T) {
 	b := NewBox(
-		BoxWithBackgroundColor(style.ColorRed),
+		BoxWithBg(style.ColorRed),
 		BoxWithShouldFill(true),
 	)
 	// RenderSelf needs a computed layout rectangle.
@@ -218,7 +218,7 @@ func TestBox_Children_WithOtherOptions(t *testing.T) {
 	txt := NewText("hello")
 	b := NewBox(
 		BoxWithID("combo"),
-		BoxWithBackgroundColor(style.ColorRed),
+		BoxWithBg(style.ColorRed),
 		BoxWithFlexDirection(layout.DirectionRow),
 		Children(txt),
 	)
@@ -226,7 +226,7 @@ func TestBox_Children_WithOtherOptions(t *testing.T) {
 	if b.ID() != "combo" {
 		t.Errorf("expected id 'combo', got %q", b.ID())
 	}
-	if !b.BackgroundColor().Equals(style.ColorRed) {
+	if !b.Bg().Equals(style.ColorRed) {
 		t.Error("expected red background")
 	}
 	if b.ChildrenCount() != 1 {

@@ -173,8 +173,8 @@ func (l *List) ensureVisible() {
 
 // List options.
 
-// ListWithTextColor sets the text color.
-func ListWithTextColor(c style.Color) ListOption {
+// ListWithFg sets the text color.
+func ListWithFg(c style.Color) ListOption {
 	return func(l *List) { l.textColor = c }
 }
 

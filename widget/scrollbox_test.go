@@ -109,7 +109,7 @@ func TestScrollBox_AutoScroll(t *testing.T) {
 
 func TestScrollBox_Render(t *testing.T) {
 	sb := NewScrollBox(
-		ScrollBoxWithBackgroundColor(style.ColorBlack),
+		ScrollBoxWithBg(style.ColorBlack),
 	)
 	testutil.SetupWidget(sb, 20, 10)
 

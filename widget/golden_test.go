@@ -83,7 +83,7 @@ func TestGolden_BoxPartialBorder_TopBottom(t *testing.T) {
 
 func TestGolden_BoxFilled(t *testing.T) {
 	box := widget.NewBox(
-		widget.BoxWithBackgroundColor(style.ColorRed),
+		widget.BoxWithBg(style.ColorRed),
 		widget.BoxWithBorder(style.BorderAll()),
 		widget.BoxWithBorderStyle(style.BorderSingle),
 	)
@@ -199,7 +199,7 @@ func TestGolden_BoxMarginRight_RowChildren(t *testing.T) {
 		widget.BoxWithWidth(layout.Points(4)),
 		widget.BoxWithHeight(layout.Points(1)),
 		widget.BoxWithMarginRight(layout.Points(3)),
-		widget.BoxWithBackgroundColor(style.ColorRed),
+		widget.BoxWithBg(style.ColorRed),
 	)
 	txtA := widget.NewText("AAAA",
 		widget.TextWithWidth(layout.Points(4)),
@@ -210,7 +210,7 @@ func TestGolden_BoxMarginRight_RowChildren(t *testing.T) {
 	childB := widget.NewBox(
 		widget.BoxWithWidth(layout.Points(4)),
 		widget.BoxWithHeight(layout.Points(1)),
-		widget.BoxWithBackgroundColor(style.ColorBlue),
+		widget.BoxWithBg(style.ColorBlue),
 	)
 	txtB := widget.NewText("BBBB",
 		widget.TextWithWidth(layout.Points(4)),
@@ -336,7 +336,7 @@ func TestGolden_BoxMarginRight_ColumnStretch(t *testing.T) {
 	child := widget.NewBox(
 		widget.BoxWithHeight(layout.Points(1)),
 		widget.BoxWithMarginRight(layout.Points(5)),
-		widget.BoxWithBackgroundColor(style.ColorFromInts(40, 40, 40, 255)),
+		widget.BoxWithBg(style.ColorFromInts(40, 40, 40, 255)),
 	)
 	txt := widget.NewText("Hello World Here!",
 		widget.TextWithHeight(layout.Points(1)),
@@ -448,7 +448,7 @@ func TestGolden_BoxCombinedMargins(t *testing.T) {
 		widget.BoxWithMarginLeft(layout.Points(2)),
 		widget.BoxWithMarginRight(layout.Points(3)),
 		widget.BoxWithMarginTop(layout.Points(1)),
-		widget.BoxWithBackgroundColor(style.ColorFromInts(60, 60, 60, 255)),
+		widget.BoxWithBg(style.ColorFromInts(60, 60, 60, 255)),
 	)
 	txt := widget.NewText("Margined",
 		widget.TextWithHeight(layout.Points(1)),

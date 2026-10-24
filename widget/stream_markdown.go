@@ -16,8 +16,8 @@ import (
 type StreamMarkdown struct {
 	*render.BaseRenderable
 
-	// BackgroundColor fills the entire widget behind its content.
-	BackgroundColor style.Color
+	// bg fills the entire widget behind its content, as SetBg sets it.
+	bg style.Color
 
 	// fullContent is the source most recently supplied to SetContent.
 	fullContent string
@@ -80,6 +80,20 @@ func (sm *StreamMarkdown) SetContent(content string) {
 // Content returns the full content string.
 func (sm *StreamMarkdown) Content() string {
 	return sm.fullContent
+}
+
+// Bg returns the color that fills the widget behind its content.
+func (sm *StreamMarkdown) Bg() style.Color { return sm.bg }
+
+// SetBg fills the widget and its Markdown blocks with c, as
+// StreamMarkdownWithBg does, and requests a frame.
+func (sm *StreamMarkdown) SetBg(c style.Color) {
+	sm.bg = c
+	sm.mdOpts = append(sm.mdOpts, MarkdownWithBg(c))
+	for _, child := range sm.children {
+		child.SetBg(c)
+	}
+	sm.RequestRender()
 }
 
 // SetLeader sets text that leads the content, on its first line, as
@@ -257,8 +271,8 @@ func trailBody(body, trailer []style.TextChunk) []style.TextChunk {
 
 // RenderSelf fills the background across the full content area.
 func (sm *StreamMarkdown) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
-	if !sm.BackgroundColor.IsTransparent() {
-		buf.FillRect(sm.X(), sm.Y(), sm.Width(), sm.Height(), sm.BackgroundColor)
+	if !sm.bg.IsTransparent() {
+		buf.FillRect(sm.X(), sm.Y(), sm.Width(), sm.Height(), sm.bg)
 	}
 }
 
@@ -334,7 +348,7 @@ func StreamMarkdownWithFg(c style.Color) StreamMarkdownOption {
 // StreamMarkdownWithBg sets the widget and child Markdown backgrounds.
 func StreamMarkdownWithBg(c style.Color) StreamMarkdownOption {
 	return func(sm *StreamMarkdown) {
-		sm.BackgroundColor = c
+		sm.bg = c
 		sm.mdOpts = append(sm.mdOpts, MarkdownWithBg(c))
 	}
 }

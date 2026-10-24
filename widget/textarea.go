@@ -52,9 +52,6 @@ type Textarea struct {
 	// defaultAttributes applies to text without an explicit highlight style.
 	defaultAttributes style.Attrs
 
-	// initialValueSet prevents reactive callers from reapplying an initial value.
-	initialValueSet bool
-
 	// Drag selection accumulates fractional automatic scrolling over time.
 	autoScrollVelocity    float64
 	autoScrollAccumulator float64
@@ -540,14 +537,6 @@ func (ta *Textarea) Extmarks() *textbuf.ExtmarksController {
 		ta.extmarksCtrl = textbuf.NewExtmarksController(ta.editBuffer(), ta.editSurface)
 	}
 	return ta.extmarksCtrl
-}
-
-// SetInitialValue sets text on its first call and ignores later calls.
-func (ta *Textarea) SetInitialValue(text string) {
-	if !ta.initialValueSet {
-		ta.SetText(text)
-		ta.initialValueSet = true
-	}
 }
 
 // Focus state.
@@ -1444,14 +1433,6 @@ func TextareaWithText(text string) TextareaOption {
 	}
 }
 
-// TextareaWithInitialValue sets initial text and prevents later SetInitialValue calls.
-func TextareaWithInitialValue(text string) TextareaOption {
-	return func(ta *Textarea) {
-		ta.editBuffer().SetText(text)
-		ta.initialValueSet = true
-	}
-}
-
 // TextareaWithPlaceholder sets the placeholder text.
 func TextareaWithPlaceholder(text string) TextareaOption {
 	return func(ta *Textarea) {
@@ -1459,16 +1440,16 @@ func TextareaWithPlaceholder(text string) TextareaOption {
 	}
 }
 
-// TextareaWithPlaceholderColor sets the placeholder color.
-func TextareaWithPlaceholderColor(fg style.Color) TextareaOption {
+// TextareaWithPlaceholderFg sets the placeholder color.
+func TextareaWithPlaceholderFg(fg style.Color) TextareaOption {
 	return func(ta *Textarea) {
 		phText, _ := ta.editSurface.PlaceholderText()
 		ta.editSurface.SetPlaceholderText(phText, fg)
 	}
 }
 
-// TextareaWithTextColor sets both focused and unfocused foreground colors.
-func TextareaWithTextColor(c style.Color) TextareaOption {
+// TextareaWithFg sets both focused and unfocused foreground colors.
+func TextareaWithFg(c style.Color) TextareaOption {
 	return func(ta *Textarea) {
 		ta.unfocusedTextColor = c
 		ta.focusedTextColor = c
@@ -1476,13 +1457,13 @@ func TextareaWithTextColor(c style.Color) TextareaOption {
 	}
 }
 
-// TextareaWithFocusedTextColor sets the text color used when focused.
-func TextareaWithFocusedTextColor(c style.Color) TextareaOption {
+// TextareaWithFocusedFg sets the text color used when focused.
+func TextareaWithFocusedFg(c style.Color) TextareaOption {
 	return func(ta *Textarea) { ta.focusedTextColor = c }
 }
 
-// TextareaWithBackgroundColor sets both focused and unfocused background colors.
-func TextareaWithBackgroundColor(c style.Color) TextareaOption {
+// TextareaWithBg sets both focused and unfocused background colors.
+func TextareaWithBg(c style.Color) TextareaOption {
 	return func(ta *Textarea) {
 		ta.unfocusedBgColor = c
 		ta.focusedBgColor = c
@@ -1490,8 +1471,8 @@ func TextareaWithBackgroundColor(c style.Color) TextareaOption {
 	}
 }
 
-// TextareaWithFocusedBackgroundColor sets the background color when focused.
-func TextareaWithFocusedBackgroundColor(c style.Color) TextareaOption {
+// TextareaWithFocusedBg sets the background color when focused.
+func TextareaWithFocusedBg(c style.Color) TextareaOption {
 	return func(ta *Textarea) { ta.focusedBgColor = c }
 }
 

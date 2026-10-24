@@ -122,11 +122,8 @@ func runSelectDemo(ctx context.Context, o DemoOptions) error {
 	sel.OnItemSelected = func(idx int, item widget.SelectItem) {
 		detailName.SetContent(fmt.Sprintf("[Selected] %s", item.Name))
 	}
-	tabs.OnSelectionChanged = func(idx int) {
-		tabNames := []string{"General", "Appearance", "Keybindings", "Extensions", "About"}
-		if idx < len(tabNames) {
-			detailTab.SetContent(fmt.Sprintf("Tab: %s", tabNames[idx]))
-		}
+	tabs.OnSelectionChanged = func(idx int, item widget.TabSelectItem) {
+		detailTab.SetContent(fmt.Sprintf("Tab: %s", item.Name))
 	}
 
 	focusables := []render.Renderable{tabs, sel}

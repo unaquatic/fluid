@@ -146,7 +146,7 @@ func TestGoldenSeq_TextNodeColorChange(t *testing.T) {
 func TestGoldenSeq_InputFocusUnfocus(t *testing.T) {
 	inp := widget.NewInput(
 		widget.InputWithPlaceholder("Type here"),
-		widget.InputWithPlaceholderColor(style.ColorFromInts(128, 128, 128, 255)),
+		widget.InputWithPlaceholderFg(style.ColorFromInts(128, 128, 128, 255)),
 	)
 	testutil.SetupWidget(inp, 15, 1)
 

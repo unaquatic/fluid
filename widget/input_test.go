@@ -192,8 +192,8 @@ func TestInput_Options(t *testing.T) {
 	inp := NewInput(
 		InputWithID("my-input"),
 		InputWithPlaceholder("type here"),
-		InputWithTextColor(style.ColorRed),
-		InputWithBackgroundColor(style.ColorBlue),
+		InputWithFg(style.ColorRed),
+		InputWithBg(style.ColorBlue),
 		InputWithCursorColor(style.ColorGreen),
 		InputWithWidth(layout.Points(30)),
 	)

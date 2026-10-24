@@ -381,45 +381,45 @@ func (s *Select) ensureVisible() {
 
 // Select options.
 
-// SelectWithBackgroundColor sets the background color.
-func SelectWithBackgroundColor(c style.Color) SelectOption {
+// SelectWithBg sets the background color.
+func SelectWithBg(c style.Color) SelectOption {
 	return func(s *Select) { s.backgroundColor = c }
 }
 
-// SelectWithTextColor sets the text color.
-func SelectWithTextColor(c style.Color) SelectOption {
+// SelectWithFg sets the text color.
+func SelectWithFg(c style.Color) SelectOption {
 	return func(s *Select) { s.textColor = c }
 }
 
-// SelectWithFocusedBackgroundColor sets the focused background color.
-func SelectWithFocusedBackgroundColor(c style.Color) SelectOption {
+// SelectWithFocusedBg sets the focused background color.
+func SelectWithFocusedBg(c style.Color) SelectOption {
 	return func(s *Select) { s.focusedBackgroundColor = c }
 }
 
-// SelectWithFocusedTextColor sets the focused text color.
-func SelectWithFocusedTextColor(c style.Color) SelectOption {
+// SelectWithFocusedFg sets the focused text color.
+func SelectWithFocusedFg(c style.Color) SelectOption {
 	return func(s *Select) { s.focusedTextColor = c }
 }
 
-// SelectWithSelectedBackgroundColor sets the selected background color.
-func SelectWithSelectedBackgroundColor(c style.Color) SelectOption {
+// SelectWithSelectedBg sets the selected background color.
+func SelectWithSelectedBg(c style.Color) SelectOption {
 	return func(s *Select) { s.selectedBackgroundColor = c }
 }
 
-// SelectWithSelectedTextColor sets the selected text color.
-func SelectWithSelectedTextColor(c style.Color) SelectOption {
+// SelectWithSelectedFg sets the selected text color.
+func SelectWithSelectedFg(c style.Color) SelectOption {
 	return func(s *Select) { s.selectedTextColor = c }
 }
 
-// SelectWithDescriptionColor sets the description color.
-func SelectWithDescriptionColor(c style.Color) SelectOption {
+// SelectWithDescriptionFg sets the description color.
+func SelectWithDescriptionFg(c style.Color) SelectOption {
 	return func(s *Select) { s.descriptionColor = c }
 }
 
-// SelectWithHintColor colors the hint after each name with c on every row,
+// SelectWithHintFg colors the hint after each name with c on every row,
 // the selected one included. Without it, a hint takes the description color,
 // and the selected row's text color on that row.
-func SelectWithHintColor(c style.Color) SelectOption {
+func SelectWithHintFg(c style.Color) SelectOption {
 	return func(s *Select) { s.hintColor = c }
 }
 

@@ -154,11 +154,11 @@ func (b *Box) InnerRect() buffer.Rect {
 	return buffer.InnerRect(b.X(), b.Y(), b.Width(), b.Height(), sides)
 }
 
-// BackgroundColor returns the color that fills the box, inside any border,
-// while ShouldFill reports true.
-func (b *Box) BackgroundColor() style.Color { return b.backgroundColor }
+// Bg returns the color that fills the box, inside any border, while
+// ShouldFill reports true.
+func (b *Box) Bg() style.Color { return b.backgroundColor }
 
-// ShouldFill reports whether the box fills itself with BackgroundColor.
+// ShouldFill reports whether the box fills itself with Bg.
 func (b *Box) ShouldFill() bool { return b.shouldFill }
 
 // BorderStyle returns the border's line style, such as style.BorderSingle.
@@ -189,9 +189,8 @@ func (b *Box) RowGap() layout.Scalar { return b.rowGap }
 // ColumnGap returns the horizontal gap between children, which overrides Gap.
 func (b *Box) ColumnGap() layout.Scalar { return b.columnGap }
 
-// SetBackgroundColor fills the box with c, as BoxWithBackgroundColor does,
-// and requests a frame.
-func (b *Box) SetBackgroundColor(c style.Color) {
+// SetBg fills the box with c, as BoxWithBg does, and requests a frame.
+func (b *Box) SetBg(c style.Color) {
 	b.backgroundColor = c
 	b.shouldFill = true
 	b.RequestRender()
@@ -273,8 +272,8 @@ func (b *Box) SetColumnGap(g layout.Scalar) {
 
 // Box options.
 
-// BoxWithBackgroundColor sets the background color.
-func BoxWithBackgroundColor(c style.Color) BoxOption {
+// BoxWithBg sets the background color.
+func BoxWithBg(c style.Color) BoxOption {
 	return func(b *Box) {
 		b.backgroundColor = c
 		b.shouldFill = true

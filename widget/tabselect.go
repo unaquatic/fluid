@@ -34,10 +34,11 @@ type TabSelect struct {
 	separatorColor    style.Color
 	backgroundColor   style.Color
 
-	// OnSelectionChanged is called after the selected tab changes.
-	OnSelectionChanged func(index int)
-	// OnItemSelected is called when the user activates the selected tab.
-	OnItemSelected func(index int)
+	// OnSelectionChanged is called with the selected tab after it changes.
+	OnSelectionChanged func(index int, item TabSelectItem)
+	// OnItemSelected is called with the selected tab when the user activates
+	// it.
+	OnItemSelected func(index int, item TabSelectItem)
 }
 
 // TabSelectOption configures a TabSelect during construction.
@@ -71,6 +72,14 @@ func NewTabSelect(items []TabSelectItem, opts ...TabSelectOption) *TabSelect {
 	return ts
 }
 
+// notifySelectionChanged calls OnSelectionChanged with the selected tab, if
+// there is one.
+func (ts *TabSelect) notifySelectionChanged() {
+	if i := ts.selectedIndex; ts.OnSelectionChanged != nil && i >= 0 && i < len(ts.items) {
+		ts.OnSelectionChanged(i, ts.items[i])
+	}
+}
+
 // SelectedIndex returns the currently selected tab index.
 func (ts *TabSelect) SelectedIndex() int { return ts.selectedIndex }
 
@@ -84,9 +93,7 @@ func (ts *TabSelect) SetSelectedIndex(idx int) {
 	}
 	if idx != ts.selectedIndex {
 		ts.selectedIndex = idx
-		if ts.OnSelectionChanged != nil {
-			ts.OnSelectionChanged(idx)
-		}
+		ts.notifySelectionChanged()
 		ts.RequestRender()
 	}
 }
@@ -192,24 +199,20 @@ func (ts *TabSelect) HandleKeyPress(e *input.KeyEvent) bool {
 	case e.Matches(input.KeyLeft, 0) || e.Matches("h", 0):
 		if ts.selectedIndex > 0 {
 			ts.selectedIndex--
-			if ts.OnSelectionChanged != nil {
-				ts.OnSelectionChanged(ts.selectedIndex)
-			}
+			ts.notifySelectionChanged()
 			ts.RequestRender()
 		}
 
 	case e.Matches(input.KeyRight, 0) || e.Matches("l", 0):
 		if ts.selectedIndex < len(ts.items)-1 {
 			ts.selectedIndex++
-			if ts.OnSelectionChanged != nil {
-				ts.OnSelectionChanged(ts.selectedIndex)
-			}
+			ts.notifySelectionChanged()
 			ts.RequestRender()
 		}
 
 	case e.Matches(input.KeyReturn, 0) || e.Matches(input.KeySpace, 0):
-		if ts.OnItemSelected != nil {
-			ts.OnItemSelected(ts.selectedIndex)
+		if i := ts.selectedIndex; ts.OnItemSelected != nil && i >= 0 && i < len(ts.items) {
+			ts.OnItemSelected(i, ts.items[i])
 		}
 
 	case e.Matches(input.KeyHome, 0):
@@ -275,18 +278,18 @@ func TabSelectWithShowUnderline(v bool) TabSelectOption {
 	return func(ts *TabSelect) { ts.showUnderline = v }
 }
 
-// TabSelectWithTextColor sets the default text color.
-func TabSelectWithTextColor(c style.Color) TabSelectOption {
+// TabSelectWithFg sets the default text color.
+func TabSelectWithFg(c style.Color) TabSelectOption {
 	return func(ts *TabSelect) { ts.textColor = c }
 }
 
-// TabSelectWithSelectedTextColor sets the selected text color.
-func TabSelectWithSelectedTextColor(c style.Color) TabSelectOption {
+// TabSelectWithSelectedFg sets the selected text color.
+func TabSelectWithSelectedFg(c style.Color) TabSelectOption {
 	return func(ts *TabSelect) { ts.selectedTextColor = c }
 }
 
-// TabSelectWithSelectedBgColor sets the selected background color.
-func TabSelectWithSelectedBgColor(c style.Color) TabSelectOption {
+// TabSelectWithSelectedBg sets the selected background color.
+func TabSelectWithSelectedBg(c style.Color) TabSelectOption {
 	return func(ts *TabSelect) { ts.selectedBgColor = c }
 }
 
@@ -295,18 +298,18 @@ func TabSelectWithUnderlineColor(c style.Color) TabSelectOption {
 	return func(ts *TabSelect) { ts.underlineColor = c }
 }
 
-// TabSelectWithBackgroundColor sets the background color.
-func TabSelectWithBackgroundColor(c style.Color) TabSelectOption {
+// TabSelectWithBg sets the background color.
+func TabSelectWithBg(c style.Color) TabSelectOption {
 	return func(ts *TabSelect) { ts.backgroundColor = c }
 }
 
 // TabSelectWithOnSelectionChanged sets the callback invoked after selection changes.
-func TabSelectWithOnSelectionChanged(fn func(int)) TabSelectOption {
+func TabSelectWithOnSelectionChanged(fn func(int, TabSelectItem)) TabSelectOption {
 	return func(ts *TabSelect) { ts.OnSelectionChanged = fn }
 }
 
 // TabSelectWithOnItemSelected sets the callback invoked when the user activates a tab.
-func TabSelectWithOnItemSelected(fn func(int)) TabSelectOption {
+func TabSelectWithOnItemSelected(fn func(int, TabSelectItem)) TabSelectOption {
 	return func(ts *TabSelect) { ts.OnItemSelected = fn }
 }
 

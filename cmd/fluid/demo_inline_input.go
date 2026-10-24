@@ -67,7 +67,7 @@ func runInlineInputDemo(ctx context.Context, o DemoOptions) error {
 
 	ta := widget.NewTextarea(
 		widget.TextareaWithPlaceholder("Type a message... (Enter=newline, Alt+Enter=send)"),
-		widget.TextareaWithBackgroundColor(style.ColorTransparent),
+		widget.TextareaWithBg(style.ColorTransparent),
 		widget.TextareaWithWidth(layout.Percent(100)),
 		widget.TextareaWithWrapMode(textbuf.WrapWord),
 	)

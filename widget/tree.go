@@ -253,8 +253,8 @@ func (t *Tree) ensureVisible() {
 
 // Tree options.
 
-// TreeWithTextColor sets the text color.
-func TreeWithTextColor(c style.Color) TreeOption {
+// TreeWithFg sets the text color.
+func TreeWithFg(c style.Color) TreeOption {
 	return func(t *Tree) { t.textColor = c }
 }
 

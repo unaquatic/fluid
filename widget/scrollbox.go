@@ -724,8 +724,8 @@ func ScrollBoxWithStickyGap(gap int) ScrollBoxOption {
 	return func(sb *ScrollBox) { sb.stickyGap = gap }
 }
 
-// ScrollBoxWithBackgroundColor sets the background color.
-func ScrollBoxWithBackgroundColor(c style.Color) ScrollBoxOption {
+// ScrollBoxWithBg sets the background color.
+func ScrollBoxWithBg(c style.Color) ScrollBoxOption {
 	return func(sb *ScrollBox) {
 		sb.backgroundColor = c
 		sb.shouldFill = true
