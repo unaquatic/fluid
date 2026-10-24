@@ -194,3 +194,18 @@ type Renderable interface {
 	// which traversal passes to descendants separately.
 	UpdateFromLayoutWithOffset(offsetX, offsetY int)
 }
+
+// MouseTarget returns the renderable under the cursor that the renderer
+// dispatched e to, which it stores in e.Target, or nil if there is none.
+func MouseTarget(e *input.MouseEvent) Renderable {
+	r, _ := e.Target.(Renderable)
+	return r
+}
+
+// MouseSource returns the renderable that the drag e belongs to started on,
+// which the renderer stores in e.Source for MouseDrag, MouseDragEnd, and
+// MouseDrop events, or nil if there is none.
+func MouseSource(e *input.MouseEvent) Renderable {
+	r, _ := e.Source.(Renderable)
+	return r
+}

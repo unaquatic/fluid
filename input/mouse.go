@@ -88,11 +88,12 @@ type MouseEvent struct {
 	// IsDragging reports whether a button was held while the mouse moved.
 	IsDragging bool
 
-	// Source is the renderable that initiated the event. The renderer sets it
-	// during dispatch. It is any to avoid an import cycle; the render package
-	// provides typed accessors.
+	// Source is the renderable a drag started on, which the renderer sets for
+	// MouseDrag, MouseDragEnd, and MouseDrop events. It is any because package
+	// render imports this package; render.MouseSource returns it typed.
 	Source any
-	// Target is the renderable under the cursor, set and typed as Source is.
+	// Target is the renderable under the cursor, which the renderer sets during
+	// dispatch. render.MouseTarget returns it typed.
 	Target any
 
 	propagationStopped bool
