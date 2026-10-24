@@ -20,10 +20,9 @@ var demoInlineCmd = Demo{
 
 func runInlineDemo(ctx context.Context, o DemoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
-		InlineMode:  true,
-		UseMouse:    false,
-		ExitOnCtrlC: true,
-		TargetFPS:   o.FPS,
+		InlineMode: true,
+		UseMouse:   false,
+		TargetFPS:  o.FPS,
 	})
 	if err != nil {
 		return fmt.Errorf("renderer: %w", err)

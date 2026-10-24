@@ -147,19 +147,23 @@ type Config struct {
 	// The default is 60.
 	MaxFPS int
 
-	// UseMouse enables click, drag, and scroll reporting. The default is true.
+	// UseMouse enables click, drag, and scroll reporting. The default is false.
 	UseMouse bool
 
 	// EnableMouseMovement enables reporting for motion without a pressed button.
-	// It applies only when UseMouse is true and defaults to false.
+	// It applies only when UseMouse is set and defaults to false.
 	EnableMouseMovement bool
 
-	// AutoFocus focuses a focusable renderable on mouse down. The default is true.
-	AutoFocus bool
+	// EnableAutoFocus focuses the focusable renderable under a mouse down. The
+	// default is false.
+	EnableAutoFocus bool
 
-	// ExitOnCtrlC destroys the renderer after an unprevented Control-C event. The
-	// default is true.
-	ExitOnCtrlC bool
+	// HandleCtrlC passes the Control-C key to the application as an ordinary
+	// key instead of destroying the renderer. Without it, a Control-C that no
+	// key handler prevents destroys the renderer. The terminal's raw mode
+	// turns the key into input rather than SIGINT, and SIGINT and SIGTERM
+	// still stop Run and Wait. The default is false.
+	HandleCtrlC bool
 
 	// InlineMode renders in the normal screen and scrollback instead of the
 	// alternate screen. Content determines height; terminal width minus a
@@ -234,10 +238,7 @@ func DefaultConfig() Config {
 		Stdout:              os.Stdout,
 		TargetFPS:           30,
 		MaxFPS:              60,
-		UseMouse:            true,
 		EnableMouseMovement: false,
-		AutoFocus:           true,
-		ExitOnCtrlC:         true,
 		BackgroundColor:     style.ColorBlack,
 		UseKittyKeyboard:    false,
 		KittyKeyboardFlags:  KittyFlagDisambiguate | KittyFlagAlternateKeys,
@@ -269,8 +270,8 @@ func mergeConfig(configs []Config) Config {
 
 	cfg.UseMouse = user.UseMouse
 	cfg.EnableMouseMovement = user.EnableMouseMovement
-	cfg.AutoFocus = user.AutoFocus
-	cfg.ExitOnCtrlC = user.ExitOnCtrlC
+	cfg.EnableAutoFocus = user.EnableAutoFocus
+	cfg.HandleCtrlC = user.HandleCtrlC
 	cfg.InlineMode = user.InlineMode
 	cfg.ClearScreenOnStart = user.ClearScreenOnStart
 	cfg.ClearOnExit = user.ClearOnExit

@@ -20,9 +20,8 @@ var demoSelectCmd = Demo{
 
 func runSelectDemo(ctx context.Context, o DemoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
-		ExitOnCtrlC: true,
-		UseMouse:    !o.NoMouse,
-		TargetFPS:   o.FPS,
+		UseMouse:  !o.NoMouse,
+		TargetFPS: o.FPS,
 	})
 	if err != nil {
 		return fmt.Errorf("renderer: %w", err)

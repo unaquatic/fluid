@@ -53,9 +53,7 @@ import (
 )
 
 func main() {
-    r, _ := terminal.NewRenderer(terminal.Config{
-        ExitOnCtrlC: true,
-    })
+    r, _ := terminal.NewRenderer()
     defer r.Destroy()
 
     box := widget.NewBox(
@@ -127,9 +125,8 @@ go build -o fluid ./cmd/fluid
 
 func runMarkdownDemo(ctx context.Context, o DemoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
-		ExitOnCtrlC: true,
-		UseMouse:    !o.NoMouse,
-		TargetFPS:   o.FPS,
+		UseMouse:  !o.NoMouse,
+		TargetFPS: o.FPS,
 	})
 	if err != nil {
 		return fmt.Errorf("renderer: %w", err)

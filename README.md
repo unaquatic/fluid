@@ -39,8 +39,7 @@ import (
 
 func main() {
 	r, err := terminal.NewRenderer(terminal.Config{
-		InlineMode:  true,
-		ExitOnCtrlC: true,
+		InlineMode: true,
 	})
 	if err != nil {
 		log.Fatal(err)

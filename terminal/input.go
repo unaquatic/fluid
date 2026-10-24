@@ -69,7 +69,7 @@ func (r *Renderer) dispatchKeyEvent(evt input.TerminalEvent) {
 	}
 
 	// Unprevented Control-C is a configurable framework shutdown action.
-	if r.config.ExitOnCtrlC && evt.Key.Mods.Has(input.ModCtrl) && evt.Key.Name == "c" {
+	if !r.config.HandleCtrlC && evt.Key.Mods.Has(input.ModCtrl) && evt.Key.Name == "c" {
 		r.Destroy()
 		return
 	}
@@ -244,7 +244,7 @@ func (r *Renderer) dispatchMouseEvent(evt input.TerminalEvent) {
 	}
 
 	// Mouse down can transfer focus to a focusable target.
-	if me.Type == input.MouseDown && r.config.AutoFocus && target != nil {
+	if me.Type == input.MouseDown && r.config.EnableAutoFocus && target != nil {
 		if target.Focusable() {
 			r.FocusRenderable(target)
 		}

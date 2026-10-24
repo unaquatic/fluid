@@ -228,9 +228,9 @@ func TestDispatchKeyEvent_UnhandledReachesRoot(t *testing.T) {
 	}
 }
 
-func TestDispatchKeyEvent_ExitOnCtrlC(t *testing.T) {
+func TestDispatchKeyEvent_CtrlCExits(t *testing.T) {
 	r := newInputTestRenderer()
-	r.config.ExitOnCtrlC = true
+	r.config.HandleCtrlC = false
 
 	evt := keyPressEvent("c")
 	evt.Key.Mods |= input.ModCtrl
@@ -241,9 +241,9 @@ func TestDispatchKeyEvent_ExitOnCtrlC(t *testing.T) {
 	}
 }
 
-func TestDispatchKeyEvent_BusVetoesExitOnCtrlC(t *testing.T) {
+func TestDispatchKeyEvent_BusVetoesCtrlCExit(t *testing.T) {
 	r := newInputTestRenderer()
-	r.config.ExitOnCtrlC = true
+	r.config.HandleCtrlC = false
 
 	r.eventBus.On(input.EventKeyboard, func(evt input.TerminalEvent) {
 		evt.Key.PreventDefault()
@@ -254,7 +254,7 @@ func TestDispatchKeyEvent_BusVetoesExitOnCtrlC(t *testing.T) {
 	r.dispatchEvent(evt)
 
 	if r.IsDestroyed() {
-		t.Error("expected PreventDefault to veto the ExitOnCtrlC default action")
+		t.Error("expected PreventDefault to veto the Control-C exit")
 	}
 }
 
@@ -375,6 +375,7 @@ func TestDispatchMouseEvent_HitTest(t *testing.T) {
 
 func TestDispatchMouseEvent_AutoFocus(t *testing.T) {
 	r := newInputTestRenderer()
+	r.config.EnableAutoFocus = true
 
 	child := render.NewBaseRenderable(render.WithID("focusable-click"), render.WithFocusable(true))
 	child.SetBounds(0, 0, 10, 10)

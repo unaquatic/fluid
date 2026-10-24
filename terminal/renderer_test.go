@@ -21,8 +21,8 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.MaxFPS != 60 {
 		t.Errorf("expected MaxFPS=60, got %d", cfg.MaxFPS)
 	}
-	if !cfg.UseMouse {
-		t.Error("expected UseMouse=true")
+	if cfg.UseMouse {
+		t.Error("expected UseMouse=false")
 	}
 	if cfg.EnableMouseMovement {
 		t.Error("expected EnableMouseMovement=false")
@@ -30,11 +30,11 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.InlineMode {
 		t.Error("expected InlineMode=false")
 	}
-	if !cfg.AutoFocus {
-		t.Error("expected AutoFocus=true")
+	if cfg.EnableAutoFocus {
+		t.Error("expected EnableAutoFocus=false")
 	}
-	if !cfg.ExitOnCtrlC {
-		t.Error("expected ExitOnCtrlC=true")
+	if cfg.HandleCtrlC {
+		t.Error("expected HandleCtrlC=false")
 	}
 	if !cfg.BackgroundColor.Equals(style.ColorBlack) {
 		t.Error("expected BackgroundColor=Black")
