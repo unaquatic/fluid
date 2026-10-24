@@ -7,8 +7,8 @@ func builtinLanguages() []*Language {
 	css := &CSS{}
 	scss := &CSS{SCSS: true}
 	sh := newShell()
-	html := func(vue, svelte bool) *Markup {
-		return &Markup{Script: js, TypeScript: ts, Style: css, SCSS: scss, Vue: vue, Svelte: svelte}
+	html := func(t Template) *Markup {
+		return &Markup{Script: js, TypeScript: ts, Style: css, SCSS: scss, Template: t}
 	}
 	return []*Language{
 		goLang(),
@@ -40,10 +40,10 @@ func builtinLanguages() []*Language {
 		iniLang(),
 		diffLang(),
 		markdownLang(),
-		{Name: "html", Aliases: []string{"htm", "xhtml", "html5"}, Lexer: html(false, false)},
+		{Name: "html", Aliases: []string{"htm", "xhtml", "html5"}, Lexer: html(TemplateNone)},
 		{Name: "xml", Aliases: []string{"svg", "xsd", "xsl", "xslt", "plist", "csproj", "fsproj", "vbproj", "props", "targets", "rss", "atom", "wsdl", "xaml", "storyboard"}, Lexer: &Markup{}},
-		{Name: "vue", Lexer: html(true, false)},
-		{Name: "svelte", Lexer: html(false, true)},
+		{Name: "vue", Lexer: html(TemplateVue)},
+		{Name: "svelte", Lexer: html(TemplateSvelte)},
 		{Name: "css", Lexer: css},
 		{Name: "scss", Aliases: []string{"sass", "less"}, Lexer: scss},
 		protobufLang(),

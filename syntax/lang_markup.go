@@ -16,12 +16,23 @@ type Markup struct {
 	Style Lexer
 	// SCSS lexes style elements whose lang is "scss", or Style if nil.
 	SCSS Lexer
-	// Vue lexes Vue's {{ }} interpolations and the expressions in its
-	// directive attributes, such as v-if, :value, and @click.
-	Vue bool
-	// Svelte lexes Svelte's { } expressions and blocks, such as {#if}.
-	Svelte bool
+	// Template is the template syntax the markup embeds, if any.
+	Template Template
 }
+
+// Template identifies a template syntax that Markup lexes on top of HTML.
+type Template int
+
+const (
+	// TemplateNone is plain HTML or XML.
+	TemplateNone Template = iota
+	// TemplateVue lexes Vue's {{ }} interpolations and the expressions in
+	// its directive attributes, such as v-if, :value, and @click.
+	TemplateVue
+	// TemplateSvelte lexes Svelte's { } expressions and blocks, such as
+	// {#if}.
+	TemplateSvelte
+)
 
 // The languages a Markup embeds, as the N of a modeEmbed frame.
 const (
@@ -142,10 +153,10 @@ func (m *Markup) content(s *Scanner, fs Frames) Frames {
 		} else {
 			s.Emit(Text, 1)
 		}
-	case m.Vue && strings.HasPrefix(rest, "{{"):
+	case m.Template == TemplateVue && strings.HasPrefix(rest, "{{"):
 		s.Emit(Punctuation, 2)
 		fs = append(fs, Frame{Mode: modeInterp, Delim: "}}"})
-	case m.Svelte && b == '{':
+	case m.Template == TemplateSvelte && b == '{':
 		s.Emit(Punctuation, 1)
 		// A block tag, such as {#if}, {:else}, {/if}, or {@html}.
 		if len(rest) > 1 && strings.IndexByte("#:/@", rest[1]) >= 0 {
@@ -154,7 +165,7 @@ func (m *Markup) content(s *Scanner, fs Frames) Frames {
 		fs = append(fs, Frame{Mode: modeInterp, Delim: "}"})
 	default:
 		stops := "<&"
-		if m.Vue || m.Svelte {
+		if m.Template != TemplateNone {
 			stops = "<&{"
 		}
 		i := strings.IndexAny(rest[1:], stops)
@@ -191,7 +202,7 @@ func (m *Markup) attrs(s *Scanner, fs Frames) Frames {
 		case b == '=':
 			s.Emit(Operator, 1)
 			s.Space()
-			if v := unquotedValue(s.Rest(), m.Svelte); v != "" {
+			if v := unquotedValue(s.Rest(), m.Template == TemplateSvelte); v != "" {
 				if attr == "lang" || attr == "type" {
 					m.setLang(f, `"`+v+`"`)
 				}
@@ -204,7 +215,7 @@ func (m *Markup) attrs(s *Scanner, fs Frames) Frames {
 			}
 			m.value(s, attr)
 			attr = ""
-		case m.Svelte && b == '{':
+		case m.Template == TemplateSvelte && b == '{':
 			s.Emit(Punctuation, 1)
 			fs = append(fs, Frame{Mode: modeInterp, Delim: "}"})
 			return fs
@@ -263,7 +274,7 @@ func (m *Markup) value(s *Scanner, attr string) {
 		s.Delimit(String, q)
 		return
 	}
-	if m.Vue && m.Script != nil && attr != "" && (strings.HasPrefix(attr, "v-") || strings.IndexByte(":@#", attr[0]) >= 0) {
+	if m.Template == TemplateVue && m.Script != nil && attr != "" && (strings.HasPrefix(attr, "v-") || strings.IndexByte(":@#", attr[0]) >= 0) {
 		s.Emit(String, 1)
 		s.Toks, _ = m.Script.AppendLine(s.Toks, s.Line[s.Pos:s.Pos+end], "")
 		s.Pos += end
