@@ -228,14 +228,14 @@ func (r *RootRenderable) Draw(buf *buffer.Buffer, deltaTime float64, damage buff
 	t2 := time.Now()
 	for _, cmd := range commands {
 		switch cmd.Action {
-		case "render":
+		case DrawRender:
 			if cmd.Target != nil && !cmd.Target.IsDestroyed() {
 				cmd.Target.Render(buf, deltaTime)
 			}
-		case "pushScissorRect":
+		case DrawPushScissor:
 			buf.PushScissorRect(cmd.X, cmd.Y, cmd.Width, cmd.Height)
 			r.Context().PushHitGridScissorRect(cmd.ScreenX, cmd.ScreenY, cmd.Width, cmd.Height)
-		case "popScissorRect":
+		case DrawPopScissor:
 			buf.PopScissorRect()
 			r.Context().PopHitGridScissorRect()
 		}
@@ -391,7 +391,7 @@ func (r *RootRenderable) collectRenderCommandsWithScissor(node render.Renderable
 	// Render the container before clipping its descendants so its border remains
 	// visible.
 	*commands = append(*commands, DrawCommand{
-		Action: "render",
+		Action: DrawRender,
 		Target: node,
 	})
 
@@ -423,7 +423,7 @@ func (r *RootRenderable) collectRenderCommandsWithScissor(node render.Renderable
 		}
 
 		*commands = append(*commands, DrawCommand{
-			Action:  "pushScissorRect",
+			Action:  DrawPushScissor,
 			X:       sx,
 			Y:       sy,
 			Width:   sw,
@@ -445,7 +445,7 @@ func (r *RootRenderable) collectRenderCommandsWithScissor(node render.Renderable
 
 	if needsScissor {
 		*commands = append(*commands, DrawCommand{
-			Action: "popScissorRect",
+			Action: DrawPopScissor,
 		})
 	}
 }

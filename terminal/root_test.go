@@ -125,10 +125,10 @@ func TestRootRenderable_ScissorForOverflowHidden(t *testing.T) {
 	hasPush := false
 	hasPop := false
 	for _, cmd := range commands {
-		if cmd.Action == "pushScissorRect" {
+		if cmd.Action == DrawPushScissor {
 			hasPush = true
 		}
-		if cmd.Action == "popScissorRect" {
+		if cmd.Action == DrawPopScissor {
 			hasPop = true
 		}
 	}
@@ -156,7 +156,7 @@ func TestRootRenderable_ChildrenOrder(t *testing.T) {
 
 	var renderOrder []string
 	for _, cmd := range commands {
-		if cmd.Action == "render" && cmd.Target != nil {
+		if cmd.Action == DrawRender && cmd.Target != nil {
 			id := cmd.Target.ID()
 			if id == "a" || id == "b" || id == "c" {
 				renderOrder = append(renderOrder, id)
@@ -183,7 +183,7 @@ func TestRootRenderable_InvisibleChildSkipped(t *testing.T) {
 	commands := root.UpdateLayout()
 
 	for _, cmd := range commands {
-		if cmd.Action == "render" && cmd.Target != nil && cmd.Target.ID() == "hidden" {
+		if cmd.Action == DrawRender && cmd.Target != nil && cmd.Target.ID() == "hidden" {
 			t.Error("expected invisible child to be skipped in render commands")
 		}
 	}
