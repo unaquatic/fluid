@@ -11,8 +11,8 @@ import (
 	"github.com/unaquatic/fluid/textbuf"
 )
 
-// HighlightContext identifies the source and theme supplied to an OnHighlightCallback.
-type HighlightContext struct {
+// HighlightInfo identifies the source and theme supplied to a HighlightFunc.
+type HighlightInfo struct {
 	// Content is the source being highlighted.
 	Content string
 	// Filetype is the source's language, as the Code widget was given it.
@@ -21,8 +21,8 @@ type HighlightContext struct {
 	Theme *style.Theme
 }
 
-// OnHighlightCallback transforms highlighted lines before Code stores them for rendering.
-type OnHighlightCallback func(lines []textbuf.Line, ctx HighlightContext) []textbuf.Line
+// HighlightFunc transforms highlighted lines before Code stores them for rendering.
+type HighlightFunc func(lines []textbuf.Line, info HighlightInfo) []textbuf.Line
 
 // SelectionRange contains the start and end character offsets of a selection.
 type SelectionRange struct {
@@ -61,7 +61,7 @@ type Code struct {
 	truncate bool
 
 	// onHighlight can transform the highlighter output before it is stored.
-	onHighlight OnHighlightCallback
+	onHighlight HighlightFunc
 
 	// Scroll
 	scrollX int
@@ -232,12 +232,12 @@ func (c *Code) highlightContent() {
 
 	// Allow callers to transform successful highlighter output.
 	if c.onHighlight != nil {
-		ctx := HighlightContext{
+		info := HighlightInfo{
 			Content:  c.content,
 			Filetype: c.filetype,
 			Theme:    c.theme,
 		}
-		highlighted = c.onHighlight(highlighted, ctx)
+		highlighted = c.onHighlight(highlighted, info)
 	}
 
 	c.textBuf.SetLines(highlighted)
@@ -429,14 +429,14 @@ func (c *Code) SetAttributes(attrs uint32) {
 }
 
 // SetOnHighlight sets the transformation applied to successful highlighter output.
-func (c *Code) SetOnHighlight(fn OnHighlightCallback) {
+func (c *Code) SetOnHighlight(fn HighlightFunc) {
 	c.onHighlight = fn
 	c.linesDirty = true
 	c.RequestRender()
 }
 
 // OnHighlightFn returns the current highlight transformation, or nil.
-func (c *Code) OnHighlightFn() OnHighlightCallback { return c.onHighlight }
+func (c *Code) OnHighlightFn() HighlightFunc { return c.onHighlight }
 
 // PlainText returns the raw content string (without styling).
 func (c *Code) PlainText() string { return c.content }
@@ -960,7 +960,7 @@ func CodeWithAttributes(attrs uint32) CodeOption {
 }
 
 // CodeWithOnHighlight sets the transformation applied after successful highlighting.
-func CodeWithOnHighlight(fn OnHighlightCallback) CodeOption {
+func CodeWithOnHighlight(fn HighlightFunc) CodeOption {
 	return func(c *Code) { c.onHighlight = fn }
 }
 
