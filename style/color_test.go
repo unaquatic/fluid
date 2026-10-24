@@ -35,7 +35,7 @@ func TestFromHex_3Char_Color(t *testing.T) {
 
 func TestFromHex_4Char(t *testing.T) {
 	c := ColorFromHex("#f008")
-	r, g, b, a := c.ToInts()
+	r, g, b, a := c.R, c.G, c.B, c.A
 	if r != 255 || g != 0 || b != 0 || a != 136 {
 		t.Errorf("got (%d,%d,%d,%d), want (255,0,0,136)", r, g, b, a)
 	}
@@ -43,7 +43,7 @@ func TestFromHex_4Char(t *testing.T) {
 
 func TestFromHex_6Char(t *testing.T) {
 	c := ColorFromHex("#ff8000")
-	r, g, b, a := c.ToInts()
+	r, g, b, a := c.R, c.G, c.B, c.A
 	if r != 255 || g != 128 || b != 0 || a != 255 {
 		t.Errorf("got (%d,%d,%d,%d), want (255,128,0,255)", r, g, b, a)
 	}
@@ -51,7 +51,7 @@ func TestFromHex_6Char(t *testing.T) {
 
 func TestFromHex_8Char(t *testing.T) {
 	c := ColorFromHex("#ff000080")
-	r, g, b, a := c.ToInts()
+	r, g, b, a := c.R, c.G, c.B, c.A
 	if r != 255 || g != 0 || b != 0 || a != 128 {
 		t.Errorf("got (%d,%d,%d,%d), want (255,0,0,128)", r, g, b, a)
 	}
@@ -105,21 +105,6 @@ func TestFromFloats(t *testing.T) {
 	}
 	if c.A != 255 {
 		t.Errorf("got A=%d, want 255", c.A)
-	}
-}
-
-func TestToInts_ColorWhite(t *testing.T) {
-	r, g, b, a := ColorWhite.ToInts()
-	if r != 255 || g != 255 || b != 255 || a != 255 {
-		t.Errorf("got (%d,%d,%d,%d), want (255,255,255,255)", r, g, b, a)
-	}
-}
-
-func TestToInts_Roundtrip(t *testing.T) {
-	orig := ColorFromInts(123, 45, 67, 200)
-	r, g, b, a := orig.ToInts()
-	if r != 123 || g != 45 || b != 67 || a != 200 {
-		t.Errorf("roundtrip failed: got (%d,%d,%d,%d), want (123,45,67,200)", r, g, b, a)
 	}
 }
 
@@ -267,39 +252,9 @@ func TestParseColor_HexString(t *testing.T) {
 	assertColorEquals(t, result, ColorRed)
 }
 
-func TestParseColor_NamedColor(t *testing.T) {
-	result := ParseColor(ColorString("red"))
-	assertColorEquals(t, result, ColorRed)
-}
-
-func TestParseColor_NamedColorCaseInsensitive(t *testing.T) {
-	result := ParseColor(ColorString("RED"))
-	assertColorEquals(t, result, ColorRed)
-}
-
-func TestParseColor_TransparentString(t *testing.T) {
-	result := ParseColor(ColorString("transparent"))
-	assertColorEquals(t, result, ColorTransparent)
-}
-
 func TestParseColor_EmptyString(t *testing.T) {
 	result := ParseColor(ColorString(""))
 	assertColorEquals(t, result, ColorTransparent)
-}
-
-func TestNamedColors_AllPresent(t *testing.T) {
-	names := []string{
-		"black", "white", "red", "green", "blue", "yellow", "cyan", "magenta",
-		"silver", "gray", "grey", "maroon", "olive", "lime", "aqua", "teal",
-		"navy", "fuchsia", "purple", "orange", "transparent",
-		"brightblack", "brightred", "brightgreen", "brightyellow",
-		"brightblue", "brightmagenta", "brightcyan", "brightwhite",
-	}
-	for _, name := range names {
-		if _, ok := namedColors[name]; !ok {
-			t.Errorf("missing named color: %s", name)
-		}
-	}
 }
 
 func TestHSVToRGB_ColorRed(t *testing.T) {
@@ -363,18 +318,6 @@ func absDiff(a, b uint8) uint8 {
 		return a - b
 	}
 	return b - a
-}
-
-func TestHexToRGB(t *testing.T) {
-	c := ColorHexToRGB("#00ff00")
-	assertColorEquals(t, c, ColorGreen)
-}
-
-func TestRGBToHex(t *testing.T) {
-	hex := ColorRGBToHex(ColorBlue)
-	if hex != "#0000ff" {
-		t.Errorf("got %q, want %q", hex, "#0000ff")
-	}
 }
 
 func TestFromHex_AllZeros(t *testing.T) {

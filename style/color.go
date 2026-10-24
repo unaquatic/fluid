@@ -81,11 +81,6 @@ func ColorFromFloats(r, g, b, a float32) Color {
 	}
 }
 
-// ToInts returns c's channels in the range [0, 255].
-func (c Color) ToInts() (r, g, b, a uint8) {
-	return c.R, c.G, c.B, c.A
-}
-
 // ToFloats returns c's channels normalized to the range [0, 1].
 func (c Color) ToFloats() (r, g, b, a float32) {
 	return float32(c.R) / 255.0, float32(c.G) / 255.0, float32(c.B) / 255.0, float32(c.A) / 255.0
@@ -232,26 +227,21 @@ var (
 	ColorCyan        = Color{0, 255, 255, 255}
 	ColorMagenta     = Color{255, 0, 255, 255}
 
-	ColorSilver  = Color{192, 192, 192, 255}
-	ColorGray    = Color{128, 128, 128, 255}
-	ColorMaroon  = Color{128, 0, 0, 255}
-	ColorOlive   = Color{128, 128, 0, 255}
-	ColorLime    = Color{0, 255, 0, 255}
-	ColorAqua    = Color{0, 255, 255, 255}
-	ColorTeal    = Color{0, 128, 128, 255}
-	ColorNavy    = Color{0, 0, 128, 255}
-	ColorFuchsia = Color{255, 0, 255, 255}
-	ColorPurple  = Color{128, 0, 128, 255}
-	ColorOrange  = Color{255, 165, 0, 255}
+	ColorSilver = Color{192, 192, 192, 255}
+	ColorGray   = Color{128, 128, 128, 255}
+	ColorMaroon = Color{128, 0, 0, 255}
+	ColorOlive  = Color{128, 128, 0, 255}
+	ColorTeal   = Color{0, 128, 128, 255}
+	ColorNavy   = Color{0, 0, 128, 255}
+	ColorPurple = Color{128, 0, 128, 255}
+	ColorOrange = Color{255, 165, 0, 255}
 
-	ColorBrightBlack   = Color{128, 128, 128, 255}
 	ColorBrightRed     = Color{255, 85, 85, 255}
 	ColorBrightGreen   = Color{85, 255, 85, 255}
 	ColorBrightYellow  = Color{255, 255, 85, 255}
 	ColorBrightBlue    = Color{85, 85, 255, 255}
 	ColorBrightMagenta = Color{255, 85, 255, 255}
 	ColorBrightCyan    = Color{85, 255, 255, 255}
-	ColorBrightWhite   = Color{255, 255, 255, 255}
 )
 
 // ColorInput is either a Color or a ColorString accepted by ParseColor.
@@ -259,14 +249,14 @@ type ColorInput interface {
 	colorInput()
 }
 
-// ColorString is a named color or hexadecimal notation beginning with '#'.
+// ColorString is a color in hexadecimal notation beginning with '#'.
 type ColorString string
 
 func (ColorString) colorInput() {}
 func (Color) colorInput()       {}
 
-// ParseColor resolves input to a color. A nil input or unknown string returns
-// ColorTransparent.
+// ParseColor resolves input to a color. A nil input, or a string that is not
+// hexadecimal notation beginning with '#', returns ColorTransparent.
 func ParseColor(input ColorInput) Color {
 	switch v := input.(type) {
 	case Color:
@@ -286,18 +276,8 @@ func parseColorString(s string) Color {
 	if strings.HasPrefix(s, "#") {
 		return ColorFromHex(s)
 	}
-	lower := strings.ToLower(s)
-	if c, ok := namedColors[lower]; ok {
-		return c
-	}
 	return ColorTransparent
 }
-
-// ColorHexToRGB parses hexadecimal color notation.
-func ColorHexToRGB(hex string) Color { return ColorFromHex(hex) }
-
-// ColorRGBToHex formats c as hexadecimal color notation.
-func ColorRGBToHex(c Color) string { return c.ToHex() }
 
 // ColorHSVToRGB converts hue in degrees and normalized saturation and value to
 // an opaque RGB color.
@@ -369,39 +349,6 @@ func ColorRGBToHSV(c Color) (h, s, v float32) {
 		h *= 60
 	}
 	return
-}
-
-// namedColors maps accepted case-insensitive names to colors.
-var namedColors = map[string]Color{
-	"transparent":   ColorTransparent,
-	"black":         ColorBlack,
-	"white":         ColorWhite,
-	"red":           ColorRed,
-	"green":         ColorGreen,
-	"blue":          ColorBlue,
-	"yellow":        ColorYellow,
-	"cyan":          ColorCyan,
-	"magenta":       ColorMagenta,
-	"silver":        ColorSilver,
-	"gray":          ColorGray,
-	"grey":          ColorGray,
-	"maroon":        ColorMaroon,
-	"olive":         ColorOlive,
-	"lime":          ColorLime,
-	"aqua":          ColorAqua,
-	"teal":          ColorTeal,
-	"navy":          ColorNavy,
-	"fuchsia":       ColorFuchsia,
-	"purple":        ColorPurple,
-	"orange":        ColorOrange,
-	"brightblack":   ColorBrightBlack,
-	"brightred":     ColorBrightRed,
-	"brightgreen":   ColorBrightGreen,
-	"brightyellow":  ColorBrightYellow,
-	"brightblue":    ColorBrightBlue,
-	"brightmagenta": ColorBrightMagenta,
-	"brightcyan":    ColorBrightCyan,
-	"brightwhite":   ColorBrightWhite,
 }
 
 func hexDigit(c byte) uint8 {

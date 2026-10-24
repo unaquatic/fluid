@@ -28,8 +28,8 @@ func TestNew(t *testing.T) {
 	}
 }
 
-func TestNewWithID(t *testing.T) {
-	b := NewWithID(5, 5, "test-buf")
+func TestNew_WithID(t *testing.T) {
+	b := New(5, 5, WithID("test-buf"))
 	if b.ID() != "test-buf" {
 		t.Errorf("ID() = %q, want %q", b.ID(), "test-buf")
 	}

@@ -10,7 +10,6 @@ import (
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
 	"github.com/unaquatic/fluid/layout"
-	"github.com/unaquatic/fluid/textbuf"
 )
 
 var nextNum atomic.Uint64 // Assigns numeric hit-grid IDs.
@@ -860,11 +859,6 @@ func (b *BaseRenderable) SetHost(host Host) {
 	for _, child := range b.children {
 		child.SetHost(host)
 	}
-}
-
-// StringWidth returns s's grapheme-aware terminal width.
-func (b *BaseRenderable) StringWidth(s string) int {
-	return textbuf.StringWidth(s)
 }
 
 // Live reports whether b requested continuous rendering.

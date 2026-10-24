@@ -138,8 +138,9 @@ type Buffer struct {
 	id           string
 }
 
-// New allocates a buffer of the given size, filled with CellClear.
-func New(width, height int) *Buffer {
+// New allocates a buffer of the given size, filled with CellClear, and
+// applies opts.
+func New(width, height int, opts ...Option) *Buffer {
 	if width < 0 {
 		width = 0
 	}
@@ -152,13 +153,9 @@ func New(width, height int) *Buffer {
 		cells:  make([]Cell, width*height),
 	}
 	b.fill(CellClear)
-	return b
-}
-
-// NewWithID allocates a buffer with an identifier.
-func NewWithID(width, height int, id string) *Buffer {
-	b := New(width, height)
-	b.id = id
+	for _, opt := range opts {
+		opt(b)
+	}
 	return b
 }
 
@@ -174,25 +171,6 @@ func WithRespectAlpha(v bool) Option {
 // WithID sets the new buffer's identifier.
 func WithID(id string) Option {
 	return func(b *Buffer) { b.id = id }
-}
-
-// NewWithOptions allocates a buffer with configurable options.
-func NewWithOptions(width, height int, opts ...Option) *Buffer {
-	b := New(width, height)
-	for _, opt := range opts {
-		opt(b)
-	}
-	return b
-}
-
-// RuneWidthForBuffer returns the number of terminal columns occupied by r.
-func (b *Buffer) RuneWidthForBuffer(r rune) int {
-	return RuneWidth(r)
-}
-
-// StringWidthForBuffer returns the number of terminal columns occupied by s.
-func (b *Buffer) StringWidthForBuffer(s string) int {
-	return textbuf.StringWidth(s)
 }
 
 // fill sets every cell to c.
@@ -584,7 +562,7 @@ func (b *Buffer) DrawBox(opts BoxDrawOptions) {
 	shouldDrawTitle := false
 	var titleX, titleStartX, titleEndX int
 	if opts.Title != "" && sides.Top && isAtActualTop {
-		titleLen := b.StringWidthForBuffer(opts.Title)
+		titleLen := textbuf.StringWidth(opts.Title)
 		minTitleSpace := 4
 
 		if opts.Width >= titleLen+minTitleSpace {

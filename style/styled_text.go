@@ -174,7 +174,7 @@ func FgWhite(text string) TextChunk {
 
 // FgBrightBlack returns a text chunk with a bright-black foreground.
 func FgBrightBlack(text string) TextChunk {
-	return TextChunk{Text: text, Fg: ColorBrightBlack}
+	return TextChunk{Text: text, Fg: ColorGray}
 }
 
 // FgBrightRed returns a text chunk with a bright-red foreground.
@@ -209,7 +209,7 @@ func FgBrightCyan(text string) TextChunk {
 
 // FgBrightWhite returns a text chunk with a bright-white foreground.
 func FgBrightWhite(text string) TextChunk {
-	return TextChunk{Text: text, Fg: ColorBrightWhite}
+	return TextChunk{Text: text, Fg: ColorWhite}
 }
 
 // BgBlack returns a text chunk with a black background.

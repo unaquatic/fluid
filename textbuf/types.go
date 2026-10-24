@@ -4,60 +4,6 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// WidthMethod selects code-point or grapheme-cluster terminal width calculation.
-//
-// WcWidth sums each code point's East Asian width. Unicode segments text using
-// UAX #29 before calculating each cluster's width.
-type WidthMethod int
-
-const (
-	// WcWidth sums per-code-point widths.
-	WcWidth WidthMethod = iota
-
-	// Unicode calculates widths for extended grapheme clusters.
-	Unicode
-)
-
-// String returns w's name.
-func (w WidthMethod) String() string {
-	switch w {
-	case WcWidth:
-		return "wcwidth"
-	case Unicode:
-		return "unicode"
-	default:
-		return "unknown"
-	}
-}
-
-// ParseWidthMethod returns WcWidth for "wcwidth" and Unicode for every other
-// value.
-func ParseWidthMethod(s string) WidthMethod {
-	switch s {
-	case "wcwidth":
-		return WcWidth
-	default:
-		return Unicode
-	}
-}
-
-// DefaultWidthMethod returns Unicode.
-func DefaultWidthMethod() WidthMethod {
-	return Unicode
-}
-
-// StringWidthMethod returns s's terminal width using m.
-func StringWidthMethod(s string, m WidthMethod) int {
-	if m == WcWidth {
-		w := 0
-		for _, r := range s {
-			w += RuneWidth(r)
-		}
-		return w
-	}
-	return StringWidth(s)
-}
-
 // ClusterWidth returns at least one column for a grapheme cluster. This lets
 // cursor movement advance past isolated zero-width clusters.
 func ClusterWidth(cw int) int {

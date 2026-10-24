@@ -7,6 +7,7 @@ import (
 	"github.com/unaquatic/fluid/render"
 	"github.com/unaquatic/fluid/style"
 	"github.com/unaquatic/fluid/symbol"
+	"github.com/unaquatic/fluid/textbuf"
 )
 
 // TabSelectItem contains the label and caller-defined value for one tab.
@@ -145,10 +146,10 @@ func (ts *TabSelect) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 
 		// Truncate and center the tab label within its allocated width.
 		name := item.Name
-		nameWidth := ts.StringWidth(name)
+		nameWidth := textbuf.StringWidth(name)
 		if nameWidth > tw {
 			name = truncateToWidth(name, tw)
-			nameWidth = ts.StringWidth(name)
+			nameWidth = textbuf.StringWidth(name)
 		}
 		textX := cx + (tw-nameWidth)/2
 		buf.DrawText(name, textX, y, fg)

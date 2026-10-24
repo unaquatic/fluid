@@ -232,7 +232,7 @@ func NewMarkdown(content string, opts ...MarkdownOption) *Markdown {
 		strong:      style.Entry{Attrs: style.AttrBold},
 		emph:        style.Entry{Attrs: style.AttrItalic},
 		quote:       style.Entry{Fg: style.ColorGray, Attrs: style.AttrItalic},
-		quoteBorder: style.Entry{Fg: style.ColorBrightBlack},
+		quoteBorder: style.Entry{Fg: style.ColorGray},
 		bullet:      style.Entry{Fg: style.ColorBrightBlue},
 		listEnum:    style.Entry{Fg: style.ColorBrightBlue},
 		rule:        style.Entry{Fg: style.ColorGray},
@@ -762,7 +762,7 @@ func (m *Markdown) addWrappedLine(prefix []style.TextChunk, prefixWidth int, max
 	// Avoid cluster conversion when the body already fits.
 	totalWidth := 0
 	for _, c := range body {
-		totalWidth += m.StringWidth(c.Text)
+		totalWidth += textbuf.StringWidth(c.Text)
 	}
 
 	if totalWidth <= availWidth {
@@ -956,7 +956,7 @@ func (m *Markdown) renderTable(rows [][]MdTableCell, aligns []int, maxWidth int)
 	colWidths := make([]int, numCols)
 	for _, row := range rows {
 		for c := 0; c < numCols && c < len(row); c++ {
-			cw := m.StringWidth(cellText(row[c]))
+			cw := textbuf.StringWidth(cellText(row[c]))
 			if cw > colWidths[c] {
 				colWidths[c] = cw
 			}
@@ -984,7 +984,7 @@ func (m *Markdown) renderTable(rows [][]MdTableCell, aligns []int, maxWidth int)
 			text := cellText(cell)
 
 			cellWidth := colWidths[c]
-			textWidth := m.StringWidth(text)
+			textWidth := textbuf.StringWidth(text)
 			padding := cellWidth - textWidth
 			if padding < 0 {
 				text = truncateStringToWidth(text, cellWidth)
