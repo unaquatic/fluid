@@ -44,7 +44,7 @@ type Textarea struct {
 	// actionHandlers dispatches resolved action names.
 	actionHandlers map[string]func() bool
 
-	// Selection uses render.Context for screen coordinates and an offset anchor
+	// Selection uses the render.Host for screen coordinates and an offset anchor
 	// for EditSurface text coordinates.
 	selAnchorOffset         int
 	keyboardSelectionActive bool // True while a movement action extends selection.
@@ -305,18 +305,18 @@ func (ta *Textarea) SelectAll() {
 	}
 	ta.editSurface.SetSelection(sel)
 
-	// Start a corresponding screen-coordinate selection in the render context.
-	ctx := ta.Context()
-	ctx.StartSelection(ta, ta.X(), ta.Y())
+	// Start a corresponding screen-coordinate selection in the host.
+	host := ta.Host()
+	host.StartSelection(ta, ta.X(), ta.Y())
 
 	// Finish the selection with the cursor at the end of the buffer.
 	lastRow := eb.LineCount() - 1
 	lastCol := ta.textBuffer().LineWidthAt(lastRow)
 	eb.SetCursor(lastRow, lastCol)
 
-	// Synchronize the render-context focus with the final visual cursor.
+	// Synchronize the host's selection focus with the final visual cursor.
 	vc := ta.editSurface.VisualCursor()
-	ctx.UpdateSelection(ta, ta.X()+vc.VisualCol, ta.Y()+vc.VisualRow,
+	host.UpdateSelection(ta, ta.X()+vc.VisualCol, ta.Y()+vc.VisualRow,
 		render.SelectionUpdateOption{FinishDragging: true})
 
 	ta.RequestRender()
@@ -565,7 +565,7 @@ func (ta *Textarea) Blur() {
 	ta.BaseRenderable.Blur()
 	ta.textColor = ta.unfocusedTextColor
 	ta.backgroundColor = ta.unfocusedBgColor
-	ta.Context().SetCursorPosition(0, 0, false)
+	ta.Host().SetCursorPosition(0, 0, false)
 	ta.RequestRender()
 }
 
@@ -594,7 +594,7 @@ func (ta *Textarea) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 	ta.textBuffer().SetDefaultFg(ta.textColor)
 
 	// Register the viewport for pointer-event routing.
-	ta.Context().AddToHitGrid(x, y, w, h, ta.Num())
+	ta.Host().AddToHitGrid(x, y, w, h, ta.Num())
 
 	// Draw background
 	if !ta.backgroundColor.IsTransparent() {
@@ -609,7 +609,7 @@ func (ta *Textarea) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 			buf.DrawText(drawText, x, y, phColor)
 		}
 		if ta.Focused() && ta.showCursor {
-			ta.Context().SetCursorPosition(x, y, true)
+			ta.Host().SetCursorPosition(x, y, true)
 		}
 		return
 	}
@@ -625,7 +625,7 @@ func (ta *Textarea) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 		// Permit one-past-the-right-edge at the end of a full-width line.
 		if cursorScreenX >= x && cursorScreenX <= x+w &&
 			cursorScreenY >= y && cursorScreenY < y+h {
-			ta.Context().SetCursorPosition(cursorScreenX, cursorScreenY, true)
+			ta.Host().SetCursorPosition(cursorScreenX, cursorScreenY, true)
 		}
 	}
 }
@@ -763,11 +763,11 @@ func (ta *Textarea) handleMouseDown(e *input.MouseEvent) {
 	ta.mouseSelAnchorY = localY
 	ta.mouseSelecting = true
 
-	// Replace any keyboard selection with a render-context drag selection.
+	// Replace any keyboard selection with a drag selection in the host.
 	ta.keyboardSelectionActive = false
 	ta.selAnchorOffset = 0
 	ta.editSurface.ResetSelection()
-	ta.Context().StartSelection(ta, e.X, e.Y)
+	ta.Host().StartSelection(ta, e.X, e.Y)
 
 	e.StopPropagation()
 }
@@ -802,7 +802,7 @@ func (ta *Textarea) handleMouseDrag(e *input.MouseEvent) {
 
 	if ok {
 		// Keep screen-coordinate selection synchronized with EditSurface.
-		ta.Context().UpdateSelection(ta, e.X, e.Y)
+		ta.Host().UpdateSelection(ta, e.X, e.Y)
 		ta.RequestRender()
 	}
 
@@ -811,8 +811,8 @@ func (ta *Textarea) handleMouseDrag(e *input.MouseEvent) {
 
 func (ta *Textarea) handleMouseDragEnd(e *input.MouseEvent) {
 	if ta.mouseSelecting {
-		// Mark the render-context drag as complete.
-		ta.Context().UpdateSelection(ta, e.X, e.Y,
+		// Mark the host's drag as complete.
+		ta.Host().UpdateSelection(ta, e.X, e.Y,
 			render.SelectionUpdateOption{FinishDragging: true})
 	}
 	ta.mouseSelecting = false
@@ -874,7 +874,7 @@ func (ta *Textarea) Destroy() {
 		ta.extmarksCtrl = nil
 	}
 	if ta.Focused() {
-		ta.Context().SetCursorPosition(0, 0, false)
+		ta.Host().SetCursorPosition(0, 0, false)
 	}
 	ta.BaseRenderable.Destroy()
 }
@@ -1334,7 +1334,7 @@ func (ta *Textarea) updateSelectionForMovement(shiftPressed, isBeforeMovement bo
 		// Record both screen and text-offset anchors when selection begins.
 		if !ta.HasSelection() {
 			vc := ta.editSurface.VisualCursor()
-			ta.Context().StartSelection(ta, ta.X()+vc.VisualCol, ta.Y()+vc.VisualRow)
+			ta.Host().StartSelection(ta, ta.X()+vc.VisualCol, ta.Y()+vc.VisualRow)
 			eb := ta.editBuffer()
 			ta.selAnchorOffset = eb.PositionToOffset(eb.CursorRow(), eb.CursorCol())
 		}
@@ -1343,7 +1343,7 @@ func (ta *Textarea) updateSelectionForMovement(shiftPressed, isBeforeMovement bo
 
 	// Move the screen-coordinate focus to the new visual cursor.
 	vc := ta.editSurface.VisualCursor()
-	ta.Context().UpdateSelection(ta, ta.X()+vc.VisualCol, ta.Y()+vc.VisualRow,
+	ta.Host().UpdateSelection(ta, ta.X()+vc.VisualCol, ta.Y()+vc.VisualRow,
 		render.SelectionUpdateOption{FinishDragging: true})
 
 	// Apply the same range to EditSurface for rendering and editing.
@@ -1374,7 +1374,7 @@ func (ta *Textarea) clearSelection() {
 	ta.keyboardSelectionActive = false
 	ta.selAnchorOffset = 0
 	ta.editSurface.ResetSelection()
-	ta.Context().ClearSelection()
+	ta.Host().ClearSelection()
 }
 
 // deleteSelectedText removes the active range and reports whether one existed.
@@ -1385,7 +1385,7 @@ func (ta *Textarea) deleteSelectedText() bool {
 	ta.editSurface.DeleteSelectedText()
 	ta.keyboardSelectionActive = false
 	ta.selAnchorOffset = 0
-	ta.Context().ClearSelection()
+	ta.Host().ClearSelection()
 	return true
 }
 

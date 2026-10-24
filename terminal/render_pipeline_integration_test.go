@@ -22,8 +22,8 @@ import (
 func setupRoot(w, h int) (*RootRenderable, *HitGrid) {
 	root := NewRootRenderable(w, h)
 	hitGrid := NewHitGrid(w, h)
-	ctx := &mockContext{hitGrid: hitGrid}
-	root.SetContext(ctx)
+	host := &mockHost{hitGrid: hitGrid}
+	root.SetHost(host)
 	return root, hitGrid
 }
 
@@ -55,7 +55,7 @@ func setupRenderer(w, h int) (*Renderer, *bytes.Buffer) {
 		lastFrameTime: time.Now(),
 	}
 
-	root.SetContext(r)
+	root.SetHost(r)
 
 	return r, &outBuf
 }

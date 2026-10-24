@@ -21,7 +21,7 @@ fluid/
   cmd/goldenview/   draws golden frames files as an HTML page
   input/            keyboard, mouse, paste events + keybindings + parser
   layout/           flexbox layout engine
-  render/           scene graph, base renderable, selection, render context
+  render/           scene graph, base renderable, selection, render host
   style/            color, style (fg/bg/attrs), StyledText, border types & chars
   symbol/           unicode character constants (borders, bars, blocks, scrollbars)
   terminal/         terminal renderer, diff, input loop, hit-testing, backend

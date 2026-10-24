@@ -168,12 +168,12 @@ type Renderable interface {
 	// DestroyRecursively destroys the renderable and every descendant.
 	DestroyRecursively()
 
-	// Context.
+	// Host.
 
-	// Context returns the attached renderer context or a no-op context.
-	Context() Context
-	// SetContext attaches a renderer context.
-	SetContext(ctx Context)
+	// Host returns the attached renderer, or a no-op host when detached.
+	Host() Host
+	// SetHost attaches a renderer.
+	SetHost(host Host)
 
 	// Continuous rendering.
 

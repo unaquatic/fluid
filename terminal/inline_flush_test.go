@@ -48,7 +48,7 @@ func newInlineTestRenderer() (*Renderer, *bytes.Buffer) {
 		stats:         NewStats(60),
 		lastFrameTime: time.Now(),
 	}
-	root.SetContext(r)
+	root.SetHost(r)
 	return r, &outBuf
 }
 
@@ -548,7 +548,7 @@ func TestProcessResize_InlineMode(t *testing.T) {
 func TestPrepareLayout_ExecuteRender_Split(t *testing.T) {
 	root := NewRootRenderable(40, 20)
 	hitGrid := NewHitGrid(40, 20)
-	root.SetContext(&mockContext{hitGrid: hitGrid})
+	root.SetHost(&mockHost{hitGrid: hitGrid})
 	child := render.NewBaseRenderable(render.WithID("child"), render.WithWidth(layout.Points(20)), render.WithHeight(layout.Points(5)))
 	root.Add(child)
 	root.PrepareLayout(0.016)

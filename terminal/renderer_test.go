@@ -293,7 +293,7 @@ func TestRenderer_RenderFrame(t *testing.T) {
 		lastFrameTime: time.Now(),
 	}
 
-	root.SetContext(r)
+	root.SetHost(r)
 
 	// Render one child to exercise a complete frame.
 	child := render.NewBaseRenderable(render.WithID("test-child"))

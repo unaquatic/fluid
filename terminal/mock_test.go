@@ -4,31 +4,31 @@ import (
 	"github.com/unaquatic/fluid/render"
 )
 
-// mockContext records hit-grid operations needed by terminal tests.
-type mockContext struct {
-	render.NoopContext
+// mockHost records hit-grid operations needed by terminal tests.
+type mockHost struct {
+	render.NoopHost
 	hitGrid *HitGrid
 }
 
-func (m *mockContext) AddToHitGrid(x, y, w, h int, id uint64) {
+func (m *mockHost) AddToHitGrid(x, y, w, h int, id uint64) {
 	if m.hitGrid != nil {
 		m.hitGrid.AddClipped(x, y, w, h, id)
 	}
 }
 
-func (m *mockContext) PushHitGridScissorRect(x, y, w, h int) {
+func (m *mockHost) PushHitGridScissorRect(x, y, w, h int) {
 	if m.hitGrid != nil {
 		m.hitGrid.PushScissorRect(x, y, w, h)
 	}
 }
 
-func (m *mockContext) PopHitGridScissorRect() {
+func (m *mockHost) PopHitGridScissorRect() {
 	if m.hitGrid != nil {
 		m.hitGrid.PopScissorRect()
 	}
 }
 
-func (m *mockContext) ClearHitGrid() {
+func (m *mockHost) ClearHitGrid() {
 	if m.hitGrid != nil {
 		m.hitGrid.Clear()
 		m.hitGrid.ClearScissorRects()

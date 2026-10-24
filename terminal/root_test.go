@@ -46,7 +46,7 @@ func TestRootRenderable_RenderPipeline(t *testing.T) {
 	root := NewRootRenderable(80, 24)
 
 	hitGrid := NewHitGrid(80, 24)
-	root.SetContext(&mockContext{hitGrid: hitGrid})
+	root.SetHost(&mockHost{hitGrid: hitGrid})
 
 	// Add one fixed-size child to exercise layout and rendering.
 	child := render.NewBaseRenderable(
@@ -70,7 +70,7 @@ func TestRootRenderable_RenderPipeline(t *testing.T) {
 
 func TestRootRenderable_LifecyclePass(t *testing.T) {
 	root := NewRootRenderable(80, 24)
-	root.SetContext(&mockContext{hitGrid: NewHitGrid(80, 24)})
+	root.SetHost(&mockHost{hitGrid: NewHitGrid(80, 24)})
 
 	lifecycleCalled := false
 	child := render.NewBaseRenderable(render.WithID("child"))
@@ -89,7 +89,7 @@ func TestRootRenderable_LifecyclePass(t *testing.T) {
 
 func TestRootRenderable_UnregisterLifecyclePass(t *testing.T) {
 	root := NewRootRenderable(80, 24)
-	root.SetContext(&mockContext{hitGrid: NewHitGrid(80, 24)})
+	root.SetHost(&mockHost{hitGrid: NewHitGrid(80, 24)})
 
 	lifecycleCalled := false
 	child := render.NewBaseRenderable(render.WithID("child"))
@@ -109,7 +109,7 @@ func TestRootRenderable_UnregisterLifecyclePass(t *testing.T) {
 
 func TestRootRenderable_ScissorForOverflowHidden(t *testing.T) {
 	root := NewRootRenderable(80, 24)
-	root.SetContext(&mockContext{hitGrid: NewHitGrid(80, 24)})
+	root.SetHost(&mockHost{hitGrid: NewHitGrid(80, 24)})
 
 	container := render.NewBaseRenderable(
 		render.WithID("container"),
@@ -192,7 +192,7 @@ func TestRootRenderable_InvisibleChildSkipped(t *testing.T) {
 func TestRootRenderable_HitGridRebuilt(t *testing.T) {
 	root := NewRootRenderable(80, 24)
 	hitGrid := NewHitGrid(80, 24)
-	root.SetContext(&mockContext{hitGrid: hitGrid})
+	root.SetHost(&mockHost{hitGrid: hitGrid})
 
 	child := render.NewBaseRenderable(
 		render.WithID("clickable"),

@@ -43,7 +43,7 @@ func newInputTestRenderer() *Renderer {
 		lastFrameTime: time.Now(),
 	}
 
-	root.SetContext(r)
+	root.SetHost(r)
 
 	return r
 }

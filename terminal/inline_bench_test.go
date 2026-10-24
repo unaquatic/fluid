@@ -39,7 +39,7 @@ func benchInlineRenderer(width, height int) *Renderer {
 		linkRegistry:  NewLinkRegistry(),
 		stats:         NewStats(60),
 	}
-	root.SetContext(r)
+	root.SetHost(r)
 	return r
 }
 

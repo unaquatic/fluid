@@ -402,7 +402,7 @@ func (t *Text) syncSelection() {
 	if !t.Selectable() {
 		return
 	}
-	sel := t.Context().Selection()
+	sel := t.Host().Selection()
 	if sel == nil || !sel.IsActive() {
 		return
 	}
@@ -444,7 +444,7 @@ func isInSelection(x, y int, sel *render.LocalSelectionBounds) bool {
 
 // SelectedText returns the text covered by the active selection in this widget.
 func (t *Text) SelectedText() string {
-	sel := t.Context().Selection()
+	sel := t.Host().Selection()
 	if sel == nil || !sel.IsActive() {
 		return ""
 	}
@@ -499,7 +499,7 @@ func (t *Text) SelectedText() string {
 
 // HasSelection reports whether an active selection intersects this widget.
 func (t *Text) HasSelection() bool {
-	sel := t.Context().Selection()
+	sel := t.Host().Selection()
 	if sel == nil || !sel.IsActive() {
 		return false
 	}

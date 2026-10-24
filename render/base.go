@@ -225,8 +225,8 @@ type BaseRenderable struct {
 	// Local continuous-rendering request count.
 	liveCount int
 
-	// Renderer context, or noopContext while detached.
-	ctx Context
+	// Renderer that hosts b, or noopHost while detached.
+	host Host
 
 	// Optional input handlers.
 
@@ -286,7 +286,7 @@ func NewBaseRenderable(opts ...Option) *BaseRenderable {
 		focusable:  false,
 		dirty:      true,
 		layoutNode: layout.NewNode(),
-		ctx:        noopContext,
+		host:       noopHost,
 	}
 
 	for _, opt := range opts {
@@ -341,7 +341,7 @@ func (b *BaseRenderable) ChildrenCount() int {
 	return len(b.children)
 }
 
-// Add reparents child to b, propagates b's context, and inserts child at the
+// Add reparents child to b, propagates b's host, and inserts child at the
 // first optional index. An absent or invalid index appends child. Add returns
 // the resulting index, or -1 for a nil child.
 func (b *BaseRenderable) Add(child Renderable, index ...int) int {
@@ -363,7 +363,7 @@ func (b *BaseRenderable) Add(child Renderable, index ...int) int {
 	}
 
 	child.SetParent(b)
-	child.SetContext(b.ctx)
+	child.SetHost(b.host)
 
 	idx := len(b.children)
 	if len(index) > 0 && index[0] >= 0 && index[0] <= len(b.children) {
@@ -381,7 +381,7 @@ func (b *BaseRenderable) Add(child Renderable, index ...int) int {
 	// The new child reports its own region, so b has nothing to add and stays
 	// clean. Only the record reaches the ancestors, so traversal descends here.
 	b.MarkChildDirty()
-	b.ctx.RequestRender()
+	b.host.RequestRender()
 	return idx
 }
 
@@ -520,7 +520,7 @@ func (b *BaseRenderable) ClearDamage() {
 // RequestRender marks b dirty and requests a scene repaint.
 func (b *BaseRenderable) RequestRender() {
 	b.MarkDirty()
-	b.ctx.RequestRender()
+	b.host.RequestRender()
 }
 
 // MarkDirty marks b for repainting and records the change on b's ancestors, so
@@ -656,7 +656,7 @@ func (b *BaseRenderable) Render(buf *buffer.Buffer, deltaTime float64) {
 	b.renderContent(buf, deltaTime)
 
 	// Only visible renderables register hit-test regions.
-	b.ctx.AddToHitGrid(b.x, b.y, b.width, b.height, b.num)
+	b.host.AddToHitGrid(b.x, b.y, b.width, b.height, b.num)
 
 	b.paintRect = b.Rect()
 	b.dirty = false
@@ -712,7 +712,7 @@ func (b *BaseRenderable) Focus() {
 		return
 	}
 	b.focused = true
-	b.ctx.FocusRenderable(b)
+	b.host.FocusRenderable(b)
 }
 
 // Blur removes keyboard focus from b.
@@ -847,18 +847,18 @@ func (b *BaseRenderable) DestroyRecursively() {
 	b.Destroy()
 }
 
-// Context returns b's renderer context.
-func (b *BaseRenderable) Context() Context { return b.ctx }
+// Host returns the renderer that hosts b.
+func (b *BaseRenderable) Host() Host { return b.host }
 
-// SetContext assigns ctx to b and every descendant. A nil context is replaced
-// by the package no-op context.
-func (b *BaseRenderable) SetContext(ctx Context) {
-	if ctx == nil {
-		ctx = noopContext
+// SetHost assigns host to b and every descendant. A nil host is replaced by
+// a no-op host.
+func (b *BaseRenderable) SetHost(host Host) {
+	if host == nil {
+		host = noopHost
 	}
-	b.ctx = ctx
+	b.host = host
 	for _, child := range b.children {
-		child.SetContext(ctx)
+		child.SetHost(host)
 	}
 }
 
@@ -870,7 +870,7 @@ func (b *BaseRenderable) StringWidth(s string) int {
 // Live reports whether b requested continuous rendering.
 func (b *BaseRenderable) Live() bool { return b.live }
 
-// SetLive controls b's continuous-render request and updates its context.
+// SetLive controls b's continuous-render request and updates its host.
 func (b *BaseRenderable) SetLive(l bool) {
 	if b.live == l {
 		return
@@ -878,12 +878,12 @@ func (b *BaseRenderable) SetLive(l bool) {
 	b.live = l
 	if l {
 		b.liveCount++
-		b.ctx.RequestLive()
+		b.host.RequestLive()
 	} else {
 		b.liveCount--
 		if b.liveCount <= 0 {
 			b.liveCount = 0
-			b.ctx.DropLive()
+			b.host.DropLive()
 		}
 	}
 }

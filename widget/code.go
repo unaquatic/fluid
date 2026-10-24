@@ -576,7 +576,7 @@ func (c *Code) SetSelectable(v bool) {
 
 // SelectedText returns the text covered by the active selection in this widget.
 func (c *Code) SelectedText() string {
-	sel := c.Context().Selection()
+	sel := c.Host().Selection()
 	if sel == nil || !sel.IsActive() {
 		return ""
 	}
@@ -624,7 +624,7 @@ func (c *Code) SelectedText() string {
 
 // HasSelection reports whether an active selection intersects this widget.
 func (c *Code) HasSelection() bool {
-	sel := c.Context().Selection()
+	sel := c.Host().Selection()
 	if sel == nil || !sel.IsActive() {
 		return false
 	}
@@ -645,7 +645,7 @@ func (c *Code) ShouldStartSelection(x, y int) bool {
 // Selection returns the character-offset range of the current selection,
 // or nil if there is no active selection intersecting this widget.
 func (c *Code) Selection() *SelectionRange {
-	sel := c.Context().Selection()
+	sel := c.Host().Selection()
 	if sel == nil || !sel.IsActive() {
 		return nil
 	}
@@ -803,7 +803,7 @@ func (c *Code) syncSelection() {
 	if !c.selectable_ {
 		return
 	}
-	sel := c.Context().Selection()
+	sel := c.Host().Selection()
 	if sel == nil || !sel.IsActive() {
 		return
 	}

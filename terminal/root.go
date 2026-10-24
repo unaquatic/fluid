@@ -216,7 +216,7 @@ func (r *RootRenderable) Draw(buf *buffer.Buffer, deltaTime float64, damage buff
 	t1 := time.Now()
 
 	// Visible render commands repopulate the hit grid.
-	r.Context().ClearHitGrid()
+	r.Host().ClearHitGrid()
 
 	// Confine every write to the damage. Nested pushes intersect, so a clipping
 	// container still narrows this further.
@@ -234,10 +234,10 @@ func (r *RootRenderable) Draw(buf *buffer.Buffer, deltaTime float64, damage buff
 			}
 		case DrawPushScissor:
 			buf.PushScissorRect(cmd.X, cmd.Y, cmd.Width, cmd.Height)
-			r.Context().PushHitGridScissorRect(cmd.ScreenX, cmd.ScreenY, cmd.Width, cmd.Height)
+			r.Host().PushHitGridScissorRect(cmd.ScreenX, cmd.ScreenY, cmd.Width, cmd.Height)
 		case DrawPopScissor:
 			buf.PopScissorRect()
-			r.Context().PopHitGridScissorRect()
+			r.Host().PopHitGridScissorRect()
 		}
 	}
 	t3 := time.Now()

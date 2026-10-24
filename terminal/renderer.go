@@ -170,8 +170,8 @@ func NewRenderer(config ...Config) (*Renderer, error) {
 		}
 	}
 
-	// Widgets communicate with the renderer through the render.Context interface.
-	root.SetContext(r)
+	// Widgets communicate with the renderer through the render.Host interface.
+	root.SetHost(r)
 
 	if cfg.UseKittyKeyboard {
 		parser.SetKittyEnabled(true)
