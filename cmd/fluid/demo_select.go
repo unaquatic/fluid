@@ -108,7 +108,7 @@ func runSelectDemo(ctx context.Context, o DemoOptions) error {
 				widget.Children(selectBox, detailBox),
 			),
 			widget.NewText(
-				"Tab: switch focus | Up/Down: navigate | Left/Right: tabs | Enter: select | Esc/q: quit",
+				"Esc/Q: Exit | Tab: Switch focus | Up/Down: Navigate | Left/Right: Tabs | Enter: Select",
 				widget.TextWithHeight(layout.Points(1)),
 			),
 		),

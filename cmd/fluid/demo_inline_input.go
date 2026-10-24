@@ -38,7 +38,7 @@ func runInlineInputDemo(ctx context.Context, o DemoOptions) error {
 	root.Add(titleBox)
 
 	helpText := widget.NewText(
-		" Type and press Enter to add messages. Esc to quit.",
+		" Esc: Exit | Alt+Enter: Send",
 		widget.TextWithHeight(layout.Points(1)),
 	)
 	root.Add(helpText)

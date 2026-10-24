@@ -44,7 +44,7 @@ func runTabDemo(ctx context.Context, o DemoOptions) error {
 	)
 
 	statusText := widget.NewText(
-		fmt.Sprintf("Tab width: %d | t: cycle (2/4/8) | Esc/q: quit", tabWidth),
+		fmt.Sprintf("Tab width: %d | Esc/Q: Exit | T: Cycle 2/4/8", tabWidth),
 		widget.TextWithHeight(layout.Points(1)),
 	)
 
@@ -106,7 +106,7 @@ func runTabDemo(ctx context.Context, o DemoOptions) error {
 			}
 			codeWidget.TextBuffer().SetTabWidth(tabWidth)
 			ta.TextBuffer().SetTabWidth(tabWidth)
-			statusText.SetContent(fmt.Sprintf("Tab width: %d | t: cycle (2/4/8) | Esc/q: quit", tabWidth))
+			statusText.SetContent(fmt.Sprintf("Tab width: %d | Esc/Q: Exit | T: Cycle 2/4/8", tabWidth))
 			return
 		}
 	})

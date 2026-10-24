@@ -198,7 +198,7 @@ func runColorsDemo(ctx context.Context, o DemoOptions) error {
 				widget.BoxWithFlexDirection(layout.DirectionRow),
 				widget.Children(scrollBox, scrollBar),
 			),
-			widget.NewText("Scroll: mouse wheel, arrows, PgUp/PgDn | Esc/q: quit",
+			widget.NewText("Esc/Q: Exit | Wheel/Arrows/PgUp/PgDn: Scroll",
 				widget.TextWithHeight(layout.Points(1)),
 			),
 		),

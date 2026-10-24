@@ -158,7 +158,7 @@ func runMarkdownDemo(ctx context.Context, o DemoOptions) error {
 				widget.BoxWithFlexDirection(layout.DirectionRow),
 				widget.Children(scrollBox, scrollBar),
 			),
-			widget.NewText("Scroll: mouse wheel | Esc/q: quit",
+			widget.NewText("Esc/Q: Exit | Wheel: Scroll",
 				widget.TextWithHeight(layout.Points(1)),
 			),
 		),

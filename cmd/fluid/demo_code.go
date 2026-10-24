@@ -138,7 +138,7 @@ func runCodeDemo(ctx context.Context, o DemoOptions) error {
 
 	wrapMode := widget.WrapNone
 	statusText := widget.NewText(
-		"Wrap: OFF | Scroll: mouse wheel or Up/Down | w: toggle wrap | Esc/q: quit",
+		"Wrap: OFF | Esc/Q: Exit | Wheel/Up/Down: Scroll | W: Toggle wrap",
 		widget.TextWithHeight(layout.Points(1)),
 	)
 
@@ -178,11 +178,11 @@ func runCodeDemo(ctx context.Context, o DemoOptions) error {
 			if wrapMode == widget.WrapNone {
 				wrapMode = widget.WrapWord
 				codeWidget.SetWrapMode(widget.WrapWord)
-				statusText.SetContent("Wrap: WORD | Scroll: mouse wheel or Up/Down | w: toggle wrap | Esc/q: quit")
+				statusText.SetContent("Wrap: WORD | Esc/Q: Exit | Wheel/Up/Down: Scroll | W: Toggle wrap")
 			} else {
 				wrapMode = widget.WrapNone
 				codeWidget.SetWrapMode(widget.WrapNone)
-				statusText.SetContent("Wrap: OFF | Scroll: mouse wheel or Up/Down | w: toggle wrap | Esc/q: quit")
+				statusText.SetContent("Wrap: OFF | Esc/Q: Exit | Wheel/Up/Down: Scroll | W: Toggle wrap")
 			}
 			return
 		}

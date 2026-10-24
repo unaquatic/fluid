@@ -105,7 +105,7 @@ func runMeasureDemo(ctx context.Context, o DemoOptions) error {
 				widget.TextWithHeight(layout.Points(1)),
 			),
 			autoBox,
-			widget.NewText("Tab: cycle focus | Esc/q: quit",
+			widget.NewText("Esc/Q: Exit | Tab: Cycle focus",
 				widget.TextWithHeight(layout.Points(1)),
 			),
 			statusText,

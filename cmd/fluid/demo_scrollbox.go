@@ -113,7 +113,7 @@ func runScrollboxDemo(ctx context.Context, o DemoOptions) error {
 
 			statusText,
 			frameStatsText,
-			widget.NewText("a: add line | Mouse wheel: scroll | Esc/q: quit",
+			widget.NewText("Esc/Q: Exit | Wheel: Scroll | A: Add line",
 				widget.TextWithHeight(layout.Points(1)),
 			),
 		),

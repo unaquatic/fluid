@@ -145,7 +145,7 @@ func runLayoutDemo(ctx context.Context, o DemoOptions) error {
 				widget.BoxWithJustifyContent(layout.JustifySpaceBetween),
 				widget.BoxWithPadding(layout.Points(0)),
 				widget.Children(
-					widget.NewText(" Esc/q: quit"),
+					widget.NewText(" Esc/Q: Exit"),
 					widget.NewText("Fluid Layout Engine "),
 				),
 			),

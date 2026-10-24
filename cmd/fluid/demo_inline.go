@@ -42,7 +42,7 @@ func runInlineDemo(ctx context.Context, o DemoOptions) error {
 			),
 
 			widget.NewText(
-				" a: add line | d: delete | q: quit",
+				" Esc/Q: Exit | A: Add line | D: Delete",
 				widget.TextWithHeight(layout.Points(1)),
 			),
 		),

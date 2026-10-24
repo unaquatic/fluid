@@ -189,7 +189,7 @@ Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor i
 				widget.BoxWithFlexDirection(layout.DirectionRow),
 				widget.Children(outerScroll, outerSB),
 			),
-			widget.NewText("Mouse wheel: scroll (inner first, then outer) | Esc/q: quit",
+			widget.NewText("Esc/Q: Exit | Wheel: Scroll (inner first, then outer)",
 				widget.TextWithHeight(layout.Points(1)),
 			),
 		),

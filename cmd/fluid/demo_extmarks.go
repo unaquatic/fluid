@@ -52,7 +52,7 @@ func runExtmarksDemo(ctx context.Context, o DemoOptions) error {
 		widget.TextareaWithFlexGrow(1),
 	)
 	helpText := widget.NewText(
-		"Arrows: move | Shift+Opt+Arrow: select word | Ctrl+L: add marker | Ctrl+D/K: delete/clear | Esc/q: quit",
+		"Esc/Q: Exit | Arrows: Move | Shift+Opt+Arrow: Select word | Ctrl+L: Add marker | Ctrl+D/K: Delete/Clear",
 		widget.TextWithHeight(layout.Points(1)),
 	)
 	statusText := widget.NewText("",
