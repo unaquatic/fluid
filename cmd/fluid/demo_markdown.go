@@ -54,7 +54,7 @@ import (
 
 func main() {
     r, _ := terminal.NewRenderer(terminal.Config{
-        Fullscreen: true,
+        ExitOnCtrlC: true,
     })
     defer r.Destroy()
 
@@ -127,7 +127,6 @@ go build -o fluid ./cmd/fluid
 
 func runMarkdownDemo(ctx context.Context, o DemoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
-		Fullscreen:  true,
 		ExitOnCtrlC: true,
 		UseMouse:    !o.NoMouse,
 		TargetFPS:   o.FPS,

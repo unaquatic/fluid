@@ -28,7 +28,6 @@ type pendingLine struct {
 
 func runScrollboxDemo(ctx context.Context, o DemoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
-		Fullscreen:  true,
 		ExitOnCtrlC: true,
 		UseMouse:    !o.NoMouse,
 		TargetFPS:   o.FPS,

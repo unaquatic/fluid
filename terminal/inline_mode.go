@@ -28,7 +28,6 @@ func (r *Renderer) SetInlineMode(inline bool) {
 		return
 	}
 	r.config.InlineMode = inline
-	r.config.Fullscreen = !inline
 	w, h := r.width, r.height
 	setupDone := r.controlState != StateIdle && r.controlState != StateExplicitStopped
 	r.mu.Unlock()

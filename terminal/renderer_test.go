@@ -27,8 +27,8 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.EnableMouseMovement {
 		t.Error("expected EnableMouseMovement=false")
 	}
-	if !cfg.Fullscreen {
-		t.Error("expected Fullscreen=true")
+	if cfg.InlineMode {
+		t.Error("expected InlineMode=false")
 	}
 	if !cfg.AutoFocus {
 		t.Error("expected AutoFocus=true")

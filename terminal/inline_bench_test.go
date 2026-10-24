@@ -19,7 +19,6 @@ func benchInlineRenderer(width, height int) *Renderer {
 	root := NewRootRenderable(width, height)
 	cfg := DefaultConfig()
 	cfg.InlineMode = true
-	cfg.Fullscreen = false
 	r := &Renderer{
 		root:          root,
 		hitGrid:       NewHitGrid(width, height),

@@ -977,7 +977,7 @@ func (r *Renderer) SetGatherStats(enabled bool) {
 // setup initializes terminal modes, optional protocols and probing, and current
 // terminal dimensions.
 func (r *Renderer) setup() error {
-	if err := r.backend.Setup(r.config.Fullscreen); err != nil {
+	if err := r.backend.Setup(!r.config.InlineMode); err != nil {
 		return err
 	}
 

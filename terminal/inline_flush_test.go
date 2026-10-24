@@ -28,7 +28,6 @@ func newInlineTestRenderer() (*Renderer, *bytes.Buffer) {
 	hitGrid := NewHitGrid(w, h)
 	cfg := DefaultConfig()
 	cfg.InlineMode = true
-	cfg.Fullscreen = false
 	r := &Renderer{
 		root: root, hitGrid: hitGrid,
 		backend:       NewBackend(strings.NewReader(""), &outBuf),
@@ -64,13 +63,6 @@ func rowsBuffer(width int, glyphs string, fill int) *buffer.Buffer {
 		}
 	}
 	return buf
-}
-
-func TestInlineMode_ConfigForcesNoAlternateScreen(t *testing.T) {
-	cfg := mergeConfig([]Config{{InlineMode: true, Fullscreen: true}})
-	if cfg.Fullscreen {
-		t.Error("expected Fullscreen=false")
-	}
 }
 
 func TestComputeContentHeight(t *testing.T) {

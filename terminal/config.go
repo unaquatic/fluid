@@ -154,10 +154,6 @@ type Config struct {
 	// It applies only when UseMouse is true and defaults to false.
 	EnableMouseMovement bool
 
-	// Fullscreen uses the alternate screen. InlineMode overrides it to false. The
-	// default is true.
-	Fullscreen bool
-
 	// AutoFocus focuses a focusable renderable on mouse down. The default is true.
 	AutoFocus bool
 
@@ -170,7 +166,8 @@ type Config struct {
 	// one-column wrap margin determines width.
 	//
 	// Changed rows are updated in place while content fits. Overflow triggers a
-	// complete screen and scrollback rewrite. The default is false.
+	// complete screen and scrollback rewrite. The default is false, which
+	// renders full frames on the alternate screen.
 	InlineMode bool
 
 	// ClearScreenOnStart clears the screen and scrollback before the first inline
@@ -239,7 +236,6 @@ func DefaultConfig() Config {
 		MaxFPS:              60,
 		UseMouse:            true,
 		EnableMouseMovement: false,
-		Fullscreen:          true,
 		AutoFocus:           true,
 		ExitOnCtrlC:         true,
 		BackgroundColor:     style.ColorBlack,
@@ -273,7 +269,6 @@ func mergeConfig(configs []Config) Config {
 
 	cfg.UseMouse = user.UseMouse
 	cfg.EnableMouseMovement = user.EnableMouseMovement
-	cfg.Fullscreen = user.Fullscreen
 	cfg.AutoFocus = user.AutoFocus
 	cfg.ExitOnCtrlC = user.ExitOnCtrlC
 	cfg.InlineMode = user.InlineMode
@@ -286,10 +281,6 @@ func mergeConfig(configs []Config) Config {
 		cfg.WidthProbe = user.WidthProbe
 	}
 	cfg.WidthProbeSamples = user.WidthProbeSamples
-
-	if cfg.InlineMode {
-		cfg.Fullscreen = false
-	}
 
 	if user.BackgroundColor != (style.Color{}) {
 		cfg.BackgroundColor = user.BackgroundColor
