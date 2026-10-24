@@ -34,7 +34,7 @@ type Renderer struct {
 	// Input state.
 	parser        *input.Parser
 	eventBus      *input.EventBus
-	inputHandlers []func(sequence string) bool // Raw-sequence preprocessors.
+	inputHandlers []*inputHandler // Raw-sequence preprocessors.
 
 	// Focus and hover state.
 	focused     render.Renderable
@@ -787,26 +787,41 @@ func (r *Renderer) FocusRenderable(renderable render.Renderable) {
 	r.RequestRender()
 }
 
-// AddInputHandler appends a raw-input preprocessor. A preprocessor returning
-// true prevents later input handling.
-func (r *Renderer) AddInputHandler(handler func(string) bool) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.inputHandlers = append(r.inputHandlers, handler)
+// inputHandler holds a raw-input preprocessor by pointer, which identifies
+// it for removal, as function values cannot be compared.
+type inputHandler struct {
+	fn func(sequence string) bool
 }
 
-// PrependInputHandler inserts a raw-input preprocessor before existing handlers.
-func (r *Renderer) PrependInputHandler(handler func(string) bool) {
+// AddInputHandler appends a raw-input preprocessor and returns a function
+// that removes it. A preprocessor returning true prevents later input
+// handling.
+func (r *Renderer) AddInputHandler(handler func(string) bool) (remove func()) {
+	h := &inputHandler{fn: handler}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.inputHandlers = append([]func(string) bool{handler}, r.inputHandlers...)
+	r.inputHandlers = append(r.inputHandlers, h)
+	return r.inputHandlerRemover(h)
 }
 
-// RemoveInputHandler currently does nothing because Go function values cannot
-// be compared for identity.
-func (r *Renderer) RemoveInputHandler(handler func(string) bool) {
+// PrependInputHandler inserts a raw-input preprocessor before existing
+// handlers and returns a function that removes it.
+func (r *Renderer) PrependInputHandler(handler func(string) bool) (remove func()) {
+	h := &inputHandler{fn: handler}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.inputHandlers = slices.Insert(r.inputHandlers, 0, h)
+	return r.inputHandlerRemover(h)
+}
+
+// inputHandlerRemover returns a function that removes h, and does nothing
+// once h is gone.
+func (r *Renderer) inputHandlerRemover(h *inputHandler) func() {
+	return func() {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		r.inputHandlers = slices.DeleteFunc(r.inputHandlers, func(x *inputHandler) bool { return x == h })
+	}
 }
 
 // SetCursorPosition records zero-based hardware cursor coordinates and

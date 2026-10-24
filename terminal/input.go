@@ -3,6 +3,7 @@ package terminal
 import (
 	"os"
 	"os/signal"
+	"slices"
 	"syscall"
 
 	"github.com/unaquatic/fluid/input"
@@ -52,12 +53,11 @@ func (r *Renderer) dispatchKeyEvent(evt input.TerminalEvent) {
 
 	// A preprocessor returning true consumes the raw sequence.
 	r.mu.Lock()
-	handlers := make([]func(string) bool, len(r.inputHandlers))
-	copy(handlers, r.inputHandlers)
+	handlers := slices.Clone(r.inputHandlers)
 	r.mu.Unlock()
 
-	for _, handler := range handlers {
-		if handler(evt.Key.Raw) {
+	for _, h := range handlers {
+		if h.fn(evt.Key.Raw) {
 			return
 		}
 	}
