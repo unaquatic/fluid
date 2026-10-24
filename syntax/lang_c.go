@@ -59,7 +59,7 @@ func cLang() *Language {
 		Name:    "c",
 		Aliases: []string{"h"},
 		Lexer: &CLike{
-			Words:         wordKinds(Keyword, cKeywords, Type, cTypes, Primitive, "true false NULL nullptr"),
+			Words:         wordKinds(Keyword, cKeywords, BuiltinType, cTypes, Primitive, "true false NULL nullptr"),
 			Declarators:   map[string]Kind{"struct": Type, "enum": Type, "union": Type},
 			LineComments:  []string{"//"},
 			BlockComment:  slashComments,
@@ -77,7 +77,7 @@ func cppLang() *Language {
 		Aliases: []string{"c++", "cc", "cxx", "hpp", "hh", "hxx", "h++", "ino"},
 		Lexer: &CLike{
 			Words: wordKinds(Keyword, cKeywords+" "+cppKeywords,
-				Type, cTypes+" char8_t char16_t char32_t", Primitive, "true false NULL nullptr"),
+				BuiltinType, cTypes+" char8_t char16_t char32_t", Primitive, "true false NULL nullptr"),
 			Declarators: map[string]Kind{
 				"class": Type, "struct": Type, "enum": Type, "union": Type, "namespace": Type, "concept": Type,
 			},
@@ -122,7 +122,7 @@ func csharpLang() *Language {
 					struct switch this throw try typeof unchecked unsafe using
 					virtual volatile while async await init nameof partial record
 					required var when where with yield`,
-				Type, `bool byte char decimal double dynamic float int long nint
+				BuiltinType, `bool byte char decimal double dynamic float int long nint
 					nuint object sbyte short string uint ulong ushort void`,
 				Primitive, "true false null"),
 			Declarators: map[string]Kind{
@@ -159,7 +159,7 @@ func javaLang() *Language {
 					protected public record return sealed static strictfp super
 					switch synchronized this throw throws transient try var when
 					while yield`,
-				Type, "boolean byte char double float int long short void",
+				BuiltinType, "boolean byte char double float int long short void",
 				Primitive, "true false null"),
 			MemberWords: []string{"class", "this"},
 			Declarators: map[string]Kind{
@@ -328,7 +328,7 @@ func dartLang() *Language {
 					of on operator part required rethrow return sealed set show
 					static super switch sync this throw try typedef var when while
 					with yield`,
-				Type, "bool double int num void",
+				BuiltinType, "bool double int num void",
 				Primitive, "true false null"),
 			Declarators: map[string]Kind{
 				"class": Type, "enum": Type, "mixin": Type, "extension": Type, "typedef": Type,
@@ -363,10 +363,10 @@ func goLang() *Language {
 				Keyword, `break case chan const continue default defer else
 					fallthrough for func go goto if import interface map package range
 					return select struct switch type var`,
-				Type, `bool byte complex64 complex128 error float32 float64 int int8
+				BuiltinType, `bool byte complex64 complex128 error float32 float64 int int8
 					int16 int32 int64 rune string uint uint8 uint16 uint32 uint64
 					uintptr any comparable`,
-				Builtin, `append cap clear close complex copy delete imag len make
+				BuiltinFunction, `append cap clear close complex copy delete imag len make
 					max min new panic print println real recover`,
 				Primitive, "true false nil",
 				Constant, "iota"),
@@ -394,9 +394,9 @@ func rustLang() *Language {
 					extern fn for if impl in let loop match mod move mut pub ref
 					return self Self static struct super trait type union unsafe use
 					where while yield macro_rules`,
-				Type, `bool char str u8 u16 u32 u64 u128 usize i8 i16 i32 i64 i128
+				BuiltinType, `bool char str u8 u16 u32 u64 u128 usize i8 i16 i32 i64 i128
 					isize f32 f64`,
-				Builtin, "Some None Ok Err",
+				Constant, "Some None Ok Err",
 				Primitive, "true false"),
 			MemberWords: []string{"await"},
 			Declarators: map[string]Kind{
@@ -520,7 +520,7 @@ func zigLang() *Language {
 					noinline nosuspend opaque or orelse packed pub resume return
 					struct suspend switch test threadlocal try union unreachable
 					usingnamespace var volatile while`,
-				Type, `i8 i16 i32 i64 i128 isize u8 u16 u32 u64 u128 usize f16 f32
+				BuiltinType, `i8 i16 i32 i64 i128 isize u8 u16 u32 u64 u128 usize f16 f32
 					f64 f80 f128 bool void noreturn type anyerror anyopaque
 					comptime_int comptime_float c_char c_short c_ushort c_int c_uint
 					c_long c_ulong c_longlong c_ulonglong c_longdouble`,
@@ -534,8 +534,8 @@ func zigLang() *Language {
 	}
 }
 
-// zigSpecial lexes Zig's multiline string lines, builtins, and integer
-// types of any width, such as u7.
+// zigSpecial lexes Zig's multiline string lines, builtin functions such as
+// @import, and integer types of any width, such as u7.
 func zigSpecial(s *Scanner) bool {
 	rest := s.Rest()
 	switch b := rest[0]; {
@@ -543,7 +543,7 @@ func zigSpecial(s *Scanner) bool {
 		s.EmitRest(String)
 		return true
 	case b == '@' && IdentStart(rest, 1, ""):
-		s.Emit(Builtin, IdentEnd(rest, 1, ""))
+		s.Emit(BuiltinFunction, IdentEnd(rest, 1, ""))
 		return true
 	case (b == 'u' || b == 'i') && len(rest) > 1 && IsDigit(rest[1]):
 		end := IdentEnd(rest, 0, "")
@@ -552,7 +552,7 @@ func zigSpecial(s *Scanner) bool {
 				return false
 			}
 		}
-		s.Emit(Type, end)
+		s.Emit(BuiltinType, end)
 		return true
 	}
 	return false
@@ -568,7 +568,7 @@ func protobufLang() *Language {
 				Keyword, `syntax edition package import option message enum service
 					rpc returns stream oneof map reserved extend extensions to max
 					repeated optional required weak public group`,
-				Type, `double float int32 int64 uint32 uint64 sint32 sint64 fixed32
+				BuiltinType, `double float int32 int64 uint32 uint64 sint32 sint64 fixed32
 					fixed64 sfixed32 sfixed64 bool string bytes`,
 				Primitive, "true false"),
 			Declarators: map[string]Kind{
@@ -621,7 +621,7 @@ func hclLang() *Language {
 					terraform for in if else endif endfor dynamic content moved import
 					check removed backend required_providers lifecycle provisioner
 					connection`,
-				Type, "string number bool list map set object tuple any",
+				BuiltinType, "string number bool list map set object tuple any",
 				Primitive, "true false null"),
 			LineComments: []string{"#", "//"},
 			BlockComment: slashComments,

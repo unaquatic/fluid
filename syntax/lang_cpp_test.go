@@ -11,13 +11,13 @@ var cppTests = []kindCase{
 		tok(Keyword, "namespace"), tok(Type, "app"), tok(Keyword, "class"), tok(Type, "Foo"), tok(Punctuation, ":"),
 		tok(Keyword, "public"), tok(Variable, "Bar"), tok(Keyword, "public"), tok(Keyword, "virtual"), tok(Operator, "~"),
 		tok(Function, "Foo"), tok(Keyword, "override"), tok(Keyword, "explicit"), tok(Function, "Foo"),
-		tok(Keyword, "noexcept"), tok(Keyword, "private"), tok(Keyword, "mutable"), tok(Type, "int"),
+		tok(Keyword, "noexcept"), tok(Keyword, "private"), tok(Keyword, "mutable"), tok(BuiltinType, "int"),
 		tok(Keyword, "friend"), tok(Keyword, "class"), tok(Type, "Baz"),
 	}},
 	{name: "templates and casts", src: "template <typename T, class U>\nconcept Small = sizeof(T) < 4;\nauto p = static_cast<int*>(q);\nauto r = reinterpret_cast<char*>(&s);\nstd::vector<std::string> v;\nusing std::cout;", want: []Token{
 		tok(Keyword, "template"), tok(Keyword, "typename"), tok(Keyword, "class"), tok(Keyword, "concept"),
 		tok(Type, "Small"), tok(Keyword, "sizeof"), tok(Keyword, "auto"), tok(Keyword, "static_cast"), tok(Operator, "<"),
-		tok(Type, "int"), tok(Keyword, "reinterpret_cast"), tok(Type, "char"), tok(Variable, "std"),
+		tok(BuiltinType, "int"), tok(Keyword, "reinterpret_cast"), tok(BuiltinType, "char"), tok(Variable, "std"),
 		tok(Punctuation, "::"), tok(Variable, "vector"), tok(Keyword, "using"),
 	}},
 	{name: "raw strings", src: "auto s = R\"(raw \"text\")\";\nauto d = R\"x(a)\"b)x\";\nauto m = u8R\"(m)\";\nauto w = LR\"(w)\";", want: []Token{
@@ -33,22 +33,22 @@ var cppTests = []kindCase{
 		tok(Operator, "->"), tok(Property, "x"), tok(Keyword, "decltype"),
 	}},
 	{name: "alternative operators and primitives", src: "if (a and b or not c) {}\nbool ok = true && !false;\nint* p = nullptr;", want: []Token{
-		tok(Keyword, "and"), tok(Keyword, "or"), tok(Keyword, "not"), tok(Type, "bool"), tok(Primitive, "true"),
+		tok(Keyword, "and"), tok(Keyword, "or"), tok(Keyword, "not"), tok(BuiltinType, "bool"), tok(Primitive, "true"),
 		tok(Primitive, "false"), tok(Primitive, "nullptr"),
 	}},
 	{name: "character types and literals", src: "char8_t a = u8'a'; char16_t b = u'b'; char32_t c = U'c'; wchar_t d = L'd';", want: []Token{
-		tok(Type, "char8_t"), tok(String, "u8'a'"), tok(Type, "char16_t"), tok(String, "u'b'"), tok(Type, "char32_t"),
-		tok(String, "U'c'"), tok(Type, "wchar_t"), tok(String, "L'd'"),
+		tok(BuiltinType, "char8_t"), tok(String, "u8'a'"), tok(BuiltinType, "char16_t"), tok(String, "u'b'"), tok(BuiltinType, "char32_t"),
+		tok(String, "U'c'"), tok(BuiltinType, "wchar_t"), tok(String, "L'd'"),
 	}},
 	{name: "preprocessor", src: "#include <vector>\n#if defined(X) && X > 1\n#endif", want: []Token{
 		tok(Preproc, "#include"), tok(String, "<vector>"), tok(Preproc, "#if"), tok(Function, "defined"),
 		tok(Preproc, "#endif"),
 	}},
 	{name: "lambdas and members", src: "auto f = [&](int x) -> int { return x * 2; };\nobj.method(); ptr->field;", want: []Token{
-		tok(Keyword, "auto"), tok(Operator, "&"), tok(Operator, "->"), tok(Type, "int"), tok(Keyword, "return"),
+		tok(Keyword, "auto"), tok(Operator, "&"), tok(Operator, "->"), tok(BuiltinType, "int"), tok(Keyword, "return"),
 		tok(Function, "method"), tok(Property, "field"),
 	}},
 	{name: "comments", src: "// line\n/* block */ int x;", want: []Token{
-		tok(Comment, "// line"), tok(Comment, "/* block */"), tok(Type, "int"),
+		tok(Comment, "// line"), tok(Comment, "/* block */"), tok(BuiltinType, "int"),
 	}},
 }

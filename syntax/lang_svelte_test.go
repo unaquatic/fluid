@@ -35,6 +35,6 @@ var svelteTests = []kindCase{
 		tok(String, "'}'"), tok(Variable, "x"), tok(Punctuation, "}"), tok(Tag, "p"),
 	}},
 	{name: "typescript and styles", src: "<script lang=\"ts\">\n  let n: number = 1;\n</script>\n<style>\n  h1 { color: purple; }\n</style>", want: []Token{
-		tok(Type, "number"), tok(Tag, "h1"), tok(Property, "color"),
+		tok(BuiltinType, "number"), tok(Tag, "h1"), tok(Property, "color"),
 	}},
 }

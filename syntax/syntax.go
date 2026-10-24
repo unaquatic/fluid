@@ -26,12 +26,19 @@ const (
 	Text Kind = iota
 	// Keyword is a reserved word, such as if or return.
 	Keyword
-	// Type names a type, such as int or a declared class.
+	// Type names a type that is not built in, such as a declared class.
 	Type
 	// Function names a function or method where it is declared or called.
 	Function
-	// Builtin names a predeclared function or value, such as len or print.
-	Builtin
+	// BuiltinType names a type the language or its runtime predeclares,
+	// such as int, str, or Array.
+	BuiltinType
+	// BuiltinFunction names a function the language or its runtime
+	// predeclares, such as len, print, or fetch.
+	BuiltinFunction
+	// BuiltinVariable names a variable or object the language or its runtime
+	// predeclares, such as console, Math, self, or __name__.
+	BuiltinVariable
 	// Variable is an identifier with no more specific role, or a variable
 	// marked by a sigil, such as $HOME.
 	Variable
@@ -87,11 +94,11 @@ const (
 
 // kindNames holds the String of each Kind.
 var kindNames = [NumKinds]string{
-	"Text", "Keyword", "Type", "Function", "Builtin", "Variable", "Constant",
-	"Primitive", "Property", "Attribute", "Tag", "Decorator", "String",
-	"StringEscape", "Regex", "Number", "Comment", "Preproc", "Operator",
-	"Punctuation", "Heading", "Subheading", "Emph", "Strong", "Inserted",
-	"Deleted",
+	"Text", "Keyword", "Type", "Function", "BuiltinType", "BuiltinFunction",
+	"BuiltinVariable", "Variable", "Constant", "Primitive", "Property",
+	"Attribute", "Tag", "Decorator", "String", "StringEscape", "Regex", "Number",
+	"Comment", "Preproc", "Operator", "Punctuation", "Heading", "Subheading",
+	"Emph", "Strong", "Inserted", "Deleted",
 }
 
 // String returns the name of k, such as "Keyword".

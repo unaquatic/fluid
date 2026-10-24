@@ -29,8 +29,8 @@ var hclTests = []kindCase{
 		tok(String, "  echo ${var.x}"), tok(String, "  EOT"), tok(Property, "next"),
 	}},
 	{name: "variables, outputs, and modules", src: "variable \"region\" {\n  type    = string\n  default = \"us-east-1\"\n}\nvariable \"tags\" { type = map(string) }\noutput \"ip\" { value = aws_instance.web.public_ip }\nlocals { env = \"prod\" }\nmodule \"vpc\" { source = \"./vpc\" }\ndata \"aws_ami\" \"x\" {}\ndynamic \"ingress\" {\n  content {}\n}", want: []Token{
-		tok(Keyword, "variable"), tok(Property, "type"), tok(Type, "string"), tok(Property, "default"), tok(Keyword, "variable"),
-		tok(Type, "map"), tok(Type, "string"), tok(Keyword, "output"), tok(Property, "value"), tok(Variable, "aws_instance"),
+		tok(Keyword, "variable"), tok(Property, "type"), tok(BuiltinType, "string"), tok(Property, "default"), tok(Keyword, "variable"),
+		tok(BuiltinType, "map"), tok(BuiltinType, "string"), tok(Keyword, "output"), tok(Property, "value"), tok(Variable, "aws_instance"),
 		tok(Property, "web"), tok(Property, "public_ip"), tok(Keyword, "locals"), tok(Keyword, "module"),
 		tok(Property, "source"), tok(Keyword, "data"), tok(Keyword, "dynamic"), tok(Keyword, "content"),
 	}},

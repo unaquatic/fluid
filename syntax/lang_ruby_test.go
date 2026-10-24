@@ -8,8 +8,8 @@ func TestRuby(t *testing.T) {
 
 var rubyTests = []kindCase{
 	{name: "classes and methods", src: "class Foo < Bar\n  include Comparable\n  attr_reader :name\n  def initialize(name)\n    @name = name\n  end\n  def valid? = !@name.nil?\n  def save!; end\nend\nmodule Util; end", want: []Token{
-		tok(Keyword, "class"), tok(Type, "Foo"), tok(Operator, "<"), tok(Type, "Bar"), tok(Builtin, "include"),
-		tok(Type, "Comparable"), tok(Builtin, "attr_reader"), tok(String, ":name"), tok(Keyword, "def"),
+		tok(Keyword, "class"), tok(Type, "Foo"), tok(Operator, "<"), tok(Type, "Bar"), tok(BuiltinFunction, "include"),
+		tok(Type, "Comparable"), tok(BuiltinFunction, "attr_reader"), tok(String, ":name"), tok(Keyword, "def"),
 		tok(Function, "initialize"), tok(Variable, "@name"), tok(Keyword, "end"), tok(Keyword, "def"),
 		tok(Function, "valid?"), tok(Operator, "!"), tok(Variable, "@name"), tok(Property, "nil?"), tok(Keyword, "def"),
 		tok(Function, "save!"), tok(Keyword, "end"), tok(Keyword, "end"), tok(Keyword, "module"), tok(Type, "Util"),
@@ -34,7 +34,7 @@ var rubyTests = []kindCase{
 	{name: "heredocs", src: "sql = <<~SQL\n  SELECT #{cols}\n  FROM t\nSQL\nmsg = <<-EOS\n  text\n  EOS\nraw = <<'END'\nno #{interp}\nEND\nputs sql", want: []Token{
 		tok(Operator, "<<~"), tok(String, "SQL"), tok(String, "  SELECT #{cols}"), tok(String, "  FROM t"),
 		tok(String, "SQL"), tok(Operator, "<<-"), tok(String, "EOS"), tok(String, "  text"), tok(String, "  EOS"),
-		tok(Operator, "<<"), tok(String, "'END'"), tok(String, "no #{interp}"), tok(String, "END"), tok(Builtin, "puts"),
+		tok(Operator, "<<"), tok(String, "'END'"), tok(String, "no #{interp}"), tok(String, "END"), tok(BuiltinFunction, "puts"),
 	}},
 	{name: "appending is not a heredoc", src: "list << item\nlist << other", want: []Token{
 		tok(Variable, "list"), tok(Operator, "<<"), tok(Variable, "item"), tok(Variable, "list"),
@@ -54,8 +54,8 @@ var rubyTests = []kindCase{
 		tok(Punctuation, "::"), tok(Constant, "BAR"),
 	}},
 	{name: "builtins and calls", src: "require 'json'\nrequire_relative 'x'\nraise ArgumentError, 'bad'\nputs [1].map(&:to_s).join(', ')", want: []Token{
-		tok(Builtin, "require"), tok(String, "'json'"), tok(Builtin, "require_relative"), tok(Builtin, "raise"),
-		tok(Type, "ArgumentError"), tok(Builtin, "puts"), tok(Function, "map"), tok(Function, "join"),
+		tok(BuiltinFunction, "require"), tok(String, "'json'"), tok(BuiltinFunction, "require_relative"), tok(BuiltinFunction, "raise"),
+		tok(Type, "ArgumentError"), tok(BuiltinFunction, "puts"), tok(Function, "map"), tok(Function, "join"),
 	}},
 	{name: "comments", src: "# comment\nx = 1 # trailing", want: []Token{
 		tok(Comment, "# comment"), tok(Variable, "x"), tok(Comment, "# trailing"),

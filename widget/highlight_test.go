@@ -20,12 +20,18 @@ func TestTokenStyles_CorePaletteMapsToKinds(t *testing.T) {
 	th.Code.Operator = style.Entry{Fg: style.ColorFromInts(70, 70, 70, 255)}
 	th.Code.Constant = style.Entry{Fg: style.ColorFromInts(80, 80, 80, 255)}
 	th.Code.Decorator = style.Entry{Fg: style.ColorFromInts(90, 90, 90, 255)}
+	th.Code.BuiltinType = style.Entry{Fg: style.ColorFromInts(100, 100, 100, 255), Attrs: style.AttrBold}
+	th.Code.BuiltinFunction = style.Entry{Fg: style.ColorFromInts(110, 110, 110, 255), Attrs: style.AttrItalic}
+	th.Code.BuiltinVariable = style.Entry{Fg: style.ColorFromInts(120, 120, 120, 255)}
 
 	s := TokenStyles(th)
 	tests := []struct {
 		kind syntax.Kind
 		want style.Entry
 	}{
+		{syntax.BuiltinType, th.Code.BuiltinType},
+		{syntax.BuiltinFunction, th.Code.BuiltinFunction},
+		{syntax.BuiltinVariable, th.Code.BuiltinVariable},
 		{syntax.Keyword, th.Code.Keyword},
 		{syntax.Type, th.Code.Type},
 		{syntax.Function, th.Code.Function},
@@ -55,6 +61,9 @@ func TestTokenStyles_InheritanceFallbacks(t *testing.T) {
 	th.Code.StringEscape = style.Entry{}
 	th.Code.Regex = style.Entry{}
 	th.Code.Primitive = style.Entry{}
+	th.Code.BuiltinType = style.Entry{}
+	th.Code.BuiltinFunction = style.Entry{}
+	th.Code.BuiltinVariable = style.Entry{}
 	variable := th.Code.Variable.Or(style.Entry{Fg: th.TextStrong})
 
 	s := TokenStyles(th)
@@ -72,6 +81,9 @@ func TestTokenStyles_InheritanceFallbacks(t *testing.T) {
 		{"StringEscape → Number", syntax.StringEscape, th.Code.Number.Fg},
 		{"Regex → String", syntax.Regex, th.Code.String.Fg},
 		{"Primitive → Constant", syntax.Primitive, th.Code.Constant.Fg},
+		{"BuiltinType → Type", syntax.BuiltinType, th.Code.Type.Fg},
+		{"BuiltinFunction → Function", syntax.BuiltinFunction, th.Code.Function.Fg},
+		{"BuiltinVariable → Variable", syntax.BuiltinVariable, variable.Fg},
 		{"Text → Variable", syntax.Text, variable.Fg},
 	}
 	for _, tt := range tests {

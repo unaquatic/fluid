@@ -183,12 +183,11 @@ type CodePalette struct {
 
 	// Keyword styles language keywords.
 	Keyword Entry
-	// Type styles built-in and user-defined types.
+	// Type styles user-defined types, and built-in types when BuiltinType is
+	// unset.
 	Type Entry
 	// Function styles function and method names.
 	Function Entry
-	// Builtin styles built-in values and functions.
-	Builtin Entry
 	// Variable styles identifiers without a more specific role.
 	Variable Entry
 	// Constant styles named constants.
@@ -224,6 +223,17 @@ type CodePalette struct {
 	// Primitive styles pseudo-keywords, such as true, false, and nil. A zero
 	// entry inherits Constant.
 	Primitive Entry
+	// BuiltinType styles types the language or its runtime predeclares, such
+	// as int, str, and Array. A zero entry inherits Type.
+	BuiltinType Entry
+	// BuiltinFunction styles functions the language or its runtime
+	// predeclares, such as len, print, and fetch. A zero entry inherits
+	// Function.
+	BuiltinFunction Entry
+	// BuiltinVariable styles variables and objects the language or its
+	// runtime predeclares, such as console, Math, self, and __name__. A zero
+	// entry inherits Variable.
+	BuiltinVariable Entry
 	// Object styles other names the lexer marks. A zero entry inherits
 	// Variable.
 	Object Entry
@@ -528,7 +538,6 @@ func NeutralCodePalette(ramp [12]Color) CodePalette {
 		Keyword:     Entry{Fg: ramp[11], Attrs: AttrBold},
 		Type:        Entry{Fg: ramp[10], Attrs: AttrBold},
 		Function:    Entry{Fg: ramp[11], Attrs: AttrBold},
-		Builtin:     Entry{Fg: ramp[9]},
 		Variable:    Entry{Fg: ramp[9]},
 		Constant:    Entry{Fg: ramp[10]},
 		String:      Entry{Fg: ramp[8]},
@@ -547,7 +556,6 @@ func MonokaiCodePalette() CodePalette {
 		Keyword:  Entry{Fg: ColorFromInts(249, 38, 114, 255)},
 		Type:     Entry{Fg: ColorFromInts(102, 217, 239, 255)},
 		Function: Entry{Fg: ColorFromInts(166, 226, 46, 255)},
-		Builtin:  Entry{Fg: ColorFromInts(102, 217, 239, 255)},
 		Variable: Entry{Fg: ColorFromInts(248, 248, 242, 255)},
 		Constant: Entry{Fg: ColorFromInts(174, 129, 255, 255)},
 		String:   Entry{Fg: ColorFromInts(230, 219, 116, 255)},

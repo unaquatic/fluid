@@ -10,12 +10,13 @@ const (
 		default delete do else export extends finally for function if import in
 		instanceof let new of return static super switch this throw try typeof
 		var void while with yield from as`
-	jsBuiltins = `console window document globalThis Object Array String Number
-		Boolean Symbol BigInt Promise Map Set WeakMap WeakSet JSON Math Date
-		RegExp Error TypeError RangeError SyntaxError Reflect Proxy Intl require
-		module exports process Buffer setTimeout setInterval clearTimeout
-		clearInterval fetch parseInt parseFloat isNaN isFinite structuredClone
-		queueMicrotask`
+	jsBuiltinVariables = `console window document globalThis process JSON Math Reflect
+		Intl module exports`
+	jsBuiltinFunctions = `require setTimeout setInterval clearTimeout clearInterval fetch
+		parseInt parseFloat isNaN isFinite structuredClone queueMicrotask`
+	jsBuiltinTypes = `Object Array String Number Boolean Symbol BigInt Promise
+		Map Set WeakMap WeakSet Date RegExp Error TypeError RangeError
+		SyntaxError Proxy Buffer`
 	jsPrimitives = "true false null undefined NaN Infinity"
 	tsKeywords   = `abstract asserts declare enum implements infer interface is
 		keyof module namespace never private protected public readonly
@@ -26,10 +27,15 @@ const (
 // jsLexer returns a JavaScript lexer, with TypeScript's keywords and types
 // if ts and JSX elements if jsx.
 func jsLexer(ts, jsx bool) *CLike {
-	words := wordKinds(Keyword, jsKeywords, Builtin, jsBuiltins, Primitive, jsPrimitives)
+	words := wordKinds(Keyword, jsKeywords, BuiltinType, jsBuiltinTypes,
+		BuiltinVariable, jsBuiltinVariables, BuiltinFunction, jsBuiltinFunctions,
+		Primitive, jsPrimitives)
 	if ts {
-		words = wordKinds(Keyword, jsKeywords+" "+tsKeywords, Type, tsTypes,
-			Builtin, jsBuiltins, Primitive, jsPrimitives)
+		// The variables come first so that TypeScript's keyword module, as in
+		// declare module, overrides the CommonJS variable.
+		words = wordKinds(BuiltinVariable, jsBuiltinVariables, Keyword, jsKeywords+" "+tsKeywords,
+			BuiltinType, tsTypes+" "+jsBuiltinTypes, BuiltinFunction, jsBuiltinFunctions,
+			Primitive, jsPrimitives)
 	}
 	return &CLike{
 		Words: words,
@@ -104,18 +110,20 @@ func pythonLang() *Language {
 				Keyword, `and as assert async await break class continue def del elif
 					else except finally for from global if import in is lambda
 					nonlocal not or pass raise return try while with yield`,
-				Builtin, `abs aiter all anext any ascii bin bool breakpoint bytearray
-					bytes callable chr classmethod compile complex delattr dict dir
-					divmod enumerate eval exec filter float format frozenset getattr
-					globals hasattr hash help hex id input int isinstance issubclass
-					iter len list locals map max memoryview min next object oct open
-					ord pow print property range repr reversed round set setattr
-					slice sorted staticmethod str sum super tuple type vars zip
-					__import__ self cls NotImplemented Ellipsis __name__ __file__
-					__doc__ Exception BaseException ValueError TypeError KeyError
-					IndexError AttributeError RuntimeError StopIteration
-					NotImplementedError OSError IOError FileNotFoundError ImportError
-					ZeroDivisionError AssertionError KeyboardInterrupt`,
+				BuiltinFunction, `abs aiter all anext any ascii bin breakpoint callable chr
+					compile delattr dir divmod eval exec format getattr globals hasattr
+					hash help hex id input isinstance issubclass iter len locals max min
+					next oct open ord pow print repr round setattr sorted sum vars
+					__import__`,
+				Constant, "NotImplemented Ellipsis",
+				BuiltinType, `bool bytearray bytes complex dict float frozenset int
+					list memoryview object range set slice str tuple type classmethod
+					staticmethod property super enumerate zip map filter reversed
+					BaseException Exception AssertionError AttributeError ImportError
+					IndexError KeyError KeyboardInterrupt NotImplementedError OSError
+					IOError FileNotFoundError RuntimeError StopIteration TypeError
+					ValueError ZeroDivisionError`,
+				BuiltinVariable, "self cls __name__ __file__ __doc__",
 				Primitive, "True False None"),
 			Declarators:   map[string]Kind{"def": Function, "class": Type},
 			LineComments:  []string{"#"},
@@ -138,7 +146,7 @@ func rubyLang() *Language {
 					else elsif end ensure for if in module next not or redo rescue
 					retry return self super then undef unless until when while yield
 					__FILE__ __LINE__ __method__ lambda proc`,
-				Builtin, `puts print p pp require require_relative attr_accessor
+				BuiltinFunction, `puts print p pp require require_relative attr_accessor
 					attr_reader attr_writer include extend prepend private public
 					protected raise loop format sprintf gets`,
 				Primitive, "true false nil"),
@@ -240,7 +248,8 @@ func phpLang() *Language {
 					isset list match namespace new or print private protected public
 					readonly require require_once return static switch throw trait try
 					unset use var while xor yield`,
-				Type, "int float bool string void mixed never object iterable self parent",
+				BuiltinType, "int float bool string void mixed never object iterable",
+				Type, "self parent",
 				Primitive, "true false null"),
 			FoldCase: true,
 			Declarators: map[string]Kind{
@@ -287,10 +296,10 @@ func luaLang() *Language {
 			Words: wordKinds(
 				Keyword, `and break do else elseif end for function goto if in local
 					not or repeat return then until while`,
-				Builtin, `assert collectgarbage dofile error getmetatable ipairs load
+				BuiltinFunction, `assert collectgarbage dofile error getmetatable ipairs load
 					loadfile next pairs pcall print rawequal rawget rawlen rawset
-					require select setmetatable tonumber tostring type unpack xpcall
-					string table math io os coroutine debug utf8 self _G _ENV`,
+					require select setmetatable tonumber tostring type unpack xpcall`,
+				BuiltinVariable, "self _G _ENV string table math io os coroutine debug utf8",
 				Primitive, "true false nil"),
 			Declarators:  map[string]Kind{"function": Function},
 			LineComments: []string{"--"},
@@ -340,11 +349,11 @@ func sqlLang() *Language {
 					without recursive function returns language declare do loop while
 					for return materialized sequence extension conflict nothing
 					lateral ilike similar fetch first next only interval`,
-				Type, `bigint binary bit blob boolean bool char character date
+				BuiltinType, `bigint binary bit blob boolean bool char character date
 					datetime decimal double float int integer json jsonb money nchar
 					numeric nvarchar real serial bigserial smallint smallserial text
 					time timestamp timestamptz tinyint uuid varbinary varchar bytea`,
-				Builtin, `avg count max min sum coalesce nullif now lower upper length
+				BuiltinFunction, `avg count max min sum coalesce nullif now lower upper length
 					substring trim round abs concat date_trunc extract to_char
 					row_number rank dense_rank lag lead first_value last_value
 					string_agg array_agg json_agg greatest least`,
@@ -405,7 +414,7 @@ func powershellLang() *Language {
 					from function hidden if in param process return static switch
 					throw trap try until using var while workflow parallel sequence
 					inlinescript`,
-				Type, `string int long bool double float decimal char byte object
+				BuiltinType, `string int long bool double float decimal char byte object
 					array hashtable void datetime scriptblock psobject
 					pscustomobject regex xml`),
 			FoldCase:     true,

@@ -19,20 +19,20 @@ var javascriptTests = []kindCase{
 		tok(Keyword, "of"), tok(Keyword, "for"), tok(Keyword, "in"), tok(Keyword, "while"), tok(Keyword, "do"),
 		tok(Keyword, "while"), tok(Keyword, "switch"), tok(Keyword, "case"), tok(Keyword, "break"), tok(Keyword, "default"),
 		tok(Keyword, "try"), tok(Keyword, "catch"), tok(Keyword, "finally"), tok(Keyword, "throw"), tok(Keyword, "new"),
-		tok(Builtin, "Error"), tok(String, "'x'"),
+		tok(BuiltinType, "Error"), tok(String, "'x'"),
 	}},
 	{name: "modules", src: "import React, { useState as use } from 'react';\nexport { a, b as c };\nconst m = require('m');", want: []Token{
 		tok(Keyword, "import"), tok(Type, "React"), tok(Variable, "useState"), tok(Keyword, "as"), tok(Variable, "use"),
-		tok(Keyword, "from"), tok(String, "'react'"), tok(Keyword, "export"), tok(Keyword, "as"), tok(Builtin, "require"),
+		tok(Keyword, "from"), tok(String, "'react'"), tok(Keyword, "export"), tok(Keyword, "as"), tok(BuiltinFunction, "require"),
 	}},
 	{name: "primitives and builtins", src: "x = [true, false, null, undefined, NaN, Infinity, this];\nconsole.log(JSON.stringify(o), Math.PI, Object.keys(o));", want: []Token{
 		tok(Primitive, "true"), tok(Primitive, "false"), tok(Primitive, "null"), tok(Primitive, "undefined"),
-		tok(Primitive, "NaN"), tok(Primitive, "Infinity"), tok(Keyword, "this"), tok(Builtin, "console"),
-		tok(Function, "log"), tok(Builtin, "JSON"), tok(Function, "stringify"), tok(Builtin, "Math"),
-		tok(Constant, "PI"), tok(Builtin, "Object"), tok(Function, "keys"),
+		tok(Primitive, "NaN"), tok(Primitive, "Infinity"), tok(Keyword, "this"), tok(BuiltinVariable, "console"),
+		tok(Function, "log"), tok(BuiltinVariable, "JSON"), tok(Function, "stringify"), tok(BuiltinVariable, "Math"),
+		tok(Constant, "PI"), tok(BuiltinType, "Object"), tok(Function, "keys"),
 	}},
 	{name: "member names are not keywords", src: "Array.from(x); p.catch(e).finally(f); m.delete(k); o.default; a?.b?.c(); this.#priv", want: []Token{
-		tok(Builtin, "Array"), tok(Function, "from"), tok(Function, "catch"), tok(Function, "finally"),
+		tok(BuiltinType, "Array"), tok(Function, "from"), tok(Function, "catch"), tok(Function, "finally"),
 		tok(Function, "delete"), tok(Property, "default"), tok(Variable, "a"), tok(Property, "b"), tok(Function, "c"),
 		tok(Keyword, "this"), tok(Property, "#priv"),
 	}},
@@ -63,7 +63,7 @@ var javascriptTests = []kindCase{
 		tok(Comment, "/* inline */"), tok(Comment, "/** JSDoc @param x */"),
 	}},
 	{name: "shebang", src: "#!/usr/bin/env node\nconsole.log(1);", want: []Token{
-		tok(Comment, "#!/usr/bin/env node"), tok(Builtin, "console"),
+		tok(Comment, "#!/usr/bin/env node"), tok(BuiltinVariable, "console"),
 	}},
 	{name: "numbers", src: "n = [0, 42, 0xFF, 0o17, 0b101, 1_000, 3.14, .5, 1e3, 10n];", want: []Token{
 		tok(Number, "0"), tok(Number, "42"), tok(Number, "0xFF"), tok(Number, "0o17"), tok(Number, "0b101"),
@@ -74,7 +74,7 @@ var javascriptTests = []kindCase{
 		tok(Operator, "=>"), tok(Operator, "..."), tok(Operator, "?"), tok(Property, "l"), tok(Operator, ">>>="),
 	}},
 	{name: "constants and classes", src: "const MAX_RETRIES = 3; new Map(); class Foo {}; Foo.bar;", want: []Token{
-		tok(Constant, "MAX_RETRIES"), tok(Keyword, "new"), tok(Builtin, "Map"), tok(Type, "Foo"), tok(Type, "Foo"),
+		tok(Constant, "MAX_RETRIES"), tok(Keyword, "new"), tok(BuiltinType, "Map"), tok(Type, "Foo"), tok(Type, "Foo"),
 		tok(Property, "bar"),
 	}},
 	{name: "decorators", src: "@Component({ selector: 'x' })\nclass C { @Input() name; }", want: []Token{
@@ -102,5 +102,10 @@ var javascriptTests = []kindCase{
 	}},
 	{name: "quoted string ends with its line", src: "s = 'abc\nx = 1", want: []Token{
 		tok(String, "'abc"), tok(Variable, "x"),
+	}},
+	{name: "builtin variables", src: "module.exports = exports = { window, document, globalThis, process, Reflect, Intl }", want: []Token{
+		tok(BuiltinVariable, "module"), tok(Property, "exports"), tok(BuiltinVariable, "exports"),
+		tok(BuiltinVariable, "window"), tok(BuiltinVariable, "document"), tok(BuiltinVariable, "globalThis"),
+		tok(BuiltinVariable, "process"), tok(BuiltinVariable, "Reflect"), tok(BuiltinVariable, "Intl"),
 	}},
 }

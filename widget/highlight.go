@@ -62,7 +62,9 @@ func TokenStyles(t *style.Theme) [syntax.NumKinds]style.Entry {
 	s[syntax.Keyword] = c.Keyword
 	s[syntax.Type] = c.Type
 	s[syntax.Function] = c.Function
-	s[syntax.Builtin] = c.Builtin
+	s[syntax.BuiltinType] = c.BuiltinType.Or(c.Type)
+	s[syntax.BuiltinFunction] = c.BuiltinFunction.Or(c.Function)
+	s[syntax.BuiltinVariable] = c.BuiltinVariable.Or(variable)
 	s[syntax.Variable] = variable
 	s[syntax.Constant] = c.Constant
 	s[syntax.Primitive] = c.Primitive.Or(c.Constant)

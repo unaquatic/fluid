@@ -9,17 +9,17 @@ func TestCSharp(t *testing.T) {
 var csharpTests = []kindCase{
 	{name: "types and members", src: "namespace App;\npublic sealed class Foo : IBar {\n  private readonly int _n;\n  public string Name { get; set; } = \"x\";\n  protected internal static void Run() {}\n}", want: []Token{
 		tok(Keyword, "namespace"), tok(Type, "App"), tok(Keyword, "public"), tok(Keyword, "sealed"), tok(Keyword, "class"),
-		tok(Type, "Foo"), tok(Type, "IBar"), tok(Keyword, "private"), tok(Keyword, "readonly"), tok(Type, "int"),
-		tok(Variable, "_n"), tok(Keyword, "public"), tok(Type, "string"), tok(Variable, "get"), tok(Variable, "set"),
-		tok(String, `"x"`), tok(Keyword, "protected"), tok(Keyword, "internal"), tok(Keyword, "static"), tok(Type, "void"),
+		tok(Type, "Foo"), tok(Type, "IBar"), tok(Keyword, "private"), tok(Keyword, "readonly"), tok(BuiltinType, "int"),
+		tok(Variable, "_n"), tok(Keyword, "public"), tok(BuiltinType, "string"), tok(Variable, "get"), tok(Variable, "set"),
+		tok(String, `"x"`), tok(Keyword, "protected"), tok(Keyword, "internal"), tok(Keyword, "static"), tok(BuiltinType, "void"),
 		tok(Function, "Run"),
 	}},
 	{name: "records structs interfaces enums", src: "public record Point(int X, int Y);\nstruct S {}\ninterface I {}\nenum E { A }", want: []Token{
-		tok(Keyword, "record"), tok(Type, "Point"), tok(Type, "int"), tok(Keyword, "struct"), tok(Type, "S"),
+		tok(Keyword, "record"), tok(Type, "Point"), tok(BuiltinType, "int"), tok(Keyword, "struct"), tok(Type, "S"),
 		tok(Keyword, "interface"), tok(Type, "I"), tok(Keyword, "enum"), tok(Type, "E"),
 	}},
 	{name: "statements", src: "async Task<int> F() {\n  await Task.Delay(1);\n  var x = y is null ? default : (int)z;\n  foreach (var i in xs) yield return i;\n  lock (o) {}\n  using var r = R();\n  throw new InvalidOperationException();\n}", want: []Token{
-		tok(Keyword, "async"), tok(Type, "Task"), tok(Type, "int"), tok(Function, "F"), tok(Keyword, "await"),
+		tok(Keyword, "async"), tok(Type, "Task"), tok(BuiltinType, "int"), tok(Function, "F"), tok(Keyword, "await"),
 		tok(Type, "Task"), tok(Function, "Delay"), tok(Keyword, "var"), tok(Keyword, "is"), tok(Primitive, "null"),
 		tok(Keyword, "default"), tok(Keyword, "foreach"), tok(Keyword, "in"), tok(Keyword, "yield"),
 		tok(Keyword, "return"), tok(Keyword, "lock"), tok(Keyword, "using"), tok(Keyword, "throw"), tok(Keyword, "new"),
@@ -54,6 +54,6 @@ var csharpTests = []kindCase{
 		tok(Operator, "!"), tok(Property, "f"), tok(Keyword, "switch"), tok(Operator, "=>"),
 	}},
 	{name: "comments", src: "// line\n/// <summary>doc</summary>\n/* block */ int x;", want: []Token{
-		tok(Comment, "// line"), tok(Comment, "/// <summary>doc</summary>"), tok(Comment, "/* block */"), tok(Type, "int"),
+		tok(Comment, "// line"), tok(Comment, "/// <summary>doc</summary>"), tok(Comment, "/* block */"), tok(BuiltinType, "int"),
 	}},
 }

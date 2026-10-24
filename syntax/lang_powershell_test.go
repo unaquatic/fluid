@@ -8,8 +8,8 @@ func TestPowerShell(t *testing.T) {
 
 var powershellTests = []kindCase{
 	{name: "functions and parameters", src: "function Get-Info {\n  param([string]$Path, [int]$Depth = 1)\n  Get-ChildItem -Path $Path -Recurse | Where-Object { $_.Length -gt 1kb }\n}", want: []Token{
-		tok(Keyword, "function"), tok(Function, "Get-Info"), tok(Keyword, "param"), tok(Type, "string"),
-		tok(Variable, "$Path"), tok(Type, "int"), tok(Variable, "$Depth"), tok(Function, "Get-ChildItem"),
+		tok(Keyword, "function"), tok(Function, "Get-Info"), tok(Keyword, "param"), tok(BuiltinType, "string"),
+		tok(Variable, "$Path"), tok(BuiltinType, "int"), tok(Variable, "$Depth"), tok(Function, "Get-ChildItem"),
 		tok(Operator, "-"), tok(Variable, "Path"), tok(Variable, "$Path"), tok(Operator, "-"), tok(Variable, "Recurse"),
 		tok(Operator, "|"), tok(Function, "Where-Object"), tok(Variable, "$_"), tok(Property, "Length"),
 		tok(Operator, "-gt"), tok(Number, "1kb"),
@@ -38,8 +38,8 @@ var powershellTests = []kindCase{
 		tok(Comment, "# line"), tok(Comment, "<# block"), tok(Comment, "comment #>"), tok(Variable, "$x"),
 	}},
 	{name: "types and primitives", src: "[bool]$b = $false\n$n = $null\n[datetime]::Now\n[hashtable]$h = @{}", want: []Token{
-		tok(Type, "bool"), tok(Primitive, "$false"), tok(Primitive, "$null"), tok(Type, "datetime"),
-		tok(Punctuation, "::"), tok(Type, "hashtable"),
+		tok(BuiltinType, "bool"), tok(Primitive, "$false"), tok(Primitive, "$null"), tok(BuiltinType, "datetime"),
+		tok(Punctuation, "::"), tok(BuiltinType, "hashtable"),
 	}},
 	{name: "keywords ignore case", src: "IF ($x) { RETURN }\nFunction F { }", want: []Token{
 		tok(Keyword, "IF"), tok(Keyword, "RETURN"), tok(Keyword, "Function"), tok(Function, "F"),

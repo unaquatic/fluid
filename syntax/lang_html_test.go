@@ -40,7 +40,7 @@ var htmlTests = []kindCase{
 	}},
 	{name: "script types", src: "<script type=\"module\">let a</script>\n<script type=\"application/json\">{\"a\": 1}</script>\n<script lang=\"ts\">let b: string</script>", want: []Token{
 		tok(Keyword, "let"), tok(Tag, "script"), tok(Text, `{"a": 1}`), tok(Tag, "script"), tok(Keyword, "let"),
-		tok(Type, "string"),
+		tok(BuiltinType, "string"),
 	}},
 	{name: "script state across lines", src: "<script>\nconst s = `multi\nline`;\n</script>", want: []Token{
 		tok(String, "`multi"), tok(String, "line`"), tok(Tag, "script"),

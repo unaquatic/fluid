@@ -7,8 +7,9 @@ import (
 
 // Shell lexes the Bourne shell language of sh, bash, and zsh.
 //
-// The first word of a command is a Keyword or a Builtin when Words names it
-// so; other commands and their arguments are Text.
+// The first word of a command is a Keyword or a BuiltinFunction when Words
+// names it so, and a Function where a function is defined; other commands
+// and their arguments are Text.
 type Shell struct {
 	// Words maps keywords and builtin commands to their kinds.
 	Words map[string]Kind
@@ -39,13 +40,13 @@ func shellLang() *Language {
 func newShell() *Shell {
 	return &Shell{Words: wordKinds(
 		Keyword, `if then else elif fi case esac for select while until do done
-			function time coproc [[ ]]`,
-		Builtin, `alias bg bind break builtin caller cd command compgen complete
-			compopt continue declare dirs disown echo enable eval exec exit export
-			false fc fg getopts hash help history jobs kill let local logout
-			mapfile popd printf pushd pwd read readarray readonly return set shift
-			shopt source suspend test times trap true type typeset ulimit umask
-			unalias unset wait . [`,
+			function time coproc [[ ]] break continue return exit`,
+		BuiltinFunction, `alias bg bind builtin caller cd command compgen complete
+			compopt declare dirs disown echo enable eval exec export false fc fg
+			getopts hash help history jobs kill let local logout mapfile popd
+			printf pushd pwd read readarray readonly set shift shopt source
+			suspend test times trap true type typeset ulimit umask unalias unset
+			wait . [`,
 	)}
 }
 
@@ -216,7 +217,8 @@ func (sh *Shell) word(s *Scanner, fs Frames, cmd bool, expectIn, arith *int) (Fr
 				s.EmitTo(Function, shellWordEnd(s.Line, s.Pos))
 			}
 			return fs, false
-		case "fi", "done", "esac", "]]":
+		case "fi", "done", "esac", "]]", "break", "continue", "return", "exit":
+			// What follows is an argument, such as a status, or no command.
 			return fs, false
 		}
 		return fs, true

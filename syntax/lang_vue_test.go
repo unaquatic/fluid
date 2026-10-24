@@ -29,7 +29,7 @@ var vueTests = []kindCase{
 	}},
 	{name: "scripts", src: "<script setup lang=\"ts\">\nimport { ref } from 'vue'\nconst n: number = 1\n</script>", want: []Token{
 		tok(Tag, "script"), tok(Attribute, "setup"), tok(Attribute, "lang"), tok(String, `"ts"`), tok(Keyword, "import"),
-		tok(Keyword, "from"), tok(Keyword, "const"), tok(Type, "number"), tok(Tag, "script"),
+		tok(Keyword, "from"), tok(Keyword, "const"), tok(BuiltinType, "number"), tok(Tag, "script"),
 	}},
 	{name: "styles", src: "<style scoped lang=\"scss\">\n$c: red;\n.a { &:hover { color: $c; } }\n</style>", want: []Token{
 		tok(Attribute, "scoped"), tok(Variable, "$c"), tok(Type, ".a"), tok(Keyword, "&"), tok(Decorator, ":hover"),

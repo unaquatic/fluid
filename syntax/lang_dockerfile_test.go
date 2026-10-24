@@ -25,7 +25,7 @@ var dockerfileTests = []kindCase{
 	{name: "shell commands across lines", src: "RUN apt-get update && \\\n    apt-get install -y git curl && \\\n    rm -rf /var/lib/apt/lists/*\nRUN echo \"$HOME\" > /tmp/x", want: []Token{
 		tok(Keyword, "RUN"), tok(Text, "apt-get update"), tok(Operator, "&&"), tok(StringEscape, `\`),
 		tok(Text, "apt-get install -y git curl"), tok(Operator, "&&"), tok(StringEscape, `\`),
-		tok(Text, "rm -rf /var/lib/apt/lists/*"), tok(Keyword, "RUN"), tok(Builtin, "echo"), tok(Variable, "$HOME"),
+		tok(Text, "rm -rf /var/lib/apt/lists/*"), tok(Keyword, "RUN"), tok(BuiltinFunction, "echo"), tok(Variable, "$HOME"),
 		tok(Operator, ">"),
 	}},
 	{name: "comments inside a continued command", src: "RUN make \\\n    # build it\n    all", want: []Token{
@@ -39,7 +39,7 @@ var dockerfileTests = []kindCase{
 		tok(Keyword, "COPY"), tok(Text, ". ."),
 	}},
 	{name: "healthchecks", src: "HEALTHCHECK --interval=30s CMD curl -f http://x/ || exit 1", want: []Token{
-		tok(Keyword, "HEALTHCHECK"), tok(Operator, "||"), tok(Builtin, "exit"), tok(Number, "1"),
+		tok(Keyword, "HEALTHCHECK"), tok(Operator, "||"), tok(Keyword, "exit"), tok(Number, "1"),
 	}},
 	{name: "unclosed continuation", src: "RUN make \\", open: true, want: []Token{
 		tok(Keyword, "RUN"), tok(StringEscape, `\`),

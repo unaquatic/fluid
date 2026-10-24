@@ -170,7 +170,6 @@ func TestNeutralCodePalette_DerivedFromRamp(t *testing.T) {
 		{"Type", p.Type, 10},
 		{"Constant", p.Constant, 10},
 		{"Decorator", p.Decorator, 10},
-		{"Builtin", p.Builtin, 9},
 		{"Variable", p.Variable, 9},
 		{"Number", p.Number, 9},
 		{"String", p.String, 8},

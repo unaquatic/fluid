@@ -10,12 +10,12 @@ var luaTests = []kindCase{
 	{name: "functions", src: "local function add(a, b) return a + b end\nfunction M.sub(a, b) return a - b end\nfunction obj:method() return self end\nlocal f = function(...) end", want: []Token{
 		tok(Keyword, "local"), tok(Keyword, "function"), tok(Function, "add"), tok(Keyword, "return"), tok(Keyword, "end"),
 		tok(Keyword, "function"), tok(Variable, "M"), tok(Punctuation, "."), tok(Function, "sub"), tok(Keyword, "function"),
-		tok(Function, "method"), tok(Builtin, "self"), tok(Keyword, "local"), tok(Variable, "f"), tok(Keyword, "function"),
+		tok(Function, "method"), tok(BuiltinVariable, "self"), tok(Keyword, "local"), tok(Variable, "f"), tok(Keyword, "function"),
 		tok(Operator, "..."),
 	}},
 	{name: "control flow", src: "if a then b() elseif c then d() else e() end\nfor i = 1, 10 do end\nfor k, v in pairs(t) do end\nwhile x do break end\nrepeat until y\ngoto continue\n::continue::", want: []Token{
 		tok(Keyword, "if"), tok(Keyword, "then"), tok(Keyword, "elseif"), tok(Keyword, "else"), tok(Keyword, "end"),
-		tok(Keyword, "for"), tok(Keyword, "do"), tok(Keyword, "for"), tok(Keyword, "in"), tok(Builtin, "pairs"),
+		tok(Keyword, "for"), tok(Keyword, "do"), tok(Keyword, "for"), tok(Keyword, "in"), tok(BuiltinFunction, "pairs"),
 		tok(Keyword, "while"), tok(Keyword, "break"), tok(Keyword, "repeat"), tok(Keyword, "until"), tok(Keyword, "goto"),
 		tok(Punctuation, "::"),
 	}},
@@ -29,12 +29,12 @@ var luaTests = []kindCase{
 		tok(Comment, "--[==[ level ]] still ]==]"), tok(Variable, "x"), tok(Comment, "--[ not long"),
 	}},
 	{name: "builtins and primitives", src: "print(type(x), tostring(nil), true, false, select('#', ...), setmetatable(t, mt))", want: []Token{
-		tok(Builtin, "print"), tok(Builtin, "type"), tok(Builtin, "tostring"), tok(Primitive, "nil"), tok(Primitive, "true"),
-		tok(Primitive, "false"), tok(Builtin, "select"), tok(String, "'#'"), tok(Operator, "..."), tok(Builtin, "setmetatable"),
+		tok(BuiltinFunction, "print"), tok(BuiltinFunction, "type"), tok(BuiltinFunction, "tostring"), tok(Primitive, "nil"), tok(Primitive, "true"),
+		tok(Primitive, "false"), tok(BuiltinFunction, "select"), tok(String, "'#'"), tok(Operator, "..."), tok(BuiltinFunction, "setmetatable"),
 	}},
 	{name: "tables and members", src: "local t = { x = 1, ['y'] = 2 }\nt.x = string.format('%d', 1)\nmath.floor(1.5)\nobj:method(1)", want: []Token{
-		tok(Keyword, "local"), tok(String, "'y'"), tok(Property, "x"), tok(Builtin, "string"), tok(Function, "format"),
-		tok(Builtin, "math"), tok(Function, "floor"), tok(Function, "method"),
+		tok(Keyword, "local"), tok(String, "'y'"), tok(Property, "x"), tok(BuiltinVariable, "string"), tok(Function, "format"),
+		tok(BuiltinVariable, "math"), tok(Function, "floor"), tok(Function, "method"),
 	}},
 	{name: "operators", src: "a = b ~= c and not d or e\nf = g // h\ni = #j .. k", want: []Token{
 		tok(Operator, "~="), tok(Keyword, "and"), tok(Keyword, "not"), tok(Keyword, "or"), tok(Operator, "//"),
@@ -45,5 +45,9 @@ var luaTests = []kindCase{
 	}},
 	{name: "unclosed long string", src: "s = [[open\nstill", open: true, want: []Token{
 		tok(String, "[[open"), tok(String, "still"),
+	}},
+	{name: "builtin variables", src: "local g = _G\nprint(_ENV, self, string.len(\"x\"))", want: []Token{
+		tok(Keyword, "local"), tok(Variable, "g"), tok(BuiltinVariable, "_G"), tok(BuiltinFunction, "print"),
+		tok(BuiltinVariable, "_ENV"), tok(BuiltinVariable, "self"), tok(BuiltinVariable, "string"), tok(Function, "len"),
 	}},
 }

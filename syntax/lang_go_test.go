@@ -14,24 +14,24 @@ var goTests = []kindCase{
 		tok(Keyword, "continue"), tok(Keyword, "defer"), tok(Function, "f"), tok(Keyword, "go"), tok(Function, "g"),
 	}},
 	{name: "control flow", src: "switch x := v.(type) {\ncase int:\n\tfallthrough\ndefault:\n\tbreak\n}\nselect {\ncase <-ch:\n}\ngoto end\nreturn", want: []Token{
-		tok(Keyword, "switch"), tok(Keyword, "type"), tok(Keyword, "case"), tok(Type, "int"),
+		tok(Keyword, "switch"), tok(Keyword, "type"), tok(Keyword, "case"), tok(BuiltinType, "int"),
 		tok(Keyword, "fallthrough"), tok(Keyword, "default"), tok(Keyword, "break"), tok(Keyword, "select"),
 		tok(Keyword, "case"), tok(Operator, "<-"), tok(Keyword, "goto"), tok(Variable, "end"), tok(Keyword, "return"),
 	}},
 	{name: "types and builtins", src: "var m map[string]int = make(map[string]int, len(s))\nvar e error\nvar a any\nch := make(chan<- rune, cap(b))\nx := append(xs, min(1, 2))\npanic(new(T))", want: []Token{
-		tok(Keyword, "var"), tok(Variable, "m"), tok(Keyword, "map"), tok(Punctuation, "["), tok(Type, "string"),
-		tok(Type, "int"), tok(Builtin, "make"), tok(Builtin, "len"), tok(Type, "error"), tok(Type, "any"),
-		tok(Keyword, "chan"), tok(Type, "rune"), tok(Builtin, "cap"), tok(Builtin, "append"), tok(Builtin, "min"),
-		tok(Builtin, "panic"), tok(Builtin, "new"),
+		tok(Keyword, "var"), tok(Variable, "m"), tok(Keyword, "map"), tok(Punctuation, "["), tok(BuiltinType, "string"),
+		tok(BuiltinType, "int"), tok(BuiltinFunction, "make"), tok(BuiltinFunction, "len"), tok(BuiltinType, "error"), tok(BuiltinType, "any"),
+		tok(Keyword, "chan"), tok(BuiltinType, "rune"), tok(BuiltinFunction, "cap"), tok(BuiltinFunction, "append"), tok(BuiltinFunction, "min"),
+		tok(BuiltinFunction, "panic"), tok(BuiltinFunction, "new"),
 	}},
 	{name: "type declarations", src: "type Point struct{ X, Y int }\ntype Reader interface {\n\tRead(p []byte) (n int, err error)\n}\ntype ID = string", want: []Token{
 		tok(Keyword, "type"), tok(Type, "Point"), tok(Keyword, "struct"), tok(Variable, "X"), tok(Variable, "Y"),
-		tok(Type, "int"), tok(Keyword, "type"), tok(Type, "Reader"), tok(Keyword, "interface"), tok(Function, "Read"),
-		tok(Variable, "p"), tok(Type, "byte"), tok(Type, "error"), tok(Type, "ID"), tok(Type, "string"),
+		tok(BuiltinType, "int"), tok(Keyword, "type"), tok(Type, "Reader"), tok(Keyword, "interface"), tok(Function, "Read"),
+		tok(Variable, "p"), tok(BuiltinType, "byte"), tok(BuiltinType, "error"), tok(Type, "ID"), tok(BuiltinType, "string"),
 	}},
 	{name: "methods and member access", src: "func (p *Point) Dist(q Point) float64 {\n\treturn math.Sqrt(p.X*q.X + p.Y*q.Y)\n}", want: []Token{
 		tok(Keyword, "func"), tok(Variable, "p"), tok(Operator, "*"), tok(Function, "Dist"), tok(Variable, "q"),
-		tok(Type, "float64"), tok(Keyword, "return"), tok(Variable, "math"), tok(Punctuation, "."),
+		tok(BuiltinType, "float64"), tok(Keyword, "return"), tok(Variable, "math"), tok(Punctuation, "."),
 		tok(Function, "Sqrt"), tok(Variable, "p"), tok(Property, "X"), tok(Operator, "*"), tok(Variable, "q"),
 		tok(Property, "X"), tok(Operator, "+"),
 	}},
@@ -39,7 +39,7 @@ var goTests = []kindCase{
 		tok(Property, "type"), tok(Property, "range"), tok(Function, "len"), tok(Property, "string"),
 	}},
 	{name: "generics", src: "func Map[T, U any](xs []T, f func(T) U) []U {\n\treturn nil\n}", want: []Token{
-		tok(Function, "Map"), tok(Punctuation, "["), tok(Variable, "T"), tok(Variable, "U"), tok(Type, "any"),
+		tok(Function, "Map"), tok(Punctuation, "["), tok(Variable, "T"), tok(Variable, "U"), tok(BuiltinType, "any"),
 		tok(Variable, "xs"), tok(Keyword, "func"), tok(Primitive, "nil"),
 	}},
 	{name: "primitives and iota", src: "const (\n\tA = iota\n\tB\n)\nok := true || false && p != nil", want: []Token{
@@ -52,7 +52,7 @@ var goTests = []kindCase{
 	}},
 	{name: "strings and runes", src: "s := \"tab\\tquote\\\"\" + `raw\\n` + string('x') + string('\\n')", want: []Token{
 		tok(String, `"tab`), tok(StringEscape, `\t`), tok(String, "quote"), tok(StringEscape, `\"`), tok(String, `"`),
-		tok(String, "`raw\\n`"), tok(Type, "string"), tok(String, "'x'"), tok(String, "'"), tok(StringEscape, `\n`),
+		tok(String, "`raw\\n`"), tok(BuiltinType, "string"), tok(String, "'x'"), tok(String, "'"), tok(StringEscape, `\n`),
 		tok(String, "'"),
 	}},
 	{name: "raw string across lines", src: "q := `SELECT *\nFROM t`\nnext()", want: []Token{

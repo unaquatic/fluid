@@ -8,24 +8,24 @@ func TestRust(t *testing.T) {
 
 var rustTests = []kindCase{
 	{name: "items", src: "pub fn add(a: i32, b: i32) -> i32 { a + b }\nstruct Point { x: f64 }\nenum E { A, B(u8) }\ntrait T { fn m(&self); }\nimpl T for Point {}\ntype Alias = Vec<String>;\nunion U { i: u32 }", want: []Token{
-		tok(Keyword, "pub"), tok(Keyword, "fn"), tok(Function, "add"), tok(Type, "i32"), tok(Operator, "->"),
-		tok(Keyword, "struct"), tok(Type, "Point"), tok(Type, "f64"), tok(Keyword, "enum"), tok(Type, "E"),
-		tok(Type, "A"), tok(Function, "B"), tok(Type, "u8"), tok(Keyword, "trait"), tok(Type, "T"), tok(Keyword, "fn"),
+		tok(Keyword, "pub"), tok(Keyword, "fn"), tok(Function, "add"), tok(BuiltinType, "i32"), tok(Operator, "->"),
+		tok(Keyword, "struct"), tok(Type, "Point"), tok(BuiltinType, "f64"), tok(Keyword, "enum"), tok(Type, "E"),
+		tok(Type, "A"), tok(Function, "B"), tok(BuiltinType, "u8"), tok(Keyword, "trait"), tok(Type, "T"), tok(Keyword, "fn"),
 		tok(Function, "m"), tok(Operator, "&"), tok(Keyword, "self"), tok(Keyword, "impl"), tok(Type, "T"),
 		tok(Keyword, "for"), tok(Type, "Point"), tok(Keyword, "type"), tok(Type, "Alias"), tok(Type, "Vec"),
 		tok(Type, "String"), tok(Keyword, "union"), tok(Type, "U"),
 	}},
 	{name: "control flow", src: "if let Some(x) = o { } else { loop { break } }\nmatch e { Ok(v) => v, Err(_) => return }\nwhile cond {} for i in 0..10 {}\nlet v = 'outer: loop { continue 'outer };", want: []Token{
-		tok(Keyword, "if"), tok(Keyword, "let"), tok(Builtin, "Some"), tok(Keyword, "else"), tok(Keyword, "loop"),
-		tok(Keyword, "break"), tok(Keyword, "match"), tok(Builtin, "Ok"), tok(Operator, "=>"), tok(Builtin, "Err"),
+		tok(Keyword, "if"), tok(Keyword, "let"), tok(Constant, "Some"), tok(Keyword, "else"), tok(Keyword, "loop"),
+		tok(Keyword, "break"), tok(Keyword, "match"), tok(Constant, "Ok"), tok(Operator, "=>"), tok(Constant, "Err"),
 		tok(Keyword, "return"), tok(Keyword, "while"), tok(Keyword, "for"), tok(Keyword, "in"), tok(Number, "0"),
 		tok(Operator, ".."), tok(Number, "10"), tok(Attribute, "'outer"), tok(Keyword, "loop"), tok(Keyword, "continue"),
 		tok(Attribute, "'outer"),
 	}},
 	{name: "modules and constants", src: "use std::io::{self, Read};\nmod net;\nconst MAX_LEN: usize = 10;\nstatic GLOBAL: &str = \"g\";\nextern crate alloc;\npub(crate) unsafe fn f() {}", want: []Token{
 		tok(Keyword, "use"), tok(Variable, "std"), tok(Punctuation, "::"), tok(Variable, "io"), tok(Keyword, "self"),
-		tok(Type, "Read"), tok(Keyword, "mod"), tok(Keyword, "const"), tok(Constant, "MAX_LEN"), tok(Type, "usize"),
-		tok(Keyword, "static"), tok(Constant, "GLOBAL"), tok(Type, "str"), tok(Keyword, "extern"), tok(Keyword, "crate"),
+		tok(Type, "Read"), tok(Keyword, "mod"), tok(Keyword, "const"), tok(Constant, "MAX_LEN"), tok(BuiltinType, "usize"),
+		tok(Keyword, "static"), tok(Constant, "GLOBAL"), tok(BuiltinType, "str"), tok(Keyword, "extern"), tok(Keyword, "crate"),
 		tok(Keyword, "pub"), tok(Keyword, "crate"), tok(Keyword, "unsafe"), tok(Keyword, "fn"),
 	}},
 	{name: "macros", src: "println!(\"{}\", x);\nassert_eq!(a, b);\nlet v = vec![1, 2];\nmacro_rules! m { () => {} }\nlet ne = a != b;", want: []Token{
@@ -33,7 +33,7 @@ var rustTests = []kindCase{
 		tok(Keyword, "macro_rules"), tok(Variable, "a"), tok(Operator, "!="),
 	}},
 	{name: "lifetimes and characters", src: "fn f<'a>(s: &'a str) -> &'static str {\n  let c = 'x'; let n = '\\n'; let q = '\\''; let u = '\\u{1F600}'; let e = 'é';\n  s\n}", want: []Token{
-		tok(Attribute, "'a"), tok(Attribute, "'a"), tok(Type, "str"), tok(Attribute, "'static"), tok(String, "'x'"),
+		tok(Attribute, "'a"), tok(Attribute, "'a"), tok(BuiltinType, "str"), tok(Attribute, "'static"), tok(String, "'x'"),
 		tok(String, `'\n'`), tok(String, `'\''`), tok(String, `'\u{1F600}'`), tok(String, "'é'"),
 	}},
 	{name: "byte, raw, and C strings", src: "let a = b'x'; let s = b\"bytes\"; let r = r\"raw\\n\"; let h = r#\"has \"quotes\"\"#; let c = c\"cstr\"; let br = br#\"b\"#;", want: []Token{
@@ -65,7 +65,7 @@ var rustTests = []kindCase{
 		tok(Primitive, "false"),
 	}},
 	{name: "operators", src: "a += 1; let r = b..=c; x as u64; &mut y; *ptr; a == b && c != d || !e; f()?;", want: []Token{
-		tok(Operator, "+="), tok(Operator, "..="), tok(Keyword, "as"), tok(Type, "u64"), tok(Operator, "&"),
+		tok(Operator, "+="), tok(Operator, "..="), tok(Keyword, "as"), tok(BuiltinType, "u64"), tok(Operator, "&"),
 		tok(Keyword, "mut"), tok(Operator, "*"), tok(Operator, "=="), tok(Operator, "&&"), tok(Operator, "!="),
 		tok(Operator, "||"), tok(Operator, "!"), tok(Operator, "?"),
 	}},

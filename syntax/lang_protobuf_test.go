@@ -13,9 +13,9 @@ var protobufTests = []kindCase{
 		tok(Keyword, "import"), tok(Keyword, "public"), tok(Keyword, "option"), tok(Variable, "go_package"),
 	}},
 	{name: "messages", src: "message User {\n  string name = 1;\n  repeated int32 ids = 2 [packed = true];\n  optional bytes data = 3;\n  map<string, Address> addrs = 4;\n  oneof contact { string email = 5; }\n  reserved 6, 7 to 9;\n  google.protobuf.Timestamp at = 10;\n}", want: []Token{
-		tok(Keyword, "message"), tok(Type, "User"), tok(Type, "string"), tok(Variable, "name"), tok(Number, "1"),
-		tok(Keyword, "repeated"), tok(Type, "int32"), tok(Primitive, "true"), tok(Keyword, "optional"),
-		tok(Type, "bytes"), tok(Keyword, "map"), tok(Type, "string"), tok(Type, "Address"), tok(Keyword, "oneof"),
+		tok(Keyword, "message"), tok(Type, "User"), tok(BuiltinType, "string"), tok(Variable, "name"), tok(Number, "1"),
+		tok(Keyword, "repeated"), tok(BuiltinType, "int32"), tok(Primitive, "true"), tok(Keyword, "optional"),
+		tok(BuiltinType, "bytes"), tok(Keyword, "map"), tok(BuiltinType, "string"), tok(Type, "Address"), tok(Keyword, "oneof"),
 		tok(Variable, "contact"), tok(Keyword, "reserved"), tok(Number, "6"), tok(Keyword, "to"), tok(Variable, "google"),
 		tok(Property, "protobuf"), tok(Type, "Timestamp"),
 	}},
@@ -26,8 +26,8 @@ var protobufTests = []kindCase{
 		tok(Keyword, "stream"), tok(Type, "Event"),
 	}},
 	{name: "field options and literals", src: "int32 a = 1 [default = -5];\nstring s = 2 [default = 'x'];\ndouble d = 3 [deprecated = false];", want: []Token{
-		tok(Type, "int32"), tok(Number, "1"), tok(Operator, "-"), tok(Number, "5"), tok(Type, "string"),
-		tok(String, "'x'"), tok(Type, "double"), tok(Primitive, "false"),
+		tok(BuiltinType, "int32"), tok(Number, "1"), tok(Operator, "-"), tok(Number, "5"), tok(BuiltinType, "string"),
+		tok(String, "'x'"), tok(BuiltinType, "double"), tok(Primitive, "false"),
 	}},
 	{name: "extensions and editions", src: "edition = \"2023\";\nextend Foo { int32 bar = 126; }\nmessage M { extensions 100 to max; }", want: []Token{
 		tok(Keyword, "edition"), tok(String, `"2023"`), tok(Keyword, "extend"), tok(Type, "Foo"), tok(Keyword, "message"),

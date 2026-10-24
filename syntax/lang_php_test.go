@@ -9,14 +9,14 @@ func TestPHP(t *testing.T) {
 var phpTests = []kindCase{
 	{name: "tags and functions", src: "<?php\nnamespace App\\Http;\nuse Foo\\Bar;\nfunction add(int $a, int $b): int {\n    return $a + $b;\n}\n?>\n<?= $x ?>", want: []Token{
 		tok(Preproc, "<?php"), tok(Keyword, "namespace"), tok(Type, "App"), tok(Type, "Http"), tok(Keyword, "use"),
-		tok(Type, "Foo"), tok(Type, "Bar"), tok(Keyword, "function"), tok(Function, "add"), tok(Type, "int"),
-		tok(Variable, "$a"), tok(Type, "int"), tok(Variable, "$b"), tok(Keyword, "return"), tok(Variable, "$a"),
+		tok(Type, "Foo"), tok(Type, "Bar"), tok(Keyword, "function"), tok(Function, "add"), tok(BuiltinType, "int"),
+		tok(Variable, "$a"), tok(BuiltinType, "int"), tok(Variable, "$b"), tok(Keyword, "return"), tok(Variable, "$a"),
 		tok(Operator, "+"), tok(Preproc, "?>"), tok(Preproc, "<?="), tok(Variable, "$x"), tok(Preproc, "?>"),
 	}},
 	{name: "classes", src: "final class User extends Model implements JsonSerializable {\n    public function __construct(private readonly string $name) {}\n    public static function make(): static { return new static(); }\n}\ninterface I {}\ntrait T {}\nenum Suit: string { case Hearts = 'H'; }", want: []Token{
 		tok(Keyword, "final"), tok(Keyword, "class"), tok(Type, "User"), tok(Keyword, "extends"), tok(Type, "Model"),
 		tok(Keyword, "implements"), tok(Type, "JsonSerializable"), tok(Keyword, "public"), tok(Keyword, "function"),
-		tok(Function, "__construct"), tok(Keyword, "private"), tok(Keyword, "readonly"), tok(Type, "string"),
+		tok(Function, "__construct"), tok(Keyword, "private"), tok(Keyword, "readonly"), tok(BuiltinType, "string"),
 		tok(Variable, "$name"), tok(Keyword, "static"), tok(Function, "make"), tok(Keyword, "static"),
 		tok(Keyword, "return"), tok(Keyword, "new"), tok(Keyword, "static"), tok(Keyword, "interface"), tok(Type, "I"),
 		tok(Keyword, "trait"), tok(Type, "T"), tok(Keyword, "enum"), tok(Type, "Suit"), tok(Keyword, "case"),

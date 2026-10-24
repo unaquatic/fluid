@@ -54,7 +54,7 @@ func TestDarculaSolid_SharedColors(t *testing.T) {
 			{"TextStrong", th.TextStrong}, {"TextBase", th.TextBase},
 			{"SelectionFg", th.SelectionFg}, {"MarkdownText", th.MarkdownText.Fg},
 			{"CodeFg", th.CodeFg}, {"Code.Variable", th.Code.Variable.Fg},
-			{"Code.Builtin", th.Code.Builtin.Fg}, {"Code.Operator", th.Code.Operator.Fg},
+			{"Code.Operator", th.Code.Operator.Fg},
 			{"Code.Punctuation", th.Code.Punctuation.Fg},
 		},
 		"string green": {

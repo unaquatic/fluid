@@ -16,27 +16,27 @@ var pythonTests = []kindCase{
 		tok(Keyword, "for"), tok(Keyword, "in"), tok(Keyword, "if"), tok(Keyword, "is"), tok(Keyword, "not"),
 		tok(Primitive, "None"), tok(Keyword, "and"), tok(Keyword, "or"), tok(Keyword, "not"), tok(Keyword, "pass"),
 		tok(Keyword, "elif"), tok(Keyword, "break"), tok(Keyword, "else"), tok(Keyword, "continue"), tok(Keyword, "while"),
-		tok(Primitive, "True"), tok(Keyword, "return"), tok(Keyword, "try"), tok(Keyword, "raise"), tok(Builtin, "ValueError"),
+		tok(Primitive, "True"), tok(Keyword, "return"), tok(Keyword, "try"), tok(Keyword, "raise"), tok(BuiltinType, "ValueError"),
 		tok(Keyword, "from"), tok(Keyword, "except"), tok(Keyword, "as"), tok(Keyword, "del"), tok(Keyword, "finally"),
 		tok(Keyword, "assert"),
 	}},
 	{name: "definitions", src: "def f(a, *args, **kw) -> int:\n    return a\nclass Point(Base, metaclass=Meta):\n    pass\nasync def g():\n    await h()\n    yield\nlam = lambda a: a", want: []Token{
 		tok(Keyword, "def"), tok(Function, "f"), tok(Variable, "a"), tok(Operator, "*"), tok(Variable, "args"),
-		tok(Operator, "**"), tok(Variable, "kw"), tok(Operator, "->"), tok(Builtin, "int"), tok(Keyword, "class"),
+		tok(Operator, "**"), tok(Variable, "kw"), tok(Operator, "->"), tok(BuiltinType, "int"), tok(Keyword, "class"),
 		tok(Type, "Point"), tok(Variable, "Base"), tok(Variable, "metaclass"), tok(Operator, "="), tok(Variable, "Meta"),
 		tok(Keyword, "async"), tok(Keyword, "def"), tok(Function, "g"), tok(Keyword, "await"), tok(Function, "h"),
 		tok(Keyword, "yield"), tok(Keyword, "lambda"),
 	}},
 	{name: "scopes and context managers", src: "with open(p) as f, lock:\n    global g\n    nonlocal n", want: []Token{
-		tok(Keyword, "with"), tok(Builtin, "open"), tok(Keyword, "as"), tok(Keyword, "global"), tok(Keyword, "nonlocal"),
+		tok(Keyword, "with"), tok(BuiltinFunction, "open"), tok(Keyword, "as"), tok(Keyword, "global"), tok(Keyword, "nonlocal"),
 	}},
 	{name: "builtins and primitives", src: "print(len(xs), isinstance(x, int), sorted(d), None, True, False, self, cls, Exception)", want: []Token{
-		tok(Builtin, "print"), tok(Builtin, "len"), tok(Builtin, "isinstance"), tok(Builtin, "int"), tok(Builtin, "sorted"),
-		tok(Primitive, "None"), tok(Primitive, "True"), tok(Primitive, "False"), tok(Builtin, "self"), tok(Builtin, "cls"),
-		tok(Builtin, "Exception"),
+		tok(BuiltinFunction, "print"), tok(BuiltinFunction, "len"), tok(BuiltinFunction, "isinstance"), tok(BuiltinType, "int"), tok(BuiltinFunction, "sorted"),
+		tok(Primitive, "None"), tok(Primitive, "True"), tok(Primitive, "False"), tok(BuiltinVariable, "self"), tok(BuiltinVariable, "cls"),
+		tok(BuiltinType, "Exception"),
 	}},
 	{name: "member names are not builtins", src: "self.type = obj.id\nx.format(); os.path.join(a, b)", want: []Token{
-		tok(Builtin, "self"), tok(Property, "type"), tok(Variable, "obj"), tok(Property, "id"), tok(Variable, "x"),
+		tok(BuiltinVariable, "self"), tok(Property, "type"), tok(Variable, "obj"), tok(Property, "id"), tok(Variable, "x"),
 		tok(Function, "format"), tok(Variable, "os"), tok(Property, "path"), tok(Function, "join"),
 	}},
 	{name: "soft keywords are names", src: "match = re.match(p, s)\ncase = 2", want: []Token{
@@ -85,5 +85,9 @@ var pythonTests = []kindCase{
 	}},
 	{name: "unclosed docstring", src: "\"\"\"never closed\nstill", open: true, want: []Token{
 		tok(String, `"""never closed`), tok(String, "still"),
+	}},
+	{name: "builtin variables", src: "if __name__ == \"__main__\":\n    print(__file__, __doc__)", want: []Token{
+		tok(Keyword, "if"), tok(BuiltinVariable, "__name__"), tok(String, `"__main__"`), tok(BuiltinFunction, "print"),
+		tok(BuiltinVariable, "__file__"), tok(BuiltinVariable, "__doc__"),
 	}},
 }
