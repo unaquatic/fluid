@@ -161,13 +161,13 @@
 //
 // BASE mirrors the `var (...)` block: blank-line separated groups, each with
 // a leading comment. An entry is either a hex literal or an alias to another
-// base name (selectionFg = identifierFg).
+// base name (selectionFg = textFg).
 
 const BASE = [
   { comment: "Canvas", items: [
-    { name: "editorBg",       hex: "#1c1c1c" },
+    { name: "canvasBg",       hex: "#1a1a1a" },
     { name: "popupBg",        hex: "#252526" },
-    { name: "caretRowBg",     hex: "#28292b" },
+    { name: "raisedBg",       hex: "#1f1f1f" },
   ]},
   { comment: "Borders", items: [
     { name: "indentGuide",    hex: "#2c2c2d" },
@@ -176,14 +176,19 @@ const BASE = [
     { name: "selTearline",    hex: "#5e6063" },
   ]},
   { comment: "Text", items: [
-    { name: "identifierFg",   hex: "#cfd2d5" },
-    { name: "consoleFg",      hex: "#ececec" },
+    { name: "textFg",         hex: "#e6e6e6" },
     { name: "commentFg",      hex: "#8a8a8a" },
   ]},
   { comment: "Accent / selection", items: [
-    { name: "keywordOrange",  hex: "#cc7832" },
+    { name: "keywordOrange",  hex: "#eb7513" },
     { name: "selectionBg",    hex: "#176081" },
-    { name: "selectionFg",    alias: "identifierFg" },
+    { name: "selectionFg",    alias: "textFg" },
+  ]},
+  { comment: "Syntax colors that more than one role shares", items: [
+    { name: "stringGreen",     hex: "#91b557" },
+    { name: "functionYellow",  hex: "#ffb642" },
+    { name: "constantPurple",  hex: "#aa77c6" },
+    { name: "decoratorYellow", hex: "#e4be13" },
   ]},
   { comment: "Semantic", items: [
     { name: "consoleGreen",   hex: "#5af78d" },
@@ -222,18 +227,18 @@ const DEAD = new Set(["MarkdownImage", "MarkdownImageText"]);
 
 const GROUPS = [
   { comment: "Core surfaces", keys: [
-    ["Bg",            ref("editorBg")],
-    ["Surface",       ref("editorBg")],
+    ["Bg",            ref("canvasBg")],
+    ["Surface",       ref("canvasBg")],
     ["SurfaceAlt",    ref("popupBg")],
-    ["SurfaceRaised", ref("caretRowBg")],
+    ["SurfaceRaised", ref("raisedBg")],
     ["Border",        ref("tearline")],
     ["BorderWeak",    ref("indentGuide")],
     ["BorderStrong",  ref("selTearline")],
     ["BorderFocus",   ref("selectionBg")],
   ]},
   { comment: "Text", keys: [
-    ["TextStrong", ref("consoleFg")],
-    ["TextBase",   ref("identifierFg")],
+    ["TextStrong", ref("textFg")],
+    ["TextBase",   ref("textFg")],
     ["TextWeak",   ref("selIndentGuide")],
     ["TextMuted",  ref("commentFg")],
     ["TextLink",   ref("keywordOrange")],
@@ -246,12 +251,12 @@ const GROUPS = [
   ]},
   { comment: "Semantic", keys: [
     ["Success", ref("consoleGreen")],
-    ["Warning", lit("#f3f99c")],
+    ["Warning", ref("keywordOrange")],
     ["Danger",  ref("consoleRed")],
     ["Info",    ref("consoleGray")],
   ]},
   { comment: "Semantic surfaces", keys: [
-    ["SuccessSurface", lit("#262b27")],
+    ["SuccessSurface", ref("raisedBg")],
     ["WarningSurface", lit("#2a2a25")],
     ["DangerSurface",  lit("#2e2827")],
     ["InfoSurface",    lit("#292929")],
@@ -283,11 +288,11 @@ const GROUPS = [
     ["MarkdownHeading4", entry(ref("commentFg"), { attrs: BOLD })],
     ["MarkdownHeading5", entry(lit("#a0a0a0"), { attrs: BOLD })],
   ], keys: [
-    ["MarkdownText",        entry(ref("identifierFg"))],
+    ["MarkdownText",        entry(ref("textFg"))],
     ["MarkdownLink",        entry(ref("keywordOrange"), { attrs: UNDERLINE })],
     ["MarkdownLinkText",    entry(lit("#4e94ce"), { attrs: UNDERLINE })],
-    ["MarkdownCode",        entry(lit("#8ea765"), { bg: ref("editorBg") })],
-    ["MarkdownEmph",        entry(lit("#f3f99c"), { attrs: ITALIC })],
+    ["MarkdownCode",        entry(ref("stringGreen"), { bg: ref("canvasBg") })],
+    ["MarkdownEmph",        entry(ref("keywordOrange"), { attrs: ITALIC })],
     ["MarkdownStrong",      entry(ref("keywordOrange"), { attrs: BOLD })],
     ["MarkdownBullet",      entry(ref("keywordOrange"))],
     ["MarkdownListEnum",    entry(ref("consoleGray"))],
@@ -298,8 +303,8 @@ const GROUPS = [
     ["MarkdownImageText",   entry(lit("#4e94ce"), { attrs: UNDERLINE })],
   ]},
   { comment: "Code", keys: [
-    ["CodeFg", ref("identifierFg")],
-    ["CodeBg", ref("editorBg")],
+    ["CodeFg", ref("textFg")],
+    ["CodeBg", ref("canvasBg")],
   ]},
 ];
 
@@ -307,28 +312,28 @@ const GROUPS = [
 const PALETTE = [
   [
     ["Keyword",     entry(ref("keywordOrange"), { attrs: BOLD })],
-    ["Type",        entry(lit("#5ca4a9"))],
-    ["Function",    entry(lit("#ffc66d"))],
-    ["Builtin",     entry(lit("#9bc1bc"))],
-    ["Variable",    entry(ref("identifierFg"))],
-    ["Constant",    entry(lit("#a782bb"), { attrs: ITALIC })],
-    ["String",      entry(lit("#8ea765"))],
-    ["Number",      entry(lit("#6897bb"))],
+    ["Type",        entry(lit("#3dbfc8"))],
+    ["Function",    entry(ref("functionYellow"))],
+    ["Builtin",     entry(ref("textFg"))],
+    ["Variable",    entry(ref("textFg"))],
+    ["Constant",    entry(ref("constantPurple"), { attrs: ITALIC })],
+    ["String",      entry(ref("stringGreen"))],
+    ["Number",      entry(lit("#5a99c9"))],
     ["Comment",     entry(ref("commentFg"), { attrs: ITALIC })],
-    ["Operator",    entry(ref("identifierFg"))],
-    ["Punctuation", entry(ref("identifierFg"))],
-    ["Decorator",   entry(lit("#bbb529"))],
+    ["Operator",    entry(ref("textFg"))],
+    ["Punctuation", entry(ref("textFg"))],
+    ["Decorator",   entry(ref("decoratorYellow"))],
     ["Error",       entry(ref("consoleRed"), { attrs: UNDERLINE })],
   ],
   [
     ["StringEscape", entry(ref("keywordOrange"))],
-    ["Regex",        entry(lit("#8ea765"))],
-    ["Tag",          entry(lit("#e8bf6a"))],
+    ["Regex",        entry(ref("stringGreen"))],
+    ["Tag",          entry(ref("functionYellow"))],
     ["Attribute",    entry(lit("#bababa"))],
-    ["Property",     entry(lit("#a782bb"))],
+    ["Property",     entry(ref("constantPurple"))],
     ["Primitive",    entry(ref("keywordOrange"))],
     ["Object",       entry(lit("#b9becf"))],
-    ["Preproc",      entry(lit("#bbb529"))],
+    ["Preproc",      entry(ref("decoratorYellow"))],
     ["DiffAdded",    entry(ref("consoleGreen"))],
     ["DiffRemoved",  entry(ref("consoleRed"))],
   ],
@@ -623,9 +628,9 @@ function assistantBubble() {
     paint("Function", "DarculaSolid"), "() *",
     paint("Type", "Theme"), " {\n    ",
     paint("Comment", "// Canvas"), "\n    ",
-    paint("Variable", "editorBg"), " := ",
+    paint("Variable", "canvasBg"), " := ",
     paint("Function", "ColorFromHex"), "(",
-    paint("String", '"#1c1c1c"'), ")\n}",
+    paint("String", '"#1a1a1a"'), ")\n}",
   );
   body.append(fence);
 

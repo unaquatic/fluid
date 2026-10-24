@@ -1,12 +1,15 @@
 package style
 
-// DarculaSolid returns the Darcula Solid palette.
+// DarculaSolid returns the Darcula Solid palette: Darcula's roles in
+// brighter syntax colors, on a canvas a shade darker than Darcula's editor,
+// with one color for all text, code included.
 func DarculaSolid() *Theme {
 	var (
-		// Canvas colors.
-		editorBg   = ColorFromHex("#1c1c1c")
-		popupBg    = ColorFromHex("#252526")
-		caretRowBg = ColorFromHex("#28292b")
+		// Canvas colors: the canvas, behind text and code, and the raised
+		// surface of notices, code blocks, and boxes, a shade lighter.
+		canvasBg = ColorFromHex("#1a1a1a")
+		popupBg  = ColorFromHex("#252526")
+		raisedBg = ColorFromHex("#1f1f1f")
 
 		// Border colors.
 		indentGuide    = ColorFromHex("#2c2c2d")
@@ -14,15 +17,21 @@ func DarculaSolid() *Theme {
 		tearline       = ColorFromHex("#3d3e40")
 		selTearline    = ColorFromHex("#5e6063")
 
-		// Text colors.
-		identifierFg = ColorFromHex("#cfd2d5")
-		consoleFg    = ColorFromHex("#ececec")
-		commentFg    = ColorFromHex("#8a8a8a")
+		// Text colors: the text of the UI, prose, and code, and comments.
+		textFg    = ColorFromHex("#e6e6e6")
+		commentFg = ColorFromHex("#8a8a8a")
 
-		// Accent and selection colors.
-		keywordOrange = ColorFromHex("#cc7832")
+		// Accent and selection colors. Keywords, the accent, links, bold,
+		// and warnings share keywordOrange.
+		keywordOrange = ColorFromHex("#eb7513")
 		selectionBg   = ColorFromHex("#176081")
-		selectionFg   = identifierFg
+		selectionFg   = textFg
+
+		// Syntax colors that more than one role shares.
+		stringGreen     = ColorFromHex("#91b557")
+		functionYellow  = ColorFromHex("#ffb642")
+		constantPurple  = ColorFromHex("#aa77c6")
+		decoratorYellow = ColorFromHex("#e4be13")
 
 		// Semantic colors.
 		consoleGreen = ColorFromHex("#5af78d")
@@ -38,18 +47,18 @@ func DarculaSolid() *Theme {
 		Name: "darcula-solid",
 
 		// Core surfaces.
-		Bg:            editorBg,
-		Surface:       editorBg,
+		Bg:            canvasBg,
+		Surface:       canvasBg,
 		SurfaceAlt:    popupBg,
-		SurfaceRaised: caretRowBg,
+		SurfaceRaised: raisedBg,
 		Border:        tearline,
 		BorderWeak:    indentGuide,
 		BorderStrong:  selTearline,
 		BorderFocus:   selectionBg,
 
 		// Text roles.
-		TextStrong: consoleFg,
-		TextBase:   identifierFg,
+		TextStrong: textFg,
+		TextBase:   textFg,
 		TextWeak:   selIndentGuide,
 		TextMuted:  commentFg,
 		TextLink:   keywordOrange,
@@ -62,12 +71,12 @@ func DarculaSolid() *Theme {
 
 		// Semantic roles.
 		Success: consoleGreen,
-		Warning: ColorFromHex("#f3f99c"),
+		Warning: keywordOrange,
 		Danger:  consoleRed,
 		Info:    consoleGray,
 
 		// Semantic surfaces.
-		SuccessSurface: ColorFromHex("#262b27"),
+		SuccessSurface: raisedBg,
 		WarningSurface: ColorFromHex("#2a2a25"),
 		DangerSurface:  ColorFromHex("#2e2827"),
 		InfoSurface:    ColorFromHex("#292929"),
@@ -100,11 +109,11 @@ func DarculaSolid() *Theme {
 			{Fg: commentFg, Attrs: AttrBold},
 			{Fg: ColorFromHex("#a0a0a0"), Attrs: AttrBold},
 		},
-		MarkdownText:        Entry{Fg: identifierFg},
+		MarkdownText:        Entry{Fg: textFg},
 		MarkdownLink:        Entry{Fg: keywordOrange, Attrs: AttrUnderline},
 		MarkdownLinkText:    Entry{Fg: ColorFromHex("#4e94ce"), Attrs: AttrUnderline},
-		MarkdownCode:        Entry{Fg: ColorFromHex("#8ea765"), Bg: editorBg},
-		MarkdownEmph:        Entry{Fg: ColorFromHex("#f3f99c"), Attrs: AttrItalic},
+		MarkdownCode:        Entry{Fg: stringGreen, Bg: canvasBg},
+		MarkdownEmph:        Entry{Fg: keywordOrange, Attrs: AttrItalic},
 		MarkdownStrong:      Entry{Fg: keywordOrange, Attrs: AttrBold},
 		MarkdownBullet:      Entry{Fg: keywordOrange},
 		MarkdownListEnum:    Entry{Fg: consoleGray},
@@ -115,32 +124,32 @@ func DarculaSolid() *Theme {
 		MarkdownImageText:   Entry{Fg: ColorFromHex("#4e94ce"), Attrs: AttrUnderline},
 
 		// Code roles.
-		CodeFg: identifierFg,
-		CodeBg: editorBg,
+		CodeFg: textFg,
+		CodeBg: canvasBg,
 
 		Code: CodePalette{
 			Keyword:     Entry{Fg: keywordOrange, Attrs: AttrBold},
-			Type:        Entry{Fg: ColorFromHex("#5ca4a9")},
-			Function:    Entry{Fg: ColorFromHex("#ffc66d")},
-			Builtin:     Entry{Fg: ColorFromHex("#9bc1bc")},
-			Variable:    Entry{Fg: identifierFg},
-			Constant:    Entry{Fg: ColorFromHex("#a782bb"), Attrs: AttrItalic},
-			String:      Entry{Fg: ColorFromHex("#8ea765")},
-			Number:      Entry{Fg: ColorFromHex("#6897bb")},
+			Type:        Entry{Fg: ColorFromHex("#3dbfc8")},
+			Function:    Entry{Fg: functionYellow},
+			Builtin:     Entry{Fg: textFg},
+			Variable:    Entry{Fg: textFg},
+			Constant:    Entry{Fg: constantPurple, Attrs: AttrItalic},
+			String:      Entry{Fg: stringGreen},
+			Number:      Entry{Fg: ColorFromHex("#5a99c9")},
 			Comment:     Entry{Fg: commentFg, Attrs: AttrItalic},
-			Operator:    Entry{Fg: identifierFg},
-			Punctuation: Entry{Fg: identifierFg},
-			Decorator:   Entry{Fg: ColorFromHex("#bbb529")},
+			Operator:    Entry{Fg: textFg},
+			Punctuation: Entry{Fg: textFg},
+			Decorator:   Entry{Fg: decoratorYellow},
 			Error:       Entry{Fg: consoleRed, Attrs: AttrUnderline},
 
 			StringEscape: Entry{Fg: keywordOrange},
-			Regex:        Entry{Fg: ColorFromHex("#8ea765")},
-			Tag:          Entry{Fg: ColorFromHex("#e8bf6a")},
+			Regex:        Entry{Fg: stringGreen},
+			Tag:          Entry{Fg: functionYellow},
 			Attribute:    Entry{Fg: ColorFromHex("#bababa")},
-			Property:     Entry{Fg: ColorFromHex("#a782bb")},
+			Property:     Entry{Fg: constantPurple},
 			Primitive:    Entry{Fg: keywordOrange},
 			Object:       Entry{Fg: ColorFromHex("#b9becf")},
-			Preproc:      Entry{Fg: ColorFromHex("#bbb529")},
+			Preproc:      Entry{Fg: decoratorYellow},
 			DiffAdded:    Entry{Fg: consoleGreen},
 			DiffRemoved:  Entry{Fg: consoleRed},
 		},
