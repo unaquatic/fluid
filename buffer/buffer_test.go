@@ -528,7 +528,7 @@ func TestDrawBox_WithTitle(t *testing.T) {
 		BackgroundColor: style.ColorBlack,
 		ShouldFill:      true,
 		Title:           "Test",
-		TitleAlignment:  "left",
+		TitleAlignment:  layout.TextAlignLeft,
 	})
 
 	// DrawBox reserves two columns between the left edge and the title.

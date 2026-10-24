@@ -124,8 +124,8 @@ type BoxDrawOptions struct {
 	// Title is drawn in the top border when the top side is drawn and wide
 	// enough.
 	Title string
-	// TitleAlignment is one of "left", "center", or "right".
-	TitleAlignment string
+	// TitleAlignment places Title along the top border.
+	TitleAlignment layout.Alignment
 }
 
 // Buffer is a 2D grid of styled cells with clipping support.
@@ -592,11 +592,11 @@ func (b *Buffer) DrawBox(opts BoxDrawOptions) {
 			padding := 2
 
 			switch opts.TitleAlignment {
-			case "center":
+			case layout.TextAlignCenter:
 				titleX = startX + max(padding, (opts.Width-titleLen)/2)
-			case "right":
+			case layout.TextAlignRight:
 				titleX = startX + opts.Width - padding - titleLen
-			default: // "left"
+			default:
 				titleX = startX + padding
 			}
 
