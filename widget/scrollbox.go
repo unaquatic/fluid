@@ -727,22 +727,22 @@ func ScrollBoxWithStickyGap(gap int) ScrollBoxOption {
 // ScrollBoxWithBackgroundColor sets the background color.
 func ScrollBoxWithBackgroundColor(c style.Color) ScrollBoxOption {
 	return func(sb *ScrollBox) {
-		sb.BackgroundColor = c
-		sb.ShouldFill = true
+		sb.backgroundColor = c
+		sb.shouldFill = true
 	}
 }
 
 // ScrollBoxWithBorderConfig sets border properties.
 func ScrollBoxWithBorderConfig(brd style.Border, bs style.BorderStyle) ScrollBoxOption {
 	return func(sb *ScrollBox) {
-		sb.Border = brd
-		sb.BorderStyle = bs
+		sb.border = brd
+		sb.borderStyle = bs
 	}
 }
 
 // ScrollBoxWithBorderColor sets the border color.
 func ScrollBoxWithBorderColor(c style.Color) ScrollBoxOption {
-	return func(sb *ScrollBox) { sb.BorderColor = c }
+	return func(sb *ScrollBox) { sb.borderColor = c }
 }
 
 // ScrollBoxWithID sets the widget ID.
