@@ -163,11 +163,11 @@ func TestTreeIndicators(t *testing.T) {
 	}
 }
 
-func TestDOT(t *testing.T) {
-	if DOT != '·' {
-		t.Errorf("DOT = %q, want '·'", DOT)
+func TestMiddleDot(t *testing.T) {
+	if MiddleDot != '·' {
+		t.Errorf("MiddleDot = %q, want '·'", MiddleDot)
 	}
-	if !utf8.ValidRune(DOT) {
-		t.Error("DOT is not valid UTF-8")
+	if !utf8.ValidRune(MiddleDot) {
+		t.Error("MiddleDot is not valid UTF-8")
 	}
 }

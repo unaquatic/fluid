@@ -435,8 +435,8 @@ func (c *Code) SetOnHighlight(fn HighlightFunc) {
 	c.RequestRender()
 }
 
-// OnHighlightFn returns the current highlight transformation, or nil.
-func (c *Code) OnHighlightFn() HighlightFunc { return c.onHighlight }
+// OnHighlight returns the current highlight transformation, or nil.
+func (c *Code) OnHighlight() HighlightFunc { return c.onHighlight }
 
 // PlainText returns the raw content string (without styling).
 func (c *Code) PlainText() string { return c.content }

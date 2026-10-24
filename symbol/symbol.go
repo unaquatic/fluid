@@ -2,5 +2,5 @@
 // bars, blocks, scrollbars, shades, guides, and markers.
 package symbol
 
-// DOT is a middle-dot marker.
-const DOT = '·'
+// MiddleDot is a middle-dot marker, U+00B7.
+const MiddleDot = '·'
