@@ -80,7 +80,7 @@ This module targets **`go 1.27`** (`go.mod:3`) and the toolchain is Go 1.27.0. *
 Required:
 
 - **Generics over `interface{}`.** Type parameters, generic type aliases (1.24). `any`, never `interface{}`.
-- **Iterators (1.23).** Return `iter.Seq[T]` / `iter.Seq2[K, V]` for sequences; range over functions. Do not hand back `[]T` copies or take visitor callbacks where an iterator fits.
+- **Iterators (1.23).** Return `iter.Seq[T]` / `iter.Seq2[K, V]` for sequences that are lazy, large, or computed on demand, and range over functions instead of taking visitor callbacks. Returning a slice is fine when callers index it or the data is already a slice; say in the doc whether it is a copy or shares storage.
 - **`slices` / `maps` (1.21+).** `slices.Sort`, `slices.Contains`, `slices.Clone`, `maps.Keys`, etc. Never hand-roll these loops.
 - **Builtins**: `min`, `max`, `clear` (1.21). No manual ternary-style helpers.
 - **`for i := range n` (1.22)** instead of `for i := 0; i < n; i++`.
