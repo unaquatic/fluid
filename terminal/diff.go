@@ -98,7 +98,7 @@ func (r *Renderer) DiffAndFlush(current, next *buffer.Buffer) {
 
 			// Emit SGR only when the output style changes.
 			if needsReset || !nxt.Fg.Equals(curFg) || !nxt.Bg.Equals(curBg) || nxt.Attributes != curAttrs {
-				output.WriteString(buildSGR(nxt.Fg, nxt.Bg, nxt.Attributes, r.backend.ColorMode()))
+				output.WriteString(buildSGR(nxt.Fg, nxt.Bg, nxt.Attributes, r.backend.ColorMode(), r.backend.Indexers()))
 				curFg = nxt.Fg
 				curBg = nxt.Bg
 				curAttrs = nxt.Attributes
@@ -148,8 +148,9 @@ func (r *Renderer) DiffAndFlush(current, next *buffer.Buffer) {
 	r.backend.WriteOut(output.Bytes())
 }
 
-// buildSGR returns one reset-prefixed ANSI SGR sequence for the supplied style.
-func buildSGR(fg, bg style.Color, attrs style.Attrs, mode style.ColorMode) string {
+// buildSGR returns one reset-prefixed ANSI SGR sequence for the supplied style,
+// with the colors in mode, in the palette entries that x converts them to.
+func buildSGR(fg, bg style.Color, attrs style.Attrs, mode style.ColorMode, x style.Indexers) string {
 	var buf bytes.Buffer
 	buf.WriteString("\x1b[0") // Reset attributes before applying the complete style.
 
@@ -180,7 +181,7 @@ func buildSGR(fg, bg style.Color, attrs style.Attrs, mode style.ColorMode) strin
 	}
 
 	if fg.A > 0 {
-		seq := style.FgColorSeq(fg, mode)
+		seq := x.FgSeq(fg, mode)
 		if len(seq) > 3 {
 			params := seq[2 : len(seq)-1]
 			buf.WriteString(";" + params)
@@ -188,7 +189,7 @@ func buildSGR(fg, bg style.Color, attrs style.Attrs, mode style.ColorMode) strin
 	}
 
 	if bg.A > 0 {
-		seq := style.BgColorSeq(bg, mode)
+		seq := x.BgSeq(bg, mode)
 		if len(seq) > 3 {
 			params := seq[2 : len(seq)-1]
 			buf.WriteString(";" + params)
@@ -231,7 +232,7 @@ func (r *Renderer) FullFlush(buf *buffer.Buffer) {
 			}
 
 			if needsReset || !cell.Fg.Equals(curFg) || !cell.Bg.Equals(curBg) || cell.Attributes != curAttrs {
-				output.WriteString(buildSGR(cell.Fg, cell.Bg, cell.Attributes, r.backend.ColorMode()))
+				output.WriteString(buildSGR(cell.Fg, cell.Bg, cell.Attributes, r.backend.ColorMode(), r.backend.Indexers()))
 				curFg = cell.Fg
 				curBg = cell.Bg
 				curAttrs = cell.Attributes

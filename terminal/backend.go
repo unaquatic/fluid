@@ -72,6 +72,7 @@ type Backend struct {
 
 	oldState  *term.State // The terminal state saved before raw mode.
 	colorMode style.ColorMode
+	indexers  map[style.ColorMode]style.Indexers
 	width     int
 	height    int
 
@@ -104,6 +105,22 @@ func (t *Backend) ColorMode() style.ColorMode {
 // SetColorMode overrides the auto-detected color mode.
 func (t *Backend) SetColorMode(m style.ColorMode) {
 	t.colorMode = m
+}
+
+// Indexers returns the Indexers of the configured color mode, which
+// SetIndexers set, or the zero Indexers, which convert colors as the mode
+// does by default.
+func (t *Backend) Indexers() style.Indexers {
+	return t.indexers[t.colorMode]
+}
+
+// SetIndexers sets the Indexers that convert colors to palette entries while
+// the color mode is m. The zero Indexers convert them as m does by default.
+func (t *Backend) SetIndexers(m style.ColorMode, x style.Indexers) {
+	if t.indexers == nil {
+		t.indexers = make(map[style.ColorMode]style.Indexers)
+	}
+	t.indexers[m] = x
 }
 
 // Setup enters raw mode when stdin is a terminal, records its size, optionally

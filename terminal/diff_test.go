@@ -23,7 +23,7 @@ func newTestRenderer(w, h int) (*Renderer, *bytes.Buffer) {
 }
 
 func TestBuildSGR_Reset(t *testing.T) {
-	sgr := buildSGR(style.Color{}, style.Color{}, 0, style.ColorTrueColor)
+	sgr := buildSGR(style.Color{}, style.Color{}, 0, style.ColorTrueColor, style.Indexers{})
 	// Every generated style begins by resetting prior SGR state.
 	if !strings.HasPrefix(sgr, "\x1b[0") {
 		t.Errorf("expected SGR to start with reset, got: %q", sgr)
@@ -34,35 +34,35 @@ func TestBuildSGR_Reset(t *testing.T) {
 }
 
 func TestBuildSGR_Bold(t *testing.T) {
-	sgr := buildSGR(style.ColorWhite, style.ColorBlack, style.AttrBold, style.ColorTrueColor)
+	sgr := buildSGR(style.ColorWhite, style.ColorBlack, style.AttrBold, style.ColorTrueColor, style.Indexers{})
 	if !strings.Contains(sgr, ";1;") && !strings.Contains(sgr, ";1m") {
 		t.Errorf("expected bold attribute in SGR, got: %q", sgr)
 	}
 }
 
 func TestBuildSGR_Italic(t *testing.T) {
-	sgr := buildSGR(style.ColorWhite, style.ColorBlack, style.AttrItalic, style.ColorTrueColor)
+	sgr := buildSGR(style.ColorWhite, style.ColorBlack, style.AttrItalic, style.ColorTrueColor, style.Indexers{})
 	if !strings.Contains(sgr, ";3;") && !strings.Contains(sgr, ";3m") {
 		t.Errorf("expected italic attribute in SGR, got: %q", sgr)
 	}
 }
 
 func TestBuildSGR_Underline(t *testing.T) {
-	sgr := buildSGR(style.ColorWhite, style.ColorBlack, style.AttrUnderline, style.ColorTrueColor)
+	sgr := buildSGR(style.ColorWhite, style.ColorBlack, style.AttrUnderline, style.ColorTrueColor, style.Indexers{})
 	if !strings.Contains(sgr, ";4;") {
 		t.Errorf("expected underline attribute in SGR, got: %q", sgr)
 	}
 }
 
 func TestBuildSGR_Strikethrough(t *testing.T) {
-	sgr := buildSGR(style.ColorWhite, style.ColorBlack, style.AttrStrikethrough, style.ColorTrueColor)
+	sgr := buildSGR(style.ColorWhite, style.ColorBlack, style.AttrStrikethrough, style.ColorTrueColor, style.Indexers{})
 	if !strings.Contains(sgr, ";9;") {
 		t.Errorf("expected strikethrough attribute in SGR, got: %q", sgr)
 	}
 }
 
 func TestBuildSGR_ForegroundColor(t *testing.T) {
-	sgr := buildSGR(style.ColorRed, style.ColorTransparent, 0, style.ColorTrueColor)
+	sgr := buildSGR(style.ColorRed, style.ColorTransparent, 0, style.ColorTrueColor, style.Indexers{})
 	// Normalized red converts to RGB 255,0,0.
 	if !strings.Contains(sgr, "38;2;255;0;0") {
 		t.Errorf("expected fg truecolor in SGR, got: %q", sgr)
@@ -70,7 +70,7 @@ func TestBuildSGR_ForegroundColor(t *testing.T) {
 }
 
 func TestBuildSGR_BackgroundColor(t *testing.T) {
-	sgr := buildSGR(style.ColorWhite, style.ColorBlue, 0, style.ColorTrueColor)
+	sgr := buildSGR(style.ColorWhite, style.ColorBlue, 0, style.ColorTrueColor, style.Indexers{})
 	// Normalized blue converts to RGB 0,0,255.
 	if !strings.Contains(sgr, "48;2;0;0;255") {
 		t.Errorf("expected bg truecolor in SGR, got: %q", sgr)
@@ -78,14 +78,14 @@ func TestBuildSGR_BackgroundColor(t *testing.T) {
 }
 
 func TestBuildSGR_TransparentBgSkipped(t *testing.T) {
-	sgr := buildSGR(style.ColorWhite, style.ColorTransparent, 0, style.ColorTrueColor)
+	sgr := buildSGR(style.ColorWhite, style.ColorTransparent, 0, style.ColorTrueColor, style.Indexers{})
 	if strings.Contains(sgr, "48;2") {
 		t.Errorf("expected transparent bg to be skipped in SGR, got: %q", sgr)
 	}
 }
 
 func TestBuildSGR_MultipleAttributes(t *testing.T) {
-	sgr := buildSGR(style.ColorWhite, style.ColorBlack, style.AttrBold|style.AttrItalic|style.AttrUnderline, style.ColorTrueColor)
+	sgr := buildSGR(style.ColorWhite, style.ColorBlack, style.AttrBold|style.AttrItalic|style.AttrUnderline, style.ColorTrueColor, style.Indexers{})
 	if !strings.Contains(sgr, ";1;") {
 		t.Error("expected bold")
 	}

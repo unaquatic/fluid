@@ -247,13 +247,13 @@ func (r *Renderer) inlineFullFlush(buf *buffer.Buffer, termHeight int, erase boo
 		out.WriteString(inlineEraseAll)
 	}
 
-	colorMode := r.backend.ColorMode()
+	colorMode, indexers := r.backend.ColorMode(), r.backend.Indexers()
 	for y := range height {
 		if y > 0 {
 			out.WriteString("\r\n")
 		}
-		r.eraseInlineRow(&out, buf, y, colorMode)
-		r.writeInlineRow(&out, buf, y, width, colorMode)
+		r.eraseInlineRow(&out, buf, y, colorMode, indexers)
+		r.writeInlineRow(&out, buf, y, width, colorMode, indexers)
 	}
 
 	// The cursor stays on the last written row, at column zero so the next frame
@@ -296,13 +296,13 @@ func (r *Renderer) inlineDiffFlush(buf, prev *buffer.Buffer, first, last, termHe
 		out.WriteString("\r")
 	}
 
-	colorMode := r.backend.ColorMode()
+	colorMode, indexers := r.backend.ColorMode(), r.backend.Indexers()
 	for y := first; y <= renderEnd; y++ {
 		if y > first {
 			out.WriteString("\r\n")
 		}
-		r.eraseInlineRow(&out, buf, y, colorMode)
-		r.writeInlineRow(&out, buf, y, buf.Width(), colorMode)
+		r.eraseInlineRow(&out, buf, y, colorMode, indexers)
+		r.writeInlineRow(&out, buf, y, buf.Width(), colorMode, indexers)
 		cursorRow = y
 	}
 
@@ -467,7 +467,7 @@ func inlineMoveRows(out *bytes.Buffer, delta int) {
 
 // writeInlineRow writes through the final non-clear cell in row y. Each call
 // starts with independent style state because diffing can skip arbitrary rows.
-func (r *Renderer) writeInlineRow(out *bytes.Buffer, buf *buffer.Buffer, y, width int, colorMode style.ColorMode) {
+func (r *Renderer) writeInlineRow(out *bytes.Buffer, buf *buffer.Buffer, y, width int, colorMode style.ColorMode, indexers style.Indexers) {
 	lastCol := inlineRowLastCol(buf, y, width)
 	if lastCol < 0 {
 		return // The row is entirely clear.
@@ -493,7 +493,7 @@ func (r *Renderer) writeInlineRow(out *bytes.Buffer, buf *buffer.Buffer, y, widt
 		}
 
 		if needsReset || !cell.Fg.Equals(curFg) || !cell.Bg.Equals(curBg) || cell.Attributes != curAttrs {
-			out.WriteString(buildSGR(cell.Fg, cell.Bg, cell.Attributes, colorMode))
+			out.WriteString(buildSGR(cell.Fg, cell.Bg, cell.Attributes, colorMode, indexers))
 			curFg = cell.Fg
 			curBg = cell.Bg
 			curAttrs = cell.Attributes
@@ -528,8 +528,8 @@ func (r *Renderer) writeInlineRow(out *bytes.Buffer, buf *buffer.Buffer, y, widt
 // cell. Terminals fill erased cells with the active background, and the
 // erase reaches the column that layout leaves free, so the column continues
 // the row's right edge instead of whatever the previous row left active.
-func (r *Renderer) eraseInlineRow(out *bytes.Buffer, buf *buffer.Buffer, y int, colorMode style.ColorMode) {
-	out.WriteString(buildSGR(style.Color{}, r.inlineEdgeBg(buf, y), 0, colorMode))
+func (r *Renderer) eraseInlineRow(out *bytes.Buffer, buf *buffer.Buffer, y int, colorMode style.ColorMode, indexers style.Indexers) {
+	out.WriteString(buildSGR(style.Color{}, r.inlineEdgeBg(buf, y), 0, colorMode, indexers))
 	out.WriteString(inlineEraseRow)
 }
 

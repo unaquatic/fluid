@@ -249,6 +249,12 @@ func (r *Renderer) ColorMode() style.ColorMode { return r.backend.ColorMode() }
 // SetColorMode overrides the auto-detected color mode.
 func (r *Renderer) SetColorMode(m style.ColorMode) { r.backend.SetColorMode(m) }
 
+// SetIndexers sets the Indexers that convert colors to palette entries while
+// the color mode is m.
+func (r *Renderer) SetIndexers(m style.ColorMode, x style.Indexers) {
+	r.backend.SetIndexers(m, x)
+}
+
 // Start sets up terminal modes and starts explicit rendering. In explicit mode,
 // every event-loop wake renders a frame regardless of dirty state.
 func (r *Renderer) Start() error {
