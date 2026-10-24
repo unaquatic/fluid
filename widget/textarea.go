@@ -50,7 +50,7 @@ type Textarea struct {
 	keyboardSelectionActive bool // True while a movement action extends selection.
 
 	// defaultAttributes applies to text without an explicit highlight style.
-	defaultAttributes uint32
+	defaultAttributes style.Attrs
 
 	// initialValueSet prevents reactive callers from reapplying an initial value.
 	initialValueSet bool
@@ -510,14 +510,14 @@ func (ta *Textarea) SetPlaceholderSpans(spans []textbuf.Span) {
 }
 
 // SetDefaultAttributes sets the default text attributes (bold, italic, etc.).
-func (ta *Textarea) SetDefaultAttributes(attrs uint32) {
+func (ta *Textarea) SetDefaultAttributes(attrs style.Attrs) {
 	ta.defaultAttributes = attrs
 	ta.textBuffer().SetDefaultAttributes(attrs)
 	ta.RequestRender()
 }
 
 // DefaultAttributes returns the default text attributes.
-func (ta *Textarea) DefaultAttributes() uint32 {
+func (ta *Textarea) DefaultAttributes() style.Attrs {
 	return ta.defaultAttributes
 }
 
@@ -1614,7 +1614,7 @@ func TextareaWithMaxHeight(s layout.Scalar) TextareaOption {
 }
 
 // TextareaWithDefaultAttributes sets the default text attributes (bold, italic, etc.).
-func TextareaWithDefaultAttributes(attrs uint32) TextareaOption {
+func TextareaWithDefaultAttributes(attrs style.Attrs) TextareaOption {
 	return func(ta *Textarea) { ta.defaultAttributes = attrs }
 }
 

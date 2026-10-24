@@ -40,7 +40,7 @@ type TextBuffer struct {
 	lines      []Line
 	defaultFg  style.Color
 	defaultBg  style.Color
-	defaultAt  uint32
+	defaultAt  style.Attrs
 	tabWidth   int
 	expandTabs bool   // Whether supported setters replace tabs with spaces.
 	epoch      uint64 // Incremented after content or tab-width changes.
@@ -61,7 +61,7 @@ type Highlight struct {
 	// Bg is the background color; nil leaves the text's background.
 	Bg *style.Color
 	// Attributes is a bitmask of the style.Attr flags, such as style.AttrBold.
-	Attributes uint32
+	Attributes style.Attrs
 	// Ref is a caller-defined identifier used for removal.
 	Ref int
 }
@@ -281,7 +281,7 @@ func (tb *TextBuffer) DefaultFg() style.Color { return tb.defaultFg }
 func (tb *TextBuffer) DefaultBg() style.Color { return tb.defaultBg }
 
 // DefaultAttributes returns the default text attributes.
-func (tb *TextBuffer) DefaultAttributes() uint32 { return tb.defaultAt }
+func (tb *TextBuffer) DefaultAttributes() style.Attrs { return tb.defaultAt }
 
 // SetDefaultFg sets the default foreground color.
 func (tb *TextBuffer) SetDefaultFg(fg style.Color) { tb.defaultFg = fg }
@@ -290,7 +290,7 @@ func (tb *TextBuffer) SetDefaultFg(fg style.Color) { tb.defaultFg = fg }
 func (tb *TextBuffer) SetDefaultBg(bg style.Color) { tb.defaultBg = bg }
 
 // SetDefaultAttributes sets the default text attributes.
-func (tb *TextBuffer) SetDefaultAttributes(attrs uint32) { tb.defaultAt = attrs }
+func (tb *TextBuffer) SetDefaultAttributes(attrs style.Attrs) { tb.defaultAt = attrs }
 
 // TabWidth returns the tab stop width.
 func (tb *TextBuffer) TabWidth() int { return tb.tabWidth }

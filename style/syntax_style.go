@@ -10,7 +10,7 @@ type SyntaxTokenStyle struct {
 	// Bg is the background color; nil inherits the default background.
 	Bg *Color
 	// Attributes is a bitmask of the Attr flags, such as AttrBold.
-	Attributes uint32
+	Attributes Attrs
 }
 
 // SyntaxStyle maps syntax token names to stable positive style IDs.
@@ -29,7 +29,7 @@ func NewSyntaxStyle() *SyntaxStyle {
 
 // Register stores a named token style and returns its ID. Registering an
 // existing name replaces its style without changing its ID.
-func (ss *SyntaxStyle) Register(name string, fg, bg *Color, attributes uint32) int {
+func (ss *SyntaxStyle) Register(name string, fg, bg *Color, attributes Attrs) int {
 	if id, ok := ss.byName[name]; ok {
 		ss.styles[id] = SyntaxTokenStyle{
 			Name:       name,

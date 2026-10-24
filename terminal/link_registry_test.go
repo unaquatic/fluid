@@ -90,15 +90,15 @@ func TestLinkRegistry_IntegrationWithAttributes(t *testing.T) {
 	lr := NewLinkRegistry()
 
 	linkID := lr.Alloc("https://example.com")
-	attrs := style.AttributesWithLink(style.AttrBold|style.AttrUnderline, linkID)
+	attrs := (style.AttrBold | style.AttrUnderline).WithLink(linkID)
 
 	// Link attributes preserve the allocated ID for registry lookup.
-	gotBase := style.BaseAttributes(attrs)
+	gotBase := attrs.Base()
 	if gotBase != style.AttrBold|style.AttrUnderline {
 		t.Errorf("expected base attrs Bold|Underline, got %d", gotBase)
 	}
 
-	gotLinkID := style.LinkID(attrs)
+	gotLinkID := attrs.LinkID()
 	if gotLinkID != linkID {
 		t.Errorf("expected linkID %d, got %d", linkID, gotLinkID)
 	}

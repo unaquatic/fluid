@@ -43,7 +43,7 @@ type Code struct {
 	bg         style.Color
 	wrapMode   WrapMode
 	theme      *style.Theme // theme whose code palette colors tokens
-	attributes uint32       // default text attributes
+	attributes style.Attrs  // default text attributes
 
 	// conceal controls whether formatting text marked as concealed is hidden.
 	conceal bool
@@ -417,10 +417,10 @@ func (c *Code) SetTruncate(v bool) {
 func (c *Code) TextBuffer() *textbuf.TextBuffer { return c.textBuf }
 
 // Attributes returns the default text attribute bitmask.
-func (c *Code) Attributes() uint32 { return c.attributes }
+func (c *Code) Attributes() style.Attrs { return c.attributes }
 
 // SetAttributes sets the default text attributes.
-func (c *Code) SetAttributes(attrs uint32) {
+func (c *Code) SetAttributes(attrs style.Attrs) {
 	if c.attributes != attrs {
 		c.attributes = attrs
 		c.linesDirty = true
@@ -955,7 +955,7 @@ func CodeWithTruncate(v bool) CodeOption {
 }
 
 // CodeWithAttributes sets the default text attributes.
-func CodeWithAttributes(attrs uint32) CodeOption {
+func CodeWithAttributes(attrs style.Attrs) CodeOption {
 	return func(c *Code) { c.attributes = attrs }
 }
 

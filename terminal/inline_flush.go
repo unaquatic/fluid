@@ -476,7 +476,7 @@ func (r *Renderer) writeInlineRow(out *bytes.Buffer, buf *buffer.Buffer, y, widt
 
 	curFg := style.Color{}
 	curBg := style.Color{}
-	var curAttrs uint32
+	var curAttrs style.Attrs
 	var curLinkID uint32
 	needsReset := true
 	anchored := true // The caller positioned the cursor at column zero.
@@ -501,7 +501,7 @@ func (r *Renderer) writeInlineRow(out *bytes.Buffer, buf *buffer.Buffer, y, widt
 			needsReset = false
 		}
 
-		linkID := style.LinkID(cell.Attributes)
+		linkID := cell.Attributes.LinkID()
 		if linkID != curLinkID {
 			if linkID != 0 {
 				url := r.linkRegistry.URL(linkID)

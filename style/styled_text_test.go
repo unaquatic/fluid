@@ -163,7 +163,7 @@ func TestLinkFunction(t *testing.T) {
 		t.Errorf("link should be 'https://example.com', got %q", chunk.Link)
 	}
 	// Link applies the default underline decoration.
-	if !HasAttribute(chunk.Attributes, AttrUnderline) {
+	if !chunk.Attributes.Has(AttrUnderline) {
 		t.Error("link chunk should have underline attribute")
 	}
 }

@@ -47,7 +47,7 @@ type Cell struct {
 // Attr is a cell attribute that golden frames record.
 type Attr struct {
 	// Bit is the attribute's flag in buffer.Cell.Attributes.
-	Bit uint32
+	Bit style.Attrs
 	// Letter marks the attribute in an attrs frame.
 	Letter byte
 	// SGR is the parameter of the escape sequence that turns it on.
@@ -158,7 +158,7 @@ func (d Design) Buffer() (*buffer.Buffer, map[style.Color]string, error) {
 
 // Parse returns the character, colors, and attributes of c. A continuation
 // cell that no wide character covers reads as a space.
-func (c Cell) Parse() (r rune, fg, bg style.Color, attrs uint32, err error) {
+func (c Cell) Parse() (r rune, fg, bg style.Color, attrs style.Attrs, err error) {
 	r = ' '
 	if c.Ch != "" {
 		var size int
@@ -286,7 +286,7 @@ func inkless(c buffer.Cell) bool {
 }
 
 // AttrLetters returns the letters of the attributes in Attrs that attrs sets.
-func AttrLetters(attrs uint32) string {
+func AttrLetters(attrs style.Attrs) string {
 	var sb strings.Builder
 	for _, a := range Attrs {
 		if attrs&a.Bit != 0 {
@@ -297,8 +297,8 @@ func AttrLetters(attrs uint32) string {
 }
 
 // ParseAttrs returns the attributes whose letters letters holds.
-func ParseAttrs(letters string) (uint32, error) {
-	var attrs uint32
+func ParseAttrs(letters string) (style.Attrs, error) {
+	var attrs style.Attrs
 	for _, l := range letters {
 		i := strings.IndexRune("BDIUS", l)
 		if i < 0 {

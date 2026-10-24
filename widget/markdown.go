@@ -807,7 +807,7 @@ func wrapChunks(body []style.TextChunk, mode WrapMode, first, rest int) [][]styl
 		w    int
 		fg   *style.Color
 		bg   *style.Color
-		attr uint32
+		attr style.Attrs
 		link string
 	}
 
@@ -884,7 +884,7 @@ func wrapChunks(body []style.TextChunk, mode WrapMode, first, rest int) [][]styl
 		var sb strings.Builder
 		var curFg *style.Color
 		var curBg *style.Color
-		var curAttr uint32
+		var curAttr style.Attrs
 		var curLink string
 		started := false
 

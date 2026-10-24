@@ -39,7 +39,7 @@ type wrappedChunk struct {
 	text       string
 	fg         style.Color
 	bg         style.Color
-	attributes uint32
+	attributes style.Attrs
 }
 
 // styledSegment contains unwrapped text with one style.
@@ -47,7 +47,7 @@ type styledSegment struct {
 	text       string
 	fg         style.Color
 	bg         style.Color
-	attributes uint32
+	attributes style.Attrs
 }
 
 // Text displays styled, selectable text with wrapping, truncation, and scrolling.
@@ -62,7 +62,7 @@ type Text struct {
 	content     style.StyledText
 	fg          style.Color
 	bg          style.Color
-	attributes  uint32
+	attributes  style.Attrs
 	wrapMode    WrapMode
 	truncate    bool
 	selectable_ bool
@@ -748,7 +748,7 @@ func splitSegmentsIntoWords(segments []styledSegment) []styledWord {
 		width      int
 		fg         style.Color
 		bg         style.Color
-		attributes uint32
+		attributes style.Attrs
 	}
 
 	// Flatten segments so style boundaries do not affect word detection.
@@ -917,7 +917,7 @@ func (t *Text) SetBg(c style.Color) {
 }
 
 // SetAttributes sets default text attributes and schedules content synchronization.
-func (t *Text) SetAttributes(a uint32) {
+func (t *Text) SetAttributes(a style.Attrs) {
 	t.attributes = a
 	t.linesDirty = true
 	if t.rootTextNode != nil {
@@ -948,7 +948,7 @@ func (t *Text) Fg() style.Color { return t.fg }
 func (t *Text) Bg() style.Color { return t.bg }
 
 // Attributes returns the text attributes bitmask.
-func (t *Text) Attributes() uint32 { return t.attributes }
+func (t *Text) Attributes() style.Attrs { return t.attributes }
 
 // WrapModeValue returns the configured wrap mode.
 func (t *Text) WrapModeValue() WrapMode { return t.wrapMode }
@@ -969,7 +969,7 @@ func TextWithBg(c style.Color) TextOption {
 }
 
 // TextWithAttributes sets text attributes.
-func TextWithAttributes(a uint32) TextOption {
+func TextWithAttributes(a style.Attrs) TextOption {
 	return func(t *Text) { t.attributes = a }
 }
 

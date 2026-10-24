@@ -82,7 +82,7 @@ func makeRenderChild(id string, x, y, w, h int, ch rune, fg, bg style.Color) *re
 }
 
 // makeRenderChildAttrs returns a fixed-size fill renderable with attrs.
-func makeRenderChildAttrs(id string, x, y, w, h int, ch rune, fg, bg style.Color, attrs uint32) *render.BaseRenderable {
+func makeRenderChildAttrs(id string, x, y, w, h int, ch rune, fg, bg style.Color, attrs style.Attrs) *render.BaseRenderable {
 	child := render.NewBaseRenderable(
 		render.WithID(id),
 		render.WithWidth(layout.Points(w)),

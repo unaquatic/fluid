@@ -24,7 +24,7 @@ type Extmark struct {
 	// Bg is the background color; nil leaves the text's background.
 	Bg *style.Color
 	// Attributes holds decoration bits and an optional packed link ID.
-	Attributes uint32
+	Attributes style.Attrs
 	// Priority is caller-defined; textbuf stores it but does not order by it.
 	Priority int
 	// Data is caller-defined data.
@@ -47,7 +47,7 @@ type ExtmarkOptions struct {
 	// Bg is the background color; nil leaves the text's background.
 	Bg *style.Color
 	// Attributes holds decoration bits and an optional packed link ID.
-	Attributes uint32
+	Attributes style.Attrs
 	// Priority is caller-defined; textbuf stores it but does not order by it.
 	Priority int
 	// Data is caller-defined data.

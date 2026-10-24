@@ -257,7 +257,7 @@ type Entry struct {
 	// Bg is the background color.
 	Bg Color
 	// Attrs is a bitmask of the Attr flags, such as AttrBold.
-	Attrs uint32
+	Attrs Attrs
 }
 
 // IsZero reports whether e contains no colors or attributes.

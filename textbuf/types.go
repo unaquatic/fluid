@@ -107,7 +107,7 @@ type Span struct {
 	// Bg is the background color.
 	Bg style.Color
 	// Attributes is a bitmask of the style.Attr flags, such as style.AttrBold.
-	Attributes uint32
+	Attributes style.Attrs
 	// Width is the cached display width; zero can mean not yet measured.
 	Width int
 }
@@ -125,7 +125,7 @@ type VirtualChunk struct {
 	// Bg is the background color.
 	Bg style.Color
 	// Attributes is a bitmask of the style.Attr flags, such as style.AttrBold.
-	Attributes uint32
+	Attributes style.Attrs
 }
 
 // VirtualLine is one visual row produced by wrapping a logical source line.

@@ -37,7 +37,7 @@ type TextNode struct {
 	id         string
 	fg         *style.Color // Nil inherits the parent foreground.
 	bg         *style.Color // Nil inherits the parent background.
-	attributes uint32       // Combined with inherited attributes.
+	attributes style.Attrs  // Combined with inherited attributes.
 	link       string       // An empty value inherits the parent link.
 
 	children []TextChild
@@ -81,7 +81,7 @@ func TextNodeWithBg(c style.Color) TextNodeOption {
 }
 
 // TextNodeWithAttributes sets text attributes.
-func TextNodeWithAttributes(a uint32) TextNodeOption {
+func TextNodeWithAttributes(a style.Attrs) TextNodeOption {
 	return func(n *TextNode) { n.attributes = a }
 }
 
@@ -254,7 +254,7 @@ func (n *TextNode) Fg() *style.Color { return n.fg }
 func (n *TextNode) Bg() *style.Color { return n.bg }
 
 // Attributes returns the attribute bitmask.
-func (n *TextNode) Attributes() uint32 { return n.attributes }
+func (n *TextNode) Attributes() style.Attrs { return n.attributes }
 
 // Link returns the link override, or an empty string when it is inherited.
 func (n *TextNode) Link() string { return n.link }
@@ -272,7 +272,7 @@ func (n *TextNode) SetBg(c *style.Color) {
 }
 
 // SetAttributes sets the attribute bitmask.
-func (n *TextNode) SetAttributes(a uint32) {
+func (n *TextNode) SetAttributes(a style.Attrs) {
 	n.attributes = a
 	n.markDirty()
 }
@@ -327,7 +327,7 @@ type InheritedStyle struct {
 	// Bg is the parent's effective background.
 	Bg style.Color
 	// Attributes are the parent's attribute bits, which a child adds its own to.
-	Attributes uint32
+	Attributes style.Attrs
 	// Link is the parent's link URL, which a child without one inherits.
 	Link string
 }

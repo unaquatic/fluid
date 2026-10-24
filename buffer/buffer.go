@@ -70,7 +70,7 @@ func (r Rect) Bottom() int { return r.Y + r.Height }
 
 type drawTextConfig struct {
 	bg        *style.Color
-	attrs     uint32
+	attrs     style.Attrs
 	selection *textbuf.TextSelection
 	maxWidth  int // Zero extends drawing to the buffer edge.
 }
@@ -86,7 +86,7 @@ func WithBg(bg style.Color) DrawTextOption {
 }
 
 // WithAttrs sets the attributes of text drawn by DrawText.
-func WithAttrs(attrs uint32) DrawTextOption {
+func WithAttrs(attrs style.Attrs) DrawTextOption {
 	return func(c *drawTextConfig) {
 		c.attrs = attrs
 	}
@@ -250,7 +250,7 @@ func (b *Buffer) SetCellCombining(x, y int, combining string) {
 // exceed the width of its first rune. The terminal writes every code point in
 // the cluster from this cell, so the recorded width must equal the number of
 // columns by which the terminal advances.
-func (b *Buffer) SetGraphemeCluster(x, y int, cluster string, fg, bg style.Color, attrs uint32) {
+func (b *Buffer) SetGraphemeCluster(x, y int, cluster string, fg, bg style.Color, attrs style.Attrs) {
 	baseRune, baseSize := utf8.DecodeRuneInString(cluster)
 	b.setCluster(x, y, baseRune, cluster[baseSize:], textbuf.StringWidth(cluster), fg, bg, attrs)
 }
@@ -258,7 +258,7 @@ func (b *Buffer) SetGraphemeCluster(x, y int, cluster string, fg, bg style.Color
 // ClusterStyler customizes a grapheme cluster before DrawClusters paints it.
 // The col argument is the cluster's column offset from the drawing origin. If
 // skip is true, DrawClusters advances past the cluster without painting it.
-type ClusterStyler func(col int, fg, bg style.Color, attrs uint32) (outFg, outBg style.Color, outAttrs uint32, skip bool)
+type ClusterStyler func(col int, fg, bg style.Color, attrs style.Attrs) (outFg, outBg style.Color, outAttrs style.Attrs, skip bool)
 
 // DrawClusters paints grapheme clusters from text at (x, y), using at most
 // maxWidth columns. It stops before the first cluster that would cross the
@@ -266,7 +266,7 @@ type ClusterStyler func(col int, fg, bg style.Color, attrs uint32) (outFg, outBg
 //
 // If styler is nil, every cluster uses the supplied colors and attributes.
 // Otherwise, DrawClusters calls styler once for each cluster that fits.
-func (b *Buffer) DrawClusters(text string, x, y, maxWidth int, fg, bg style.Color, attrs uint32, styler ClusterStyler) int {
+func (b *Buffer) DrawClusters(text string, x, y, maxWidth int, fg, bg style.Color, attrs style.Attrs, styler ClusterStyler) int {
 	cx := 0
 	remaining := text
 	for len(remaining) > 0 {
@@ -306,7 +306,7 @@ func (b *Buffer) Cell(x, y int) Cell {
 // A wide character occupies a head cell followed by continuation cells. If
 // the complete character does not fit, SetCell discards the write to prevent
 // the terminal from advancing beyond the buffer width.
-func (b *Buffer) SetCell(x, y int, char rune, fg, bg style.Color, attrs uint32) {
+func (b *Buffer) SetCell(x, y int, char rune, fg, bg style.Color, attrs style.Attrs) {
 	b.setCluster(x, y, char, "", RuneWidth(char), fg, bg, attrs)
 }
 
@@ -351,7 +351,7 @@ func (b *Buffer) blankAt(x, y int) {
 
 // setCluster writes char and its trailing code points as one cluster spanning
 // w columns.
-func (b *Buffer) setCluster(x, y int, char rune, combining string, w int, fg, bg style.Color, attrs uint32) {
+func (b *Buffer) setCluster(x, y int, char rune, combining string, w int, fg, bg style.Color, attrs style.Attrs) {
 	b.SetCellDirect(x, y, Cell{
 		Char:       char,
 		combining:  combiningHandle(combining),
@@ -404,7 +404,7 @@ func (b *Buffer) SetCellDirect(x, y int, cell Cell) {
 // SetCellBlended alpha blends char over the cell at (x, y), subject to the
 // current clipping region. It discards a wide character that does
 // not fit in the buffer.
-func (b *Buffer) SetCellBlended(x, y int, char rune, fg, bg style.Color, attrs uint32) {
+func (b *Buffer) SetCellBlended(x, y int, char rune, fg, bg style.Color, attrs style.Attrs) {
 	if !b.inBounds(x, y) || b.isClipped(x, y) {
 		return
 	}
@@ -535,7 +535,7 @@ func (b *Buffer) DrawText(text string, x, y int, fg style.Color, opts ...DrawTex
 }
 
 // DrawChar draws a single codepoint at (x, y).
-func (b *Buffer) DrawChar(char rune, x, y int, fg, bg style.Color, attrs uint32) {
+func (b *Buffer) DrawChar(char rune, x, y int, fg, bg style.Color, attrs style.Attrs) {
 	b.SetCell(x, y, char, fg, bg, attrs)
 }
 
@@ -865,8 +865,8 @@ func (b *Buffer) Bgs() []style.Color {
 }
 
 // Attributes returns a row-major snapshot of the attributes in each cell.
-func (b *Buffer) Attributes() []uint32 {
-	out := make([]uint32, len(b.cells))
+func (b *Buffer) Attributes() []style.Attrs {
+	out := make([]style.Attrs, len(b.cells))
 	for i, c := range b.cells {
 		out[i] = c.Attributes
 	}

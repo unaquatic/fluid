@@ -448,7 +448,7 @@ type styledRune struct {
 	w    int // Display width, or zero for trailing cluster code points.
 	fg   style.Color
 	bg   style.Color
-	attr uint32
+	attr style.Attrs
 }
 
 // flattenSpans expands a line into styled code points while recording display

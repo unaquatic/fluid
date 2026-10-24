@@ -5,6 +5,8 @@ import (
 	"sync/atomic"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/unaquatic/fluid/style"
 )
 
 // CursorPosition identifies one location in logical and global display-width
@@ -606,7 +608,7 @@ func (eb *EditBuffer) insertAtCursor(text string) {
 	// New content inherits the first span's style, or buffer defaults.
 	fg := eb.tb.defaultFg
 	bg := eb.tb.defaultBg
-	var attrs uint32
+	var attrs style.Attrs
 	if len(lines[eb.cursorRow].Spans) > 0 {
 		fg = lines[eb.cursorRow].Spans[0].Fg
 		bg = lines[eb.cursorRow].Spans[0].Bg

@@ -211,13 +211,13 @@ func autoDetectExtmarks(
 
 		fg, bg := virtualFg, virtualBg
 		typeID := markerTypeID
-		var attrs uint32
+		var attrs style.Attrs
 
 		if len(content) > 5 && content[1:5] == "LINK" {
 			typeID = linkTypeID
 			url := content[6 : len(content)-1]
 			linkID := lr.Alloc(url)
-			attrs = style.AttributesWithLink(style.AttrUnderline, linkID)
+			attrs = style.AttrUnderline.WithLink(linkID)
 		} else if len(content) > 4 && content[1:4] == "TAG" {
 			typeID = tagTypeID
 			fg, bg = tagFg, tagBg

@@ -14,7 +14,7 @@ type TextChunk struct {
 	// Bg is the background color; nil inherits the surrounding background.
 	Bg *Color
 	// Attributes is a bitmask of the Attr flags, such as AttrBold.
-	Attributes uint32
+	Attributes Attrs
 	// Link is the link URL, or empty for no link.
 	Link string
 }

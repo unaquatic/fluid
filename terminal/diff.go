@@ -76,7 +76,7 @@ func (r *Renderer) DiffAndFlush(current, next *buffer.Buffer) {
 	cursorX, cursorY := -1, -1
 	curFg := style.Color{}
 	curBg := style.Color{}
-	var curAttrs uint32
+	var curAttrs style.Attrs
 	var curLinkID uint32
 
 	needsReset := true // Emit SGR before the first changed cell.
@@ -106,7 +106,7 @@ func (r *Renderer) DiffAndFlush(current, next *buffer.Buffer) {
 			}
 
 			// Open or close OSC 8 links at link-ID boundaries.
-			linkID := style.LinkID(nxt.Attributes)
+			linkID := nxt.Attributes.LinkID()
 			if linkID != curLinkID {
 				if linkID != 0 {
 					url := r.linkRegistry.URL(linkID)
@@ -149,7 +149,7 @@ func (r *Renderer) DiffAndFlush(current, next *buffer.Buffer) {
 }
 
 // buildSGR returns one reset-prefixed ANSI SGR sequence for the supplied style.
-func buildSGR(fg, bg style.Color, attrs uint32, mode style.ColorMode) string {
+func buildSGR(fg, bg style.Color, attrs style.Attrs, mode style.ColorMode) string {
 	var buf bytes.Buffer
 	buf.WriteString("\x1b[0") // Reset attributes before applying the complete style.
 
@@ -209,7 +209,7 @@ func (r *Renderer) FullFlush(buf *buffer.Buffer) {
 
 	curFg := style.Color{}
 	curBg := style.Color{}
-	var curAttrs uint32
+	var curAttrs style.Attrs
 	var curLinkID uint32
 	needsReset := true
 
@@ -239,7 +239,7 @@ func (r *Renderer) FullFlush(buf *buffer.Buffer) {
 			}
 
 			// Open or close OSC 8 links at link-ID boundaries.
-			linkID := style.LinkID(cell.Attributes)
+			linkID := cell.Attributes.LinkID()
 			if linkID != curLinkID {
 				if linkID != 0 {
 					url := r.linkRegistry.URL(linkID)

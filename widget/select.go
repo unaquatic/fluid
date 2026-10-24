@@ -168,7 +168,7 @@ func (s *Select) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 		// Resolve the selected-row appearance from focus state and options.
 		fg := s.textColor
 		bg := s.backgroundColor
-		var attrs uint32
+		var attrs style.Attrs
 
 		if isSelected {
 			if s.focusedUseBold {
