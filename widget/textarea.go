@@ -413,17 +413,6 @@ func (ta *Textarea) LineInfo() textbuf.LineInfo {
 
 // Syntax highlighting.
 
-// SetSyntaxStyle sets the token-style registry used by the text buffer.
-func (ta *Textarea) SetSyntaxStyle(ss *style.SyntaxStyle) {
-	ta.textBuffer().SetSyntaxStyle(ss)
-	ta.RequestRender()
-}
-
-// SyntaxStyle returns the current token-style registry, or nil.
-func (ta *Textarea) SyntaxStyle() *style.SyntaxStyle {
-	return ta.textBuffer().SyntaxStyle()
-}
-
 // AddHighlight adds hl to a zero-based logical line.
 func (ta *Textarea) AddHighlight(lineIdx int, hl textbuf.Highlight) {
 	ta.textBuffer().AddHighlight(lineIdx, hl)
@@ -1616,13 +1605,6 @@ func TextareaWithMaxHeight(s layout.Scalar) TextareaOption {
 // TextareaWithDefaultAttributes sets the default text attributes (bold, italic, etc.).
 func TextareaWithDefaultAttributes(attrs style.Attrs) TextareaOption {
 	return func(ta *Textarea) { ta.defaultAttributes = attrs }
-}
-
-// TextareaWithSyntaxStyle sets the token-style registry used by the text buffer.
-func TextareaWithSyntaxStyle(ss *style.SyntaxStyle) TextareaOption {
-	return func(ta *Textarea) {
-		ta.textBuffer().SetSyntaxStyle(ss)
-	}
 }
 
 // TextareaWithSelectable controls whether mouse selection can start in the editor.

@@ -576,39 +576,6 @@ func TestEditBufferView_PlaceholderText(t *testing.T) {
 	}
 }
 
-func TestEditBufferView_SetTabIndicator(t *testing.T) {
-	tb := NewTextBuffer()
-	eb := NewEditBuffer(tb)
-
-	ev := NewEditSurface(eb, 80, 24)
-
-	ev.SetTabIndicator('→')
-	if ev.tabIndicator != '→' {
-		t.Errorf("expected tab indicator '→', got %c", ev.tabIndicator)
-	}
-	// The underlying surface receives the same indicator.
-	if ev.surface.tabIndicator != '→' {
-		t.Error("expected underlying surface tab indicator to be set")
-	}
-}
-
-func TestEditBufferView_SetTabIndicatorColor(t *testing.T) {
-	tb := NewTextBuffer()
-	eb := NewEditBuffer(tb)
-
-	ev := NewEditSurface(eb, 80, 24)
-
-	c := style.ColorFromInts(77, 77, 77, 255)
-	ev.SetTabIndicatorColor(c)
-	if ev.tabIndicatorColor != c {
-		t.Errorf("expected tab indicator color %v", c)
-	}
-	// The underlying surface receives the same color.
-	if ev.surface.tabIndicatorColor != c {
-		t.Error("expected underlying surface tab indicator color to be set")
-	}
-}
-
 func TestEditBufferView_SetViewport_MoveCursor(t *testing.T) {
 	tb := NewTextBuffer()
 	eb := NewEditBuffer(tb)

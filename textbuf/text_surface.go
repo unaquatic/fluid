@@ -17,10 +17,6 @@ type TextSurface struct {
 	wrapWidth int // Explicit wrap width; zero uses viewport width.
 	truncate  bool
 
-	// Configured tab indicator.
-	tabIndicator      rune // Zero disables the indicator.
-	tabIndicatorColor style.Color
-
 	// Per-line backgrounds.
 	lineBackgrounds map[int]style.Color // Logical line to background color.
 	activeLine      int                 // Negative means no active line.
@@ -114,17 +110,6 @@ func (v *TextSurface) LineBackground(lineIdx int) style.Color {
 		}
 	}
 	return style.Color{}
-}
-
-// SetTabIndicator stores the configured tab indicator. Zero disables it.
-func (v *TextSurface) SetTabIndicator(indicator rune) {
-	v.tabIndicator = indicator
-	v.dirty = true
-}
-
-// SetTabIndicatorColor stores the configured tab-indicator color.
-func (v *TextSurface) SetTabIndicatorColor(color style.Color) {
-	v.tabIndicatorColor = color
 }
 
 // SetSelection sets the global display-width selection range.

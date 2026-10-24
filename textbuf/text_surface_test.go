@@ -290,50 +290,6 @@ func TestTextBufferView_SetTruncate(t *testing.T) {
 	}
 }
 
-func TestTextBufferView_SetTabIndicator(t *testing.T) {
-	tb := NewTextBuffer()
-	tb.SetText("hello")
-
-	v := NewTextSurface(tb)
-
-	if v.tabIndicator != 0 {
-		t.Errorf("expected tab indicator to be 0 by default, got %d", v.tabIndicator)
-	}
-
-	v.SetTabIndicator('→')
-	if v.tabIndicator != '→' {
-		t.Errorf("expected tab indicator '→', got %c", v.tabIndicator)
-	}
-
-	// Changing the configured indicator invalidates virtual-line layout.
-	v.SetTabIndicator('·')
-	if v.tabIndicator != '·' {
-		t.Errorf("expected tab indicator '·', got %c", v.tabIndicator)
-	}
-
-	v.SetTabIndicator(0)
-	if v.tabIndicator != 0 {
-		t.Error("expected tab indicator to be cleared")
-	}
-}
-
-func TestTextBufferView_SetTabIndicatorColor(t *testing.T) {
-	tb := NewTextBuffer()
-	tb.SetText("hello")
-
-	v := NewTextSurface(tb)
-
-	if !v.tabIndicatorColor.IsTransparent() {
-		t.Error("expected no tab indicator color by default")
-	}
-
-	c := style.ColorFromInts(128, 128, 128, 255)
-	v.SetTabIndicatorColor(c)
-	if v.tabIndicatorColor != c {
-		t.Errorf("expected color %v, got %v", c, v.tabIndicatorColor)
-	}
-}
-
 func TestTextBufferView_GetLogicalLineInfo(t *testing.T) {
 	tb := NewTextBuffer()
 	tb.SetText("hello\nab\nworld!")

@@ -32,10 +32,6 @@ type EditSurface struct {
 	placeholderFg    style.Color
 	placeholderSpans []Span // Styled placeholder, taking priority over plain text.
 
-	// Tab-indicator configuration mirrored to surface.
-	tabIndicator      rune
-	tabIndicatorColor style.Color
-
 	// Movement and deletion interceptors installed by ExtmarksController.
 	overrideMoveUpVisual       func()
 	overrideMoveDownVisual     func()
@@ -133,18 +129,6 @@ func (ev *EditSurface) SetPlaceholderText(text string, fg style.Color) {
 func (ev *EditSurface) SetPlaceholderSpans(spans []Span) {
 	ev.placeholderSpans = spans
 	ev.placeholderText = ""
-}
-
-// SetTabIndicator stores and forwards the tab-indicator configuration.
-func (ev *EditSurface) SetTabIndicator(indicator rune) {
-	ev.tabIndicator = indicator
-	ev.surface.SetTabIndicator(indicator)
-}
-
-// SetTabIndicatorColor stores and forwards the tab-indicator color.
-func (ev *EditSurface) SetTabIndicatorColor(color style.Color) {
-	ev.tabIndicatorColor = color
-	ev.surface.SetTabIndicatorColor(color)
 }
 
 // NotifyCursorChange resets the desired vertical-navigation column and scrolls

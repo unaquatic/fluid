@@ -3,7 +3,7 @@
 //
 // Usage:
 //
-//	fluid demo name [-fps n] [-no-mouse] [-bg hex]
+//	fluid demo name [-no-mouse] [-bg hex]
 //
 // For example:
 //

@@ -94,7 +94,6 @@ func (r *Renderer) renderInlineFrame() {
 
 	r.root.LastFrameStats = FrameStats{
 		Lifecycle: prepStats.Lifecycle,
-		Update:    prepStats.Update,
 		Layout:    prepStats.Layout,
 		Sync:      syncStats.Sync,
 		Commands:  execStats.Commands,

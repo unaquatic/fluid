@@ -7,8 +7,6 @@ import "time"
 type FrameStats struct {
 	// Lifecycle is time spent calling OnUpdate on registered widgets.
 	Lifecycle time.Duration
-	// Update is reserved for a distinct update-pass duration.
-	Update time.Duration
 	// Layout is time spent computing the flexbox layout.
 	Layout time.Duration
 	// Sync is time spent synchronizing layout positions to renderables.

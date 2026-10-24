@@ -28,8 +28,7 @@ type pendingLine struct {
 
 func runScrollboxDemo(ctx context.Context, o DemoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
-		UseMouse:  !o.NoMouse,
-		TargetFPS: o.FPS,
+		UseMouse: !o.NoMouse,
 	})
 	if err != nil {
 		return fmt.Errorf("renderer: %w", err)

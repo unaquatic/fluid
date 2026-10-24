@@ -47,9 +47,6 @@ type TextBuffer struct {
 
 	// Per-line highlights.
 	highlights map[int][]Highlight
-
-	// Optional syntax-style registry.
-	syntaxStyle *style.SyntaxStyle
 }
 
 // Highlight describes a half-open display-column range on one logical line.
@@ -117,7 +114,7 @@ func (tb *TextBuffer) ByteSize() int {
 }
 
 // Reset clears content and highlights and restores default colors, attributes,
-// and tab width. It preserves ExpandTabs and SyntaxStyle settings.
+// and tab width. It preserves the ExpandTabs setting.
 func (tb *TextBuffer) Reset() {
 	tb.lines = []Line{{Spans: []Span{{Text: ""}}}}
 	tb.defaultFg = style.ColorWhite
@@ -311,12 +308,6 @@ func (tb *TextBuffer) ExpandTabs() bool { return tb.expandTabs }
 
 // SetExpandTabs controls tab replacement in SetText, SetSpans, and SetLines.
 func (tb *TextBuffer) SetExpandTabs(v bool) { tb.expandTabs = v }
-
-// SyntaxStyle returns the attached syntax-style registry, or nil.
-func (tb *TextBuffer) SyntaxStyle() *style.SyntaxStyle { return tb.syntaxStyle }
-
-// SetSyntaxStyle attaches ss for token coloring; nil detaches it.
-func (tb *TextBuffer) SetSyntaxStyle(ss *style.SyntaxStyle) { tb.syntaxStyle = ss }
 
 // Lines returns the underlying line slice without copying it.
 func (tb *TextBuffer) Lines() []Line { return tb.lines }

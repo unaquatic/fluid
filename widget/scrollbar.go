@@ -32,10 +32,6 @@ type ScrollBar struct {
 
 	trackColor style.Color
 	thumbColor style.Color
-
-	// OnChange is reserved for interactive position changes. ScrollBar does not
-	// currently implement pointer interaction, so it does not call this callback.
-	OnChange func(position int)
 }
 
 // ScrollBarOption configures a ScrollBar.
@@ -239,11 +235,6 @@ func ScrollBarWithThumbColor(c style.Color) ScrollBarOption {
 // ScrollBarWithID sets the widget ID.
 func ScrollBarWithID(id string) ScrollBarOption {
 	return func(sb *ScrollBar) { sb.SetID(id) }
-}
-
-// ScrollBarWithOnChange sets the callback reserved for interactive position changes.
-func ScrollBarWithOnChange(fn func(int)) ScrollBarOption {
-	return func(sb *ScrollBar) { sb.OnChange = fn }
 }
 
 // BindScrollBar keeps scrollBar synchronized with scrollBox's vertical state.

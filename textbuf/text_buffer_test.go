@@ -329,36 +329,3 @@ func TestTextBuffer_HighlightCount(t *testing.T) {
 		t.Errorf("expected 3, got %d", tb.HighlightCount())
 	}
 }
-
-func TestTextBuffer_SyntaxStyle(t *testing.T) {
-	tb := NewTextBuffer()
-
-	// New buffers have no syntax registry.
-	if tb.SyntaxStyle() != nil {
-		t.Error("expected nil SyntaxStyle initially")
-	}
-
-	// Attach a syntax registry.
-	ss := style.NewSyntaxStyle()
-	red := style.ColorRed
-	ss.Register("keyword", red, style.Color{}, style.AttrBold)
-
-	tb.SetSyntaxStyle(ss)
-
-	got := tb.SyntaxStyle()
-	if got == nil {
-		t.Fatal("expected SyntaxStyle to be set")
-	}
-	if got.StyleCount() != 1 {
-		t.Errorf("expected 1 style, got %d", got.StyleCount())
-	}
-	if got.ResolveByName("keyword") != 1 {
-		t.Errorf("expected 'keyword' ID=1, got %d", got.ResolveByName("keyword"))
-	}
-
-	// A nil registry detaches it.
-	tb.SetSyntaxStyle(nil)
-	if tb.SyntaxStyle() != nil {
-		t.Error("expected nil after detaching SyntaxStyle")
-	}
-}

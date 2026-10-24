@@ -139,14 +139,6 @@ type Config struct {
 	// Stdout receives terminal output. The default is os.Stdout.
 	Stdout io.Writer
 
-	// TargetFPS records the desired render-loop rate. It is currently not used by
-	// the event loop. The default is 30.
-	TargetFPS int
-
-	// MaxFPS records the desired render-rate limit. It is currently not enforced.
-	// The default is 60.
-	MaxFPS int
-
 	// UseMouse enables click, drag, and scroll reporting. The default is false.
 	UseMouse bool
 
@@ -236,8 +228,6 @@ func DefaultConfig() Config {
 	return Config{
 		Stdin:               os.Stdin,
 		Stdout:              os.Stdout,
-		TargetFPS:           30,
-		MaxFPS:              60,
 		EnableMouseMovement: false,
 		BackgroundColor:     style.ColorBlack,
 		UseKittyKeyboard:    false,
@@ -260,12 +250,6 @@ func mergeConfig(configs []Config) Config {
 	}
 	if user.Stdout != nil {
 		cfg.Stdout = user.Stdout
-	}
-	if user.TargetFPS > 0 {
-		cfg.TargetFPS = user.TargetFPS
-	}
-	if user.MaxFPS > 0 {
-		cfg.MaxFPS = user.MaxFPS
 	}
 
 	cfg.UseMouse = user.UseMouse

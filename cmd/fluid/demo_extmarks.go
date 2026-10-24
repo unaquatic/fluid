@@ -36,7 +36,6 @@ Regular text can be edited normally.`
 func runExtmarksDemo(ctx context.Context, o DemoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
 		UseMouse:          !o.NoMouse,
-		TargetFPS:         o.FPS,
 		AltSendsEscPrefix: true,
 	})
 	if err != nil {

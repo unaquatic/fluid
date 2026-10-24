@@ -15,12 +15,6 @@ import (
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 
-	if cfg.TargetFPS != 30 {
-		t.Errorf("expected TargetFPS=30, got %d", cfg.TargetFPS)
-	}
-	if cfg.MaxFPS != 60 {
-		t.Errorf("expected MaxFPS=60, got %d", cfg.MaxFPS)
-	}
 	if cfg.UseMouse {
 		t.Error("expected UseMouse=false")
 	}
@@ -47,24 +41,24 @@ func TestDefaultConfig(t *testing.T) {
 func TestMergeConfig_Defaults(t *testing.T) {
 	cfg := mergeConfig(nil)
 
-	if cfg.TargetFPS != 30 {
-		t.Errorf("expected default TargetFPS=30, got %d", cfg.TargetFPS)
+	if !cfg.BackgroundColor.Equals(style.ColorBlack) {
+		t.Errorf("expected default BackgroundColor=Black, got %v", cfg.BackgroundColor)
 	}
 }
 
 func TestMergeConfig_Override(t *testing.T) {
 	cfg := mergeConfig([]Config{
 		{
-			TargetFPS: 60,
-			MaxFPS:    120,
+			BackgroundColor:    style.ColorRed,
+			KittyKeyboardFlags: KittyFlagDisambiguate,
 		},
 	})
 
-	if cfg.TargetFPS != 60 {
-		t.Errorf("expected TargetFPS=60, got %d", cfg.TargetFPS)
+	if !cfg.BackgroundColor.Equals(style.ColorRed) {
+		t.Errorf("expected BackgroundColor=Red, got %v", cfg.BackgroundColor)
 	}
-	if cfg.MaxFPS != 120 {
-		t.Errorf("expected MaxFPS=120, got %d", cfg.MaxFPS)
+	if cfg.KittyKeyboardFlags != KittyFlagDisambiguate {
+		t.Errorf("expected KittyKeyboardFlags=%d, got %d", KittyFlagDisambiguate, cfg.KittyKeyboardFlags)
 	}
 }
 
