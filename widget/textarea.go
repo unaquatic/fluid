@@ -32,10 +32,8 @@ type Textarea struct {
 	selectionBg        style.Color
 	selectionFg        *style.Color // Nil preserves the text foreground.
 
-	showCursor     bool
-	cursorShape    string // One of "block", "line", or "underline".
-	cursorBlinking bool
-	readOnly       bool
+	showCursor bool
+	readOnly   bool
 
 	// Custom bindings and aliases are compiled only after they change.
 	keyBindings   []input.KeyBinding
@@ -102,8 +100,6 @@ func NewTextarea(opts ...TextareaOption) *Textarea {
 		cursorColor:        style.ColorWhite,
 		selectionBg:        style.ColorFromInts(51, 153, 255, 255),
 		showCursor:         true,
-		cursorShape:        "block",
-		cursorBlinking:     true,
 		bindingsDirty:      true,
 		scrollSpeed:        16,
 	}
@@ -513,27 +509,6 @@ func (ta *Textarea) SetPlaceholderSpans(spans []textbuf.Span) {
 	ta.editSurface.SetPlaceholderSpans(spans)
 }
 
-// SetCursorShape sets the cursor shape: "block", "line", or "underline".
-func (ta *Textarea) SetCursorShape(shape string) {
-	ta.cursorShape = shape
-	if ta.Focused() {
-		ta.RequestRender()
-	}
-}
-
-// CursorShape returns the current cursor shape.
-func (ta *Textarea) CursorShape() string {
-	return ta.cursorShape
-}
-
-// SetCursorBlinking sets whether the cursor blinks.
-func (ta *Textarea) SetCursorBlinking(b bool) {
-	ta.cursorBlinking = b
-	if ta.Focused() {
-		ta.RequestRender()
-	}
-}
-
 // SetDefaultAttributes sets the default text attributes (bold, italic, etc.).
 func (ta *Textarea) SetDefaultAttributes(attrs uint32) {
 	ta.defaultAttributes = attrs
@@ -593,7 +568,6 @@ func (ta *Textarea) Focus() {
 	ta.BaseRenderable.Focus()
 	ta.textColor = ta.focusedTextColor
 	ta.backgroundColor = ta.focusedBgColor
-	ta.applyCursorStyle()
 	ta.RequestRender()
 }
 
@@ -647,7 +621,6 @@ func (ta *Textarea) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 		}
 		if ta.Focused() && ta.showCursor {
 			ta.Context().SetCursorPosition(x, y, true)
-			ta.applyCursorStyle()
 		}
 		return
 	}
@@ -664,7 +637,6 @@ func (ta *Textarea) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 		if cursorScreenX >= x && cursorScreenX <= x+w &&
 			cursorScreenY >= y && cursorScreenY < y+h {
 			ta.Context().SetCursorPosition(cursorScreenX, cursorScreenY, true)
-			ta.applyCursorStyle()
 		}
 	}
 }
@@ -1474,10 +1446,6 @@ func (ta *Textarea) defaultBindings() []input.KeyBinding {
 	return DefaultTextareaBindings
 }
 
-// applyCursorStyle is retained for internal call-site compatibility.
-// Renderer applies cursor style during its render pass.
-func (ta *Textarea) applyCursorStyle() {}
-
 // Textarea options.
 
 // TextareaWithText sets the initial text.
@@ -1565,14 +1533,6 @@ func TextareaWithShowCursor(v bool) TextareaOption {
 // TextareaWithCursorColor sets the cursor color.
 func TextareaWithCursorColor(c style.Color) TextareaOption {
 	return func(ta *Textarea) { ta.cursorColor = c }
-}
-
-// TextareaWithCursorStyle sets the cursor shape and whether it blinks.
-func TextareaWithCursorStyle(shape string, blinking bool) TextareaOption {
-	return func(ta *Textarea) {
-		ta.cursorShape = shape
-		ta.cursorBlinking = blinking
-	}
 }
 
 // TextareaWithMaxUndo sets the maximum undo history size.
