@@ -80,7 +80,7 @@ go run github.com/unaquatic/fluid/cmd/design -root .               # paint golde
 go run github.com/unaquatic/fluid/cmd/goldenview -o goldens.html . # draw every golden frames file in color
 ```
 
-- `fluid demo <name>` runs an interactive demo of the widgets, the layout engine, or the inline and fullscreen modes, with `-no-mouse` and `-bg`.
+- `fluid demo <name>` runs an interactive demo of the widgets, the layout engine, or the inline and fullscreen modes, with `-no-mouse`.
 - `design` serves an editor on port 4098 that paints the golden frames and sequence files under `-root` cell by cell and saves them as `testutil` writes them; `design ansi file...` prints them with ANSI escape sequences.
 - `goldenview` writes an HTML page that draws the golden frames files under the given directories in their colors.
 
