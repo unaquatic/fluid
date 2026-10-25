@@ -9,13 +9,20 @@
 // Lexing is lexical: a lexer classifies words, literals, and comments by
 // their spelling and the tokens around them, without parsing. Text a lexer
 // does not recognize is [Text].
+//
+// [Lookup] finds a language by name among the built-in languages and those
+// [Register] adds. A program adds a language by building a Lexer, such as a
+// [CLike] configured with the language's words and quotes, and registering a
+// Language that holds it.
 package syntax
 
 import (
 	"iter"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 // Kind classifies a token by the role its text plays in source code.
@@ -166,33 +173,87 @@ func (l *Language) Tokens(src string) iter.Seq[Token] {
 	}
 }
 
-// registry holds the languages Lookup finds and an index of their names. It
-// is built on first use, so that a program that never lexes pays nothing
-// for the keyword tables.
-var registry = sync.OnceValues(func() ([]*Language, map[string]*Language) {
-	langs := builtinLanguages()
+// languageTable holds the languages Lookup finds and an index of their
+// names. A table is never modified once built; Register replaces it.
+type languageTable struct {
+	langs []*Language
+	index map[string]*Language
+}
+
+// newLanguageTable indexes langs by their names, in lower case. A later
+// language takes over a name an earlier one shares with it.
+func newLanguageTable(langs []*Language) *languageTable {
 	index := make(map[string]*Language, len(langs)*4)
 	for _, l := range langs {
-		index[l.Name] = l
+		index[strings.ToLower(l.Name)] = l
 		for _, a := range l.Aliases {
-			index[a] = l
+			index[strings.ToLower(a)] = l
 		}
 		for _, f := range l.Filenames {
 			index[strings.ToLower(f)] = l
 		}
 	}
-	return langs, index
-})
+	return &languageTable{langs: langs, index: index}
+}
 
-// Lookup returns the language name names, or nil if none does. The name is
-// compared in lower case with each language's Name, Aliases, and Filenames;
-// failing that, a file name or path, such as "cmd/main.go", is looked up by
-// its base name and then by its extension.
+var (
+	// builtinTable holds the built-in languages. It is built on first use,
+	// so that a program that never lexes pays nothing for the keyword tables.
+	builtinTable = sync.OnceValue(func() *languageTable {
+		return newLanguageTable(builtinLanguages())
+	})
+	// registered holds the table Register last built, or nil until it is
+	// first called.
+	registered atomic.Pointer[languageTable]
+	// registerMu serializes Register.
+	registerMu sync.Mutex
+)
+
+// registry returns the current language table.
+func registry() *languageTable {
+	if t := registered.Load(); t != nil {
+		return t
+	}
+	return builtinTable()
+}
+
+// Register adds l to the languages Lookup and Languages find, after the
+// built-in ones, so that the widgets that highlight code by Lookup use it.
+// A language of the same Name, built in or registered, is replaced; other
+// names l shares with an earlier language, such as an alias or a file
+// extension, find l from then on. Names are compared in lower case.
+//
+// Register is safe to call concurrently with Lookup and with itself. l is
+// shared from then on, so it must not be modified. Register panics if l is
+// nil, has no Lexer, or has an empty Name.
+func Register(l *Language) {
+	switch {
+	case l == nil:
+		panic("syntax: Register of a nil Language")
+	case l.Lexer == nil:
+		panic("syntax: Register of a Language with no Lexer")
+	case strings.TrimSpace(l.Name) == "":
+		panic("syntax: Register of a Language with no Name")
+	}
+	registerMu.Lock()
+	defer registerMu.Unlock()
+	name := strings.ToLower(l.Name)
+	langs := slices.DeleteFunc(slices.Clone(registry().langs), func(old *Language) bool {
+		return strings.ToLower(old.Name) == name
+	})
+	registered.Store(newLanguageTable(append(langs, l)))
+}
+
+// Lookup returns the language name names, among the built-in languages and
+// those Register adds, or nil if none does. The name is compared in lower
+// case with each language's Name, Aliases, and Filenames; failing that, a
+// file name or path, such as "cmd/main.go", is looked up by its base name and
+// then by its extension.
 //
 // Every caller shares the Language it returns, and its Lexer, so they must
 // not be modified.
 func Lookup(name string) *Language {
-	_, index := registry()
+	index := registry().index
 	name = strings.ToLower(strings.TrimSpace(name))
 	if l := index[name]; l != nil {
 		return l
@@ -213,8 +274,7 @@ func Lookup(name string) *Language {
 // with Lookup, every caller shares and must not modify.
 func Languages() iter.Seq[*Language] {
 	return func(yield func(*Language) bool) {
-		langs, _ := registry()
-		for _, l := range langs {
+		for _, l := range registry().langs {
 			if !yield(l) {
 				return
 			}
