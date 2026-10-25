@@ -65,7 +65,6 @@ func TestBaseRenderable_Options(t *testing.T) {
 	r := NewBaseRenderable(
 		WithVisible(false),
 		WithFocusable(true),
-		WithLive(true),
 		WithSelectable(true),
 	)
 
@@ -74,9 +73,6 @@ func TestBaseRenderable_Options(t *testing.T) {
 	}
 	if !r.Focusable() {
 		t.Error("expected focusable=true")
-	}
-	if !r.Live() {
-		t.Error("expected live=true")
 	}
 	if !r.Selectable() {
 		t.Error("expected selectable=true")

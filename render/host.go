@@ -46,12 +46,6 @@ type Host interface {
 
 	// ClearSelection discards the active text selection.
 	ClearSelection()
-
-	// RequestLive acquires a continuous-rendering reference.
-	RequestLive()
-
-	// DropLive releases a continuous-rendering reference.
-	DropLive()
 }
 
 // NoopHost implements Host without side effects. Test hosts can embed it and
@@ -92,12 +86,6 @@ func (NoopHost) UpdateSelection(Renderable, int, int, ...SelectionUpdateOption) 
 
 // ClearSelection does nothing.
 func (NoopHost) ClearSelection() {}
-
-// RequestLive does nothing.
-func (NoopHost) RequestLive() {}
-
-// DropLive does nothing.
-func (NoopHost) DropLive() {}
 
 // noopHost keeps the host of a detached BaseRenderable non-nil.
 var noopHost Host = NoopHost{}

@@ -177,15 +177,6 @@ type Renderable interface {
 	// SetHost attaches a renderer.
 	SetHost(host Host)
 
-	// Continuous rendering.
-
-	// Live reports whether the renderable requested continuous rendering.
-	Live() bool
-	// SetLive controls continuous rendering independent of dirty state.
-	SetLive(l bool)
-	// LiveCount returns the renderable's local live-render request count.
-	LiveCount() int
-
 	// Layout synchronization.
 
 	// UpdateFromLayout copies the flexbox result and applies the renderable's own

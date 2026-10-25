@@ -75,9 +75,6 @@ type Renderer struct {
 	// OSC 8 hyperlinks.
 	linkRegistry *LinkRegistry
 
-	// Live-render references.
-	liveCount atomic.Int32
-
 	// Frame state owned by the event-loop goroutine. These fields carry no
 	// lock: reach them from setup, or through Enqueue, and never from another
 	// goroutine.
@@ -558,17 +555,6 @@ func (r *Renderer) UpdateSelection(_ render.Renderable, x, y int, opts ...render
 // ClearSelection clears the active selection.
 func (r *Renderer) ClearSelection() {
 	r.sel.Clear()
-}
-
-// RequestLive increments the live-render reference count and requests a frame.
-func (r *Renderer) RequestLive() {
-	r.liveCount.Add(1)
-	r.RequestRender()
-}
-
-// DropLive decrements the live-render reference count.
-func (r *Renderer) DropLive() {
-	r.liveCount.Add(-1)
 }
 
 // Enqueue sends fn to the event-loop goroutine before its next frame.

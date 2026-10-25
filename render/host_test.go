@@ -10,8 +10,6 @@ type mockHost struct {
 
 	renderRequested  bool
 	focused          Renderable
-	liveCalled       bool
-	dropCalled       bool
 	selStarted       bool
 	selCleared       bool
 	cursorX, cursorY int
@@ -25,8 +23,6 @@ type mockHost struct {
 
 func (m *mockHost) RequestRender()                      { m.renderRequested = true }
 func (m *mockHost) FocusRenderable(r Renderable)        { m.focused = r }
-func (m *mockHost) RequestLive()                        { m.liveCalled = true }
-func (m *mockHost) DropLive()                           { m.dropCalled = true }
 func (m *mockHost) StartSelection(Renderable, int, int) { m.selStarted = true }
 func (m *mockHost) ClearSelection()                     { m.selCleared = true }
 func (m *mockHost) SetCursorPosition(x, y int, vis bool) {
@@ -60,8 +56,6 @@ func TestNoopHost_SatisfiesInterface(t *testing.T) {
 	host.StartSelection(nil, 0, 0)
 	host.UpdateSelection(nil, 0, 0)
 	host.ClearSelection()
-	host.RequestLive()
-	host.DropLive()
 }
 
 func TestMockHost_RequestRender(t *testing.T) {
@@ -98,18 +92,6 @@ func TestMockHost_PushPopScissor(t *testing.T) {
 	m.PopHitGridScissorRect()
 	if !m.scissorPopped {
 		t.Error("expected scissorPopped")
-	}
-}
-
-func TestMockHost_LiveCalls(t *testing.T) {
-	m := &mockHost{}
-	m.RequestLive()
-	if !m.liveCalled {
-		t.Error("expected liveCalled")
-	}
-	m.DropLive()
-	if !m.dropCalled {
-		t.Error("expected dropCalled")
 	}
 }
 

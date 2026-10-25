@@ -65,11 +65,6 @@ func WithFocusable(f bool) Option {
 	return func(b *BaseRenderable) { b.focusable = f }
 }
 
-// WithLive controls the initial continuous-rendering mode.
-func WithLive(l bool) Option {
-	return func(b *BaseRenderable) { b.live = l }
-}
-
 // WithSelectable sets whether the renderable initially supports text selection.
 func WithSelectable(s bool) Option {
 	return func(b *BaseRenderable) { b.selectable = s }
@@ -216,7 +211,6 @@ type BaseRenderable struct {
 	// Configuration and state.
 	focusable  bool
 	focused    bool
-	live       bool
 	selectable bool
 	destroyed  bool
 
@@ -227,9 +221,6 @@ type BaseRenderable struct {
 
 	dirty      bool
 	childDirty bool // Reports whether a descendant changed since the last frame.
-
-	// Local continuous-rendering request count.
-	liveCount int
 
 	// Renderer that hosts b, or noopHost while detached.
 	host Host
@@ -871,27 +862,3 @@ func (b *BaseRenderable) SetHost(host Host) {
 		child.SetHost(host)
 	}
 }
-
-// Live reports whether b requested continuous rendering.
-func (b *BaseRenderable) Live() bool { return b.live }
-
-// SetLive controls b's continuous-render request and updates its host.
-func (b *BaseRenderable) SetLive(l bool) {
-	if b.live == l {
-		return
-	}
-	b.live = l
-	if l {
-		b.liveCount++
-		b.host.RequestLive()
-	} else {
-		b.liveCount--
-		if b.liveCount <= 0 {
-			b.liveCount = 0
-			b.host.DropLive()
-		}
-	}
-}
-
-// LiveCount returns b's local continuous-render request count.
-func (b *BaseRenderable) LiveCount() int { return b.liveCount }
