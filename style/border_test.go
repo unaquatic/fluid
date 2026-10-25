@@ -52,22 +52,6 @@ func TestParseBorderStyle_Invalid(t *testing.T) {
 	}
 }
 
-func TestIsValidBorderStyle(t *testing.T) {
-	valid := []string{"single", "double", "rounded", "heavy", "none"}
-	for _, s := range valid {
-		if !IsValidBorderStyle(s) {
-			t.Errorf("IsValidBorderStyle(%q) = false, want true", s)
-		}
-	}
-
-	invalid := []string{"", "bold", "Single", "DOUBLE", "dashed"}
-	for _, s := range invalid {
-		if IsValidBorderStyle(s) {
-			t.Errorf("IsValidBorderStyle(%q) = true, want false", s)
-		}
-	}
-}
-
 func TestBorderAll(t *testing.T) {
 	b := BorderAll()
 	if !b.Top || !b.Right || !b.Bottom || !b.Left {

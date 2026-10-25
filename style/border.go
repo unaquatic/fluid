@@ -49,16 +49,6 @@ func ParseBorderStyle(s string) (BorderStyle, bool) {
 	return BorderSingle, false
 }
 
-// IsValidBorderStyle reports whether s names a supported border style.
-func IsValidBorderStyle(s string) bool {
-	switch s {
-	case "single", "double", "rounded", "heavy", "none":
-		return true
-	default:
-		return false
-	}
-}
-
 // BorderSide identifies a side of a box.
 type BorderSide int
 
