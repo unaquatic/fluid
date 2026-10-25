@@ -30,7 +30,7 @@ func NewInput(opts ...InputOption) *Input {
 	// Disable wrapping and constrain the embedded editor to one row.
 	ta := NewTextarea(
 		TextareaWithWrapMode(textbuf.WrapNone),
-		TextareaWithHeight(layout.Points(1)),
+		TextareaWithLayout(layout.WithHeight(layout.Points(1))),
 	)
 
 	inp := &Input{
@@ -262,14 +262,14 @@ func InputWithID(id string) InputOption {
 	return func(inp *Input) { inp.SetID(id) }
 }
 
-// InputWithWidth sets the widget width.
-func InputWithWidth(s layout.Scalar) InputOption {
-	return func(inp *Input) { inp.LayoutNode().Width = s }
-}
-
-// InputWithHeight sets the widget height.
-func InputWithHeight(s layout.Scalar) InputOption {
-	return func(inp *Input) { inp.LayoutNode().Height = s }
+// InputWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func InputWithLayout(opts ...layout.Option) InputOption {
+	return func(w *Input) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }
 
 // InputWithKeyBindings sets custom keybinding overrides.

@@ -58,7 +58,7 @@ func main() {
     defer r.Destroy()
 
     box := widget.NewBox(
-        widget.BoxWithFlexGrow(1),
+        widget.BoxWithLayout(layout.WithFlexGrow(1)),
     )
     box.Add(widget.NewText("Hello, Fluid!"))
     r.Root().Add(box)
@@ -138,7 +138,7 @@ func runMarkdownDemo(ctx context.Context, o DemoOptions) error {
 		widget.MarkdownWithWrapMode(textbuf.WrapWord),
 	)
 	scrollBox := widget.NewScrollBox(
-		widget.ScrollBoxWithFlexGrow(1),
+		widget.ScrollBoxWithLayout(layout.WithFlexGrow(1)),
 		widget.ScrollBoxWithBorderConfig(style.BorderAll(), style.BorderSingle),
 		widget.ScrollBoxWithChildren(md),
 	)
@@ -146,21 +146,25 @@ func runMarkdownDemo(ctx context.Context, o DemoOptions) error {
 	widget.BindScrollBar(scrollBox, scrollBar)
 
 	container := widget.NewBox(
-		widget.BoxWithFlexGrow(1),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
-		widget.BoxWithPadding(layout.Points(1)),
-		widget.BoxWithGap(layout.Points(1)),
+		widget.BoxWithLayout(
+			layout.WithFlexGrow(1),
+			layout.WithFlexDirection(layout.DirectionColumn),
+			layout.WithPadding(layout.Points(1)),
+			layout.WithGap(1),
+		),
 		widget.Children(
 			widget.NewText("Markdown Viewer Demo",
-				widget.TextWithHeight(layout.Points(1)),
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 			widget.NewBox(
-				widget.BoxWithFlexGrow(1),
-				widget.BoxWithFlexDirection(layout.DirectionRow),
+				widget.BoxWithLayout(
+					layout.WithFlexGrow(1),
+					layout.WithFlexDirection(layout.DirectionRow),
+				),
 				widget.Children(scrollBox, scrollBar),
 			),
 			widget.NewText("Esc/Q: Exit | Wheel: Scroll",
-				widget.TextWithHeight(layout.Points(1)),
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 		),
 	)

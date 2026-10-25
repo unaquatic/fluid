@@ -1211,19 +1211,14 @@ func MarkdownWithID(id string) MarkdownOption {
 	return func(m *Markdown) { m.SetID(id) }
 }
 
-// MarkdownWithWidth sets the widget width.
-func MarkdownWithWidth(s layout.Scalar) MarkdownOption {
-	return func(m *Markdown) { m.LayoutNode().Width = s }
-}
-
-// MarkdownWithHeight sets the widget height.
-func MarkdownWithHeight(s layout.Scalar) MarkdownOption {
-	return func(m *Markdown) { m.LayoutNode().Height = s }
-}
-
-// MarkdownWithFlexGrow sets the flex-grow factor.
-func MarkdownWithFlexGrow(v int) MarkdownOption {
-	return func(m *Markdown) { m.LayoutNode().FlexGrow = v }
+// MarkdownWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func MarkdownWithLayout(opts ...layout.Option) MarkdownOption {
+	return func(w *Markdown) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }
 
 // markdownWithParser sets a custom markdownParser implementation.

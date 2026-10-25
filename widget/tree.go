@@ -284,12 +284,12 @@ func TreeWithID(id string) TreeOption {
 	return func(t *Tree) { t.SetID(id) }
 }
 
-// TreeWithWidth sets the widget width.
-func TreeWithWidth(s layout.Scalar) TreeOption {
-	return func(t *Tree) { t.LayoutNode().Width = s }
-}
-
-// TreeWithHeight sets the widget height.
-func TreeWithHeight(s layout.Scalar) TreeOption {
-	return func(t *Tree) { t.LayoutNode().Height = s }
+// TreeWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func TreeWithLayout(opts ...layout.Option) TreeOption {
+	return func(w *Tree) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }

@@ -307,7 +307,7 @@ func (sm *StreamMarkdown) distributeBlocks() {
 func (sm *StreamMarkdown) newChild() *Markdown {
 	opts := make([]MarkdownOption, len(sm.mdOpts))
 	copy(opts, sm.mdOpts)
-	opts = append(opts, MarkdownWithWidth(layout.Percent(100)))
+	opts = append(opts, MarkdownWithLayout(layout.WithWidth(layout.Percent(100))))
 	return NewMarkdown("", opts...)
 }
 
@@ -324,19 +324,19 @@ func StreamMarkdownWithOpts(opts ...MarkdownOption) StreamMarkdownOption {
 	return func(sm *StreamMarkdown) { sm.mdOpts = opts }
 }
 
-// StreamMarkdownWithWidth sets the widget width.
-func StreamMarkdownWithWidth(s layout.Scalar) StreamMarkdownOption {
-	return func(sm *StreamMarkdown) { sm.LayoutNode().Width = s }
-}
-
-// StreamMarkdownWithFlexGrow sets flex grow.
-func StreamMarkdownWithFlexGrow(v int) StreamMarkdownOption {
-	return func(sm *StreamMarkdown) { sm.LayoutNode().FlexGrow = v }
-}
-
 // StreamMarkdownWithID sets the widget ID.
 func StreamMarkdownWithID(id string) StreamMarkdownOption {
 	return func(sm *StreamMarkdown) { sm.SetID(id) }
+}
+
+// StreamMarkdownWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func StreamMarkdownWithLayout(opts ...layout.Option) StreamMarkdownOption {
+	return func(w *StreamMarkdown) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }
 
 // StreamMarkdownWithFg sets the foreground color on each child Markdown widget.

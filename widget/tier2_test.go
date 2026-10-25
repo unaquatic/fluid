@@ -458,9 +458,11 @@ func TestCode_Options(t *testing.T) {
 		CodeWithScrollX(0),
 		CodeWithScrollY(0),
 		CodeWithActiveLine(0),
-		CodeWithWidth(layout.Points(40)),
-		CodeWithHeight(layout.Points(10)),
-		CodeWithFlexGrow(1),
+		CodeWithLayout(
+			layout.WithWidth(layout.Points(40)),
+			layout.WithHeight(layout.Points(10)),
+			layout.WithFlexGrow(1),
+		),
 	)
 
 	if c.ID() != "code1" {
@@ -744,7 +746,7 @@ func TestMarkdown_MeasureFuncReportsLineCount(t *testing.T) {
 		lines = append(lines, fmt.Sprintf("Line %d", i))
 	}
 	m := NewMarkdown(strings.Join(lines, "\n\n"),
-		MarkdownWithWidth(layout.Points(40)),
+		MarkdownWithLayout(layout.WithWidth(layout.Points(40))),
 	)
 	// Automatic height must use the measured line count.
 
@@ -907,9 +909,11 @@ func TestMarkdown_Options(t *testing.T) {
 		MarkdownWithFg(style.ColorGreen),
 		MarkdownWithBg(style.ColorFromInts(30, 30, 30, 255)),
 		MarkdownWithWrapMode(textbuf.WrapChar),
-		MarkdownWithWidth(layout.Points(40)),
-		MarkdownWithHeight(layout.Points(10)),
-		MarkdownWithFlexGrow(1),
+		MarkdownWithLayout(
+			layout.WithWidth(layout.Points(40)),
+			layout.WithHeight(layout.Points(10)),
+			layout.WithFlexGrow(1),
+		),
 	)
 
 	if m.ID() != "md1" {
@@ -1263,9 +1267,11 @@ func TestDiff_Options(t *testing.T) {
 		DiffWithRemovedBg(style.ColorRed),
 		DiffWithContextBg(style.ColorTransparent),
 		DiffWithScrollY(0),
-		DiffWithWidth(layout.Points(40)),
-		DiffWithHeight(layout.Points(10)),
-		DiffWithFlexGrow(1),
+		DiffWithLayout(
+			layout.WithWidth(layout.Points(40)),
+			layout.WithHeight(layout.Points(10)),
+			layout.WithFlexGrow(1),
+		),
 	)
 
 	if d.ID() != "diff1" {
@@ -1492,7 +1498,7 @@ func TestLineNumber_ComputedWidth(t *testing.T) {
 		BaseRenderable: render.NewBaseRenderable(),
 		lineCount:      100,
 	}
-	ln := NewLineNumber(target, LineNumberWithWidth(layout.Points(10)))
+	ln := NewLineNumber(target, LineNumberWithLayout(layout.WithWidth(layout.Points(10))))
 	testutil.SetupWidget(ln, 10, 10)
 
 	cw := ln.ComputedWidth()
@@ -1558,8 +1564,10 @@ func TestLineNumber_Options(t *testing.T) {
 		LineNumberWithMode(LineNumberRelative),
 		LineNumberWithSeparator('│'),
 		LineNumberWithSeparatorFg(style.ColorGray),
-		LineNumberWithWidth(layout.Points(6)),
-		LineNumberWithHeight(layout.Points(10)),
+		LineNumberWithLayout(
+			layout.WithWidth(layout.Points(6)),
+			layout.WithHeight(layout.Points(10)),
+		),
 	)
 
 	if ln.ID() != "ln1" {

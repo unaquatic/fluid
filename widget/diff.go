@@ -814,8 +814,10 @@ func (d *Diff) buildUnifiedView() {
 		CodeWithTheme(d.theme),
 		CodeWithFg(d.contextFg),
 		CodeWithBg(style.ColorTransparent),
-		CodeWithWidth(layout.Percent(100)),
-		CodeWithHeight(layout.Percent(100)),
+		CodeWithLayout(
+			layout.WithWidth(layout.Percent(100)),
+			layout.WithHeight(layout.Percent(100)),
+		),
 		CodeWithScrollY(d.scrollY),
 		CodeWithScrollX(d.scrollX),
 	}
@@ -858,8 +860,10 @@ func (d *Diff) buildUnifiedView() {
 		LineNumberWithLineSigns(lineSigns),
 		LineNumberWithLineNumbers(lineNumbers),
 		LineNumberWithHideLineNumbers(hideLineNums),
-		LineNumberWithWidth(layout.Percent(100)),
-		LineNumberWithHeight(layout.Percent(100)),
+		LineNumberWithLayout(
+			layout.WithWidth(layout.Percent(100)),
+			layout.WithHeight(layout.Percent(100)),
+		),
 	)
 
 	if d.gutterSeparator {
@@ -989,19 +993,14 @@ func DiffWithID(id string) DiffOption {
 	return func(d *Diff) { d.SetID(id) }
 }
 
-// DiffWithWidth sets the widget width.
-func DiffWithWidth(s layout.Scalar) DiffOption {
-	return func(d *Diff) { d.LayoutNode().Width = s }
-}
-
-// DiffWithHeight sets the widget height.
-func DiffWithHeight(s layout.Scalar) DiffOption {
-	return func(d *Diff) { d.LayoutNode().Height = s }
-}
-
-// DiffWithFlexGrow sets the flex-grow factor.
-func DiffWithFlexGrow(v int) DiffOption {
-	return func(d *Diff) { d.LayoutNode().FlexGrow = v }
+// DiffWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func DiffWithLayout(opts ...layout.Option) DiffOption {
+	return func(w *Diff) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }
 
 // DiffWithWrapMode sets the content wrapping mode; the default is textbuf.WrapWord.

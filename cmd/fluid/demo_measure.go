@@ -33,8 +33,10 @@ func runMeasureDemo(ctx context.Context, o DemoOptions) error {
 		widget.TextareaWithText("Type here and watch the box grow.\nAdd more lines with Enter!"),
 		widget.TextareaWithWrapMode(textbuf.WrapWord),
 		widget.TextareaWithShowCursor(true),
-		widget.TextareaWithHeight(layout.Auto()),
-		widget.TextareaWithMaxHeight(layout.Points(10)),
+		widget.TextareaWithLayout(
+			layout.WithHeight(layout.Auto()),
+			layout.WithMaxHeight(layout.Points(10)),
+		),
 	)
 
 	fixedTA := widget.NewTextarea(
@@ -42,7 +44,7 @@ func runMeasureDemo(ctx context.Context, o DemoOptions) error {
 		widget.TextareaWithText("This textarea has a fixed height of 5 lines.\nIt scrolls when content exceeds the viewport.\nLine 3\nLine 4\nLine 5\nLine 6 (scroll to see)"),
 		widget.TextareaWithWrapMode(textbuf.WrapWord),
 		widget.TextareaWithShowCursor(true),
-		widget.TextareaWithHeight(layout.Points(5)),
+		widget.TextareaWithLayout(layout.WithHeight(layout.Points(5))),
 	)
 
 	autoTA := widget.NewTextarea(
@@ -50,13 +52,15 @@ func runMeasureDemo(ctx context.Context, o DemoOptions) error {
 		widget.TextareaWithText("short"),
 		widget.TextareaWithWrapMode(textbuf.WrapNone),
 		widget.TextareaWithShowCursor(true),
-		widget.TextareaWithWidth(layout.Auto()),
-		widget.TextareaWithHeight(layout.Auto()),
-		widget.TextareaWithMaxHeight(layout.Points(8)),
+		widget.TextareaWithLayout(
+			layout.WithWidth(layout.Auto()),
+			layout.WithHeight(layout.Auto()),
+			layout.WithMaxHeight(layout.Points(8)),
+		),
 	)
 
 	statusText := widget.NewText("",
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 	)
 
 	autoHeightBox := widget.NewBox(
@@ -64,7 +68,7 @@ func runMeasureDemo(ctx context.Context, o DemoOptions) error {
 		widget.BoxWithBorder(style.BorderAll()),
 		widget.BoxWithBorderStyle(style.BorderSingle),
 		widget.BoxWithTitle("Auto Height"),
-		widget.BoxWithPadding(layout.Points(1)),
+		widget.BoxWithLayout(layout.WithPadding(layout.Points(1))),
 		widget.Children(autoHeightTA),
 	)
 	fixedBox := widget.NewBox(
@@ -72,7 +76,7 @@ func runMeasureDemo(ctx context.Context, o DemoOptions) error {
 		widget.BoxWithBorder(style.BorderAll()),
 		widget.BoxWithBorderStyle(style.BorderSingle),
 		widget.BoxWithTitle("Fixed Height"),
-		widget.BoxWithPadding(layout.Points(1)),
+		widget.BoxWithLayout(layout.WithPadding(layout.Points(1))),
 		widget.Children(fixedTA),
 	)
 	autoBox := widget.NewBox(
@@ -80,34 +84,36 @@ func runMeasureDemo(ctx context.Context, o DemoOptions) error {
 		widget.BoxWithBorder(style.BorderAll()),
 		widget.BoxWithBorderStyle(style.BorderSingle),
 		widget.BoxWithTitle("Auto Width + Height"),
-		widget.BoxWithPadding(layout.Points(1)),
+		widget.BoxWithLayout(layout.WithPadding(layout.Points(1))),
 		widget.Children(autoTA),
 	)
 
 	container := widget.NewBox(
 		widget.BoxWithID("container"),
-		widget.BoxWithFlexGrow(1),
-		widget.BoxWithPadding(layout.Points(1)),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
-		widget.BoxWithGap(layout.Points(1)),
+		widget.BoxWithLayout(
+			layout.WithFlexGrow(1),
+			layout.WithPadding(layout.Points(1)),
+			layout.WithFlexDirection(layout.DirectionColumn),
+			layout.WithGap(1),
+		),
 		widget.Children(
 			widget.NewText("MeasureFunc Demo - Textarea Intrinsic Sizing",
-				widget.TextWithHeight(layout.Points(1)),
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 			widget.NewText("Auto Height (grows with content, max 10 lines):",
-				widget.TextWithHeight(layout.Points(1)),
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 			autoHeightBox,
 			widget.NewText("Fixed Height (5 lines, scrolls when content overflows):",
-				widget.TextWithHeight(layout.Points(1)),
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 			fixedBox,
 			widget.NewText("Auto Width + Height (no wrap, sizes to content):",
-				widget.TextWithHeight(layout.Points(1)),
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 			autoBox,
 			widget.NewText("Esc/Q: Exit | Tab: Cycle focus",
-				widget.TextWithHeight(layout.Points(1)),
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 			statusText,
 		),

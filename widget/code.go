@@ -925,19 +925,14 @@ func CodeWithID(id string) CodeOption {
 	return func(c *Code) { c.SetID(id) }
 }
 
-// CodeWithWidth sets the widget width.
-func CodeWithWidth(s layout.Scalar) CodeOption {
-	return func(c *Code) { c.LayoutNode().Width = s }
-}
-
-// CodeWithHeight sets the widget height.
-func CodeWithHeight(s layout.Scalar) CodeOption {
-	return func(c *Code) { c.LayoutNode().Height = s }
-}
-
-// CodeWithFlexGrow sets the flex-grow factor.
-func CodeWithFlexGrow(v int) CodeOption {
-	return func(c *Code) { c.LayoutNode().FlexGrow = v }
+// CodeWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func CodeWithLayout(opts ...layout.Option) CodeOption {
+	return func(w *Code) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }
 
 // CodeWithConceal controls whether concealed text is hidden; the default is true.

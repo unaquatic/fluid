@@ -55,7 +55,7 @@ func runSelectDemo(ctx context.Context, o DemoOptions) error {
 	}
 	sel := widget.NewSelect(selectOptions,
 		widget.SelectWithShowDescription(true),
-		widget.SelectWithFlexGrow(1),
+		widget.SelectWithLayout(layout.WithFlexGrow(1)),
 	)
 
 	detailName := widget.NewText("Language")
@@ -63,53 +63,61 @@ func runSelectDemo(ctx context.Context, o DemoOptions) error {
 	detailTab := widget.NewText("Tab: General")
 
 	selectBox := widget.NewBox(
-		widget.BoxWithFlexGrow(1),
+		widget.BoxWithLayout(
+			layout.WithFlexGrow(1),
+			layout.WithFlexDirection(layout.DirectionColumn),
+		),
 		widget.BoxWithBorder(style.BorderAll()),
 		widget.BoxWithBorderStyle(style.BorderSingle),
 		widget.BoxWithTitle("Options"),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
 		widget.Children(sel),
 	)
 	detailBox := widget.NewBox(
-		widget.BoxWithFlexGrow(1),
+		widget.BoxWithLayout(
+			layout.WithFlexGrow(1),
+			layout.WithFlexDirection(layout.DirectionColumn),
+			layout.WithPadding(layout.Points(1)),
+			layout.WithGap(1),
+		),
 		widget.BoxWithBorder(style.BorderAll()),
 		widget.BoxWithBorderStyle(style.BorderSingle),
 		widget.BoxWithTitle("Details"),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
-		widget.BoxWithPadding(layout.Points(1)),
-		widget.BoxWithGap(layout.Points(1)),
 		widget.Children(
 			detailName,
 			detailDesc,
-			widget.NewText("", widget.TextWithHeight(layout.Points(1))),
+			widget.NewText("", widget.TextWithLayout(layout.WithHeight(layout.Points(1)))),
 			detailTab,
 		),
 	)
 
 	container := widget.NewBox(
-		widget.BoxWithFlexGrow(1),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
-		widget.BoxWithPadding(layout.Points(1)),
-		widget.BoxWithGap(layout.Points(1)),
+		widget.BoxWithLayout(
+			layout.WithFlexGrow(1),
+			layout.WithFlexDirection(layout.DirectionColumn),
+			layout.WithPadding(layout.Points(1)),
+			layout.WithGap(1),
+		),
 		widget.Children(
 			widget.NewText("Select & TabSelect Demo",
-				widget.TextWithHeight(layout.Points(1)),
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 			widget.NewBox(
 				widget.BoxWithBorder(style.BorderSides(style.SideBottom)),
 				widget.BoxWithBorderStyle(style.BorderSingle),
-				widget.BoxWithHeight(layout.Points(3)),
+				widget.BoxWithLayout(layout.WithHeight(layout.Points(3))),
 				widget.Children(tabs),
 			),
 			widget.NewBox(
-				widget.BoxWithFlexGrow(1),
-				widget.BoxWithFlexDirection(layout.DirectionRow),
-				widget.BoxWithGap(layout.Points(2)),
+				widget.BoxWithLayout(
+					layout.WithFlexGrow(1),
+					layout.WithFlexDirection(layout.DirectionRow),
+					layout.WithGap(2),
+				),
 				widget.Children(selectBox, detailBox),
 			),
 			widget.NewText(
 				"Esc/Q: Exit | Tab: Switch focus | Up/Down: Navigate | Left/Right: Tabs | Enter: Select",
-				widget.TextWithHeight(layout.Points(1)),
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 		),
 	)

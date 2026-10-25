@@ -127,9 +127,11 @@ func TestText_Options(t *testing.T) {
 		TextWithWrapMode(textbuf.WrapWord),
 		TextWithTruncate(true),
 		TextWithSelectable(true),
-		TextWithWidth(layout.Points(20)),
-		TextWithHeight(layout.Points(5)),
-		TextWithFlexGrow(1),
+		TextWithLayout(
+			layout.WithWidth(layout.Points(20)),
+			layout.WithHeight(layout.Points(5)),
+			layout.WithFlexGrow(1),
+		),
 	)
 
 	if txt.ID() != "my-text" {

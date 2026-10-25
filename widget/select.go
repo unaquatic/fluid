@@ -497,19 +497,14 @@ func SelectWithID(id string) SelectOption {
 	return func(s *Select) { s.SetID(id) }
 }
 
-// SelectWithWidth sets the widget width.
-func SelectWithWidth(w layout.Scalar) SelectOption {
-	return func(s *Select) { s.LayoutNode().Width = w }
-}
-
-// SelectWithHeight sets the widget height.
-func SelectWithHeight(h layout.Scalar) SelectOption {
-	return func(s *Select) { s.LayoutNode().Height = h }
-}
-
-// SelectWithFlexGrow sets the flex-grow factor.
-func SelectWithFlexGrow(v int) SelectOption {
-	return func(s *Select) { s.LayoutNode().FlexGrow = v }
+// SelectWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func SelectWithLayout(opts ...layout.Option) SelectOption {
+	return func(w *Select) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }
 
 // SetHeight sets the select widget height dynamically after construction.

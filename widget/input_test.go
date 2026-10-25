@@ -195,7 +195,7 @@ func TestInput_Options(t *testing.T) {
 		InputWithFg(style.ColorRed),
 		InputWithBg(style.ColorBlue),
 		InputWithCursorColor(style.ColorGreen),
-		InputWithWidth(layout.Points(30)),
+		InputWithLayout(layout.WithWidth(layout.Points(30))),
 	)
 
 	if inp.ID() != "my-input" {

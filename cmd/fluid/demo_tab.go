@@ -35,45 +35,53 @@ func runTabDemo(ctx context.Context, o DemoOptions) error {
 		widget.CodeWithFiletype("go"),
 		widget.CodeWithTheme(style.DarculaSolid()),
 		widget.CodeWithWrapMode(textbuf.WrapWord),
-		widget.CodeWithFlexGrow(1),
+		widget.CodeWithLayout(layout.WithFlexGrow(1)),
 	)
 
 	ta := widget.NewTextarea(
 		widget.TextareaWithText("Line 1\n\tIndented once\n\t\tIndented twice\n\t\t\tIndented thrice\nNo indent\n\tMixed:\ttwo\ttabs\n"),
-		widget.TextareaWithFlexGrow(1),
+		widget.TextareaWithLayout(layout.WithFlexGrow(1)),
 		widget.TextareaWithWrapMode(textbuf.WrapWord),
 	)
 
 	statusText := widget.NewText(
 		fmt.Sprintf("Tab width: %d | Esc/Q: Exit | T: Cycle 2/4/8", tabWidth),
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 	)
 
 	container := widget.NewBox(
-		widget.BoxWithFlexGrow(1),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
-		widget.BoxWithPadding(layout.Points(1)),
-		widget.BoxWithGap(layout.Points(1)),
+		widget.BoxWithLayout(
+			layout.WithFlexGrow(1),
+			layout.WithFlexDirection(layout.DirectionColumn),
+			layout.WithPadding(layout.Points(1)),
+			layout.WithGap(1),
+		),
 		widget.Children(
 			widget.NewText("Tab Handling Demo",
-				widget.TextWithHeight(layout.Points(1)),
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 			widget.NewBox(
-				widget.BoxWithFlexGrow(1),
-				widget.BoxWithFlexDirection(layout.DirectionRow),
-				widget.BoxWithGap(layout.Points(1)),
+				widget.BoxWithLayout(
+					layout.WithFlexGrow(1),
+					layout.WithFlexDirection(layout.DirectionRow),
+					layout.WithGap(1),
+				),
 				widget.Children(
 					widget.NewBox(
-						widget.BoxWithFlexGrow(1),
-						widget.BoxWithFlexDirection(layout.DirectionColumn),
+						widget.BoxWithLayout(
+							layout.WithFlexGrow(1),
+							layout.WithFlexDirection(layout.DirectionColumn),
+						),
 						widget.BoxWithBorder(style.BorderAll()),
 						widget.BoxWithBorderStyle(style.BorderSingle),
 						widget.BoxWithTitle("Code (read-only)"),
 						widget.Children(codeWidget),
 					),
 					widget.NewBox(
-						widget.BoxWithFlexGrow(1),
-						widget.BoxWithFlexDirection(layout.DirectionColumn),
+						widget.BoxWithLayout(
+							layout.WithFlexGrow(1),
+							layout.WithFlexDirection(layout.DirectionColumn),
+						),
 						widget.BoxWithBorder(style.BorderAll()),
 						widget.BoxWithBorderStyle(style.BorderSingle),
 						widget.BoxWithTitle("Textarea (editable)"),

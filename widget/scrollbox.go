@@ -63,7 +63,7 @@ type ScrollBoxOption func(*ScrollBox)
 // NewScrollBox returns a clipping, scrollable Box with optional configuration.
 func NewScrollBox(opts ...ScrollBoxOption) *ScrollBox {
 	sb := &ScrollBox{
-		Box:        NewBox(BoxWithOverflow(layout.OverflowHidden)),
+		Box:        NewBox(BoxWithLayout(layout.WithOverflow(layout.OverflowHidden))),
 		autoScroll: AutoScrollNone,
 	}
 
@@ -752,24 +752,14 @@ func ScrollBoxWithID(id string) ScrollBoxOption {
 	return func(sb *ScrollBox) { sb.SetID(id) }
 }
 
-// ScrollBoxWithWidth sets the widget width.
-func ScrollBoxWithWidth(s layout.Scalar) ScrollBoxOption {
-	return func(sb *ScrollBox) { sb.LayoutNode().Width = s }
-}
-
-// ScrollBoxWithHeight sets the widget height.
-func ScrollBoxWithHeight(s layout.Scalar) ScrollBoxOption {
-	return func(sb *ScrollBox) { sb.LayoutNode().Height = s }
-}
-
-// ScrollBoxWithFlexDirection sets the flex direction.
-func ScrollBoxWithFlexDirection(d layout.FlexDirection) ScrollBoxOption {
-	return func(sb *ScrollBox) { sb.LayoutNode().FlexDirection = d }
-}
-
-// ScrollBoxWithFlexGrow sets flex grow.
-func ScrollBoxWithFlexGrow(v int) ScrollBoxOption {
-	return func(sb *ScrollBox) { sb.LayoutNode().FlexGrow = v }
+// ScrollBoxWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func ScrollBoxWithLayout(opts ...layout.Option) ScrollBoxOption {
+	return func(w *ScrollBox) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }
 
 // ScrollBoxWithFocusable controls whether the scrollbox can receive keyboard navigation.

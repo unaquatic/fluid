@@ -38,9 +38,11 @@ func TestNewBox_WithOptions(t *testing.T) {
 		BoxWithTitle("My Box"),
 		BoxWithTitleAlignment(layout.TextAlignCenter),
 		BoxWithFocusedBorderColor(style.ColorGreen),
-		BoxWithGap(layout.Points(2)),
-		BoxWithWidth(layout.Points(20)),
-		BoxWithHeight(layout.Points(10)),
+		BoxWithLayout(
+			layout.WithGap(2),
+			layout.WithWidth(layout.Points(20)),
+			layout.WithHeight(layout.Points(10)),
+		),
 	)
 
 	if b.ID() != "test-box" {
@@ -219,7 +221,7 @@ func TestBox_Children_WithOtherOptions(t *testing.T) {
 	b := NewBox(
 		BoxWithID("combo"),
 		BoxWithBg(style.ColorRed),
-		BoxWithFlexDirection(layout.DirectionRow),
+		BoxWithLayout(layout.WithFlexDirection(layout.DirectionRow)),
 		Children(txt),
 	)
 
@@ -236,12 +238,10 @@ func TestBox_Children_WithOtherOptions(t *testing.T) {
 
 func TestBox_Children_RendersCorrectly(t *testing.T) {
 	txt := NewText("Hi",
-		TextWithWidth(layout.Points(10)),
-		TextWithHeight(layout.Points(1)),
+		TextWithLayout(layout.WithWidth(layout.Points(10)), layout.WithHeight(layout.Points(1))),
 	)
 	b := NewBox(
-		BoxWithWidth(layout.Points(10)),
-		BoxWithHeight(layout.Points(1)),
+		BoxWithLayout(layout.WithWidth(layout.Points(10)), layout.WithHeight(layout.Points(1))),
 		Children(txt),
 	)
 

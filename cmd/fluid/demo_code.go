@@ -132,7 +132,7 @@ func runCodeDemo(ctx context.Context, o DemoOptions) error {
 		widget.CodeWithFiletype("go"),
 		widget.CodeWithTheme(style.DarculaSolid()),
 		widget.CodeWithWrapMode(textbuf.WrapNone),
-		widget.CodeWithFlexGrow(1),
+		widget.CodeWithLayout(layout.WithFlexGrow(1)),
 		widget.CodeWithActiveLine(0),
 	)
 	lineNumbers := widget.NewLineNumber(codeWidget)
@@ -140,21 +140,25 @@ func runCodeDemo(ctx context.Context, o DemoOptions) error {
 	wrapMode := textbuf.WrapNone
 	statusText := widget.NewText(
 		"Wrap: OFF | Esc/Q: Exit | Wheel/Up/Down: Scroll | W: Toggle wrap",
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 	)
 
 	container := widget.NewBox(
-		widget.BoxWithFlexGrow(1),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
-		widget.BoxWithPadding(layout.Points(1)),
-		widget.BoxWithGap(layout.Points(1)),
+		widget.BoxWithLayout(
+			layout.WithFlexGrow(1),
+			layout.WithFlexDirection(layout.DirectionColumn),
+			layout.WithPadding(layout.Points(1)),
+			layout.WithGap(1),
+		),
 		widget.Children(
 			widget.NewText("Code Viewer Demo — Go Syntax Highlighting",
-				widget.TextWithHeight(layout.Points(1)),
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 			widget.NewBox(
-				widget.BoxWithFlexGrow(1),
-				widget.BoxWithFlexDirection(layout.DirectionRow),
+				widget.BoxWithLayout(
+					layout.WithFlexGrow(1),
+					layout.WithFlexDirection(layout.DirectionRow),
+				),
 				widget.BoxWithBorder(style.BorderAll()),
 				widget.BoxWithBorderStyle(style.BorderSingle),
 				widget.BoxWithTitle("main.go"),

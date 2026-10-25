@@ -46,7 +46,7 @@ func main() {
 	}
 
 	r.Root().Add(widget.NewBox(
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
+		widget.BoxWithLayout(layout.WithFlexDirection(layout.DirectionColumn)),
 		widget.BoxWithBorder(style.BorderAll()),
 		widget.BoxWithBorderStyle(style.BorderSingle),
 		widget.Children(

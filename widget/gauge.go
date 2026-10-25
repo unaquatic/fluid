@@ -154,17 +154,12 @@ func GaugeWithID(id string) GaugeOption {
 	return func(g *Gauge) { g.SetID(id) }
 }
 
-// GaugeWithWidth sets the widget width.
-func GaugeWithWidth(s layout.Scalar) GaugeOption {
-	return func(g *Gauge) { g.LayoutNode().Width = s }
-}
-
-// GaugeWithHeight sets the widget height.
-func GaugeWithHeight(s layout.Scalar) GaugeOption {
-	return func(g *Gauge) { g.LayoutNode().Height = s }
-}
-
-// GaugeWithFlexGrow sets the flex-grow factor.
-func GaugeWithFlexGrow(v int) GaugeOption {
-	return func(g *Gauge) { g.LayoutNode().FlexGrow = v }
+// GaugeWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func GaugeWithLayout(opts ...layout.Option) GaugeOption {
+	return func(w *Gauge) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }

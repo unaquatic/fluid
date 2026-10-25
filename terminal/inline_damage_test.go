@@ -617,7 +617,7 @@ func TestInlineDamage_InsertDamagesTheNewRowsOnly(t *testing.T) {
 // confine the repaint to the rows that actually changed.
 func TestInlineDamage_ContainerGrowthDamagesItsWholeRect(t *testing.T) {
 	container := widget.NewBox(widget.BoxWithID("transcript"),
-		widget.BoxWithFlexDirection(layout.DirectionColumn))
+		widget.BoxWithLayout(layout.WithFlexDirection(layout.DirectionColumn)))
 	bubbles := make([]*glyphRow, 0, 10)
 	for i := range 10 {
 		b := newGlyphRow(string(rune('a'+i)), rune('a'+i), 39, 2)
@@ -702,8 +702,10 @@ func TestInlineDamage_AncestorsAddNoDamage(t *testing.T) {
 // full for every token, which forces a rewrite of the whole scrollback.
 func TestInlineDamage_DeepChangeStaysAtTheChange(t *testing.T) {
 	bubble := widget.NewBox(widget.BoxWithID("bubble"),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
-		widget.BoxWithFlexShrink(0))
+		widget.BoxWithLayout(
+			layout.WithFlexDirection(layout.DirectionColumn),
+			layout.WithFlexShrink(0),
+		))
 	parts := make([]*glyphRow, 0, 5)
 	for i := range 5 {
 		p := newGlyphRow(string(rune('a'+i)), rune('a'+i), 39, 4)
@@ -768,9 +770,11 @@ func TestInlineDamage_WalksFollowEverythingBelowAChange(t *testing.T) {
 // them may keep the geometry of the previous frame.
 func TestInlineDamage_CentredContainerIsNotPruned(t *testing.T) {
 	box := widget.NewBox(widget.BoxWithID("centred"),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
-		widget.BoxWithJustifyContent(layout.JustifyCenter),
-		widget.BoxWithHeight(layout.Points(10)))
+		widget.BoxWithLayout(
+			layout.WithFlexDirection(layout.DirectionColumn),
+			layout.WithJustifyContent(layout.JustifyCenter),
+			layout.WithHeight(layout.Points(10)),
+		))
 	a := newGlyphRow("a", 'a', 39, 2)
 	b := newGlyphRow("b", 'b', 39, 2)
 	box.Add(a)

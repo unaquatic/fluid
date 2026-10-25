@@ -45,7 +45,7 @@ func runDashboardDemo(ctx context.Context, o DemoOptions) error {
 		{Text: "Processes"},
 		{Text: "Services"},
 		{Text: "Security"},
-	}, widget.ListWithFlexGrow(1))
+	}, widget.ListWithLayout(layout.WithFlexGrow(1)))
 
 	type metricGauge struct {
 		label string
@@ -63,19 +63,21 @@ func runDashboardDemo(ctx context.Context, o DemoOptions) error {
 	for i := range gauges {
 		g := widget.NewGauge(
 			widget.GaugeWithValue(gauges[i].base),
-			widget.GaugeWithFlexGrow(1),
+			widget.GaugeWithLayout(layout.WithFlexGrow(1)),
 		)
 		gauges[i].gauge = g
 
 		gaugeLines[i] = widget.NewBox(
-			widget.BoxWithFlexDirection(layout.DirectionRow),
-			widget.BoxWithHeight(layout.Points(1)),
-			widget.BoxWithGap(layout.Points(1)),
-			widget.BoxWithAlignItems(layout.AlignCenter),
+			widget.BoxWithLayout(
+				layout.WithFlexDirection(layout.DirectionRow),
+				layout.WithHeight(layout.Points(1)),
+				layout.WithAlignItems(layout.AlignCenter),
+				layout.WithGap(1),
+			),
 			widget.Children(
 				widget.NewText(
 					fmt.Sprintf("%-4s", gauges[i].label),
-					widget.TextWithWidth(layout.Points(5)),
+					widget.TextWithLayout(layout.WithWidth(layout.Points(5))),
 				),
 				g,
 			),
@@ -88,7 +90,7 @@ func runDashboardDemo(ctx context.Context, o DemoOptions) error {
 	}
 	sparkline := widget.NewSparkline(initialData,
 		widget.SparklineWithMaxValue(1.0),
-		widget.SparklineWithFlexGrow(1),
+		widget.SparklineWithLayout(layout.WithFlexGrow(1)),
 	)
 
 	eventsTable := widget.NewTable(
@@ -110,87 +112,105 @@ func runDashboardDemo(ctx context.Context, o DemoOptions) error {
 			{"13:50", "Metrics exported", "OK"},
 		},
 		widget.TableWithStripedRows(true),
-		widget.TableWithFlexGrow(1),
+		widget.TableWithLayout(layout.WithFlexGrow(1)),
 	)
 
 	footerUptime := widget.NewText("")
 
 	sidebarBox := widget.NewBox(
-		widget.BoxWithWidth(layout.Points(20)),
+		widget.BoxWithLayout(
+			layout.WithWidth(layout.Points(20)),
+			layout.WithFlexDirection(layout.DirectionColumn),
+			layout.WithPadding(layout.Points(1)),
+			layout.WithGap(1),
+		),
 		widget.BoxWithBorder(style.BorderSides(style.SideRight)),
 		widget.BoxWithBorderStyle(style.BorderSingle),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
-		widget.BoxWithPadding(layout.Points(1)),
-		widget.BoxWithGap(layout.Points(1)),
 		widget.Children(
-			widget.NewText("Navigation", widget.TextWithHeight(layout.Points(1))),
+			widget.NewText("Navigation", widget.TextWithLayout(layout.WithHeight(layout.Points(1)))),
 			sidebarList,
 		),
 	)
 
 	sparkPanel := widget.NewBox(
-		widget.BoxWithFlexGrow(1),
+		widget.BoxWithLayout(
+			layout.WithFlexGrow(1),
+			layout.WithFlexDirection(layout.DirectionColumn),
+			layout.WithPadding(layout.Points(1)),
+		),
 		widget.BoxWithBorder(style.BorderAll()),
 		widget.BoxWithBorderStyle(style.BorderSingle),
 		widget.BoxWithTitle("CPU History"),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
-		widget.BoxWithPadding(layout.Points(1)),
 		widget.Children(sparkline),
 	)
 
 	tablePanel := widget.NewBox(
-		widget.BoxWithFlexGrow(1),
+		widget.BoxWithLayout(
+			layout.WithFlexGrow(1),
+			layout.WithFlexDirection(layout.DirectionColumn),
+		),
 		widget.BoxWithBorder(style.BorderAll()),
 		widget.BoxWithBorderStyle(style.BorderSingle),
 		widget.BoxWithTitle("Recent Events"),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
 		widget.Children(eventsTable),
 	)
 
 	gaugeRowChildren := []render.Renderable{
-		widget.NewText("System Metrics", widget.TextWithHeight(layout.Points(1))),
+		widget.NewText("System Metrics", widget.TextWithLayout(layout.WithHeight(layout.Points(1)))),
 	}
 	gaugeRowChildren = append(gaugeRowChildren, gaugeLines...)
 
 	outer := widget.NewBox(
-		widget.BoxWithFlexGrow(1),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
+		widget.BoxWithLayout(
+			layout.WithFlexGrow(1),
+			layout.WithFlexDirection(layout.DirectionColumn),
+		),
 		widget.Children(
 			widget.NewBox(
-				widget.BoxWithHeight(layout.Points(3)),
+				widget.BoxWithLayout(
+					layout.WithHeight(layout.Points(3)),
+					layout.WithFlexDirection(layout.DirectionRow),
+					layout.WithAlignItems(layout.AlignCenter),
+					layout.WithPadding(layout.Points(1)),
+					layout.WithGap(2),
+				),
 				widget.BoxWithBorder(style.BorderSides(style.SideBottom)),
 				widget.BoxWithBorderStyle(style.BorderSingle),
-				widget.BoxWithFlexDirection(layout.DirectionRow),
-				widget.BoxWithAlignItems(layout.AlignCenter),
-				widget.BoxWithPadding(layout.Points(1)),
-				widget.BoxWithGap(layout.Points(2)),
 				widget.Children(
-					widget.NewText("Dashboard", widget.TextWithWidth(layout.Points(12))),
+					widget.NewText("Dashboard", widget.TextWithLayout(layout.WithWidth(layout.Points(12)))),
 					tabs,
 				),
 			),
 
 			widget.NewBox(
-				widget.BoxWithFlexGrow(1),
-				widget.BoxWithFlexDirection(layout.DirectionRow),
+				widget.BoxWithLayout(
+					layout.WithFlexGrow(1),
+					layout.WithFlexDirection(layout.DirectionRow),
+				),
 				widget.Children(
 					sidebarBox,
 					widget.NewBox(
-						widget.BoxWithFlexGrow(1),
-						widget.BoxWithFlexDirection(layout.DirectionColumn),
-						widget.BoxWithPadding(layout.Points(1)),
-						widget.BoxWithGap(layout.Points(1)),
+						widget.BoxWithLayout(
+							layout.WithFlexGrow(1),
+							layout.WithFlexDirection(layout.DirectionColumn),
+							layout.WithPadding(layout.Points(1)),
+							layout.WithGap(1),
+						),
 						widget.Children(
 							widget.NewBox(
-								widget.BoxWithFlexDirection(layout.DirectionColumn),
-								widget.BoxWithGap(layout.Points(1)),
+								widget.BoxWithLayout(
+									layout.WithFlexDirection(layout.DirectionColumn),
+									layout.WithGap(1),
+								),
 								widget.Children(gaugeRowChildren...),
 							),
 
 							widget.NewBox(
-								widget.BoxWithFlexGrow(1),
-								widget.BoxWithFlexDirection(layout.DirectionRow),
-								widget.BoxWithGap(layout.Points(2)),
+								widget.BoxWithLayout(
+									layout.WithFlexGrow(1),
+									layout.WithFlexDirection(layout.DirectionRow),
+									layout.WithGap(2),
+								),
 								widget.Children(sparkPanel, tablePanel),
 							),
 						),
@@ -199,9 +219,11 @@ func runDashboardDemo(ctx context.Context, o DemoOptions) error {
 			),
 
 			widget.NewBox(
-				widget.BoxWithHeight(layout.Points(1)),
-				widget.BoxWithFlexDirection(layout.DirectionRow),
-				widget.BoxWithJustifyContent(layout.JustifySpaceBetween),
+				widget.BoxWithLayout(
+					layout.WithHeight(layout.Points(1)),
+					layout.WithFlexDirection(layout.DirectionRow),
+					layout.WithJustifyContent(layout.JustifySpaceBetween),
+				),
 				widget.Children(
 					widget.NewText(" Connected"),
 					footerUptime,

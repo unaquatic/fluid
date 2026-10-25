@@ -231,8 +231,10 @@ func TestGoldenSeq_BoxFocusBorderColor(t *testing.T) {
 		widget.BoxWithBorderStyle(style.BorderSingle),
 		widget.BoxWithBorderColor(style.ColorWhite),
 		widget.BoxWithFocusedBorderColor(style.ColorGreen),
-		widget.BoxWithWidth(layout.Points(10)),
-		widget.BoxWithHeight(layout.Points(3)),
+		widget.BoxWithLayout(
+			layout.WithWidth(layout.Points(10)),
+			layout.WithHeight(layout.Points(3)),
+		),
 	)
 	box.SetFocusable(true)
 	testutil.SetupWidget(box, 10, 3)

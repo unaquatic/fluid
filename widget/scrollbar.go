@@ -239,6 +239,16 @@ func ScrollBarWithID(id string) ScrollBarOption {
 	return func(sb *ScrollBar) { sb.SetID(id) }
 }
 
+// ScrollBarWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func ScrollBarWithLayout(opts ...layout.Option) ScrollBarOption {
+	return func(w *ScrollBar) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
+}
+
 // BindScrollBar keeps scrollBar synchronized with scrollBox's vertical state.
 // It installs a hook on scrollBox that updates scrollBar after every render.
 func BindScrollBar(scrollBox *ScrollBox, scrollBar *ScrollBar) {

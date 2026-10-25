@@ -995,24 +995,14 @@ func TextWithID(id string) TextOption {
 	return func(t *Text) { t.SetID(id) }
 }
 
-// TextWithWidth sets the widget width.
-func TextWithWidth(s layout.Scalar) TextOption {
-	return func(t *Text) { t.LayoutNode().Width = s }
-}
-
-// TextWithHeight sets the widget height.
-func TextWithHeight(s layout.Scalar) TextOption {
-	return func(t *Text) { t.LayoutNode().Height = s }
-}
-
-// TextWithFlexGrow sets the flex-grow factor.
-func TextWithFlexGrow(v int) TextOption {
-	return func(t *Text) { t.LayoutNode().FlexGrow = v }
-}
-
-// TextWithFlexShrink sets the flex-shrink factor.
-func TextWithFlexShrink(v int) TextOption {
-	return func(t *Text) { t.LayoutNode().FlexShrink = v }
+// TextWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func TextWithLayout(opts ...layout.Option) TextOption {
+	return func(w *Text) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }
 
 // TextWithScrollX sets the initial horizontal scroll offset.

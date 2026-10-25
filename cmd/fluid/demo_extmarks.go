@@ -49,32 +49,33 @@ func runExtmarksDemo(ctx context.Context, o DemoOptions) error {
 		widget.TextareaWithText(extmarksInitialContent),
 		widget.TextareaWithWrapMode(textbuf.WrapWord),
 		widget.TextareaWithShowCursor(true),
-		widget.TextareaWithFlexGrow(1),
+		widget.TextareaWithLayout(layout.WithFlexGrow(1)),
 	)
 	helpText := widget.NewText(
 		"Esc/Q: Exit | Arrows: Move | Shift+Opt+Arrow: Select word | Ctrl+L: Add marker | Ctrl+D/K: Delete/Clear",
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 	)
 	statusText := widget.NewText("",
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 	)
 	debugText := widget.NewText("Press any key to see raw input...",
-		widget.TextWithHeight(layout.Points(2)),
+		widget.TextWithLayout(layout.WithHeight(layout.Points(2))),
 	)
 
 	container := widget.NewBox(
 		widget.BoxWithID("container"),
-		widget.BoxWithFlexGrow(1),
-		widget.BoxWithPadding(layout.Points(1)),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
+		widget.BoxWithLayout(
+			layout.WithFlexGrow(1),
+			layout.WithPadding(layout.Points(1)),
+			layout.WithFlexDirection(layout.DirectionColumn),
+		),
 		widget.Children(
 			widget.NewBox(
 				widget.BoxWithID("editor-box"),
 				widget.BoxWithBorder(style.BorderAll()),
 				widget.BoxWithBorderStyle(style.BorderSingle),
 				widget.BoxWithTitle("Extmarks Demo"),
-				widget.BoxWithPadding(layout.Points(1)),
-				widget.BoxWithFlexGrow(1),
+				widget.BoxWithLayout(layout.WithPadding(layout.Points(1)), layout.WithFlexGrow(1)),
 				widget.Children(editor),
 			),
 			helpText,

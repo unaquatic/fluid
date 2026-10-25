@@ -176,7 +176,7 @@ func runColorsDemo(ctx context.Context, o DemoOptions) error {
 		widget.TextWithWrapMode(textbuf.WrapNone),
 	)
 	scrollBox := widget.NewScrollBox(
-		widget.ScrollBoxWithFlexGrow(1),
+		widget.ScrollBoxWithLayout(layout.WithFlexGrow(1)),
 		widget.ScrollBoxWithBorderConfig(style.BorderAll(), style.BorderSingle),
 		widget.ScrollBoxWithChildren(palettes),
 	)
@@ -186,21 +186,25 @@ func runColorsDemo(ctx context.Context, o DemoOptions) error {
 	header := fmt.Sprintf("Colors demo | mode: %s (set with FLUID_COLOR=truecolor, 256 or 16)",
 		ColorModeName(r.ColorMode()))
 	container := widget.NewBox(
-		widget.BoxWithFlexGrow(1),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
-		widget.BoxWithPadding(layout.Points(1)),
-		widget.BoxWithGap(layout.Points(1)),
+		widget.BoxWithLayout(
+			layout.WithFlexGrow(1),
+			layout.WithFlexDirection(layout.DirectionColumn),
+			layout.WithPadding(layout.Points(1)),
+			layout.WithGap(1),
+		),
 		widget.Children(
 			widget.NewText(header,
-				widget.TextWithHeight(layout.Points(1)),
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 			widget.NewBox(
-				widget.BoxWithFlexGrow(1),
-				widget.BoxWithFlexDirection(layout.DirectionRow),
+				widget.BoxWithLayout(
+					layout.WithFlexGrow(1),
+					layout.WithFlexDirection(layout.DirectionRow),
+				),
 				widget.Children(scrollBox, scrollBar),
 			),
 			widget.NewText("Esc/Q: Exit | Wheel/Arrows/PgUp/PgDn: Scroll",
-				widget.TextWithHeight(layout.Points(1)),
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 		),
 	)

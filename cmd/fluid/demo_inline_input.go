@@ -40,35 +40,35 @@ func runInlineInputDemo(ctx context.Context, o DemoOptions) error {
 
 	helpText := widget.NewText(
 		" Esc: Exit | Alt+Enter: Send",
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 	)
 	root.Add(helpText)
 
 	msgBox := widget.NewBox(
 		widget.BoxWithID("messages"),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
+		widget.BoxWithLayout(layout.WithFlexDirection(layout.DirectionColumn)),
 	)
 	root.Add(msgBox)
 
 	sep := widget.NewText(
 		"─────────────────────────────────────────────────",
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 	)
 	root.Add(sep)
 
 	inputRow := widget.NewBox(
-		widget.BoxWithFlexDirection(layout.DirectionRow),
+		widget.BoxWithLayout(layout.WithFlexDirection(layout.DirectionRow)),
 	)
 
 	inputRow.Add(widget.NewText(
 		" > ",
-		widget.TextWithWidth(layout.Points(4)),
+		widget.TextWithLayout(layout.WithWidth(layout.Points(4))),
 	))
 
 	ta := widget.NewTextarea(
 		widget.TextareaWithPlaceholder("Type a message... (Enter=newline, Alt+Enter=send)"),
 		widget.TextareaWithBg(style.ColorTransparent),
-		widget.TextareaWithWidth(layout.Percent(100)),
+		widget.TextareaWithLayout(layout.WithWidth(layout.Percent(100))),
 		widget.TextareaWithWrapMode(textbuf.WrapWord),
 	)
 	inputRow.Add(ta)

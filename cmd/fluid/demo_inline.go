@@ -31,7 +31,7 @@ func runInlineDemo(ctx context.Context, o DemoOptions) error {
 
 	outer := widget.NewBox(
 		widget.BoxWithID("outer"),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
+		widget.BoxWithLayout(layout.WithFlexDirection(layout.DirectionColumn)),
 		widget.Children(
 			widget.NewBox(
 				widget.BoxWithBorder(style.BorderAll()),
@@ -43,7 +43,7 @@ func runInlineDemo(ctx context.Context, o DemoOptions) error {
 
 			widget.NewText(
 				" Esc/Q: Exit | A: Add line | D: Delete",
-				widget.TextWithHeight(layout.Points(1)),
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 		),
 	)
@@ -54,7 +54,7 @@ func runInlineDemo(ctx context.Context, o DemoOptions) error {
 		widget.BoxWithBorder(style.BorderAll()),
 		widget.BoxWithBorderStyle(style.BorderSingle),
 		widget.BoxWithTitle("Content"),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
+		widget.BoxWithLayout(layout.WithFlexDirection(layout.DirectionColumn)),
 	)
 	root.Add(contentBox)
 
@@ -63,7 +63,7 @@ func runInlineDemo(ctx context.Context, o DemoOptions) error {
 		lineCount++
 		t := widget.NewText(
 			fmt.Sprintf("  Line %d — added at %s", lineCount, time.Now().Format("15:04:05")),
-			widget.TextWithHeight(layout.Points(1)),
+			widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 		)
 		contentBox.Add(t)
 		r.RequestRender()

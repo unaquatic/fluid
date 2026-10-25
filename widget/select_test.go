@@ -242,8 +242,7 @@ func TestSelect_Options(t *testing.T) {
 		SelectWithShowScrollIndicator(false),
 		SelectWithWrapSelection(false),
 		SelectWithShowDescription(false),
-		SelectWithWidth(layout.Points(20)),
-		SelectWithHeight(layout.Points(5)),
+		SelectWithLayout(layout.WithWidth(layout.Points(20)), layout.WithHeight(layout.Points(5))),
 	)
 
 	if s.ID() != "my-select" {

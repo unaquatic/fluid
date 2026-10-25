@@ -9,7 +9,8 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// Box lays out child renderables with optional borders, background fill, and gaps.
+// Box lays out child renderables with optional borders and background fill.
+// BoxWithLayout sets its layout, such as the gaps between its children.
 type Box struct {
 	*render.BaseRenderable
 
@@ -21,9 +22,6 @@ type Box struct {
 	title              string
 	titleAlignment     layout.Alignment
 	focusedBorderColor style.Color
-	gap                layout.Scalar
-	rowGap             layout.Scalar
-	columnGap          layout.Scalar
 }
 
 // BoxOption configures a Box during construction.
@@ -50,9 +48,6 @@ func NewBox(opts ...BoxOption) *Box {
 
 	// Keep children inside every active border side.
 	b.applyBorderPadding()
-
-	// Resolve the general and axis-specific gap options after all options run.
-	b.applyGap()
 
 	return b
 }
@@ -81,22 +76,6 @@ func (b *Box) applyBorderPadding() {
 		if pr, ok := ln.PaddingRight.Resolve(0); !ok || pr < 1 {
 			ln.PaddingRight = layout.Points(1)
 		}
-	}
-}
-
-// applyGap copies resolved gap options to the layout node.
-func (b *Box) applyGap() {
-	ln := b.LayoutNode()
-	if g, ok := b.gap.Resolve(0); ok {
-		ln.Gap = g
-		ln.RowGap = g
-		ln.ColumnGap = g
-	}
-	if g, ok := b.rowGap.Resolve(0); ok {
-		ln.RowGap = g
-	}
-	if g, ok := b.columnGap.Resolve(0); ok {
-		ln.ColumnGap = g
 	}
 }
 
@@ -182,15 +161,6 @@ func (b *Box) Title() string { return b.title }
 // TitleAlignment returns where Title sits along the top border.
 func (b *Box) TitleAlignment() layout.Alignment { return b.titleAlignment }
 
-// Gap returns the gap between children on both axes.
-func (b *Box) Gap() layout.Scalar { return b.gap }
-
-// RowGap returns the vertical gap between children, which overrides Gap.
-func (b *Box) RowGap() layout.Scalar { return b.rowGap }
-
-// ColumnGap returns the horizontal gap between children, which overrides Gap.
-func (b *Box) ColumnGap() layout.Scalar { return b.columnGap }
-
 // SetBg fills the box with c, as BoxWithBg does, and requests a frame.
 func (b *Box) SetBg(c style.Color) {
 	b.backgroundColor = c
@@ -243,32 +213,6 @@ func (b *Box) SetTitle(t string) {
 // requests a frame.
 func (b *Box) SetTitleAlignment(a layout.Alignment) {
 	b.titleAlignment = a
-	b.RequestRender()
-}
-
-// SetGap sets the gap between children on both axes and lays the box out
-// again.
-func (b *Box) SetGap(g layout.Scalar) {
-	b.gap = g
-	b.applyGap()
-	b.LayoutNode().MarkDirty()
-	b.RequestRender()
-}
-
-// SetRowGap sets the vertical gap between children and lays the box out again.
-func (b *Box) SetRowGap(g layout.Scalar) {
-	b.rowGap = g
-	b.applyGap()
-	b.LayoutNode().MarkDirty()
-	b.RequestRender()
-}
-
-// SetColumnGap sets the horizontal gap between children and lays the box out
-// again.
-func (b *Box) SetColumnGap(g layout.Scalar) {
-	b.columnGap = g
-	b.applyGap()
-	b.LayoutNode().MarkDirty()
 	b.RequestRender()
 }
 
@@ -331,27 +275,6 @@ func BoxWithShouldFill(v bool) BoxOption {
 	}
 }
 
-// BoxWithGap sets both row and column gaps between children.
-func BoxWithGap(g layout.Scalar) BoxOption {
-	return func(b *Box) {
-		b.gap = g
-	}
-}
-
-// BoxWithRowGap sets the vertical gap between children.
-func BoxWithRowGap(g layout.Scalar) BoxOption {
-	return func(b *Box) {
-		b.rowGap = g
-	}
-}
-
-// BoxWithColumnGap sets the horizontal gap between children.
-func BoxWithColumnGap(g layout.Scalar) BoxOption {
-	return func(b *Box) {
-		b.columnGap = g
-	}
-}
-
 // Box layout options.
 
 // BoxWithID sets the widget ID.
@@ -359,110 +282,20 @@ func BoxWithID(id string) BoxOption {
 	return func(b *Box) { b.SetID(id) }
 }
 
-// BoxWithWidth sets the widget width.
-func BoxWithWidth(s layout.Scalar) BoxOption {
-	return func(b *Box) { b.LayoutNode().Width = s }
-}
-
-// BoxWithHeight sets the widget height.
-func BoxWithHeight(s layout.Scalar) BoxOption {
-	return func(b *Box) { b.LayoutNode().Height = s }
-}
-
-// BoxWithMinHeight sets the minimum height.
-func BoxWithMinHeight(s layout.Scalar) BoxOption {
-	return func(b *Box) { b.LayoutNode().MinHeight = s }
-}
-
-// BoxWithFlexGrow sets the flex-grow factor.
-func BoxWithFlexGrow(v int) BoxOption {
-	return func(b *Box) { b.LayoutNode().FlexGrow = v }
-}
-
-// BoxWithFlexShrink sets the flex-shrink factor.
-func BoxWithFlexShrink(v int) BoxOption {
-	return func(b *Box) { b.LayoutNode().FlexShrink = v }
-}
-
-// BoxWithFlexDirection sets the flex direction.
-func BoxWithFlexDirection(d layout.FlexDirection) BoxOption {
-	return func(b *Box) { b.LayoutNode().FlexDirection = d }
-}
-
-// BoxWithJustifyContent sets how children are distributed along the main axis.
-func BoxWithJustifyContent(j layout.JustifyContent) BoxOption {
-	return func(b *Box) { b.LayoutNode().JustifyContent = j }
-}
-
-// BoxWithAlignItems sets how children align along the cross axis.
-func BoxWithAlignItems(a layout.Align) BoxOption {
-	return func(b *Box) { b.LayoutNode().AlignItems = a }
-}
-
-// BoxWithPadding sets padding on all sides.
-func BoxWithPadding(s layout.Scalar) BoxOption {
-	return func(b *Box) { b.LayoutNode().SetPadding(s) }
-}
-
-// BoxWithMargin sets the margin on all sides.
-func BoxWithMargin(s layout.Scalar) BoxOption {
-	return func(b *Box) { b.LayoutNode().SetMargin(s) }
-}
-
-// BoxWithMarginTop sets the top margin.
-func BoxWithMarginTop(s layout.Scalar) BoxOption {
-	return func(b *Box) { b.LayoutNode().MarginTop = s }
-}
-
-// BoxWithMarginRight sets the right margin.
-func BoxWithMarginRight(s layout.Scalar) BoxOption {
-	return func(b *Box) { b.LayoutNode().MarginRight = s }
-}
-
-// BoxWithMarginBottom sets the bottom margin.
-func BoxWithMarginBottom(s layout.Scalar) BoxOption {
-	return func(b *Box) { b.LayoutNode().MarginBottom = s }
-}
-
-// BoxWithMarginLeft sets the left margin.
-func BoxWithMarginLeft(s layout.Scalar) BoxOption {
-	return func(b *Box) { b.LayoutNode().MarginLeft = s }
-}
-
-// BoxWithFlexBasis sets the flex basis.
-func BoxWithFlexBasis(s layout.Scalar) BoxOption {
-	return func(b *Box) { b.LayoutNode().FlexBasis = s }
-}
-
-// BoxWithPaddingTop sets the top padding.
-func BoxWithPaddingTop(s layout.Scalar) BoxOption {
-	return func(b *Box) { b.LayoutNode().PaddingTop = s }
-}
-
-// BoxWithPaddingRight sets the right padding.
-func BoxWithPaddingRight(s layout.Scalar) BoxOption {
-	return func(b *Box) { b.LayoutNode().PaddingRight = s }
-}
-
-// BoxWithPaddingBottom sets the bottom padding.
-func BoxWithPaddingBottom(s layout.Scalar) BoxOption {
-	return func(b *Box) { b.LayoutNode().PaddingBottom = s }
-}
-
-// BoxWithPaddingLeft sets the left padding.
-func BoxWithPaddingLeft(s layout.Scalar) BoxOption {
-	return func(b *Box) { b.LayoutNode().PaddingLeft = s }
-}
-
-// BoxWithOverflow sets the overflow mode.
-func BoxWithOverflow(o layout.Overflow) BoxOption {
-	return func(b *Box) { b.LayoutNode().Overflow = o }
+// BoxWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func BoxWithLayout(opts ...layout.Option) BoxOption {
+	return func(w *Box) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }
 
 // Children adds non-nil child renderables to a Box during construction.
 //
 //	widget.NewBox(
-//	    widget.BoxWithFlexDirection(layout.DirectionRow),
+//	    widget.BoxWithLayout(layout.WithFlexDirection(layout.DirectionRow)),
 //	    widget.Children(
 //	        widget.NewText("Hello"),
 //	        widget.NewGauge(),

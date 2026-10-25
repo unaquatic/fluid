@@ -637,12 +637,12 @@ func LineNumberWithID(id string) LineNumberOption {
 	return func(ln *LineNumber) { ln.SetID(id) }
 }
 
-// LineNumberWithWidth sets the widget width.
-func LineNumberWithWidth(s layout.Scalar) LineNumberOption {
-	return func(ln *LineNumber) { ln.LayoutNode().Width = s }
-}
-
-// LineNumberWithHeight sets the widget height.
-func LineNumberWithHeight(s layout.Scalar) LineNumberOption {
-	return func(ln *LineNumber) { ln.LayoutNode().Height = s }
+// LineNumberWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func LineNumberWithLayout(opts ...layout.Option) LineNumberOption {
+	return func(w *LineNumber) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }

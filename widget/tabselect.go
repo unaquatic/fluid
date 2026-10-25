@@ -320,12 +320,12 @@ func TabSelectWithID(id string) TabSelectOption {
 	return func(ts *TabSelect) { ts.SetID(id) }
 }
 
-// TabSelectWithWidth sets the widget width.
-func TabSelectWithWidth(s layout.Scalar) TabSelectOption {
-	return func(ts *TabSelect) { ts.LayoutNode().Width = s }
-}
-
-// TabSelectWithHeight sets the widget height.
-func TabSelectWithHeight(s layout.Scalar) TabSelectOption {
-	return func(ts *TabSelect) { ts.LayoutNode().Height = s }
+// TabSelectWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func TabSelectWithLayout(opts ...layout.Option) TabSelectOption {
+	return func(w *TabSelect) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }

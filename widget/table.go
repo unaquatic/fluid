@@ -258,17 +258,12 @@ func TableWithID(id string) TableOption {
 	return func(t *Table) { t.SetID(id) }
 }
 
-// TableWithWidth sets the widget width.
-func TableWithWidth(s layout.Scalar) TableOption {
-	return func(t *Table) { t.LayoutNode().Width = s }
-}
-
-// TableWithHeight sets the widget height.
-func TableWithHeight(s layout.Scalar) TableOption {
-	return func(t *Table) { t.LayoutNode().Height = s }
-}
-
-// TableWithFlexGrow sets the flex-grow factor.
-func TableWithFlexGrow(v int) TableOption {
-	return func(t *Table) { t.LayoutNode().FlexGrow = v }
+// TableWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func TableWithLayout(opts ...layout.Option) TableOption {
+	return func(w *Table) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }

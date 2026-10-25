@@ -200,17 +200,12 @@ func ListWithID(id string) ListOption {
 	return func(l *List) { l.SetID(id) }
 }
 
-// ListWithWidth sets the widget width.
-func ListWithWidth(s layout.Scalar) ListOption {
-	return func(l *List) { l.LayoutNode().Width = s }
-}
-
-// ListWithHeight sets the widget height.
-func ListWithHeight(s layout.Scalar) ListOption {
-	return func(l *List) { l.LayoutNode().Height = s }
-}
-
-// ListWithFlexGrow sets the flex-grow factor.
-func ListWithFlexGrow(v int) ListOption {
-	return func(l *List) { l.LayoutNode().FlexGrow = v }
+// ListWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func ListWithLayout(opts ...layout.Option) ListOption {
+	return func(w *List) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }

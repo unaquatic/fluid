@@ -16,16 +16,20 @@ func growStream(t *testing.T, startRows, addRows int) {
 	r := benchInlineRenderer(width, height)
 
 	filler := widget.NewBox(widget.BoxWithID("filler"),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
-		widget.BoxWithFlexShrink(0))
+		widget.BoxWithLayout(
+			layout.WithFlexDirection(layout.DirectionColumn),
+			layout.WithFlexShrink(0),
+		))
 	for i := range startRows {
 		filler.Add(newGlyphRow(fmt.Sprintf("f%d", i), 'f', width-3, 1))
 	}
 	r.root.Add(filler)
 
 	bubble := widget.NewBox(widget.BoxWithID("bubble"),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
-		widget.BoxWithFlexShrink(0))
+		widget.BoxWithLayout(
+			layout.WithFlexDirection(layout.DirectionColumn),
+			layout.WithFlexShrink(0),
+		))
 	r.root.Add(bubble)
 	r.root.Add(render.NewBaseRenderable(render.WithID("prompt"),
 		render.WithWidth(layout.Points(width-1)), render.WithHeight(layout.Points(3))))

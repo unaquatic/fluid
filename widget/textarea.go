@@ -1559,29 +1559,14 @@ func TextareaWithID(id string) TextareaOption {
 	return func(ta *Textarea) { ta.SetID(id) }
 }
 
-// TextareaWithWidth sets the widget width.
-func TextareaWithWidth(s layout.Scalar) TextareaOption {
-	return func(ta *Textarea) { ta.LayoutNode().Width = s }
-}
-
-// TextareaWithHeight sets the widget height.
-func TextareaWithHeight(s layout.Scalar) TextareaOption {
-	return func(ta *Textarea) { ta.LayoutNode().Height = s }
-}
-
-// TextareaWithFlexGrow sets the flex-grow factor.
-func TextareaWithFlexGrow(v int) TextareaOption {
-	return func(ta *Textarea) { ta.LayoutNode().FlexGrow = v }
-}
-
-// TextareaWithMinHeight sets the minimum height constraint.
-func TextareaWithMinHeight(s layout.Scalar) TextareaOption {
-	return func(ta *Textarea) { ta.LayoutNode().MinHeight = s }
-}
-
-// TextareaWithMaxHeight sets the maximum height constraint.
-func TextareaWithMaxHeight(s layout.Scalar) TextareaOption {
-	return func(ta *Textarea) { ta.LayoutNode().MaxHeight = s }
+// TextareaWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func TextareaWithLayout(opts ...layout.Option) TextareaOption {
+	return func(w *Textarea) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }
 
 // TextareaWithDefaultAttributes sets the default text attributes (bold, italic, etc.).

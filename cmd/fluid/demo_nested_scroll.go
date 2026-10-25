@@ -29,24 +29,24 @@ func runNestedScrollDemo(ctx context.Context, o DemoOptions) error {
 
 	root := r.Root()
 
-	leftContent := widget.NewBox(widget.BoxWithFlexDirection(layout.DirectionColumn))
+	leftContent := widget.NewBox(widget.BoxWithLayout(layout.WithFlexDirection(layout.DirectionColumn)))
 	for i := 1; i <= 40; i++ {
 		leftContent.Add(widget.NewText(
 			fmt.Sprintf("Left panel line %d", i),
-			widget.TextWithHeight(layout.Points(1)),
+			widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 		))
 	}
 
-	rightContent := widget.NewBox(widget.BoxWithFlexDirection(layout.DirectionColumn))
+	rightContent := widget.NewBox(widget.BoxWithLayout(layout.WithFlexDirection(layout.DirectionColumn)))
 	for i := 1; i <= 40; i++ {
 		rightContent.Add(widget.NewText(
 			fmt.Sprintf("Right panel line %d", i),
-			widget.TextWithHeight(layout.Points(1)),
+			widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 		))
 	}
 
 	leftScroll := widget.NewScrollBox(
-		widget.ScrollBoxWithFlexGrow(1),
+		widget.ScrollBoxWithLayout(layout.WithFlexGrow(1)),
 		widget.ScrollBoxWithBorderConfig(style.BorderAll(), style.BorderSingle),
 		widget.ScrollBoxWithChildren(leftContent),
 	)
@@ -54,7 +54,7 @@ func runNestedScrollDemo(ctx context.Context, o DemoOptions) error {
 	widget.BindScrollBar(leftScroll, leftSB)
 
 	rightScroll := widget.NewScrollBox(
-		widget.ScrollBoxWithFlexGrow(1),
+		widget.ScrollBoxWithLayout(layout.WithFlexGrow(1)),
 		widget.ScrollBoxWithBorderConfig(style.BorderAll(), style.BorderSingle),
 		widget.ScrollBoxWithChildren(rightContent),
 	)
@@ -103,7 +103,7 @@ Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor i
 		widget.MarkdownWithWrapMode(textbuf.WrapWord),
 	)
 	mdScroll := widget.NewScrollBox(
-		widget.ScrollBoxWithFlexGrow(1),
+		widget.ScrollBoxWithLayout(layout.WithFlexGrow(1)),
 		widget.ScrollBoxWithBorderConfig(style.BorderAll(), style.BorderSingle),
 		widget.ScrollBoxWithChildren(md),
 	)
@@ -114,7 +114,7 @@ Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor i
 	for i := 1; i <= 20; i++ {
 		section4Lines = append(section4Lines, widget.NewText(
 			fmt.Sprintf("  Bottom line %d — scroll down in the outer ScrollBox to see more", i),
-			widget.TextWithHeight(layout.Points(1)),
+			widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 		))
 	}
 
@@ -122,51 +122,54 @@ Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor i
 	for i := 1; i <= 5; i++ {
 		section1Lines = append(section1Lines, widget.NewText(
 			fmt.Sprintf("  Outer line %d — this content scrolls in the outer ScrollBox", i),
-			widget.TextWithHeight(layout.Points(1)),
+			widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 		))
 	}
 
 	outerContentChildren := []render.Renderable{
 		widget.NewText("Section 1 — Top of outer scroll",
-			widget.TextWithHeight(layout.Points(1)),
+			widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 		),
 	}
 	outerContentChildren = append(outerContentChildren, section1Lines...)
 	outerContentChildren = append(outerContentChildren,
 		widget.NewText("Section 2 — Inner scroll panels (scroll independently)",
-			widget.TextWithHeight(layout.Points(1)),
+			widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 		),
 		widget.NewBox(
-			widget.BoxWithFlexDirection(layout.DirectionRow),
-			widget.BoxWithHeight(layout.Points(12)),
-			widget.BoxWithGap(layout.Points(2)),
+			widget.BoxWithLayout(
+				layout.WithFlexDirection(layout.DirectionRow),
+				layout.WithHeight(layout.Points(12)),
+				layout.WithGap(2),
+			),
 			widget.Children(
 				newFlexPanel(leftScroll, leftSB),
 				newFlexPanel(rightScroll, rightSB),
 			),
 		),
 		widget.NewText("Section 3 — Markdown in a ScrollBox",
-			widget.TextWithHeight(layout.Points(1)),
+			widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 		),
 		widget.NewBox(
-			widget.BoxWithHeight(layout.Points(15)),
-			widget.BoxWithFlexDirection(layout.DirectionRow),
+			widget.BoxWithLayout(
+				layout.WithHeight(layout.Points(15)),
+				layout.WithFlexDirection(layout.DirectionRow),
+			),
 			widget.Children(mdScroll, mdSB),
 		),
 		widget.NewText("Section 4 — Below the nested scrolls",
-			widget.TextWithHeight(layout.Points(1)),
+			widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 		),
 	)
 	outerContentChildren = append(outerContentChildren, section4Lines...)
 
 	outerContent := widget.NewBox(
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
-		widget.BoxWithGap(layout.Points(1)),
+		widget.BoxWithLayout(layout.WithFlexDirection(layout.DirectionColumn), layout.WithGap(1)),
 		widget.Children(outerContentChildren...),
 	)
 
 	outerScroll := widget.NewScrollBox(
-		widget.ScrollBoxWithFlexGrow(1),
+		widget.ScrollBoxWithLayout(layout.WithFlexGrow(1)),
 		widget.ScrollBoxWithBorderConfig(style.BorderAll(), style.BorderSingle),
 		widget.ScrollBoxWithChildren(outerContent),
 	)
@@ -174,24 +177,28 @@ Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor i
 	widget.BindScrollBar(outerScroll, outerSB)
 
 	container := widget.NewBox(
-		widget.BoxWithFlexGrow(1),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
-		widget.BoxWithPadding(layout.Points(1)),
-		widget.BoxWithGap(layout.Points(1)),
+		widget.BoxWithLayout(
+			layout.WithFlexGrow(1),
+			layout.WithFlexDirection(layout.DirectionColumn),
+			layout.WithPadding(layout.Points(1)),
+			layout.WithGap(1),
+		),
 		widget.Children(
 			widget.NewText("Nested Scroll Demo",
-				widget.TextWithHeight(layout.Points(1)),
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 			widget.NewText("Scroll inner panels independently. Events bubble to outer when at boundary.",
-				widget.TextWithHeight(layout.Points(1)),
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 			widget.NewBox(
-				widget.BoxWithFlexGrow(1),
-				widget.BoxWithFlexDirection(layout.DirectionRow),
+				widget.BoxWithLayout(
+					layout.WithFlexGrow(1),
+					layout.WithFlexDirection(layout.DirectionRow),
+				),
 				widget.Children(outerScroll, outerSB),
 			),
 			widget.NewText("Esc/Q: Exit | Wheel: Scroll (inner first, then outer)",
-				widget.TextWithHeight(layout.Points(1)),
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 		),
 	)
@@ -212,9 +219,11 @@ Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor i
 // newFlexPanel returns an equal-width row containing a scroll box and scroll bar.
 func newFlexPanel(scroll *widget.ScrollBox, sb *widget.ScrollBar) *widget.Box {
 	panel := widget.NewBox(
-		widget.BoxWithFlexGrow(1),
-		widget.BoxWithFlexBasis(layout.Points(0)),
-		widget.BoxWithFlexDirection(layout.DirectionRow),
+		widget.BoxWithLayout(
+			layout.WithFlexGrow(1),
+			layout.WithFlexBasis(layout.Points(0)),
+			layout.WithFlexDirection(layout.DirectionRow),
+		),
 		widget.Children(scroll, sb),
 	)
 	return panel
