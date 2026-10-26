@@ -4,7 +4,7 @@
 
 **Do exactly what was asked. Nothing more.**
 
-- Finish **only** the requested task. Do not "improve" adjacent code, rename things, reformat unrelated files, add tests, or fix unrelated bugs you notice along the way.
+- Finish **only** the requested task. Do not "improve" adjacent code, rename things, reformat unrelated files, or fix unrelated bugs you notice along the way.
 - **A question is not an instruction to act.** "which is better?", "how does X work?", "does Y do Z?", "what changed?", "wtf is this?" — all of these mean *answer only*. Do not edit files, create files, or run mutating commands. Reply, then wait for a separate instruction.
 - If you notice something else that is wrong, **report it — do not fix it.** Mention it and wait.
 - **The moment you hit a blocker, an ambiguity, a design decision, or anything out of scope: STOP and ask a question.** Do not guess. Do not pick "the reasonable default" and keep going.
