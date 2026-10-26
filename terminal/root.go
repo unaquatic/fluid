@@ -97,10 +97,13 @@ func (r *RootRenderable) PrepareLayout(deltaTime time.Duration) FrameStats {
 }
 
 // SyncPositions copies prepared layout into resolved geometry and runs
-// post-layout hooks. Call it after PrepareLayout and before Damage or Draw.
+// post-layout hooks. Call it after PrepareLayout and before TakeDamage or Draw.
 //
-// It always walks the complete scene. Skipping a subtree would leave stale
-// geometry behind and hide the damage a moved renderable causes.
+// It skips only subtrees whose geometry cannot have changed: in a container
+// that stayed in place and lays out its children from the start of its main
+// axis, the unchanged children before the first changed one, since a change
+// cannot move the children before it. It also does not descend into hidden or
+// destroyed renderables, or below a renderable that a clipping container hides.
 func (r *RootRenderable) SyncPositions(deltaTime time.Duration) FrameStats {
 	t0 := time.Now()
 	nodeCount := 0
