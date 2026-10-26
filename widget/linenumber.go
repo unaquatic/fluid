@@ -68,6 +68,12 @@ type LineColorConfig struct {
 // LineNumber draws a gutter synchronized with a target renderable.
 // It supports wrapped and relative numbering, active-line styles, signs,
 // custom numbers, and per-line gutter or content backgrounds.
+//
+// Without an explicit width, the gutter is as wide as its numbers. The target
+// changes its line count without the gutter knowing, so only drawing finds a
+// new width: when the count gains a digit, as from 999 lines to 1000, one
+// frame draws the numbers cut off at the old width, and the next frame lays
+// the gutter out at the new one.
 type LineNumber struct {
 	*render.BaseRenderable
 
