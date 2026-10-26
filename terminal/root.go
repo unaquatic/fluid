@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"slices"
 	"time"
 
 	"github.com/unaquatic/fluid/buffer"
@@ -13,7 +14,7 @@ import (
 type RootRenderable struct {
 	*render.BaseRenderable
 
-	lifecyclePasses map[uint64]render.Renderable // Renderables with lifecycle callbacks.
+	lifecyclePasses []*lifecyclePass // Functions run before each layout.
 
 	// LastFrameStats contains measurements from the most recent frame.
 	LastFrameStats FrameStats
@@ -22,8 +23,7 @@ type RootRenderable struct {
 // NewRootRenderable returns a scene root sized to the viewport.
 func NewRootRenderable(width, height int) *RootRenderable {
 	r := &RootRenderable{
-		BaseRenderable:  render.NewBaseRenderable(render.WithID("root")),
-		lifecyclePasses: make(map[uint64]render.Renderable),
+		BaseRenderable: render.NewBaseRenderable(render.WithID("root")),
 	}
 
 	// The root is a column that exactly fills the viewport.
@@ -36,15 +36,23 @@ func NewRootRenderable(width, height int) *RootRenderable {
 	return r
 }
 
-// RegisterLifecyclePass adds renderable to the per-frame lifecycle pass.
-func (r *RootRenderable) RegisterLifecyclePass(renderable render.Renderable) {
-	r.lifecyclePasses[renderable.Num()] = renderable
+// lifecyclePass holds a function run before each layout by pointer, which
+// identifies it for removal, as function values cannot be compared.
+type lifecyclePass struct {
+	fn func()
 }
 
-// UnregisterLifecyclePass removes the renderable identified by num from the
-// lifecycle pass.
-func (r *RootRenderable) UnregisterLifecyclePass(num uint64) {
-	delete(r.lifecyclePasses, num)
+// AddLifecyclePass runs fn before each layout and returns a function that
+// removes it.
+func (r *RootRenderable) AddLifecyclePass(fn func()) (remove func()) {
+	p := &lifecyclePass{fn: fn}
+	r.lifecyclePasses = append(r.lifecyclePasses, p)
+	return func() {
+		// Removing from a copy leaves intact the slice that a running pass
+		// ranges over.
+		r.lifecyclePasses = slices.DeleteFunc(slices.Clone(r.lifecyclePasses),
+			func(x *lifecyclePass) bool { return x == p })
+	}
 }
 
 // Render executes these root rendering passes:
@@ -76,14 +84,9 @@ func (r *RootRenderable) Render(buf *buffer.Buffer, deltaTime time.Duration) {
 func (r *RootRenderable) PrepareLayout(deltaTime time.Duration) FrameStats {
 	t0 := time.Now()
 
-	// Run registered lifecycle hooks before layout.
-	for _, renderable := range r.lifecyclePasses {
-		if renderable.IsDestroyed() {
-			continue
-		}
-		if br, ok := renderable.(*render.BaseRenderable); ok && br.OnLifecyclePass != nil {
-			br.OnLifecyclePass()
-		}
+	// Run the lifecycle passes before layout.
+	for _, p := range r.lifecyclePasses {
+		p.fn()
 	}
 	t1 := time.Now()
 

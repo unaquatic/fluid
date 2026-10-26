@@ -74,37 +74,29 @@ func TestRootRenderable_LifecyclePass(t *testing.T) {
 	root.SetHost(&mockHost{hitGrid: NewHitGrid(80, 24)})
 
 	lifecycleCalled := false
-	child := render.NewBaseRenderable(render.WithID("child"))
-	child.OnLifecyclePass = func() { lifecycleCalled = true }
-	root.Add(child)
-
-	root.RegisterLifecyclePass(child)
+	root.AddLifecyclePass(func() { lifecycleCalled = true })
 
 	buf := buffer.New(80, 24)
 	root.Render(buf, 16*time.Millisecond)
 
 	if !lifecycleCalled {
-		t.Error("expected lifecycle pass to call OnLifecyclePass")
+		t.Error("expected the lifecycle pass to run")
 	}
 }
 
-func TestRootRenderable_UnregisterLifecyclePass(t *testing.T) {
+func TestRootRenderable_RemoveLifecyclePass(t *testing.T) {
 	root := NewRootRenderable(80, 24)
 	root.SetHost(&mockHost{hitGrid: NewHitGrid(80, 24)})
 
 	lifecycleCalled := false
-	child := render.NewBaseRenderable(render.WithID("child"))
-	child.OnLifecyclePass = func() { lifecycleCalled = true }
-	root.Add(child)
-
-	root.RegisterLifecyclePass(child)
-	root.UnregisterLifecyclePass(child.Num())
+	remove := root.AddLifecyclePass(func() { lifecycleCalled = true })
+	remove()
 
 	buf := buffer.New(80, 24)
 	root.Render(buf, 16*time.Millisecond)
 
 	if lifecycleCalled {
-		t.Error("expected lifecycle pass NOT to call after unregister")
+		t.Error("expected a removed lifecycle pass not to run")
 	}
 }
 

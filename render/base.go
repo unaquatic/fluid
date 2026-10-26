@@ -263,9 +263,6 @@ type BaseRenderable struct {
 	RenderBeforeHook func(*buffer.Buffer, time.Duration)
 	// RenderAfterHook runs after RenderSelf, with the same arguments.
 	RenderAfterHook func(*buffer.Buffer, time.Duration)
-	// OnLifecyclePass runs before each layout once the renderable is
-	// registered with the root's RegisterLifecyclePass.
-	OnLifecyclePass func()
 }
 
 // Verify that BaseRenderable implements Renderable.
