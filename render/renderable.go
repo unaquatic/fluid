@@ -116,9 +116,13 @@ type Renderable interface {
 	// RenderSelf draws the renderable's own content and is the primary widget
 	// override point.
 	RenderSelf(buf *buffer.Buffer, deltaTime time.Duration)
-	// RenderBefore draws content that must precede RenderSelf.
+	// RenderBefore runs the renderable's RenderBeforeHook. Render runs the hook
+	// itself and never calls RenderBefore, so overriding it changes nothing
+	// Render draws.
 	RenderBefore(buf *buffer.Buffer, deltaTime time.Duration)
-	// RenderAfter draws overlays or decorations after the renderable's content.
+	// RenderAfter runs the renderable's RenderAfterHook. Render runs the hook
+	// itself and never calls RenderAfter, so overriding it changes nothing
+	// Render draws.
 	RenderAfter(buf *buffer.Buffer, deltaTime time.Duration)
 
 	// Focus and keyboard input.
@@ -159,7 +163,9 @@ type Renderable interface {
 
 	// Lifecycle.
 
-	// OnUpdate runs before layout for each frame in which the widget is updated.
+	// OnUpdate is never called by the renderer, so overriding it has no
+	// effect. Work that must run before each layout belongs in a lifecycle
+	// pass, which the root's AddLifecyclePass adds.
 	OnUpdate(deltaTime time.Duration)
 	// OnPostLayout runs after layout and before rendering.
 	OnPostLayout(deltaTime time.Duration)

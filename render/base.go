@@ -681,14 +681,16 @@ func (b *BaseRenderable) renderContent(buf *buffer.Buffer, deltaTime time.Durati
 // RenderSelf is the widget content override point. The default does nothing.
 func (b *BaseRenderable) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {}
 
-// RenderBefore calls RenderBeforeHook when it is set.
+// RenderBefore calls RenderBeforeHook when it is set. Render runs the hook
+// itself and never calls RenderBefore.
 func (b *BaseRenderable) RenderBefore(buf *buffer.Buffer, deltaTime time.Duration) {
 	if b.RenderBeforeHook != nil {
 		b.RenderBeforeHook(buf, deltaTime)
 	}
 }
 
-// RenderAfter calls RenderAfterHook when it is set.
+// RenderAfter calls RenderAfterHook when it is set. Render runs the hook
+// itself and never calls RenderAfter.
 func (b *BaseRenderable) RenderAfter(buf *buffer.Buffer, deltaTime time.Duration) {
 	if b.RenderAfterHook != nil {
 		b.RenderAfterHook(buf, deltaTime)
@@ -811,7 +813,7 @@ func (b *BaseRenderable) SelectedText() string { return "" }
 // HasSelection reports false by default.
 func (b *BaseRenderable) HasSelection() bool { return false }
 
-// OnUpdate runs before layout and does nothing by default.
+// OnUpdate does nothing. The renderer never calls it.
 func (b *BaseRenderable) OnUpdate(deltaTime time.Duration) {}
 
 // OnPostLayout runs after layout and does nothing by default.
