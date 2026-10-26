@@ -143,7 +143,7 @@ func TestBuildKeyBindingsMap_WithAliases(t *testing.T) {
 }
 
 func TestResolveAction(t *testing.T) {
-	m := map[string]string{
+	m := map[string]Action{
 		"up":     "move-up",
 		"ctrl+a": "select-all",
 		"return": "submit",
@@ -151,7 +151,7 @@ func TestResolveAction(t *testing.T) {
 
 	tests := []struct {
 		ev     KeyEvent
-		action string
+		action Action
 		found  bool
 	}{
 		{KeyEvent{Name: "up"}, "move-up", true},

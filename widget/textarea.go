@@ -39,11 +39,11 @@ type Textarea struct {
 	// Custom bindings and aliases are compiled only after they change.
 	keyBindings   []input.KeyBinding
 	keyAliases    input.KeyAliasMap
-	bindingMap    map[string]string
+	bindingMap    map[string]input.Action
 	bindingsDirty bool
 
 	// actionHandlers dispatches resolved action names.
-	actionHandlers map[string]func() bool
+	actionHandlers map[input.Action]func() bool
 
 	// Selection uses the render.Host for screen coordinates and an offset anchor
 	// for EditSurface text coordinates.
@@ -872,8 +872,8 @@ func (ta *Textarea) Destroy() {
 // Action dispatch.
 
 // buildActionHandlers maps each supported action name to its handler.
-func (ta *Textarea) buildActionHandlers() map[string]func() bool {
-	return map[string]func() bool{
+func (ta *Textarea) buildActionHandlers() map[input.Action]func() bool {
+	return map[input.Action]func() bool{
 		// Navigation
 		ActionMoveLeft:      ta.actionMoveLeft,
 		ActionMoveRight:     ta.actionMoveRight,
@@ -1405,7 +1405,7 @@ func (ta *Textarea) emitContentChange() {
 	}
 }
 
-func (ta *Textarea) resolveAction(e *input.KeyEvent) (string, bool) {
+func (ta *Textarea) resolveAction(e *input.KeyEvent) (input.Action, bool) {
 	if ta.bindingsDirty {
 		ta.rebuildBindingMap()
 	}

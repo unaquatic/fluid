@@ -181,7 +181,7 @@ func TestGoldenSeq_InputTypingSequence(t *testing.T) {
 	seq.AddFrames("empty", rerender(inp, 10, 1), nil)
 
 	for _, ch := range "Hello" {
-		pressKey(inp, string(ch))
+		pressKey(inp, input.KeyName(ch))
 		seq.AddFrames("typed_"+string(ch), rerender(inp, 10, 1), nil)
 	}
 

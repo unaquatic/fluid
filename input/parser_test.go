@@ -31,7 +31,7 @@ func TestParser_MultipleChars(t *testing.T) {
 	if len(events) != 3 {
 		t.Fatalf("expected 3 events, got %d", len(events))
 	}
-	for i, name := range []string{"a", "b", "c"} {
+	for i, name := range []KeyName{"a", "b", "c"} {
 		if events[i].Key.Name != name {
 			t.Errorf("event %d: Name = %q, want %q", i, events[i].Key.Name, name)
 		}
@@ -130,7 +130,7 @@ func TestParser_Escape(t *testing.T) {
 func TestParser_CtrlKeys(t *testing.T) {
 	tests := []struct {
 		byte byte
-		name string
+		name KeyName
 	}{
 		{1, "a"},  // Control-A.
 		{3, "c"},  // Control-C.
@@ -155,7 +155,7 @@ func TestParser_CtrlKeys(t *testing.T) {
 func TestParser_ArrowKeys(t *testing.T) {
 	tests := []struct {
 		seq  string
-		name string
+		name KeyName
 	}{
 		{"\x1b[A", "up"},
 		{"\x1b[B", "down"},
@@ -177,7 +177,7 @@ func TestParser_ArrowKeys(t *testing.T) {
 func TestParser_HomeEnd(t *testing.T) {
 	tests := []struct {
 		seq  string
-		name string
+		name KeyName
 	}{
 		{"\x1b[H", "home"},
 		{"\x1b[F", "end"},
@@ -197,7 +197,7 @@ func TestParser_HomeEnd(t *testing.T) {
 func TestParser_FunctionKeys(t *testing.T) {
 	tests := []struct {
 		seq  string
-		name string
+		name KeyName
 	}{
 		{"\x1b[P", "f1"},
 		{"\x1b[Q", "f2"},
@@ -227,7 +227,7 @@ func TestParser_FunctionKeys(t *testing.T) {
 func TestParser_InsertDelete(t *testing.T) {
 	tests := []struct {
 		seq  string
-		name string
+		name KeyName
 	}{
 		{"\x1b[2~", "insert"},
 		{"\x1b[3~", "delete"},
@@ -247,7 +247,7 @@ func TestParser_InsertDelete(t *testing.T) {
 func TestParser_PageUpDown(t *testing.T) {
 	tests := []struct {
 		seq  string
-		name string
+		name KeyName
 	}{
 		{"\x1b[5~", "pageup"},
 		{"\x1b[6~", "pagedown"},
@@ -267,7 +267,7 @@ func TestParser_PageUpDown(t *testing.T) {
 func TestParser_ModifiedArrowKeys(t *testing.T) {
 	tests := []struct {
 		seq   string
-		name  string
+		name  KeyName
 		ctrl  bool
 		shift bool
 		alt   bool
@@ -309,7 +309,7 @@ func TestParser_ModifiedTildeKeys(t *testing.T) {
 func TestParser_SS3_ArrowKeys(t *testing.T) {
 	tests := []struct {
 		seq  string
-		name string
+		name KeyName
 	}{
 		{"\x1bOA", "up"},
 		{"\x1bOB", "down"},
@@ -335,7 +335,7 @@ func TestParser_SS3_ArrowKeys(t *testing.T) {
 func TestParser_AltKeys(t *testing.T) {
 	tests := []struct {
 		seq  string
-		name string
+		name KeyName
 	}{
 		{"\x1ba", "a"},
 		{"\x1bz", "z"},
@@ -655,7 +655,7 @@ func TestParser_Kitty_SpecialKeys(t *testing.T) {
 
 	tests := []struct {
 		seq      string
-		name     string
+		name     KeyName
 		wantText string // The expected printable text, if any.
 	}{
 		{"\x1b[13u", "return", ""},
@@ -756,7 +756,7 @@ func TestParser_DoubleEsc_CSI_AltArrows(t *testing.T) {
 	// With the heuristic disabled, double ESC adds Alt without inferring Shift.
 	tests := []struct {
 		seq  string
-		name string
+		name KeyName
 		desc string
 	}{
 		{"\x1b\x1b[D", "left", "Option+Left"},
@@ -789,7 +789,7 @@ func TestParser_DoubleEsc_CSI_AltSendsEscPrefix(t *testing.T) {
 	// plain Alt+Arrow is expected to use ESC b or ESC f instead.
 	tests := []struct {
 		seq  string
-		name string
+		name KeyName
 		desc string
 	}{
 		{"\x1b\x1b[D", "left", "Shift+Option+Left"},
@@ -825,7 +825,7 @@ func TestParser_DoubleEsc_CSI_ShiftAltArrows(t *testing.T) {
 	// ESC adds Alt.
 	tests := []struct {
 		seq   string
-		name  string
+		name  KeyName
 		shift bool
 		desc  string
 	}{
@@ -857,7 +857,7 @@ func TestParser_DoubleEsc_SS3(t *testing.T) {
 	// With the heuristic disabled, a nested SS3 key gains Alt but not Shift.
 	tests := []struct {
 		seq  string
-		name string
+		name KeyName
 		desc string
 	}{
 		{"\x1b\x1bOA", "up", "Alt+SS3 Up"},

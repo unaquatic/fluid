@@ -23,7 +23,7 @@ func newTestScrollBox(vpW, vpH, contentW, contentH int, opts ...ScrollBoxOption)
 	return sb
 }
 
-func pressKey(sb *ScrollBox, name string) bool {
+func pressKey(sb *ScrollBox, name input.KeyName) bool {
 	e := &input.KeyEvent{Name: name, Type: input.KeyPress}
 	return sb.HandleKeyPress(e)
 }

@@ -77,7 +77,7 @@ func TestDispatchKeyEvent_DeliveredToFocused(t *testing.T) {
 	child := render.NewBaseRenderable(render.WithID("focusable"), render.WithFocusable(true))
 	r.root.Add(child)
 
-	var keyReceived string
+	var keyReceived input.KeyName
 	child.OnKeyDownHandler = func(e *input.KeyEvent) {
 		keyReceived = e.Name
 	}
@@ -127,13 +127,13 @@ func TestDispatchKeyEvent_InputHandlerStops(t *testing.T) {
 }
 
 // keyPressEvent returns a raw key-press terminal event.
-func keyPressEvent(name string) input.TerminalEvent {
+func keyPressEvent(name input.KeyName) input.TerminalEvent {
 	return input.TerminalEvent{
 		Type: input.EventKeyboard,
 		Key: &input.KeyEvent{
 			Name:   name,
 			Type:   input.KeyPress,
-			Raw:    name,
+			Raw:    string(name),
 			Source: input.KeySourceRaw,
 		},
 	}
@@ -147,7 +147,7 @@ func TestDispatchKeyEvent_BubblesToParent(t *testing.T) {
 	r.root.Add(parent)
 	parent.Add(child)
 
-	var parentKey string
+	var parentKey input.KeyName
 	parent.OnKeyDownHandler = func(e *input.KeyEvent) { parentKey = e.Name }
 
 	r.focused = child
@@ -217,7 +217,7 @@ func TestDispatchKeyEvent_UnhandledReachesRoot(t *testing.T) {
 	r.root.Add(parent)
 	parent.Add(child)
 
-	var rootKey string
+	var rootKey input.KeyName
 	r.root.OnKeyDownHandler = func(e *input.KeyEvent) { rootKey = e.Name }
 
 	r.focused = child

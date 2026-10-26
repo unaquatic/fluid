@@ -2,59 +2,58 @@ package widget
 
 import "github.com/unaquatic/fluid/input"
 
-// Textarea action names.
-
+// Textarea actions.
 const (
 	// Cursor movement.
-	ActionMoveLeft      = "move-left"
-	ActionMoveRight     = "move-right"
-	ActionMoveUp        = "move-up"
-	ActionMoveDown      = "move-down"
-	ActionMoveWordLeft  = "word-backward"
-	ActionMoveWordRight = "word-forward"
-	ActionMoveHome      = "line-home"   // Start of the logical line.
-	ActionMoveEnd       = "line-end"    // End of the logical line.
-	ActionMoveDocStart  = "buffer-home" // Start of the document.
-	ActionMoveDocEnd    = "buffer-end"  // End of the document.
-	ActionPageUp        = "page-up"
-	ActionPageDown      = "page-down"
+	ActionMoveLeft      input.Action = "move-left"
+	ActionMoveRight     input.Action = "move-right"
+	ActionMoveUp        input.Action = "move-up"
+	ActionMoveDown      input.Action = "move-down"
+	ActionMoveWordLeft  input.Action = "word-backward"
+	ActionMoveWordRight input.Action = "word-forward"
+	ActionMoveHome      input.Action = "line-home"   // Start of the logical line.
+	ActionMoveEnd       input.Action = "line-end"    // End of the logical line.
+	ActionMoveDocStart  input.Action = "buffer-home" // Start of the document.
+	ActionMoveDocEnd    input.Action = "buffer-end"  // End of the document.
+	ActionPageUp        input.Action = "page-up"
+	ActionPageDown      input.Action = "page-down"
 
 	// Movement within the current wrapped line.
-	ActionVisualHome = "visual-line-home" // Start of the visual line.
-	ActionVisualEnd  = "visual-line-end"  // End of the visual line.
+	ActionVisualHome input.Action = "visual-line-home" // Start of the visual line.
+	ActionVisualEnd  input.Action = "visual-line-end"  // End of the visual line.
 
 	// Selection movement extends the current selection.
-	ActionSelectLeft       = "select-left"
-	ActionSelectRight      = "select-right"
-	ActionSelectUp         = "select-up"
-	ActionSelectDown       = "select-down"
-	ActionSelectWordLeft   = "select-word-backward"
-	ActionSelectWordRight  = "select-word-forward"
-	ActionSelectHome       = "select-line-home"
-	ActionSelectEnd        = "select-line-end"
-	ActionSelectDocStart   = "select-buffer-home"
-	ActionSelectDocEnd     = "select-buffer-end"
-	ActionSelectAll        = "select-all"
-	ActionSelectVisualHome = "select-visual-line-home"
-	ActionSelectVisualEnd  = "select-visual-line-end"
+	ActionSelectLeft       input.Action = "select-left"
+	ActionSelectRight      input.Action = "select-right"
+	ActionSelectUp         input.Action = "select-up"
+	ActionSelectDown       input.Action = "select-down"
+	ActionSelectWordLeft   input.Action = "select-word-backward"
+	ActionSelectWordRight  input.Action = "select-word-forward"
+	ActionSelectHome       input.Action = "select-line-home"
+	ActionSelectEnd        input.Action = "select-line-end"
+	ActionSelectDocStart   input.Action = "select-buffer-home"
+	ActionSelectDocEnd     input.Action = "select-buffer-end"
+	ActionSelectAll        input.Action = "select-all"
+	ActionSelectVisualHome input.Action = "select-visual-line-home"
+	ActionSelectVisualEnd  input.Action = "select-visual-line-end"
 
 	// Editing
-	ActionBackspace     = "backspace"
-	ActionDelete        = "delete"
-	ActionDeleteLine    = "delete-line"
-	ActionDeleteToEnd   = "delete-to-line-end"
-	ActionDeleteToStart = "delete-to-line-start"
-	ActionDeleteWordFwd = "delete-word-forward"
-	ActionDeleteWordBwd = "delete-word-backward"
-	ActionNewline       = "newline"
-	ActionTab           = "tab"
-	ActionUndo          = "undo"
-	ActionRedo          = "redo"
-	ActionSubmit        = "submit"
+	ActionBackspace     input.Action = "backspace"
+	ActionDelete        input.Action = "delete"
+	ActionDeleteLine    input.Action = "delete-line"
+	ActionDeleteToEnd   input.Action = "delete-to-line-end"
+	ActionDeleteToStart input.Action = "delete-to-line-start"
+	ActionDeleteWordFwd input.Action = "delete-word-forward"
+	ActionDeleteWordBwd input.Action = "delete-word-backward"
+	ActionNewline       input.Action = "newline"
+	ActionTab           input.Action = "tab"
+	ActionUndo          input.Action = "undo"
+	ActionRedo          input.Action = "redo"
+	ActionSubmit        input.Action = "submit"
 )
 
 // navActions is the set of actions allowed in read-only mode.
-var navActions = map[string]bool{
+var navActions = map[input.Action]bool{
 	ActionMoveLeft: true, ActionMoveRight: true,
 	ActionMoveUp: true, ActionMoveDown: true,
 	ActionMoveWordLeft: true, ActionMoveWordRight: true,

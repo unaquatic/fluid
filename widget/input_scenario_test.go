@@ -12,7 +12,7 @@ import (
 // Input event scenarios.
 
 // pressKey dispatches one key press to inp.
-func pressKey(inp *widget.Input, name string) {
+func pressKey(inp *widget.Input, name input.KeyName) {
 	e := &input.KeyEvent{Name: name, Type: input.KeyPress}
 	inp.HandleKeyPress(e)
 }
@@ -198,7 +198,7 @@ func TestInput_RenderAfterMultipleOps(t *testing.T) {
 
 	// Build a five-character value.
 	for _, ch := range "abcde" {
-		pressKey(inp, string(ch))
+		pressKey(inp, input.KeyName(ch))
 	}
 
 	// Remove its final two characters.

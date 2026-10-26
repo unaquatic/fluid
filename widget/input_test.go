@@ -122,7 +122,7 @@ func TestInput_MaxLength(t *testing.T) {
 
 	// Only the first five typed runes fit.
 	for _, ch := range "abcdefg" {
-		inp.HandleKeyPress(&input.KeyEvent{Name: string(ch), Type: input.KeyPress})
+		inp.HandleKeyPress(&input.KeyEvent{Name: input.KeyName(ch), Type: input.KeyPress})
 	}
 
 	if inp.Value() != "abcde" {

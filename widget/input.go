@@ -83,7 +83,7 @@ func (inp *Input) SetCursorPos(pos int) {
 }
 
 // blockedInputActions contains multiline actions that Input does not support.
-var blockedInputActions = map[string]bool{
+var blockedInputActions = map[input.Action]bool{
 	ActionNewline:  true,
 	ActionMoveUp:   true,
 	ActionMoveDown: true,
@@ -178,7 +178,7 @@ func (inp *Input) HandlePaste(e *input.PasteEvent) {
 
 // Input keybinding resolution.
 
-func (inp *Input) resolveInputAction(e *input.KeyEvent) (string, bool) {
+func (inp *Input) resolveInputAction(e *input.KeyEvent) (input.Action, bool) {
 	if inp.bindingsDirty {
 		inp.rebuildInputBindingMap()
 	}

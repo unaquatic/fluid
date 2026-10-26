@@ -70,42 +70,47 @@ func (m Mods) String() string {
 
 // comboString returns name with the modifiers mods before it in canonical
 // order, such as "ctrl+shift+a".
-func comboString(name string, mods Mods) string {
+func comboString(name KeyName, mods Mods) string {
 	if mods == 0 {
-		return name
+		return string(name)
 	}
-	return mods.String() + "+" + name
+	return mods.String() + "+" + string(name)
 }
 
+// KeyName is the canonical name of a key: a named key such as "return",
+// "up", or "f1", or the text a printable key types, such as "a".
+type KeyName string
+
+// Named keys.
 const (
-	KeyReturn    = "return"
-	KeyEnter     = "return" // KeyEnter is an alias for KeyReturn.
-	KeyEscape    = "escape"
-	KeyTab       = "tab"
-	KeyBackspace = "backspace"
-	KeyDelete    = "delete"
-	KeyInsert    = "insert"
-	KeyUp        = "up"
-	KeyDown      = "down"
-	KeyLeft      = "left"
-	KeyRight     = "right"
-	KeyHome      = "home"
-	KeyEnd       = "end"
-	KeyPageUp    = "pageup"
-	KeyPageDown  = "pagedown"
-	KeySpace     = "space"
-	KeyF1        = "f1"
-	KeyF2        = "f2"
-	KeyF3        = "f3"
-	KeyF4        = "f4"
-	KeyF5        = "f5"
-	KeyF6        = "f6"
-	KeyF7        = "f7"
-	KeyF8        = "f8"
-	KeyF9        = "f9"
-	KeyF10       = "f10"
-	KeyF11       = "f11"
-	KeyF12       = "f12"
+	KeyReturn    KeyName = "return"
+	KeyEnter     KeyName = "return" // KeyEnter is an alias for KeyReturn.
+	KeyEscape    KeyName = "escape"
+	KeyTab       KeyName = "tab"
+	KeyBackspace KeyName = "backspace"
+	KeyDelete    KeyName = "delete"
+	KeyInsert    KeyName = "insert"
+	KeyUp        KeyName = "up"
+	KeyDown      KeyName = "down"
+	KeyLeft      KeyName = "left"
+	KeyRight     KeyName = "right"
+	KeyHome      KeyName = "home"
+	KeyEnd       KeyName = "end"
+	KeyPageUp    KeyName = "pageup"
+	KeyPageDown  KeyName = "pagedown"
+	KeySpace     KeyName = "space"
+	KeyF1        KeyName = "f1"
+	KeyF2        KeyName = "f2"
+	KeyF3        KeyName = "f3"
+	KeyF4        KeyName = "f4"
+	KeyF5        KeyName = "f5"
+	KeyF6        KeyName = "f6"
+	KeyF7        KeyName = "f7"
+	KeyF8        KeyName = "f8"
+	KeyF9        KeyName = "f9"
+	KeyF10       KeyName = "f10"
+	KeyF11       KeyName = "f11"
+	KeyF12       KeyName = "f12"
 )
 
 // KeySource identifies the encoding a key event was read from.
@@ -132,7 +137,7 @@ func (s KeySource) String() string {
 // KeyEvent describes one keyboard input event.
 type KeyEvent struct {
 	// Name is the canonical key name, such as "a", "return", "up", or "f1".
-	Name string
+	Name KeyName
 	// Text is the printable input text, or empty for a non-printable key.
 	Text string
 	// Mods are the modifier keys held.
@@ -169,7 +174,7 @@ func (e *KeyEvent) String() string {
 }
 
 // Matches reports whether the event has name and exactly the modifiers mods.
-func (e *KeyEvent) Matches(name string, mods Mods) bool {
+func (e *KeyEvent) Matches(name KeyName, mods Mods) bool {
 	return e.Name == name && e.Mods == mods
 }
 
@@ -186,7 +191,7 @@ func (e *KeyEvent) IsRune() bool {
 		return true
 	}
 	// Support manually constructed events that predate the Text field.
-	return utf8.RuneCountInString(e.Name) == 1
+	return utf8.RuneCountInString(string(e.Name)) == 1
 }
 
 // Rune returns the first rune in Text, or in Name when Text is empty. It
@@ -199,6 +204,6 @@ func (e *KeyEvent) Rune() rune {
 		r, _ := utf8.DecodeRuneInString(e.Text)
 		return r
 	}
-	r, _ := utf8.DecodeRuneInString(e.Name)
+	r, _ := utf8.DecodeRuneInString(string(e.Name))
 	return r
 }

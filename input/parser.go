@@ -17,7 +17,7 @@ const (
 )
 
 // csiKeyMap maps complete CSI key suffixes to canonical key names.
-var csiKeyMap = map[string]string{
+var csiKeyMap = map[string]KeyName{
 	"A":   "up",
 	"B":   "down",
 	"C":   "right",
@@ -44,7 +44,7 @@ var csiKeyMap = map[string]string{
 
 // csiModifiedKeyMap maps the final byte in a CSI 1;modifier key sequence to a
 // canonical key name.
-var csiModifiedKeyMap = map[byte]string{
+var csiModifiedKeyMap = map[byte]KeyName{
 	'A': "up",
 	'B': "down",
 	'C': "right",
@@ -58,7 +58,7 @@ var csiModifiedKeyMap = map[byte]string{
 }
 
 // ss3KeyMap maps the final byte in an SS3 sequence to a canonical key name.
-var ss3KeyMap = map[byte]string{
+var ss3KeyMap = map[byte]KeyName{
 	'A': "up",
 	'B': "down",
 	'C': "right",
@@ -72,7 +72,7 @@ var ss3KeyMap = map[byte]string{
 }
 
 // ctrlKeyMap maps supported C0 control bytes to their Control-letter names.
-var ctrlKeyMap = map[byte]string{
+var ctrlKeyMap = map[byte]KeyName{
 	1: "a", 2: "b", 3: "c", 4: "d", 5: "e", 6: "f", 7: "g",
 	8: "h", 10: "j", 11: "k", 12: "l", 14: "n", 15: "o",
 	16: "p", 17: "q", 18: "r", 19: "s", 20: "t", 21: "u",
@@ -81,7 +81,7 @@ var ctrlKeyMap = map[byte]string{
 
 // kittySpecialKeys maps Kitty keyboard protocol code points to canonical key
 // names.
-var kittySpecialKeys = map[int]string{
+var kittySpecialKeys = map[int]KeyName{
 	9:     "tab",
 	13:    "return",
 	27:    "escape",
@@ -501,7 +501,7 @@ func parseSS3(buf []byte) (TerminalEvent, int) {
 
 // isNavigationKey reports whether name identifies a navigation, editing, or
 // function key accepted by the double-ESC Shift heuristic.
-func isNavigationKey(name string) bool {
+func isNavigationKey(name KeyName) bool {
 	switch name {
 	case "up", "down", "left", "right",
 		"home", "end", "pageup", "pagedown",
@@ -678,7 +678,7 @@ func parseKittyKey(raw []byte, paramStr string) (TerminalEvent, int) {
 	}
 
 	// Resolve the protocol code point to a canonical name and printable text.
-	name := ""
+	var name KeyName
 	text := "" // Non-empty only for printable input.
 	if n, ok := kittySpecialKeys[codepoint]; ok {
 		name = n
@@ -689,10 +689,10 @@ func parseKittyKey(raw []byte, paramStr string) (TerminalEvent, int) {
 	} else if n, ok := csiKeyMap[strconv.Itoa(codepoint)+"~"]; ok {
 		name = n
 	} else if codepoint >= 32 && codepoint < 0x110000 {
-		name = string(rune(codepoint))
-		text = name // Preserve printable Unicode input.
+		text = string(rune(codepoint)) // Preserve printable Unicode input.
+		name = KeyName(text)
 	} else {
-		name = strconv.Itoa(codepoint)
+		name = KeyName(strconv.Itoa(codepoint))
 	}
 
 	return TerminalEvent{
@@ -749,7 +749,7 @@ func parseUTF8(buf []byte) (TerminalEvent, int) {
 	}
 
 	text := string(r) // Text retains the literal printable character.
-	name := text
+	name := KeyName(text)
 	if r == ' ' {
 		name = KeySpace // Key bindings use the symbolic name for space.
 	}

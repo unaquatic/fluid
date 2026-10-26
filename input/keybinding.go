@@ -5,15 +5,19 @@ import "maps"
 // KeyBinding associates a key combination with an action.
 type KeyBinding struct {
 	// Name is the canonical key name, such as "up", "a", or "return".
-	Name string
+	Name KeyName
 	// Mods are the modifier keys required, exactly.
 	Mods Mods
-	// Action is the action identifier, such as "move-up" or "submit".
-	Action string
+	// Action is the action the key combination triggers.
+	Action Action
 }
 
+// Action names what a key binding does, such as "move-up" or "submit". The
+// widget that resolves a binding defines the actions it handles.
+type Action string
+
 // KeyAliasMap maps alternative key names to canonical names.
-type KeyAliasMap map[string]string
+type KeyAliasMap map[KeyName]KeyName
 
 // DefaultAliases contains the standard key name aliases.
 var DefaultAliases = KeyAliasMap{
@@ -66,14 +70,14 @@ func MergeKeyAliases(defaults, custom KeyAliasMap) KeyAliasMap {
 
 // BuildKeyBindingsMap returns a map from canonical key combinations to actions.
 // Alias maps are applied in argument order, with later maps taking precedence.
-func BuildKeyBindingsMap(bindings []KeyBinding, aliases ...KeyAliasMap) map[string]string {
+func BuildKeyBindingsMap(bindings []KeyBinding, aliases ...KeyAliasMap) map[string]Action {
 	// Merge aliases once before resolving binding names.
 	aliasMap := make(KeyAliasMap)
 	for _, a := range aliases {
 		maps.Copy(aliasMap, a)
 	}
 
-	m := make(map[string]string, len(bindings))
+	m := make(map[string]Action, len(bindings))
 	for _, b := range bindings {
 		name := b.Name
 		if canonical, ok := aliasMap[name]; ok {
@@ -86,7 +90,7 @@ func BuildKeyBindingsMap(bindings []KeyBinding, aliases ...KeyAliasMap) map[stri
 }
 
 // ResolveAction returns the action mapped to ev's canonical key combination.
-func ResolveAction(ev KeyEvent, bindingMap map[string]string) (action string, found bool) {
+func ResolveAction(ev KeyEvent, bindingMap map[string]Action) (action Action, found bool) {
 	key := comboString(ev.Name, ev.Mods)
 	action, found = bindingMap[key]
 	return
