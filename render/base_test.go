@@ -3,6 +3,7 @@ package render
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
@@ -64,7 +65,6 @@ func TestBaseRenderable_Options(t *testing.T) {
 	r := NewBaseRenderable(
 		WithVisible(false),
 		WithFocusable(true),
-		WithLive(true),
 		WithSelectable(true),
 	)
 
@@ -73,9 +73,6 @@ func TestBaseRenderable_Options(t *testing.T) {
 	}
 	if !r.Focusable() {
 		t.Error("expected focusable=true")
-	}
-	if !r.Live() {
-		t.Error("expected live=true")
 	}
 	if !r.Selectable() {
 		t.Error("expected selectable=true")
@@ -289,7 +286,7 @@ func TestBaseRenderable_ReparentChild(t *testing.T) {
 	}
 }
 
-func TestBaseRenderable_ContextPropagation(t *testing.T) {
+func TestBaseRenderable_HostPropagation(t *testing.T) {
 	parent := NewBaseRenderable(WithID("parent"))
 	child := NewBaseRenderable(WithID("child"))
 	grandchild := NewBaseRenderable(WithID("grandchild"))
@@ -297,27 +294,27 @@ func TestBaseRenderable_ContextPropagation(t *testing.T) {
 	parent.Add(child)
 	child.Add(grandchild)
 
-	ctx := &mockContext{}
-	parent.SetContext(ctx)
+	host := &mockHost{}
+	parent.SetHost(host)
 
-	if child.Context() != ctx {
-		t.Error("expected child to inherit parent's context")
+	if child.Host() != host {
+		t.Error("expected child to inherit parent's host")
 	}
-	if grandchild.Context() != ctx {
-		t.Error("expected grandchild to inherit parent's context")
+	if grandchild.Host() != host {
+		t.Error("expected grandchild to inherit parent's host")
 	}
 }
 
-func TestBaseRenderable_ContextOnAdd(t *testing.T) {
+func TestBaseRenderable_HostOnAdd(t *testing.T) {
 	parent := NewBaseRenderable(WithID("parent"))
-	ctx := &mockContext{}
-	parent.SetContext(ctx)
+	host := &mockHost{}
+	parent.SetHost(host)
 
 	child := NewBaseRenderable(WithID("child"))
 	parent.Add(child)
 
-	if child.Context() != ctx {
-		t.Error("expected child to get context on Add")
+	if child.Host() != host {
+		t.Error("expected child to get host on Add")
 	}
 }
 
@@ -327,7 +324,7 @@ func TestBaseRenderable_ContextOnAdd(t *testing.T) {
 // they cover.
 func TestBaseRenderable_ChildDirtyOnAdd(t *testing.T) {
 	grandparent := NewBaseRenderable(WithID("grandparent"))
-	grandparent.SetContext(&mockContext{})
+	grandparent.SetHost(&mockHost{})
 	grandparent.SetBounds(0, 0, 10, 20)
 
 	parent := NewBaseRenderable(WithID("parent"))
@@ -357,7 +354,7 @@ func TestBaseRenderable_ChildDirtyOnAdd(t *testing.T) {
 // exit, which keeps a deep scene from rewalking a chain already marked.
 func TestBaseRenderable_MarkDirtyStopsAtAMarkedAncestor(t *testing.T) {
 	root := NewBaseRenderable(WithID("root"))
-	root.SetContext(&mockContext{})
+	root.SetHost(&mockHost{})
 	mid := NewBaseRenderable(WithID("mid"))
 	leaf := NewBaseRenderable(WithID("leaf"))
 	root.Add(mid)
@@ -383,7 +380,7 @@ func TestBaseRenderable_MarkDirtyStopsAtAMarkedAncestor(t *testing.T) {
 // parent has to carry it.
 func TestBaseRenderable_DirtyOnRemove(t *testing.T) {
 	parent := NewBaseRenderable(WithID("parent"))
-	parent.SetContext(&mockContext{})
+	parent.SetHost(&mockHost{})
 	parent.SetBounds(0, 0, 10, 20)
 
 	child := NewBaseRenderable(WithID("child"))
@@ -406,8 +403,8 @@ func TestBaseRenderable_RequestRender(t *testing.T) {
 	r := NewBaseRenderable()
 	r.dirty = false
 
-	m := &mockContext{}
-	r.SetContext(m)
+	m := &mockHost{}
+	r.SetHost(m)
 
 	r.RequestRender()
 
@@ -415,7 +412,7 @@ func TestBaseRenderable_RequestRender(t *testing.T) {
 		t.Error("expected dirty after RequestRender")
 	}
 	if !m.renderRequested {
-		t.Error("expected RequestRender to call context callback")
+		t.Error("expected RequestRender to call host callback")
 	}
 }
 
@@ -436,8 +433,8 @@ func TestBaseRenderable_SetVisible(t *testing.T) {
 func TestBaseRenderable_Focus(t *testing.T) {
 	r := NewBaseRenderable(WithFocusable(true))
 
-	m := &mockContext{}
-	r.SetContext(m)
+	m := &mockHost{}
+	r.SetHost(m)
 
 	r.Focus()
 
@@ -445,7 +442,7 @@ func TestBaseRenderable_Focus(t *testing.T) {
 		t.Error("expected focused=true after Focus()")
 	}
 	if m.focused == nil || m.focused.Num() != r.Num() {
-		t.Error("expected context FocusRenderable callback to be called")
+		t.Error("expected host FocusRenderable callback to be called")
 	}
 }
 
@@ -562,21 +559,20 @@ func TestBaseRenderable_RenderSelf_Default(t *testing.T) {
 	r := NewBaseRenderable()
 	buf := buffer.New(10, 5)
 	// The default RenderSelf is a safe no-op.
-	r.RenderSelf(buf, 0.016)
+	r.RenderSelf(buf, 16*time.Millisecond)
 }
 
 func TestBaseRenderable_RenderHooks(t *testing.T) {
 	r := NewBaseRenderable()
-	r.visible = true
 	r.width = 10
 	r.height = 5
 
 	var order []string
-	r.RenderBeforeHook = func(b *buffer.Buffer, dt float64) { order = append(order, "before") }
-	r.RenderAfterHook = func(b *buffer.Buffer, dt float64) { order = append(order, "after") }
+	r.RenderBeforeHook = func(b *buffer.Buffer, dt time.Duration) { order = append(order, "before") }
+	r.RenderAfterHook = func(b *buffer.Buffer, dt time.Duration) { order = append(order, "after") }
 
 	buf := buffer.New(80, 24)
-	r.Render(buf, 0.016)
+	r.Render(buf, 16*time.Millisecond)
 
 	if len(order) != 2 || order[0] != "before" || order[1] != "after" {
 		t.Errorf("expected [before, after], got %v", order)
@@ -586,10 +582,10 @@ func TestBaseRenderable_RenderHooks(t *testing.T) {
 func TestBaseRenderable_RenderNotVisibleIsNoop(t *testing.T) {
 	r := NewBaseRenderable(WithVisible(false))
 	called := false
-	r.RenderBeforeHook = func(b *buffer.Buffer, dt float64) { called = true }
+	r.RenderBeforeHook = func(b *buffer.Buffer, dt time.Duration) { called = true }
 
 	buf := buffer.New(10, 5)
-	r.Render(buf, 0.016)
+	r.Render(buf, 16*time.Millisecond)
 
 	if called {
 		t.Error("expected Render to be no-op when not visible")

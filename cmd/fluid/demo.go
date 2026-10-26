@@ -32,6 +32,7 @@ var Demos = []Demo{
 	demoInlineCmd,
 	demoInlineInputCmd,
 	demoTabCmd,
+	demoColorsCmd,
 }
 
 // LookupDemo returns the demo called name, and false if there is none.

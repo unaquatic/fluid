@@ -1,12 +1,15 @@
 package widget
 
 import (
+	"time"
+
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/render"
 	"github.com/unaquatic/fluid/style"
 	"github.com/unaquatic/fluid/symbol"
+	"github.com/unaquatic/fluid/textbuf"
 )
 
 // TabSelectItem contains the label and caller-defined value for one tab.
@@ -33,10 +36,11 @@ type TabSelect struct {
 	separatorColor    style.Color
 	backgroundColor   style.Color
 
-	// OnSelectionChanged is called after the selected tab changes.
-	OnSelectionChanged func(index int)
-	// OnItemSelected is called when the user activates the selected tab.
-	OnItemSelected func(index int)
+	// OnSelectionChanged is called with the selected tab after it changes.
+	OnSelectionChanged func(index int, item TabSelectItem)
+	// OnItemSelected is called with the selected tab when the user activates
+	// it.
+	OnItemSelected func(index int, item TabSelectItem)
 }
 
 // TabSelectOption configures a TabSelect during construction.
@@ -70,6 +74,14 @@ func NewTabSelect(items []TabSelectItem, opts ...TabSelectOption) *TabSelect {
 	return ts
 }
 
+// notifySelectionChanged calls OnSelectionChanged with the selected tab, if
+// there is one.
+func (ts *TabSelect) notifySelectionChanged() {
+	if i := ts.selectedIndex; ts.OnSelectionChanged != nil && i >= 0 && i < len(ts.items) {
+		ts.OnSelectionChanged(i, ts.items[i])
+	}
+}
+
 // SelectedIndex returns the currently selected tab index.
 func (ts *TabSelect) SelectedIndex() int { return ts.selectedIndex }
 
@@ -83,9 +95,7 @@ func (ts *TabSelect) SetSelectedIndex(idx int) {
 	}
 	if idx != ts.selectedIndex {
 		ts.selectedIndex = idx
-		if ts.OnSelectionChanged != nil {
-			ts.OnSelectionChanged(idx)
-		}
+		ts.notifySelectionChanged()
 		ts.RequestRender()
 	}
 }
@@ -100,7 +110,7 @@ func (ts *TabSelect) SetItems(items []TabSelectItem) {
 }
 
 // RenderSelf draws the tab selector.
-func (ts *TabSelect) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (ts *TabSelect) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	w := ts.Width()
 	h := ts.Height()
 	if w <= 0 || h <= 0 || len(ts.items) == 0 {
@@ -145,10 +155,10 @@ func (ts *TabSelect) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 
 		// Truncate and center the tab label within its allocated width.
 		name := item.Name
-		nameWidth := ts.StringWidth(name)
+		nameWidth := textbuf.StringWidth(name)
 		if nameWidth > tw {
 			name = truncateToWidth(name, tw)
-			nameWidth = ts.StringWidth(name)
+			nameWidth = textbuf.StringWidth(name)
 		}
 		textX := cx + (tw-nameWidth)/2
 		buf.DrawText(name, textX, y, fg)
@@ -188,33 +198,29 @@ func (ts *TabSelect) HandleKeyPress(e *input.KeyEvent) bool {
 	handled := true
 
 	switch {
-	case e.Matches(input.KeyLeft) || e.Matches("h"):
+	case e.Matches(input.KeyLeft, 0) || e.Matches("h", 0):
 		if ts.selectedIndex > 0 {
 			ts.selectedIndex--
-			if ts.OnSelectionChanged != nil {
-				ts.OnSelectionChanged(ts.selectedIndex)
-			}
+			ts.notifySelectionChanged()
 			ts.RequestRender()
 		}
 
-	case e.Matches(input.KeyRight) || e.Matches("l"):
+	case e.Matches(input.KeyRight, 0) || e.Matches("l", 0):
 		if ts.selectedIndex < len(ts.items)-1 {
 			ts.selectedIndex++
-			if ts.OnSelectionChanged != nil {
-				ts.OnSelectionChanged(ts.selectedIndex)
-			}
+			ts.notifySelectionChanged()
 			ts.RequestRender()
 		}
 
-	case e.Matches(input.KeyReturn) || e.Matches(input.KeySpace):
-		if ts.OnItemSelected != nil {
-			ts.OnItemSelected(ts.selectedIndex)
+	case e.Matches(input.KeyReturn, 0) || e.Matches(input.KeySpace, 0):
+		if i := ts.selectedIndex; ts.OnItemSelected != nil && i >= 0 && i < len(ts.items) {
+			ts.OnItemSelected(i, ts.items[i])
 		}
 
-	case e.Matches(input.KeyHome):
+	case e.Matches(input.KeyHome, 0):
 		ts.SetSelectedIndex(0)
 
-	case e.Matches(input.KeyEnd):
+	case e.Matches(input.KeyEnd, 0):
 		ts.SetSelectedIndex(len(ts.items) - 1)
 
 	default:
@@ -274,18 +280,18 @@ func TabSelectWithShowUnderline(v bool) TabSelectOption {
 	return func(ts *TabSelect) { ts.showUnderline = v }
 }
 
-// TabSelectWithTextColor sets the default text color.
-func TabSelectWithTextColor(c style.Color) TabSelectOption {
+// TabSelectWithFg sets the default text color.
+func TabSelectWithFg(c style.Color) TabSelectOption {
 	return func(ts *TabSelect) { ts.textColor = c }
 }
 
-// TabSelectWithSelectedTextColor sets the selected text color.
-func TabSelectWithSelectedTextColor(c style.Color) TabSelectOption {
+// TabSelectWithSelectedFg sets the selected text color.
+func TabSelectWithSelectedFg(c style.Color) TabSelectOption {
 	return func(ts *TabSelect) { ts.selectedTextColor = c }
 }
 
-// TabSelectWithSelectedBgColor sets the selected background color.
-func TabSelectWithSelectedBgColor(c style.Color) TabSelectOption {
+// TabSelectWithSelectedBg sets the selected background color.
+func TabSelectWithSelectedBg(c style.Color) TabSelectOption {
 	return func(ts *TabSelect) { ts.selectedBgColor = c }
 }
 
@@ -294,18 +300,18 @@ func TabSelectWithUnderlineColor(c style.Color) TabSelectOption {
 	return func(ts *TabSelect) { ts.underlineColor = c }
 }
 
-// TabSelectWithBackgroundColor sets the background color.
-func TabSelectWithBackgroundColor(c style.Color) TabSelectOption {
+// TabSelectWithBg sets the background color.
+func TabSelectWithBg(c style.Color) TabSelectOption {
 	return func(ts *TabSelect) { ts.backgroundColor = c }
 }
 
 // TabSelectWithOnSelectionChanged sets the callback invoked after selection changes.
-func TabSelectWithOnSelectionChanged(fn func(int)) TabSelectOption {
+func TabSelectWithOnSelectionChanged(fn func(int, TabSelectItem)) TabSelectOption {
 	return func(ts *TabSelect) { ts.OnSelectionChanged = fn }
 }
 
 // TabSelectWithOnItemSelected sets the callback invoked when the user activates a tab.
-func TabSelectWithOnItemSelected(fn func(int)) TabSelectOption {
+func TabSelectWithOnItemSelected(fn func(int, TabSelectItem)) TabSelectOption {
 	return func(ts *TabSelect) { ts.OnItemSelected = fn }
 }
 
@@ -314,12 +320,12 @@ func TabSelectWithID(id string) TabSelectOption {
 	return func(ts *TabSelect) { ts.SetID(id) }
 }
 
-// TabSelectWithWidth sets the widget width.
-func TabSelectWithWidth(s layout.Scalar) TabSelectOption {
-	return func(ts *TabSelect) { ts.LayoutNode().Width = s }
-}
-
-// TabSelectWithHeight sets the widget height.
-func TabSelectWithHeight(s layout.Scalar) TabSelectOption {
-	return func(ts *TabSelect) { ts.LayoutNode().Height = s }
+// TabSelectWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func TabSelectWithLayout(opts ...layout.Option) TabSelectOption {
+	return func(w *TabSelect) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }

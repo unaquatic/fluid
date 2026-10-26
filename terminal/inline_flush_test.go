@@ -28,7 +28,6 @@ func newInlineTestRenderer() (*Renderer, *bytes.Buffer) {
 	hitGrid := NewHitGrid(w, h)
 	cfg := DefaultConfig()
 	cfg.InlineMode = true
-	cfg.Fullscreen = false
 	r := &Renderer{
 		root: root, hitGrid: hitGrid,
 		backend:       NewBackend(strings.NewReader(""), &outBuf),
@@ -45,11 +44,11 @@ func newInlineTestRenderer() (*Renderer, *bytes.Buffer) {
 		stopChan:      make(chan struct{}, 1),
 		done:          make(chan struct{}),
 		sel:           render.NewSelection(),
-		linkRegistry:  NewLinkRegistry(),
-		stats:         NewStats(60),
+		linkRegistry:  newLinkRegistry(),
+		stats:         newStats(60),
 		lastFrameTime: time.Now(),
 	}
-	root.SetContext(r)
+	root.SetHost(r)
 	return r, &outBuf
 }
 
@@ -64,13 +63,6 @@ func rowsBuffer(width int, glyphs string, fill int) *buffer.Buffer {
 		}
 	}
 	return buf
-}
-
-func TestInlineMode_ConfigForcesNoAlternateScreen(t *testing.T) {
-	cfg := mergeConfig([]Config{{InlineMode: true, Fullscreen: true}})
-	if cfg.Fullscreen {
-		t.Error("expected Fullscreen=false")
-	}
 }
 
 func TestComputeContentHeight(t *testing.T) {
@@ -91,7 +83,7 @@ func TestComputeContentHeight(t *testing.T) {
 func TestInlineFlush_FirstFrame_KeepsExistingScreen(t *testing.T) {
 	r, outBuf := newInlineTestRenderer()
 
-	r.InlineFlush(rowsBuffer(10, "AC", 1))
+	r.inlineFlush(rowsBuffer(10, "AC", 1))
 
 	// The screen may hold unrelated output, which inline mode preserves.
 	if strings.Contains(outBuf.String(), "\x1b[2J") {
@@ -112,7 +104,7 @@ func TestInlineFlush_TallFirstFrame_ScrollsInsteadOfErasing(t *testing.T) {
 	r, outBuf := newInlineTestRenderer()
 	const height = testTermHeight + 5
 
-	r.InlineFlush(rowsBuffer(10, strings.Repeat("A", height), 1))
+	r.inlineFlush(rowsBuffer(10, strings.Repeat("A", height), 1))
 	output := outBuf.String()
 
 	if strings.Contains(output, "\x1b[2J") || strings.Contains(output, "\x1b[3J") {
@@ -133,7 +125,7 @@ func TestInlineFlush_TallFrame_StaysQuietWhenOnlyTheLastRowChanges(t *testing.T)
 	r, outBuf := newInlineTestRenderer()
 	const height = testTermHeight + 5
 
-	r.InlineFlush(rowsBuffer(10, strings.Repeat("A", height), 5))
+	r.inlineFlush(rowsBuffer(10, strings.Repeat("A", height), 5))
 	firstBytes := outBuf.Len()
 	outBuf.Reset()
 
@@ -141,7 +133,7 @@ func TestInlineFlush_TallFrame_StaysQuietWhenOnlyTheLastRowChanges(t *testing.T)
 	for x := range 5 {
 		next.SetCell(x, height-1, 'Z', style.ColorWhite, style.ColorBlack, 0)
 	}
-	r.InlineFlush(next)
+	r.inlineFlush(next)
 	output := outBuf.String()
 
 	if strings.Contains(output, "\x1b[2J") {
@@ -161,12 +153,12 @@ func TestInlineFlush_ChangeInScrollback_Repaints(t *testing.T) {
 	r, outBuf := newInlineTestRenderer()
 	const height = testTermHeight + 5
 
-	r.InlineFlush(rowsBuffer(10, strings.Repeat("A", height), 5))
+	r.inlineFlush(rowsBuffer(10, strings.Repeat("A", height), 5))
 	outBuf.Reset()
 
 	next := rowsBuffer(10, strings.Repeat("A", height), 5)
 	next.SetCell(0, 0, 'Z', style.ColorWhite, style.ColorBlack, 0)
-	r.InlineFlush(next)
+	r.inlineFlush(next)
 
 	if !strings.Contains(outBuf.String(), inlineEraseAll) {
 		t.Error("expected a full repaint when a scrolled-away row changes")
@@ -176,12 +168,12 @@ func TestInlineFlush_ChangeInScrollback_Repaints(t *testing.T) {
 func TestInlineFlush_AppendPastLastRow_AdvancesViewport(t *testing.T) {
 	r, _ := newInlineTestRenderer()
 
-	r.InlineFlush(rowsBuffer(10, strings.Repeat("A", testTermHeight), 1))
+	r.inlineFlush(rowsBuffer(10, strings.Repeat("A", testTermHeight), 1))
 	if r.inlineViewportTop != 0 {
 		t.Fatalf("expected viewportTop=0 after filling the screen, got %d", r.inlineViewportTop)
 	}
 
-	r.InlineFlush(rowsBuffer(10, strings.Repeat("A", testTermHeight+2), 1))
+	r.inlineFlush(rowsBuffer(10, strings.Repeat("A", testTermHeight+2), 1))
 
 	if r.inlineViewportTop != 2 {
 		t.Errorf("expected viewportTop=2 after two rows scrolled away, got %d", r.inlineViewportTop)
@@ -260,10 +252,10 @@ func TestInlineChangedRows(t *testing.T) {
 
 func TestInlineFlush_NothingChanged_ZeroOutput(t *testing.T) {
 	r, outBuf := newInlineTestRenderer()
-	r.InlineFlush(rowsBuffer(10, "Hello", 5))
+	r.inlineFlush(rowsBuffer(10, "Hello", 5))
 	outBuf.Reset()
 
-	r.InlineFlush(rowsBuffer(10, "Hello", 5))
+	r.inlineFlush(rowsBuffer(10, "Hello", 5))
 
 	if outBuf.Len() != 0 {
 		t.Errorf("expected 0 bytes for an identical frame, got %d", outBuf.Len())
@@ -272,10 +264,10 @@ func TestInlineFlush_NothingChanged_ZeroOutput(t *testing.T) {
 
 func TestInlineFlush_OnlyChangedRowsRewritten(t *testing.T) {
 	r, outBuf := newInlineTestRenderer()
-	r.InlineFlush(rowsBuffer(10, "abcde", 5))
+	r.inlineFlush(rowsBuffer(10, "abcde", 5))
 	outBuf.Reset()
 
-	r.InlineFlush(rowsBuffer(10, "abXde", 5))
+	r.inlineFlush(rowsBuffer(10, "abXde", 5))
 	output := outBuf.String()
 
 	if c := strings.Count(output, inlineEraseRow); c != 1 {
@@ -293,10 +285,10 @@ func TestInlineFlush_OnlyChangedRowsRewritten(t *testing.T) {
 
 func TestInlineFlush_HeightGrew_AppendsNewRows(t *testing.T) {
 	r, outBuf := newInlineTestRenderer()
-	r.InlineFlush(rowsBuffer(10, "abc", 5))
+	r.inlineFlush(rowsBuffer(10, "abc", 5))
 	outBuf.Reset()
 
-	r.InlineFlush(rowsBuffer(10, "abcde", 5))
+	r.inlineFlush(rowsBuffer(10, "abcde", 5))
 	output := outBuf.String()
 
 	if c := strings.Count(output, inlineEraseRow); c != 2 {
@@ -317,10 +309,10 @@ func TestInlineFlush_HeightGrew_AppendsNewRows(t *testing.T) {
 
 func TestInlineFlush_HeightShrunk_ErasesRemovedRows(t *testing.T) {
 	r, outBuf := newInlineTestRenderer()
-	r.InlineFlush(rowsBuffer(10, "abcde", 5))
+	r.inlineFlush(rowsBuffer(10, "abcde", 5))
 	outBuf.Reset()
 
-	r.InlineFlush(rowsBuffer(10, "abc", 5))
+	r.inlineFlush(rowsBuffer(10, "abc", 5))
 	output := outBuf.String()
 
 	if c := strings.Count(output, inlineEraseRow); c != 2 {
@@ -412,10 +404,10 @@ func bgParams(r *Renderer, c style.Color) string {
 func TestInlineFlush_ShrinkErasesInTheDefaultBackground(t *testing.T) {
 	r, outBuf := newInlineTestRenderer()
 	menu, fill := style.ColorFromInts(40, 40, 40, 255), style.ColorFromInts(48, 48, 48, 255)
-	r.InlineFlush(filledBuffer(10, menu, menu, fill, fill, fill))
+	r.inlineFlush(filledBuffer(10, menu, menu, fill, fill, fill))
 	outBuf.Reset()
 
-	r.InlineFlush(filledBuffer(10, fill, fill, fill))
+	r.inlineFlush(filledBuffer(10, fill, fill, fill))
 
 	got := eraseBackgrounds(outBuf.String())
 	want := []string{bgParams(r, fill), bgParams(r, fill), bgParams(r, fill), "", ""}
@@ -431,7 +423,7 @@ func TestInlineFlush_ErasesEachRowInItsEdgeBackground(t *testing.T) {
 	r, outBuf := newInlineTestRenderer()
 	red, blue := style.ColorFromInts(255, 0, 0, 255), style.ColorFromInts(0, 0, 255, 255)
 
-	r.InlineFlush(filledBuffer(10, red, blue, style.ColorTransparent))
+	r.inlineFlush(filledBuffer(10, red, blue, style.ColorTransparent))
 
 	want := []string{bgParams(r, red), bgParams(r, blue), ""}
 	if got := eraseBackgrounds(outBuf.String()); !slices.Equal(got, want) {
@@ -449,7 +441,7 @@ func TestInlineFlush_EdgeBackgroundIgnoresTheCursor(t *testing.T) {
 	r.SetCursorPosition(9, 0, true)
 	r.drawInlineCursor(buf)
 
-	r.InlineFlush(buf)
+	r.inlineFlush(buf)
 
 	if got, want := eraseBackgrounds(outBuf.String()), []string{bgParams(r, fill)}; !slices.Equal(got, want) {
 		t.Errorf("row erased in backgrounds %q, want %q", got, want)
@@ -458,10 +450,10 @@ func TestInlineFlush_EdgeBackgroundIgnoresTheCursor(t *testing.T) {
 
 func TestInlineFlush_WidthChange_Repaints(t *testing.T) {
 	r, outBuf := newInlineTestRenderer()
-	r.InlineFlush(rowsBuffer(10, "abc", 5))
+	r.inlineFlush(rowsBuffer(10, "abc", 5))
 	outBuf.Reset()
 
-	r.InlineFlush(rowsBuffer(15, "abc", 5))
+	r.inlineFlush(rowsBuffer(15, "abc", 5))
 	output := outBuf.String()
 
 	if !strings.Contains(output, inlineEraseAll) {
@@ -474,11 +466,11 @@ func TestInlineFlush_WidthChange_Repaints(t *testing.T) {
 
 func TestInlineFlush_HeightChange_Repaints(t *testing.T) {
 	r, outBuf := newInlineTestRenderer()
-	r.InlineFlush(rowsBuffer(10, "abc", 5))
+	r.inlineFlush(rowsBuffer(10, "abc", 5))
 	outBuf.Reset()
 
 	r.height = testTermHeight - 5
-	r.InlineFlush(rowsBuffer(10, "abc", 5))
+	r.inlineFlush(rowsBuffer(10, "abc", 5))
 
 	if !strings.Contains(outBuf.String(), inlineEraseAll) {
 		t.Error("expected a full repaint after a terminal height change")
@@ -487,10 +479,10 @@ func TestInlineFlush_HeightChange_Repaints(t *testing.T) {
 
 func TestInlineFlush_MovesUpToAChangedRow(t *testing.T) {
 	r, outBuf := newInlineTestRenderer()
-	r.InlineFlush(rowsBuffer(10, "abcde", 5))
+	r.inlineFlush(rowsBuffer(10, "abcde", 5))
 	outBuf.Reset()
 
-	r.InlineFlush(rowsBuffer(10, "Zbcde", 5))
+	r.inlineFlush(rowsBuffer(10, "Zbcde", 5))
 	output := outBuf.String()
 
 	// The cursor sat on row four and the change is on row zero.
@@ -536,7 +528,7 @@ func TestRenderInlineFrame_DynamicHeight(t *testing.T) {
 
 func TestProcessResize_InlineMode(t *testing.T) {
 	r, _ := newInlineTestRenderer()
-	r.InlineFlush(rowsBuffer(10, "abc", 5))
+	r.inlineFlush(rowsBuffer(10, "abc", 5))
 
 	r.processResize(100, 50)
 
@@ -556,15 +548,15 @@ func TestProcessResize_InlineMode(t *testing.T) {
 func TestPrepareLayout_ExecuteRender_Split(t *testing.T) {
 	root := NewRootRenderable(40, 20)
 	hitGrid := NewHitGrid(40, 20)
-	root.SetContext(&mockContext{hitGrid: hitGrid})
+	root.SetHost(&mockHost{hitGrid: hitGrid})
 	child := render.NewBaseRenderable(render.WithID("child"), render.WithWidth(layout.Points(20)), render.WithHeight(layout.Points(5)))
 	root.Add(child)
-	root.PrepareLayout(0.016)
+	root.PrepareLayout(16 * time.Millisecond)
 	if child.LayoutNode().Computed.Width != 20 {
 		t.Errorf("expected 20, got %d", child.LayoutNode().Computed.Width)
 	}
 	buf := buffer.New(40, 20)
-	execStats := root.ExecuteRender(buf, 0.016)
+	execStats := root.executeRender(buf, 16*time.Millisecond)
 	if execStats.CmdCount == 0 {
 		t.Error("expected at least one render command")
 	}
@@ -572,7 +564,7 @@ func TestPrepareLayout_ExecuteRender_Split(t *testing.T) {
 
 func TestDestroy_InlineMode(t *testing.T) {
 	r, outBuf := newInlineTestRenderer()
-	r.InlineFlush(rowsBuffer(10, "abcde", 5))
+	r.inlineFlush(rowsBuffer(10, "abcde", 5))
 	outBuf.Reset()
 
 	r.Destroy()

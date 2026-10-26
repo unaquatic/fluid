@@ -5,12 +5,12 @@ import (
 	"runtime"
 	"sync"
 	"sync/atomic"
+	"time"
 	"weak"
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
 	"github.com/unaquatic/fluid/layout"
-	"github.com/unaquatic/fluid/textbuf"
 )
 
 var nextNum atomic.Uint64 // Assigns numeric hit-grid IDs.
@@ -40,146 +40,148 @@ func LookupRenderable(num uint64) Renderable {
 	return b
 }
 
-// RenderableOption configures a BaseRenderable during construction.
-type RenderableOption func(*BaseRenderable)
+// Option configures a BaseRenderable during construction.
+type Option func(*BaseRenderable)
 
 // WithID sets the initial string identifier.
-func WithID(id string) RenderableOption {
+func WithID(id string) Option {
 	return func(b *BaseRenderable) { b.id = id }
 }
 
-// WithVisible sets whether the renderable is initially visible.
-func WithVisible(v bool) RenderableOption {
-	return func(b *BaseRenderable) { b.visible = v }
+// WithVisible sets whether the renderable is initially visible. A hidden one
+// keeps its layout space, as SetVisible(false) leaves it.
+func WithVisible(v bool) Option {
+	return func(b *BaseRenderable) {
+		if v {
+			b.layoutNode.Visibility = layout.Visible
+		} else {
+			b.layoutNode.Visibility = layout.Hidden
+		}
+	}
 }
 
 // WithFocusable sets whether the renderable can initially receive focus.
-func WithFocusable(f bool) RenderableOption {
+func WithFocusable(f bool) Option {
 	return func(b *BaseRenderable) { b.focusable = f }
 }
 
-// WithLive controls the initial continuous-rendering mode.
-func WithLive(l bool) RenderableOption {
-	return func(b *BaseRenderable) { b.live = l }
-}
-
 // WithSelectable sets whether the renderable initially supports text selection.
-func WithSelectable(s bool) RenderableOption {
+func WithSelectable(s bool) Option {
 	return func(b *BaseRenderable) { b.selectable = s }
 }
 
 // WithWidth sets the preferred layout width.
-func WithWidth(s layout.Scalar) RenderableOption {
+func WithWidth(s layout.Scalar) Option {
 	return func(b *BaseRenderable) { b.layoutNode.Width = s }
 }
 
 // WithHeight sets the preferred layout height.
-func WithHeight(s layout.Scalar) RenderableOption {
+func WithHeight(s layout.Scalar) Option {
 	return func(b *BaseRenderable) { b.layoutNode.Height = s }
 }
 
 // WithFlexGrow sets the layout growth factor.
-func WithFlexGrow(v int) RenderableOption {
+func WithFlexGrow(v int) Option {
 	return func(b *BaseRenderable) { b.layoutNode.FlexGrow = v }
 }
 
 // WithFlexShrink sets the layout shrink factor.
-func WithFlexShrink(v int) RenderableOption {
+func WithFlexShrink(v int) Option {
 	return func(b *BaseRenderable) { b.layoutNode.FlexShrink = v }
 }
 
 // WithFlexDirection sets the layout main axis and item order.
-func WithFlexDirection(d layout.FlexDirection) RenderableOption {
+func WithFlexDirection(d layout.FlexDirection) Option {
 	return func(b *BaseRenderable) { b.layoutNode.FlexDirection = d }
 }
 
 // WithJustifyContent sets main-axis item distribution.
-func WithJustifyContent(j layout.JustifyContent) RenderableOption {
+func WithJustifyContent(j layout.JustifyContent) Option {
 	return func(b *BaseRenderable) { b.layoutNode.JustifyContent = j }
 }
 
 // WithAlignItems sets cross-axis item alignment.
-func WithAlignItems(a layout.Align) RenderableOption {
+func WithAlignItems(a layout.Align) Option {
 	return func(b *BaseRenderable) { b.layoutNode.AlignItems = a }
 }
 
 // WithPadding sets padding on all four sides.
-func WithPadding(s layout.Scalar) RenderableOption {
+func WithPadding(s layout.Scalar) Option {
 	return func(b *BaseRenderable) { b.layoutNode.SetPadding(s) }
 }
 
 // WithMargin sets all four margins.
-func WithMargin(s layout.Scalar) RenderableOption {
+func WithMargin(s layout.Scalar) Option {
 	return func(b *BaseRenderable) { b.layoutNode.SetMargin(s) }
 }
 
 // WithPosition sets whether the renderable participates in flex flow.
-func WithPosition(p layout.Position) RenderableOption {
+func WithPosition(p layout.Position) Option {
 	return func(b *BaseRenderable) { b.layoutNode.Position = p }
 }
 
 // WithOverflow sets how content outside the layout bounds is handled.
-func WithOverflow(o layout.Overflow) RenderableOption {
+func WithOverflow(o layout.Overflow) Option {
 	return func(b *BaseRenderable) { b.layoutNode.Overflow = o }
 }
 
 // WithFlexBasis sets the initial main-axis size.
-func WithFlexBasis(s layout.Scalar) RenderableOption {
+func WithFlexBasis(s layout.Scalar) Option {
 	return func(b *BaseRenderable) { b.layoutNode.FlexBasis = s }
 }
 
 // WithAlignSelf sets the renderable's cross-axis alignment override.
-func WithAlignSelf(a layout.Align) RenderableOption {
+func WithAlignSelf(a layout.Align) Option {
 	return func(b *BaseRenderable) { b.layoutNode.AlignSelf = a }
 }
 
 // WithFlexWrap sets the line-wrapping mode.
-func WithFlexWrap(w layout.FlexWrap) RenderableOption {
+func WithFlexWrap(w layout.FlexWrap) Option {
 	return func(b *BaseRenderable) { b.layoutNode.FlexWrap = w }
 }
 
 // WithGap sets the fallback gap between flex items.
-func WithGap(v int) RenderableOption {
+func WithGap(v int) Option {
 	return func(b *BaseRenderable) { b.layoutNode.Gap = v }
 }
 
 // WithMinWidth sets the minimum width.
-func WithMinWidth(s layout.Scalar) RenderableOption {
+func WithMinWidth(s layout.Scalar) Option {
 	return func(b *BaseRenderable) { b.layoutNode.MinWidth = s }
 }
 
 // WithMaxWidth sets the maximum width.
-func WithMaxWidth(s layout.Scalar) RenderableOption {
+func WithMaxWidth(s layout.Scalar) Option {
 	return func(b *BaseRenderable) { b.layoutNode.MaxWidth = s }
 }
 
 // WithMinHeight sets the minimum height.
-func WithMinHeight(s layout.Scalar) RenderableOption {
+func WithMinHeight(s layout.Scalar) Option {
 	return func(b *BaseRenderable) { b.layoutNode.MinHeight = s }
 }
 
 // WithMaxHeight sets the maximum height.
-func WithMaxHeight(s layout.Scalar) RenderableOption {
+func WithMaxHeight(s layout.Scalar) Option {
 	return func(b *BaseRenderable) { b.layoutNode.MaxHeight = s }
 }
 
 // WithTop sets the top positioning offset.
-func WithTop(s layout.Scalar) RenderableOption {
+func WithTop(s layout.Scalar) Option {
 	return func(b *BaseRenderable) { b.layoutNode.Top = s }
 }
 
 // WithRight sets the right positioning offset.
-func WithRight(s layout.Scalar) RenderableOption {
+func WithRight(s layout.Scalar) Option {
 	return func(b *BaseRenderable) { b.layoutNode.Right = s }
 }
 
 // WithBottom sets the bottom positioning offset.
-func WithBottom(s layout.Scalar) RenderableOption {
+func WithBottom(s layout.Scalar) Option {
 	return func(b *BaseRenderable) { b.layoutNode.Bottom = s }
 }
 
 // WithLeft sets the left positioning offset.
-func WithLeft(s layout.Scalar) RenderableOption {
+func WithLeft(s layout.Scalar) Option {
 	return func(b *BaseRenderable) { b.layoutNode.Left = s }
 }
 
@@ -207,10 +209,8 @@ type BaseRenderable struct {
 	paintRect             buffer.Rect // The region covered by the most recent paint.
 
 	// Configuration and state.
-	visible    bool
 	focusable  bool
 	focused    bool
-	live       bool
 	selectable bool
 	destroyed  bool
 
@@ -222,11 +222,8 @@ type BaseRenderable struct {
 	dirty      bool
 	childDirty bool // Reports whether a descendant changed since the last frame.
 
-	// Local continuous-rendering request count.
-	liveCount int
-
-	// Renderer context, or noopContext while detached.
-	ctx Context
+	// Renderer that hosts b, or noopHost while detached.
+	host Host
 
 	// Optional input handlers.
 
@@ -263,12 +260,9 @@ type BaseRenderable struct {
 
 	// RenderBeforeHook runs before RenderSelf, with the frame buffer and the
 	// seconds since the last frame.
-	RenderBeforeHook func(*buffer.Buffer, float64)
+	RenderBeforeHook func(*buffer.Buffer, time.Duration)
 	// RenderAfterHook runs after RenderSelf, with the same arguments.
-	RenderAfterHook func(*buffer.Buffer, float64)
-	// OnLifecyclePass runs before each layout once the renderable is
-	// registered with the root's RegisterLifecyclePass.
-	OnLifecyclePass func()
+	RenderAfterHook func(*buffer.Buffer, time.Duration)
 }
 
 // Verify that BaseRenderable implements Renderable.
@@ -276,17 +270,16 @@ var _ Renderable = (*BaseRenderable)(nil)
 
 // NewBaseRenderable returns a registered renderable with default layout and
 // rendering state.
-func NewBaseRenderable(opts ...RenderableOption) *BaseRenderable {
+func NewBaseRenderable(opts ...Option) *BaseRenderable {
 	num := nextNum.Add(1)
 
 	b := &BaseRenderable{
 		num:        num,
 		id:         fmt.Sprintf("renderable-%d", num),
-		visible:    true,
 		focusable:  false,
 		dirty:      true,
 		layoutNode: layout.NewNode(),
-		ctx:        noopContext,
+		host:       noopHost,
 	}
 
 	for _, opt := range opts {
@@ -341,7 +334,7 @@ func (b *BaseRenderable) ChildrenCount() int {
 	return len(b.children)
 }
 
-// Add reparents child to b, propagates b's context, and inserts child at the
+// Add reparents child to b, propagates b's host, and inserts child at the
 // first optional index. An absent or invalid index appends child. Add returns
 // the resulting index, or -1 for a nil child.
 func (b *BaseRenderable) Add(child Renderable, index ...int) int {
@@ -363,7 +356,7 @@ func (b *BaseRenderable) Add(child Renderable, index ...int) int {
 	}
 
 	child.SetParent(b)
-	child.SetContext(b.ctx)
+	child.SetHost(b.host)
 
 	idx := len(b.children)
 	if len(index) > 0 && index[0] >= 0 && index[0] <= len(b.children) {
@@ -381,7 +374,7 @@ func (b *BaseRenderable) Add(child Renderable, index ...int) int {
 	// The new child reports its own region, so b has nothing to add and stays
 	// clean. Only the record reaches the ancestors, so traversal descends here.
 	b.MarkChildDirty()
-	b.ctx.RequestRender()
+	b.host.RequestRender()
 	return idx
 }
 
@@ -451,31 +444,36 @@ func (b *BaseRenderable) FindDescendantByID(id string) Renderable {
 	return nil
 }
 
-// Visible reports whether b is drawn and hit tested.
-func (b *BaseRenderable) Visible() bool { return b.visible }
+// Visible reports whether b is drawn and hit tested: whether its layout
+// node's Visibility is layout.Visible.
+func (b *BaseRenderable) Visible() bool { return b.layoutNode.Visibility == layout.Visible }
+
+// Gone reports whether b takes part in neither layout nor rendering: whether
+// its layout node's Visibility is layout.Gone.
+func (b *BaseRenderable) Gone() bool { return b.layoutNode.Visibility == layout.Gone }
 
 // SetVisible controls rendering and hit testing while preserving layout space.
+// Hiding a visible b makes it layout.Hidden; hiding a gone one leaves it gone.
 // Use SetGone to remove b from layout.
 func (b *BaseRenderable) SetVisible(v bool) {
-	if b.visible != v {
-		b.visible = v
-		if v {
-			b.layoutNode.Visibility = layout.Visible
-		} else {
-			b.layoutNode.Visibility = layout.Hidden
-		}
-		b.layoutNode.MarkDirty()
-		b.RequestRender()
+	if b.Visible() == v {
+		return
 	}
+	if v {
+		b.layoutNode.Visibility = layout.Visible
+	} else {
+		b.layoutNode.Visibility = layout.Hidden
+	}
+	b.layoutNode.MarkDirty()
+	b.RequestRender()
 }
 
-// SetGone controls whether b participates in layout and rendering.
+// SetGone controls whether b participates in layout and rendering. Bringing
+// it back makes it visible.
 func (b *BaseRenderable) SetGone(g bool) {
 	if g {
-		b.visible = false
 		b.layoutNode.Visibility = layout.Gone
 	} else {
-		b.visible = true
 		b.layoutNode.Visibility = layout.Visible
 	}
 	b.layoutNode.MarkDirty()
@@ -499,7 +497,7 @@ func (b *BaseRenderable) Rect() buffer.Rect {
 // one is beyond the reach of traversal, and its parent encloses it too.
 func (b *BaseRenderable) Damage() buffer.Rect {
 	switch {
-	case b.destroyed, !b.visible:
+	case b.destroyed, !b.Visible():
 		return b.paintRect
 	case b.dirty:
 		return b.paintRect.Union(b.Rect())
@@ -512,7 +510,7 @@ func (b *BaseRenderable) Damage() buffer.Rect {
 // repainted. Painting clears the damage of a visible renderable, but a hidden
 // one is never painted again.
 func (b *BaseRenderable) ClearDamage() {
-	if b.destroyed || !b.visible {
+	if b.destroyed || !b.Visible() {
 		b.paintRect = buffer.Rect{}
 	}
 }
@@ -520,7 +518,7 @@ func (b *BaseRenderable) ClearDamage() {
 // RequestRender marks b dirty and requests a scene repaint.
 func (b *BaseRenderable) RequestRender() {
 	b.MarkDirty()
-	b.ctx.RequestRender()
+	b.host.RequestRender()
 }
 
 // MarkDirty marks b for repainting and records the change on b's ancestors, so
@@ -648,15 +646,15 @@ func (b *BaseRenderable) UpdateFromLayoutWithOffset(offsetX, offsetY int) {
 
 // Render draws b's content and registers its hit-test region. Scene traversal
 // renders children separately.
-func (b *BaseRenderable) Render(buf *buffer.Buffer, deltaTime float64) {
-	if !b.visible {
+func (b *BaseRenderable) Render(buf *buffer.Buffer, deltaTime time.Duration) {
+	if !b.Visible() {
 		return
 	}
 
 	b.renderContent(buf, deltaTime)
 
 	// Only visible renderables register hit-test regions.
-	b.ctx.AddToHitGrid(b.x, b.y, b.width, b.height, b.num)
+	b.host.AddToHitGrid(b.x, b.y, b.width, b.height, b.num)
 
 	b.paintRect = b.Rect()
 	b.dirty = false
@@ -664,7 +662,7 @@ func (b *BaseRenderable) Render(buf *buffer.Buffer, deltaTime float64) {
 
 // renderContent runs the before hook, concrete RenderSelf implementation, and
 // after hook in order.
-func (b *BaseRenderable) renderContent(buf *buffer.Buffer, deltaTime float64) {
+func (b *BaseRenderable) renderContent(buf *buffer.Buffer, deltaTime time.Duration) {
 	if b.RenderBeforeHook != nil {
 		b.RenderBeforeHook(buf, deltaTime)
 	}
@@ -681,17 +679,19 @@ func (b *BaseRenderable) renderContent(buf *buffer.Buffer, deltaTime float64) {
 }
 
 // RenderSelf is the widget content override point. The default does nothing.
-func (b *BaseRenderable) RenderSelf(buf *buffer.Buffer, deltaTime float64) {}
+func (b *BaseRenderable) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {}
 
-// RenderBefore calls RenderBeforeHook when it is set.
-func (b *BaseRenderable) RenderBefore(buf *buffer.Buffer, deltaTime float64) {
+// RenderBefore calls RenderBeforeHook when it is set. Render runs the hook
+// itself and never calls RenderBefore.
+func (b *BaseRenderable) RenderBefore(buf *buffer.Buffer, deltaTime time.Duration) {
 	if b.RenderBeforeHook != nil {
 		b.RenderBeforeHook(buf, deltaTime)
 	}
 }
 
-// RenderAfter calls RenderAfterHook when it is set.
-func (b *BaseRenderable) RenderAfter(buf *buffer.Buffer, deltaTime float64) {
+// RenderAfter calls RenderAfterHook when it is set. Render runs the hook
+// itself and never calls RenderAfter.
+func (b *BaseRenderable) RenderAfter(buf *buffer.Buffer, deltaTime time.Duration) {
 	if b.RenderAfterHook != nil {
 		b.RenderAfterHook(buf, deltaTime)
 	}
@@ -712,7 +712,7 @@ func (b *BaseRenderable) Focus() {
 		return
 	}
 	b.focused = true
-	b.ctx.FocusRenderable(b)
+	b.host.FocusRenderable(b)
 }
 
 // Blur removes keyboard focus from b.
@@ -813,11 +813,11 @@ func (b *BaseRenderable) SelectedText() string { return "" }
 // HasSelection reports false by default.
 func (b *BaseRenderable) HasSelection() bool { return false }
 
-// OnUpdate runs before layout and does nothing by default.
-func (b *BaseRenderable) OnUpdate(deltaTime float64) {}
+// OnUpdate does nothing. The renderer never calls it.
+func (b *BaseRenderable) OnUpdate(deltaTime time.Duration) {}
 
 // OnPostLayout runs after layout and does nothing by default.
-func (b *BaseRenderable) OnPostLayout(deltaTime float64) {}
+func (b *BaseRenderable) OnPostLayout(deltaTime time.Duration) {}
 
 // OnResize handles a resolved size change and does nothing by default.
 func (b *BaseRenderable) OnResize(width, height int) {}
@@ -847,46 +847,17 @@ func (b *BaseRenderable) DestroyRecursively() {
 	b.Destroy()
 }
 
-// Context returns b's renderer context.
-func (b *BaseRenderable) Context() Context { return b.ctx }
+// Host returns the renderer that hosts b.
+func (b *BaseRenderable) Host() Host { return b.host }
 
-// SetContext assigns ctx to b and every descendant. A nil context is replaced
-// by the package no-op context.
-func (b *BaseRenderable) SetContext(ctx Context) {
-	if ctx == nil {
-		ctx = noopContext
+// SetHost assigns host to b and every descendant. A nil host is replaced by
+// a no-op host.
+func (b *BaseRenderable) SetHost(host Host) {
+	if host == nil {
+		host = noopHost
 	}
-	b.ctx = ctx
+	b.host = host
 	for _, child := range b.children {
-		child.SetContext(ctx)
+		child.SetHost(host)
 	}
 }
-
-// StringWidth returns s's grapheme-aware terminal width.
-func (b *BaseRenderable) StringWidth(s string) int {
-	return textbuf.StringWidth(s)
-}
-
-// Live reports whether b requested continuous rendering.
-func (b *BaseRenderable) Live() bool { return b.live }
-
-// SetLive controls b's continuous-render request and updates its context.
-func (b *BaseRenderable) SetLive(l bool) {
-	if b.live == l {
-		return
-	}
-	b.live = l
-	if l {
-		b.liveCount++
-		b.ctx.RequestLive()
-	} else {
-		b.liveCount--
-		if b.liveCount <= 0 {
-			b.liveCount = 0
-			b.ctx.DropLive()
-		}
-	}
-}
-
-// LiveCount returns b's local continuous-render request count.
-func (b *BaseRenderable) LiveCount() int { return b.liveCount }

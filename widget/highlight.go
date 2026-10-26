@@ -2,11 +2,10 @@ package widget
 
 import (
 	"strings"
+	"sync"
 
-	"github.com/alecthomas/chroma/v2"
-	"github.com/alecthomas/chroma/v2/lexers"
-	"github.com/alecthomas/chroma/v2/styles"
 	"github.com/unaquatic/fluid/style"
+	"github.com/unaquatic/fluid/syntax"
 	"github.com/unaquatic/fluid/textbuf"
 )
 
@@ -20,172 +19,121 @@ type SyntaxHighlighter interface {
 	Highlight(content, filetype string, defaultFg, defaultBg style.Color) ([]textbuf.Line, error)
 }
 
-// ChromaHighlighter implements SyntaxHighlighter with Chroma lexers and styles.
-type ChromaHighlighter struct {
-	theme string
+// defaultTheme returns the theme that widgets color code with when they are
+// given none. It is shared, so it must not be changed.
+var defaultTheme = sync.OnceValue(style.DefaultDark)
 
-	// The lexer is cached for cachedFiletype; chromaStyle is cached for theme.
-	cachedFiletype string
-	lexer          chroma.Lexer
-	chromaStyle    *chroma.Style
+// Highlighter implements SyntaxHighlighter with the lexers of package
+// syntax, styling each kind of token with a role of a theme's code palette.
+type Highlighter struct {
+	// Styles holds the style of each kind of token, indexed by kind. A token
+	// whose style has no foreground takes the default foreground Highlight
+	// is given, and every token takes the default background.
+	Styles [syntax.NumKinds]style.Entry
 }
 
-// NewChromaHighlighter returns a highlighter for the named Chroma theme.
-// Common theme names include "monokai", "dracula", and "github".
-func NewChromaHighlighter(theme string) *ChromaHighlighter {
-	h := &ChromaHighlighter{theme: theme}
-	h.resolveStyle()
+// NewHighlighter returns a Highlighter that styles tokens with the code
+// palette of t, as TokenStyles does. A nil t selects style.DefaultDark.
+func NewHighlighter(t *style.Theme) *Highlighter {
+	h := &Highlighter{}
+	h.SetTheme(t)
 	return h
 }
 
-// SetTheme changes the color theme and invalidates the cached style.
-func (h *ChromaHighlighter) SetTheme(theme string) {
-	if h.theme == theme {
-		return
+// SetTheme styles tokens with the code palette of t, as TokenStyles does. A
+// nil t selects style.DefaultDark.
+func (h *Highlighter) SetTheme(t *style.Theme) {
+	if t == nil {
+		t = defaultTheme()
 	}
-	h.theme = theme
-	h.resolveStyle()
+	h.Styles = TokenStyles(t)
 }
 
-// Theme returns the current theme name.
-func (h *ChromaHighlighter) Theme() string { return h.theme }
-
-// Highlight tokenizes content and returns one styled Line per logical line.
-func (h *ChromaHighlighter) Highlight(content, filetype string, defaultFg, defaultBg style.Color) ([]textbuf.Line, error) {
-	h.ensureLexer(filetype)
-
-	lines := strings.Split(content, "\n")
-
-	iterator, err := h.lexer.Tokenise(nil, content)
-	if err != nil {
-		return h.buildFallbackLines(lines, defaultFg, defaultBg), err
+// TokenStyles returns the style of each kind of token under the code
+// palette of t. An optional role that t leaves unset inherits the role its
+// documentation names, and a role without a foreground inherits that of
+// Variable, or of t.TextStrong if Variable has none, so that every token
+// of a theme has a color.
+func TokenStyles(t *style.Theme) [syntax.NumKinds]style.Entry {
+	c := t.Code
+	variable := c.Variable.Or(style.Entry{Fg: t.TextStrong})
+	var s [syntax.NumKinds]style.Entry
+	s[syntax.Text] = variable
+	s[syntax.Keyword] = c.Keyword
+	s[syntax.Type] = c.Type
+	s[syntax.Function] = c.Function
+	s[syntax.BuiltinType] = c.BuiltinType.Or(c.Type)
+	s[syntax.BuiltinFunction] = c.BuiltinFunction.Or(c.Function)
+	s[syntax.BuiltinVariable] = c.BuiltinVariable.Or(variable)
+	s[syntax.Variable] = variable
+	s[syntax.Constant] = c.Constant
+	s[syntax.Primitive] = c.Primitive.Or(c.Constant)
+	s[syntax.Property] = c.Property.Or(variable)
+	s[syntax.Attribute] = c.Attribute.Or(variable)
+	s[syntax.Tag] = c.Tag.Or(c.Keyword)
+	s[syntax.Decorator] = c.Decorator
+	s[syntax.String] = c.String
+	s[syntax.StringEscape] = c.StringEscape.Or(c.Number)
+	s[syntax.Regex] = c.Regex.Or(c.String)
+	s[syntax.Number] = c.Number
+	s[syntax.Comment] = c.Comment
+	s[syntax.Preproc] = c.Preproc.Or(c.Comment)
+	s[syntax.Operator] = c.Operator
+	s[syntax.Punctuation] = c.Punctuation
+	s[syntax.Heading] = t.ResolveMarkdownHeading(1)
+	s[syntax.Subheading] = variable
+	s[syntax.Emph] = t.ResolveMarkdownEmph()
+	s[syntax.Strong] = t.ResolveMarkdownStrong()
+	s[syntax.Inserted] = c.DiffAdded.Or(style.Entry{Fg: t.Success})
+	s[syntax.Deleted] = c.DiffRemoved.Or(style.Entry{Fg: t.Danger})
+	for k := range s {
+		s[k].Fg = style.OrInherit(s[k].Fg, variable.Fg)
 	}
-
-	return h.buildLines(iterator, lines, defaultFg, defaultBg), nil
+	return s
 }
 
-// resolveStyle selects the configured Chroma style or falls back to Monokai.
-func (h *ChromaHighlighter) resolveStyle() {
-	h.chromaStyle = styles.Get(h.theme)
-	if h.chromaStyle == nil {
-		h.chromaStyle = styles.Get("monokai")
-	}
-}
-
-// ensureLexer resolves and caches a coalescing lexer for filetype.
-func (h *ChromaHighlighter) ensureLexer(filetype string) {
-	if h.cachedFiletype == filetype && h.lexer != nil {
-		return
-	}
-	h.cachedFiletype = filetype
-	if filetype != "" {
-		h.lexer = lexers.Get(filetype)
-	}
-	if h.lexer == nil {
-		h.lexer = lexers.Fallback
-	}
-	h.lexer = chroma.Coalesce(h.lexer)
-}
-
-// buildFallbackLines applies the default colors without syntax styling.
-func (h *ChromaHighlighter) buildFallbackLines(lines []string, defaultFg, defaultBg style.Color) []textbuf.Line {
-	result := make([]textbuf.Line, len(lines))
-	for i, line := range lines {
-		result[i] = textbuf.Line{
-			Spans: []textbuf.Span{{
-				Text: line,
-				Fg:   defaultFg,
-				Bg:   defaultBg,
-			}},
+// Highlight tokenizes content in the language filetype names, as
+// syntax.Lookup finds it, and returns one styled Line per logical line. A
+// language Lookup does not find leaves content Text. It never returns an
+// error.
+func (h *Highlighter) Highlight(content, filetype string, defaultFg, defaultBg style.Color) ([]textbuf.Line, error) {
+	lang := syntax.Lookup(filetype)
+	lines := make([]textbuf.Line, 0, strings.Count(content, "\n")+1)
+	var (
+		st   syntax.State
+		toks []syntax.Token
+	)
+	for text := range strings.SplitSeq(content, "\n") {
+		toks = toks[:0]
+		switch {
+		case lang != nil:
+			toks, st = lang.AppendLine(toks, text, st)
+		case text != "":
+			toks = append(toks, syntax.Token{Kind: syntax.Text, Text: text})
 		}
+		lines = append(lines, h.Line(text, toks, defaultFg, defaultBg))
 	}
-	return result
+	return lines, nil
 }
 
-// buildLines splits Chroma tokens into logical lines of styled spans.
-func (h *ChromaHighlighter) buildLines(iterator chroma.Iterator, lines []string, defaultFg, defaultBg style.Color) []textbuf.Line {
-	// Keep one span slice per source line while splitting multiline tokens.
-	spansByLine := make([][]textbuf.Span, len(lines))
-
-	lineIdx := 0
-	tokens := iterator.Tokens()
-
-	for _, token := range tokens {
-		tokenFg, tokenBg, tokenAttrs := h.resolveTokenStyle(token.Type, defaultFg, defaultBg)
-
-		// Chroma can return one token for a multiline string or comment.
-		text := token.Value
-		for {
-			nlPos := strings.IndexByte(text, '\n')
-			if nlPos == -1 {
-				// The remaining token text belongs to the current line.
-				if len(text) > 0 && lineIdx < len(spansByLine) {
-					spansByLine[lineIdx] = append(spansByLine[lineIdx], textbuf.Span{
-						Text:       text,
-						Fg:         tokenFg,
-						Bg:         tokenBg,
-						Attributes: tokenAttrs,
-					})
-				}
-				break
-			}
-
-			// Append the portion before the newline to the current line.
-			before := text[:nlPos]
-			if len(before) > 0 && lineIdx < len(spansByLine) {
-				spansByLine[lineIdx] = append(spansByLine[lineIdx], textbuf.Span{
-					Text:       before,
-					Fg:         tokenFg,
-					Bg:         tokenBg,
-					Attributes: tokenAttrs,
-				})
-			}
-
-			// Continue the token on the next source line.
-			lineIdx++
-			text = text[nlPos+1:]
+// Line returns text as a styled Line, with adjacent tokens of the same
+// style in one span. toks must be the tokens a syntax.Lexer appends for
+// text, whose texts concatenate to it; the spans' texts are cut from text by
+// the tokens' lengths.
+func (h *Highlighter) Line(text string, toks []syntax.Token, defaultFg, defaultBg style.Color) textbuf.Line {
+	spans := make([]textbuf.Span, 0, len(toks))
+	start, pos := 0, 0
+	for _, t := range toks {
+		e := h.Styles[t.Kind]
+		fg := style.OrInherit(e.Fg, defaultFg)
+		end := min(pos+len(t.Text), len(text))
+		if n := len(spans); n > 0 && spans[n-1].Fg == fg && spans[n-1].Attributes == e.Attrs {
+			spans[n-1].Text = text[start:end]
+		} else {
+			start = pos
+			spans = append(spans, textbuf.Span{Text: text[pos:end], Fg: fg, Bg: defaultBg, Attributes: e.Attrs})
 		}
+		pos = end
 	}
-
-	// Represent empty source lines with non-nil span slices.
-	result := make([]textbuf.Line, len(spansByLine))
-	for i, spans := range spansByLine {
-		if spans == nil {
-			spans = []textbuf.Span{}
-		}
-		result[i] = textbuf.Line{Spans: spans}
-	}
-	return result
-}
-
-// resolveTokenStyle returns the terminal style for a Chroma token type.
-func (h *ChromaHighlighter) resolveTokenStyle(tokenType chroma.TokenType, defaultFg, defaultBg style.Color) (fg, bg style.Color, attrs uint32) {
-	// Chroma uses Error for text a lexer cannot classify, including valid syntax
-	// that a lexer does not understand. Render such text with the defaults rather
-	// than presenting a lexer limitation as a source-code error.
-	if tokenType == chroma.Error {
-		return defaultFg, defaultBg, 0
-	}
-
-	entry := h.chromaStyle.Get(tokenType)
-
-	if entry.Colour.IsSet() {
-		fg = style.ColorFromInts(entry.Colour.Red(), entry.Colour.Green(), entry.Colour.Blue(), 255)
-	} else {
-		fg = defaultFg
-	}
-
-	bg = defaultBg
-
-	if entry.Bold == chroma.Yes {
-		attrs |= style.AttrBold
-	}
-	if entry.Italic == chroma.Yes {
-		attrs |= style.AttrItalic
-	}
-	if entry.Underline == chroma.Yes {
-		attrs |= style.AttrUnderline
-	}
-
-	return fg, bg, attrs
+	return textbuf.Line{Spans: spans}
 }

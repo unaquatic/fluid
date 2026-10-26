@@ -9,15 +9,11 @@ import (
 
 // DemoOptions are the rendering flags every demo accepts.
 type DemoOptions struct {
-	FPS     int
 	NoMouse bool
-	Bg      string
 }
 
 func demoFlags(fs *flag.FlagSet, o *DemoOptions) {
-	fs.IntVar(&o.FPS, "fps", 30, "Target frames per second")
 	fs.BoolVar(&o.NoMouse, "no-mouse", false, "Disable mouse input")
-	fs.StringVar(&o.Bg, "bg", "#0D1117", "Background color as hex")
 }
 
 // Run runs the command with args, the arguments after its name: "demo"

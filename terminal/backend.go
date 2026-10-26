@@ -72,6 +72,7 @@ type Backend struct {
 
 	oldState  *term.State // The terminal state saved before raw mode.
 	colorMode style.ColorMode
+	indexers  map[style.ColorMode]style.Indexers
 	width     int
 	height    int
 
@@ -80,7 +81,7 @@ type Backend struct {
 	kittyFlags           uint
 	alternateScreen      bool
 
-	cursorStyle    string // One of "block", "line", or "underline".
+	cursorStyle    CursorStyle
 	cursorBlinking bool
 
 	mu sync.Mutex // Protects terminal output writes.
@@ -104,6 +105,22 @@ func (t *Backend) ColorMode() style.ColorMode {
 // SetColorMode overrides the auto-detected color mode.
 func (t *Backend) SetColorMode(m style.ColorMode) {
 	t.colorMode = m
+}
+
+// Indexers returns the Indexers of the configured color mode, which
+// SetIndexers set, or the zero Indexers, which convert colors as the mode
+// does by default.
+func (t *Backend) Indexers() style.Indexers {
+	return t.indexers[t.colorMode]
+}
+
+// SetIndexers sets the Indexers that convert colors to palette entries while
+// the color mode is m. The zero Indexers convert them as m does by default.
+func (t *Backend) SetIndexers(m style.ColorMode, x style.Indexers) {
+	if t.indexers == nil {
+		t.indexers = make(map[style.ColorMode]style.Indexers)
+	}
+	t.indexers[m] = x
 }
 
 // Setup enters raw mode when stdin is a terminal, records its size, optionally
@@ -260,7 +277,7 @@ func (t *Backend) SetCursorPosition(x, y int, visible bool) {
 }
 
 // SetCursorStyle updates the cursor shape while preserving its blinking state.
-func (t *Backend) SetCursorStyle(cursorStyle string) {
+func (t *Backend) SetCursorStyle(cursorStyle CursorStyle) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -277,8 +294,8 @@ func (t *Backend) SetCursorBlinking(blinking bool) {
 	t.writeCursorShape()
 }
 
-// CursorStyle returns the current cursor style name.
-func (t *Backend) CursorStyle() string {
+// CursorStyle returns the current cursor shape.
+func (t *Backend) CursorStyle() CursorStyle {
 	return t.cursorStyle
 }
 
@@ -290,17 +307,12 @@ func (t *Backend) CursorBlinking() bool {
 // writeCursorShape writes the DECSCUSR sequence for the current shape and blink
 // state. The caller must hold t.mu.
 func (t *Backend) writeCursorShape() {
-	// DECSCUSR uses adjacent odd and even values for blinking and steady shapes.
+	// DECSCUSR uses adjacent odd and even values for blinking and steady
+	// shapes, 2 for a block, 4 for an underline, and 6 for a line, and 0 for
+	// the terminal's default.
 	var base int
-	switch t.cursorStyle {
-	case "block":
-		base = 2
-	case "underline":
-		base = 4
-	case "line", "bar":
-		base = 6
-	default:
-		base = 0
+	if t.cursorStyle >= CursorBlock && t.cursorStyle <= CursorLine {
+		base = 2 * int(t.cursorStyle)
 	}
 
 	if base != 0 && t.cursorBlinking {
@@ -327,7 +339,7 @@ func (t *Backend) ResetCursorColor() {
 }
 
 // SetMousePointer writes pointerStyle using OSC 22 without validating it.
-func (t *Backend) SetMousePointer(pointerStyle string) {
+func (t *Backend) SetMousePointer(pointerStyle MousePointerStyle) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 

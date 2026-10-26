@@ -238,7 +238,7 @@ func symbolColor(sym rune, set string, values map[rune]string) (style.Color, err
 
 // decodeAttrs returns the attributes that mark stands for: none for a space,
 // one for a letter, and the legend's letters for a combination symbol.
-func decodeAttrs(mark rune, values map[rune]string) (uint32, error) {
+func decodeAttrs(mark rune, values map[rune]string) (style.Attrs, error) {
 	letters := string(mark)
 	switch {
 	case mark == ' ':
@@ -249,7 +249,7 @@ func decodeAttrs(mark rune, values map[rune]string) (uint32, error) {
 			return 0, fmt.Errorf("symbol %q has no attributes in the legend", mark)
 		}
 	}
-	var attrs uint32
+	var attrs style.Attrs
 	for _, l := range letters {
 		a := attrOf(l)
 		if a == 0 {
@@ -262,7 +262,7 @@ func decodeAttrs(mark rune, values map[rune]string) (uint32, error) {
 
 // attrOf returns the attribute that letter stands for, or zero when letter
 // names none.
-func attrOf(letter rune) uint32 {
+func attrOf(letter rune) style.Attrs {
 	for _, a := range frameAttrs {
 		if rune(a.letter) == letter {
 			return a.attr

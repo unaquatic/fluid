@@ -7,6 +7,7 @@ import (
 
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/style"
+	"github.com/unaquatic/fluid/symbol"
 	"github.com/unaquatic/fluid/textbuf"
 )
 
@@ -69,8 +70,8 @@ func (r Rect) Right() int { return r.X + r.Width }
 func (r Rect) Bottom() int { return r.Y + r.Height }
 
 type drawTextConfig struct {
-	bg        *style.Color
-	attrs     uint32
+	bg        style.Color
+	attrs     style.Attrs
 	selection *textbuf.TextSelection
 	maxWidth  int // Zero extends drawing to the buffer edge.
 }
@@ -81,12 +82,12 @@ type DrawTextOption func(*drawTextConfig)
 // WithBg sets the background color of text drawn by DrawText.
 func WithBg(bg style.Color) DrawTextOption {
 	return func(c *drawTextConfig) {
-		c.bg = &bg
+		c.bg = bg
 	}
 }
 
 // WithAttrs sets the attributes of text drawn by DrawText.
-func WithAttrs(attrs uint32) DrawTextOption {
+func WithAttrs(attrs style.Attrs) DrawTextOption {
 	return func(c *drawTextConfig) {
 		c.attrs = attrs
 	}
@@ -124,8 +125,8 @@ type BoxDrawOptions struct {
 	// Title is drawn in the top border when the top side is drawn and wide
 	// enough.
 	Title string
-	// TitleAlignment is one of "left", "center", or "right".
-	TitleAlignment string
+	// TitleAlignment places Title along the top border.
+	TitleAlignment layout.Alignment
 }
 
 // Buffer is a 2D grid of styled cells with clipping support.
@@ -138,8 +139,9 @@ type Buffer struct {
 	id           string
 }
 
-// New allocates a buffer of the given size, filled with CellClear.
-func New(width, height int) *Buffer {
+// New allocates a buffer of the given size, filled with CellClear, and
+// applies opts.
+func New(width, height int, opts ...Option) *Buffer {
 	if width < 0 {
 		width = 0
 	}
@@ -152,13 +154,9 @@ func New(width, height int) *Buffer {
 		cells:  make([]Cell, width*height),
 	}
 	b.fill(CellClear)
-	return b
-}
-
-// NewWithID allocates a buffer with an identifier.
-func NewWithID(width, height int, id string) *Buffer {
-	b := New(width, height)
-	b.id = id
+	for _, opt := range opts {
+		opt(b)
+	}
 	return b
 }
 
@@ -174,25 +172,6 @@ func WithRespectAlpha(v bool) Option {
 // WithID sets the new buffer's identifier.
 func WithID(id string) Option {
 	return func(b *Buffer) { b.id = id }
-}
-
-// NewWithOptions allocates a buffer with configurable options.
-func NewWithOptions(width, height int, opts ...Option) *Buffer {
-	b := New(width, height)
-	for _, opt := range opts {
-		opt(b)
-	}
-	return b
-}
-
-// RuneWidthForBuffer returns the number of terminal columns occupied by r.
-func (b *Buffer) RuneWidthForBuffer(r rune) int {
-	return RuneWidth(r)
-}
-
-// StringWidthForBuffer returns the number of terminal columns occupied by s.
-func (b *Buffer) StringWidthForBuffer(s string) int {
-	return textbuf.StringWidth(s)
 }
 
 // fill sets every cell to c.
@@ -250,7 +229,7 @@ func (b *Buffer) SetCellCombining(x, y int, combining string) {
 // exceed the width of its first rune. The terminal writes every code point in
 // the cluster from this cell, so the recorded width must equal the number of
 // columns by which the terminal advances.
-func (b *Buffer) SetGraphemeCluster(x, y int, cluster string, fg, bg style.Color, attrs uint32) {
+func (b *Buffer) SetGraphemeCluster(x, y int, cluster string, fg, bg style.Color, attrs style.Attrs) {
 	baseRune, baseSize := utf8.DecodeRuneInString(cluster)
 	b.setCluster(x, y, baseRune, cluster[baseSize:], textbuf.StringWidth(cluster), fg, bg, attrs)
 }
@@ -258,7 +237,7 @@ func (b *Buffer) SetGraphemeCluster(x, y int, cluster string, fg, bg style.Color
 // ClusterStyler customizes a grapheme cluster before DrawClusters paints it.
 // The col argument is the cluster's column offset from the drawing origin. If
 // skip is true, DrawClusters advances past the cluster without painting it.
-type ClusterStyler func(col int, fg, bg style.Color, attrs uint32) (outFg, outBg style.Color, outAttrs uint32, skip bool)
+type ClusterStyler func(col int, fg, bg style.Color, attrs style.Attrs) (outFg, outBg style.Color, outAttrs style.Attrs, skip bool)
 
 // DrawClusters paints grapheme clusters from text at (x, y), using at most
 // maxWidth columns. It stops before the first cluster that would cross the
@@ -266,7 +245,7 @@ type ClusterStyler func(col int, fg, bg style.Color, attrs uint32) (outFg, outBg
 //
 // If styler is nil, every cluster uses the supplied colors and attributes.
 // Otherwise, DrawClusters calls styler once for each cluster that fits.
-func (b *Buffer) DrawClusters(text string, x, y, maxWidth int, fg, bg style.Color, attrs uint32, styler ClusterStyler) int {
+func (b *Buffer) DrawClusters(text string, x, y, maxWidth int, fg, bg style.Color, attrs style.Attrs, styler ClusterStyler) int {
 	cx := 0
 	remaining := text
 	for len(remaining) > 0 {
@@ -300,13 +279,13 @@ func (b *Buffer) Cell(x, y int) Cell {
 	return b.cells[b.cellIndex(x, y)]
 }
 
-// SetCell writes char at (x, y), subject to the current clipping region and
-// It does nothing when the coordinates are outside either region.
+// SetCell writes char at (x, y), subject to the current clipping region. It
+// does nothing when (x, y) is outside the buffer or the clipping region.
 //
 // A wide character occupies a head cell followed by continuation cells. If
 // the complete character does not fit, SetCell discards the write to prevent
 // the terminal from advancing beyond the buffer width.
-func (b *Buffer) SetCell(x, y int, char rune, fg, bg style.Color, attrs uint32) {
+func (b *Buffer) SetCell(x, y int, char rune, fg, bg style.Color, attrs style.Attrs) {
 	b.setCluster(x, y, char, "", RuneWidth(char), fg, bg, attrs)
 }
 
@@ -351,7 +330,7 @@ func (b *Buffer) blankAt(x, y int) {
 
 // setCluster writes char and its trailing code points as one cluster spanning
 // w columns.
-func (b *Buffer) setCluster(x, y int, char rune, combining string, w int, fg, bg style.Color, attrs uint32) {
+func (b *Buffer) setCluster(x, y int, char rune, combining string, w int, fg, bg style.Color, attrs style.Attrs) {
 	b.SetCellDirect(x, y, Cell{
 		Char:       char,
 		combining:  combiningHandle(combining),
@@ -404,7 +383,7 @@ func (b *Buffer) SetCellDirect(x, y int, cell Cell) {
 // SetCellBlended alpha blends char over the cell at (x, y), subject to the
 // current clipping region. It discards a wide character that does
 // not fit in the buffer.
-func (b *Buffer) SetCellBlended(x, y int, char rune, fg, bg style.Color, attrs uint32) {
+func (b *Buffer) SetCellBlended(x, y int, char rune, fg, bg style.Color, attrs style.Attrs) {
 	if !b.inBounds(x, y) || b.isClipped(x, y) {
 		return
 	}
@@ -445,13 +424,11 @@ func (b *Buffer) SetCellBlended(x, y int, char rune, fg, bg style.Color, attrs u
 	}
 }
 
-// Clear resets every cell using the first background color, if present. With
-// no argument, it uses CellClear's transparent background.
-func (b *Buffer) Clear(bg ...style.Color) {
+// Clear resets every cell to CellClear with the background bg. A transparent
+// bg keeps CellClear's transparent background.
+func (b *Buffer) Clear(bg style.Color) {
 	c := CellClear
-	if len(bg) > 0 {
-		c.Bg = bg[0]
-	}
+	c.Bg = bg
 	b.fill(c)
 }
 
@@ -463,7 +440,7 @@ func (b *Buffer) DrawText(text string, x, y int, fg style.Color, opts ...DrawTex
 		opt(&cfg)
 	}
 
-	hasBg := cfg.bg != nil
+	hasBg := !cfg.bg.IsTransparent()
 
 	maxX := b.width
 	if cfg.maxWidth > 0 && x+cfg.maxWidth < maxX {
@@ -485,7 +462,7 @@ func (b *Buffer) DrawText(text string, x, y int, fg style.Color, opts ...DrawTex
 				}
 				var tabBg style.Color
 				if hasBg {
-					tabBg = *cfg.bg
+					tabBg = cfg.bg
 				} else if b.inBounds(cx, y) {
 					tabBg = b.cells[b.cellIndex(cx, y)].Bg
 				} else {
@@ -509,7 +486,7 @@ func (b *Buffer) DrawText(text string, x, y int, fg style.Color, opts ...DrawTex
 		cellFg := fg
 		var cellBg style.Color
 		if hasBg {
-			cellBg = *cfg.bg
+			cellBg = cfg.bg
 		} else if b.inBounds(cx, y) {
 			cellBg = b.cells[b.cellIndex(cx, y)].Bg
 		} else {
@@ -519,11 +496,11 @@ func (b *Buffer) DrawText(text string, x, y int, fg style.Color, opts ...DrawTex
 
 		// Selection colors override the text colors.
 		if cfg.selection != nil && charIdx >= cfg.selection.Start && charIdx < cfg.selection.End {
-			if cfg.selection.BgColor != nil {
-				cellBg = *cfg.selection.BgColor
+			if !cfg.selection.BgColor.IsTransparent() {
+				cellBg = cfg.selection.BgColor
 			}
-			if cfg.selection.FgColor != nil {
-				cellFg = *cfg.selection.FgColor
+			if !cfg.selection.FgColor.IsTransparent() {
+				cellFg = cfg.selection.FgColor
 			}
 		}
 
@@ -535,7 +512,7 @@ func (b *Buffer) DrawText(text string, x, y int, fg style.Color, opts ...DrawTex
 }
 
 // DrawChar draws a single codepoint at (x, y).
-func (b *Buffer) DrawChar(char rune, x, y int, fg, bg style.Color, attrs uint32) {
+func (b *Buffer) DrawChar(char rune, x, y int, fg, bg style.Color, attrs style.Attrs) {
 	b.SetCell(x, y, char, fg, bg, attrs)
 }
 
@@ -563,7 +540,7 @@ func (b *Buffer) FillRect(x, y, w, h int, bg style.Color) {
 // DrawBox draws a clipped box with optional border sides, background fill, and
 // title.
 func (b *Buffer) DrawBox(opts BoxDrawOptions) {
-	sides := style.GetBorderSides(opts.Border)
+	sides := opts.Border
 	chars := style.CharsForStyle(opts.BorderStyle)
 
 	startX := max(0, opts.X)
@@ -584,7 +561,7 @@ func (b *Buffer) DrawBox(opts BoxDrawOptions) {
 	shouldDrawTitle := false
 	var titleX, titleStartX, titleEndX int
 	if opts.Title != "" && sides.Top && isAtActualTop {
-		titleLen := b.StringWidthForBuffer(opts.Title)
+		titleLen := textbuf.StringWidth(opts.Title)
 		minTitleSpace := 4
 
 		if opts.Width >= titleLen+minTitleSpace {
@@ -592,11 +569,11 @@ func (b *Buffer) DrawBox(opts BoxDrawOptions) {
 			padding := 2
 
 			switch opts.TitleAlignment {
-			case "center":
+			case layout.TextAlignCenter:
 				titleX = startX + max(padding, (opts.Width-titleLen)/2)
-			case "right":
+			case layout.TextAlignRight:
 				titleX = startX + opts.Width - padding - titleLen
-			default: // "left"
+			default:
 				titleX = startX + padding
 			}
 
@@ -715,15 +692,17 @@ func (b *Buffer) DrawVLine(x, y, length int, char rune, fg, bg style.Color) {
 	}
 }
 
-// DrawFrameBuffer copies src to b at (destX, destY). The first optional source
-// rectangle restricts the copied region. The copy respects b's clipping region
-// If src.RespectAlpha reports true, the copy alpha blends each
-// source cell over its destination.
-func (b *Buffer) DrawFrameBuffer(destX, destY int, src *Buffer, srcRect ...Rect) {
-	sr := src.Bounds()
-	if len(srcRect) > 0 {
-		sr = srcRect[0]
-	}
+// DrawFrameBuffer copies all of src to b at (destX, destY), as
+// DrawFrameBufferRect copies a rectangle of it.
+func (b *Buffer) DrawFrameBuffer(destX, destY int, src *Buffer) {
+	b.DrawFrameBufferRect(destX, destY, src, src.Bounds())
+}
+
+// DrawFrameBufferRect copies the rectangle sr of src to b, with its top-left
+// corner at (destX, destY). The copy respects b's clipping region. If
+// src.RespectAlpha reports true, the copy alpha blends each source cell over
+// its destination.
+func (b *Buffer) DrawFrameBufferRect(destX, destY int, src *Buffer, sr Rect) {
 
 	for sy := sr.Y; sy < sr.Bottom(); sy++ {
 		for sx := sr.X; sx < sr.Right(); sx++ {
@@ -865,8 +844,8 @@ func (b *Buffer) Bgs() []style.Color {
 }
 
 // Attributes returns a row-major snapshot of the attributes in each cell.
-func (b *Buffer) Attributes() []uint32 {
-	out := make([]uint32, len(b.cells))
+func (b *Buffer) Attributes() []style.Attrs {
+	out := make([]style.Attrs, len(b.cells))
 	for i, c := range b.cells {
 		out[i] = c.Attributes
 	}
@@ -924,14 +903,21 @@ func (b *Buffer) WriteResolvedChars(dst []byte, addLineBreaks bool) int {
 	return n
 }
 
-// PlainText returns the buffer's primary characters as plain text. When the
-// first optional argument is true, it inserts a newline between rows.
-func (b *Buffer) PlainText(addLineBreaks ...bool) string {
-	breaks := false
-	if len(addLineBreaks) > 0 {
-		breaks = addLineBreaks[0]
-	}
+// PlainText returns the buffer's primary characters as plain text, with its
+// rows run together. String separates them with newlines.
+func (b *Buffer) PlainText() string {
+	return b.plainText(false)
+}
 
+// String returns the buffer's primary characters as plain text, one row to a
+// line, so that fmt prints a buffer as the frame it holds.
+func (b *Buffer) String() string {
+	return b.plainText(true)
+}
+
+// plainText returns the buffer's primary characters as plain text, with a
+// newline between rows when breaks is true.
+func (b *Buffer) plainText(breaks bool) string {
 	var sb strings.Builder
 	for y := 0; y < b.height; y++ {
 		if breaks && y > 0 {
@@ -1044,7 +1030,7 @@ func (b *Buffer) DrawBorder(opts BorderDrawOptions) {
 		return
 	}
 
-	sides := style.GetBorderSides(opts.Border)
+	sides := opts.Border
 	chars := style.CharsForStyle(opts.Style)
 
 	// Fill the area enclosed by the enabled sides.
@@ -1116,7 +1102,7 @@ func (b *Buffer) DrawBorder(opts BorderDrawOptions) {
 }
 
 // drawHorizontalBorder draws a top border and any enabled corner cells.
-func (b *Buffer) drawHorizontalBorder(x, y, width int, chars style.BorderCharacters, color, bg style.Color, hasLeft, hasRight bool) {
+func (b *Buffer) drawHorizontalBorder(x, y, width int, chars symbol.BorderCharacters, color, bg style.Color, hasLeft, hasRight bool) {
 	for cx := x; cx < x+width; cx++ {
 		ch := chars.Horizontal
 		if cx == x && hasLeft {
@@ -1183,7 +1169,7 @@ func (b *Buffer) drawBorderTextSimple(text string, x, y int, fg, bg style.Color)
 // InnerRect returns the content area inside the enabled border sides. Each
 // enabled side consumes one row or column, and the result never has negative
 // dimensions.
-func InnerRect(x, y, w, h int, sides style.BorderSidesConfig) Rect {
+func InnerRect(x, y, w, h int, sides style.Border) Rect {
 	ix, iy, iw, ih := x, y, w, h
 	if sides.Left {
 		ix++

@@ -7,6 +7,7 @@ import (
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/style"
 	"github.com/unaquatic/fluid/testutil"
+	"github.com/unaquatic/fluid/textbuf"
 )
 
 // Text test helpers.
@@ -59,7 +60,7 @@ func TestText_SetContent(t *testing.T) {
 }
 
 func TestText_WrapNone(t *testing.T) {
-	txt := setupText("Hello World", 5, 1, TextWithWrapMode(WrapNone))
+	txt := setupText("Hello World", 5, 1, TextWithWrapMode(textbuf.WrapNone))
 
 	if txt.LineCount() != 1 {
 		t.Errorf("expected 1 line, got %d", txt.LineCount())
@@ -67,7 +68,7 @@ func TestText_WrapNone(t *testing.T) {
 }
 
 func TestText_WrapChar(t *testing.T) {
-	txt := setupText("HelloWorld", 5, 3, TextWithWrapMode(WrapChar))
+	txt := setupText("HelloWorld", 5, 3, TextWithWrapMode(textbuf.WrapChar))
 
 	if txt.LineCount() != 2 {
 		t.Errorf("expected 2 lines, got %d", txt.LineCount())
@@ -75,7 +76,7 @@ func TestText_WrapChar(t *testing.T) {
 }
 
 func TestText_WrapWord(t *testing.T) {
-	txt := setupText("Hello World Foo", 7, 5, TextWithWrapMode(WrapWord))
+	txt := setupText("Hello World Foo", 7, 5, TextWithWrapMode(textbuf.WrapWord))
 
 	if txt.LineCount() < 2 {
 		t.Errorf("expected at least 2 lines, got %d", txt.LineCount())
@@ -123,12 +124,14 @@ func TestText_Options(t *testing.T) {
 		TextWithFg(style.ColorRed),
 		TextWithBg(style.ColorBlue),
 		TextWithAttributes(style.AttrBold),
-		TextWithWrapMode(WrapWord),
+		TextWithWrapMode(textbuf.WrapWord),
 		TextWithTruncate(true),
 		TextWithSelectable(true),
-		TextWithWidth(layout.Points(20)),
-		TextWithHeight(layout.Points(5)),
-		TextWithFlexGrow(1),
+		TextWithLayout(
+			layout.WithWidth(layout.Points(20)),
+			layout.WithHeight(layout.Points(5)),
+			layout.WithFlexGrow(1),
+		),
 	)
 
 	if txt.ID() != "my-text" {
@@ -199,7 +202,7 @@ func TestText_MultiChunkWrapChar(t *testing.T) {
 		style.FgRed("AABB"),
 		style.FgBlue("CCDD"),
 	)
-	txt := setupStyledText(st, 4, 4, TextWithWrapMode(WrapChar))
+	txt := setupStyledText(st, 4, 4, TextWithWrapMode(textbuf.WrapChar))
 
 	if txt.LineCount() != 2 {
 		t.Errorf("expected 2 lines, got %d", txt.LineCount())
@@ -221,7 +224,7 @@ func TestText_MultiChunkWrapWord(t *testing.T) {
 		style.FgRed("Hello "),
 		style.FgBlue("World"),
 	)
-	txt := setupStyledText(st, 6, 4, TextWithWrapMode(WrapWord))
+	txt := setupStyledText(st, 6, 4, TextWithWrapMode(textbuf.WrapWord))
 
 	if txt.LineCount() != 2 {
 		t.Errorf("expected 2 lines, got %d", txt.LineCount())
@@ -393,7 +396,7 @@ func TestText_MeasureIntrinsic_Multiline(t *testing.T) {
 }
 
 func TestText_MeasureIntrinsic_Wrapped(t *testing.T) {
-	txt := NewText("Hello World", TextWithWrapMode(WrapWord))
+	txt := NewText("Hello World", TextWithWrapMode(textbuf.WrapWord))
 	m := txt.textSurface.MeasureForDimensions(6, 0)
 	if m == nil {
 		t.Fatal("expected non-nil measure result")
@@ -424,8 +427,8 @@ func TestText_Setters(t *testing.T) {
 		t.Error("SetAttributes failed")
 	}
 
-	txt.SetWrapMode(WrapWord)
-	if txt.WrapModeValue() != WrapWord {
+	txt.SetWrapMode(textbuf.WrapWord)
+	if txt.WrapModeValue() != textbuf.WrapWord {
 		t.Error("SetWrapMode failed")
 	}
 

@@ -2,6 +2,7 @@ package widget
 
 import (
 	"strings"
+	"time"
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
@@ -104,7 +105,7 @@ func (t *Tree) flattenNode(node *TreeNode, depth int) {
 }
 
 // RenderSelf draws the tree.
-func (t *Tree) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (t *Tree) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	w := t.Width()
 	h := t.Height()
 	if w <= 0 || h <= 0 || len(t.flatItems) == 0 {
@@ -170,27 +171,27 @@ func (t *Tree) HandleKeyPress(e *input.KeyEvent) bool {
 
 	handled := true
 	switch {
-	case e.Matches(input.KeyUp) || e.Matches("k"):
+	case e.Matches(input.KeyUp, 0) || e.Matches("k", 0):
 		if t.selectedIndex > 0 {
 			t.selectedIndex--
 			t.ensureVisible()
 			t.RequestRender()
 		}
 
-	case e.Matches(input.KeyDown) || e.Matches("j"):
+	case e.Matches(input.KeyDown, 0) || e.Matches("j", 0):
 		if t.selectedIndex < len(t.flatItems)-1 {
 			t.selectedIndex++
 			t.ensureVisible()
 			t.RequestRender()
 		}
 
-	case e.Matches(input.KeyReturn) || e.Matches(input.KeySpace):
+	case e.Matches(input.KeyReturn, 0) || e.Matches(input.KeySpace, 0):
 		t.toggleSelected()
 
-	case e.Matches(input.KeyLeft):
+	case e.Matches(input.KeyLeft, 0):
 		t.collapseSelected()
 
-	case e.Matches(input.KeyRight):
+	case e.Matches(input.KeyRight, 0):
 		t.expandSelected()
 
 	default:
@@ -253,8 +254,8 @@ func (t *Tree) ensureVisible() {
 
 // Tree options.
 
-// TreeWithTextColor sets the text color.
-func TreeWithTextColor(c style.Color) TreeOption {
+// TreeWithFg sets the text color.
+func TreeWithFg(c style.Color) TreeOption {
 	return func(t *Tree) { t.textColor = c }
 }
 
@@ -283,12 +284,12 @@ func TreeWithID(id string) TreeOption {
 	return func(t *Tree) { t.SetID(id) }
 }
 
-// TreeWithWidth sets the widget width.
-func TreeWithWidth(s layout.Scalar) TreeOption {
-	return func(t *Tree) { t.LayoutNode().Width = s }
-}
-
-// TreeWithHeight sets the widget height.
-func TreeWithHeight(s layout.Scalar) TreeOption {
-	return func(t *Tree) { t.LayoutNode().Height = s }
+// TreeWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func TreeWithLayout(opts ...layout.Option) TreeOption {
+	return func(w *Tree) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }

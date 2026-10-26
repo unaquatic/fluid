@@ -14,13 +14,13 @@ func TestNewBox_Defaults(t *testing.T) {
 	if b == nil {
 		t.Fatal("NewBox returned nil")
 	}
-	if b.BackgroundColor != style.ColorTransparent {
+	if b.Bg() != style.ColorTransparent {
 		t.Error("expected transparent background by default")
 	}
-	if b.BorderStyle != style.BorderNone {
+	if b.BorderStyle() != style.BorderNone {
 		t.Error("expected no border style by default")
 	}
-	if b.ShouldFill {
+	if b.ShouldFill() {
 		t.Error("expected ShouldFill false by default")
 	}
 	if b.LayoutNode().FlexDirection != layout.DirectionColumn {
@@ -31,47 +31,49 @@ func TestNewBox_Defaults(t *testing.T) {
 func TestNewBox_WithOptions(t *testing.T) {
 	b := NewBox(
 		BoxWithID("test-box"),
-		BoxWithBackgroundColor(style.ColorRed),
+		BoxWithBg(style.ColorRed),
 		BoxWithBorderStyle(style.BorderRounded),
 		BoxWithBorder(style.BorderAll()),
 		BoxWithBorderColor(style.ColorBlue),
 		BoxWithTitle("My Box"),
 		BoxWithTitleAlignment(layout.TextAlignCenter),
 		BoxWithFocusedBorderColor(style.ColorGreen),
-		BoxWithGap(layout.Points(2)),
-		BoxWithWidth(layout.Points(20)),
-		BoxWithHeight(layout.Points(10)),
+		BoxWithLayout(
+			layout.WithGap(2),
+			layout.WithWidth(layout.Points(20)),
+			layout.WithHeight(layout.Points(10)),
+		),
 	)
 
 	if b.ID() != "test-box" {
 		t.Errorf("expected id 'test-box', got %q", b.ID())
 	}
-	if !b.BackgroundColor.Equals(style.ColorRed) {
+	if !b.Bg().Equals(style.ColorRed) {
 		t.Error("expected red background")
 	}
-	if b.BorderStyle != style.BorderRounded {
+	if b.BorderStyle() != style.BorderRounded {
 		t.Error("expected rounded border")
 	}
-	if !b.Border.All {
+	if b.Border() != style.BorderAll() {
 		t.Error("expected all borders")
 	}
-	if !b.BorderColor.Equals(style.ColorBlue) {
+	if !b.BorderColor().Equals(style.ColorBlue) {
 		t.Error("expected blue border color")
 	}
-	if b.Title != "My Box" {
-		t.Errorf("expected title 'My Box', got %q", b.Title)
+	if b.Title() != "My Box" {
+		t.Errorf("expected title 'My Box', got %q", b.Title())
 	}
-	if b.TitleAlignment != layout.TextAlignCenter {
+	if b.TitleAlignment() != layout.TextAlignCenter {
 		t.Error("expected center title alignment")
 	}
-	if !b.ShouldFill {
+	if !b.ShouldFill() {
 		t.Error("expected ShouldFill true when background color is set")
 	}
 }
 
 func TestBox_RenderSelf_FillBackground(t *testing.T) {
 	b := NewBox(
-		BoxWithBackgroundColor(style.ColorRed),
+		BoxWithBg(style.ColorRed),
 		BoxWithShouldFill(true),
 	)
 	// RenderSelf needs a computed layout rectangle.
@@ -218,15 +220,15 @@ func TestBox_Children_WithOtherOptions(t *testing.T) {
 	txt := NewText("hello")
 	b := NewBox(
 		BoxWithID("combo"),
-		BoxWithBackgroundColor(style.ColorRed),
-		BoxWithFlexDirection(layout.DirectionRow),
+		BoxWithBg(style.ColorRed),
+		BoxWithLayout(layout.WithFlexDirection(layout.DirectionRow)),
 		Children(txt),
 	)
 
 	if b.ID() != "combo" {
 		t.Errorf("expected id 'combo', got %q", b.ID())
 	}
-	if !b.BackgroundColor.Equals(style.ColorRed) {
+	if !b.Bg().Equals(style.ColorRed) {
 		t.Error("expected red background")
 	}
 	if b.ChildrenCount() != 1 {
@@ -236,12 +238,10 @@ func TestBox_Children_WithOtherOptions(t *testing.T) {
 
 func TestBox_Children_RendersCorrectly(t *testing.T) {
 	txt := NewText("Hi",
-		TextWithWidth(layout.Points(10)),
-		TextWithHeight(layout.Points(1)),
+		TextWithLayout(layout.WithWidth(layout.Points(10)), layout.WithHeight(layout.Points(1))),
 	)
 	b := NewBox(
-		BoxWithWidth(layout.Points(10)),
-		BoxWithHeight(layout.Points(1)),
+		BoxWithLayout(layout.WithWidth(layout.Points(10)), layout.WithHeight(layout.Points(1))),
 		Children(txt),
 	)
 

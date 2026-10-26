@@ -1,6 +1,8 @@
 package widget
 
 import (
+	"time"
+
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
 	"github.com/unaquatic/fluid/layout"
@@ -92,7 +94,7 @@ func (t *Table) SetRows(rows [][]string) {
 func (t *Table) SelectedRow() int { return t.selectedRow }
 
 // RenderSelf draws the table.
-func (t *Table) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (t *Table) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	w := t.Width()
 	h := t.Height()
 	if w <= 0 || h <= 0 {
@@ -160,7 +162,7 @@ func (t *Table) HandleKeyPress(e *input.KeyEvent) bool {
 
 	handled := true
 	switch {
-	case e.Matches(input.KeyUp) || e.Matches("k"):
+	case e.Matches(input.KeyUp, 0) || e.Matches("k", 0):
 		if t.selectedRow > 0 {
 			t.selectedRow--
 		} else if t.wrapSelection {
@@ -169,7 +171,7 @@ func (t *Table) HandleKeyPress(e *input.KeyEvent) bool {
 		t.ensureRowVisible()
 		t.RequestRender()
 
-	case e.Matches(input.KeyDown) || e.Matches("j"):
+	case e.Matches(input.KeyDown, 0) || e.Matches("j", 0):
 		if t.selectedRow < len(t.rows)-1 {
 			t.selectedRow++
 		} else if t.wrapSelection {
@@ -178,7 +180,7 @@ func (t *Table) HandleKeyPress(e *input.KeyEvent) bool {
 		t.ensureRowVisible()
 		t.RequestRender()
 
-	case e.Matches(input.KeyReturn):
+	case e.Matches(input.KeyReturn, 0):
 		if t.OnRowSelected != nil && t.selectedRow >= 0 && t.selectedRow < len(t.rows) {
 			t.OnRowSelected(t.selectedRow, t.rows[t.selectedRow])
 		}
@@ -256,17 +258,12 @@ func TableWithID(id string) TableOption {
 	return func(t *Table) { t.SetID(id) }
 }
 
-// TableWithWidth sets the widget width.
-func TableWithWidth(s layout.Scalar) TableOption {
-	return func(t *Table) { t.LayoutNode().Width = s }
-}
-
-// TableWithHeight sets the widget height.
-func TableWithHeight(s layout.Scalar) TableOption {
-	return func(t *Table) { t.LayoutNode().Height = s }
-}
-
-// TableWithFlexGrow sets the flex-grow factor.
-func TableWithFlexGrow(v int) TableOption {
-	return func(t *Table) { t.LayoutNode().FlexGrow = v }
+// TableWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func TableWithLayout(opts ...layout.Option) TableOption {
+	return func(w *Table) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }

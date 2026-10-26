@@ -1,6 +1,8 @@
 package widget
 
 import (
+	"time"
+
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
 	"github.com/unaquatic/fluid/layout"
@@ -75,7 +77,7 @@ func (l *List) SetItems(items []ListItem) {
 }
 
 // RenderSelf draws the list.
-func (l *List) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (l *List) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	w := l.Width()
 	h := l.Height()
 	if w <= 0 || h <= 0 || len(l.items) == 0 {
@@ -128,7 +130,7 @@ func (l *List) HandleKeyPress(e *input.KeyEvent) bool {
 
 	handled := true
 	switch {
-	case e.Matches(input.KeyUp) || e.Matches("k"):
+	case e.Matches(input.KeyUp, 0) || e.Matches("k", 0):
 		if l.selectedIndex > 0 {
 			l.selectedIndex--
 		} else if l.wrapSelection {
@@ -137,7 +139,7 @@ func (l *List) HandleKeyPress(e *input.KeyEvent) bool {
 		l.ensureVisible()
 		l.RequestRender()
 
-	case e.Matches(input.KeyDown) || e.Matches("j"):
+	case e.Matches(input.KeyDown, 0) || e.Matches("j", 0):
 		if l.selectedIndex < len(l.items)-1 {
 			l.selectedIndex++
 		} else if l.wrapSelection {
@@ -146,7 +148,7 @@ func (l *List) HandleKeyPress(e *input.KeyEvent) bool {
 		l.ensureVisible()
 		l.RequestRender()
 
-	case e.Matches(input.KeyReturn) || e.Matches(input.KeySpace):
+	case e.Matches(input.KeyReturn, 0) || e.Matches(input.KeySpace, 0):
 		if l.OnItemSelected != nil {
 			l.OnItemSelected(l.selectedIndex, l.items[l.selectedIndex])
 		}
@@ -173,8 +175,8 @@ func (l *List) ensureVisible() {
 
 // List options.
 
-// ListWithTextColor sets the text color.
-func ListWithTextColor(c style.Color) ListOption {
+// ListWithFg sets the text color.
+func ListWithFg(c style.Color) ListOption {
 	return func(l *List) { l.textColor = c }
 }
 
@@ -198,17 +200,12 @@ func ListWithID(id string) ListOption {
 	return func(l *List) { l.SetID(id) }
 }
 
-// ListWithWidth sets the widget width.
-func ListWithWidth(s layout.Scalar) ListOption {
-	return func(l *List) { l.LayoutNode().Width = s }
-}
-
-// ListWithHeight sets the widget height.
-func ListWithHeight(s layout.Scalar) ListOption {
-	return func(l *List) { l.LayoutNode().Height = s }
-}
-
-// ListWithFlexGrow sets the flex-grow factor.
-func ListWithFlexGrow(v int) ListOption {
-	return func(l *List) { l.LayoutNode().FlexGrow = v }
+// ListWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func ListWithLayout(opts ...layout.Option) ListOption {
+	return func(w *List) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }

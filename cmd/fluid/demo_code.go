@@ -8,6 +8,7 @@ import (
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/style"
 	"github.com/unaquatic/fluid/terminal"
+	"github.com/unaquatic/fluid/textbuf"
 	"github.com/unaquatic/fluid/widget"
 )
 
@@ -119,10 +120,7 @@ func main() {
 
 func runCodeDemo(ctx context.Context, o DemoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
-		Fullscreen:  true,
-		ExitOnCtrlC: true,
-		UseMouse:    !o.NoMouse,
-		TargetFPS:   o.FPS,
+		UseMouse: !o.NoMouse,
 	})
 	if err != nil {
 		return fmt.Errorf("renderer: %w", err)
@@ -132,31 +130,35 @@ func runCodeDemo(ctx context.Context, o DemoOptions) error {
 
 	codeWidget := widget.NewCode(sampleGoCode,
 		widget.CodeWithFiletype("go"),
-		widget.CodeWithTheme("dracula"),
-		widget.CodeWithWrapMode(widget.WrapNone),
-		widget.CodeWithFlexGrow(1),
+		widget.CodeWithTheme(style.DarculaSolid()),
+		widget.CodeWithWrapMode(textbuf.WrapNone),
+		widget.CodeWithLayout(layout.WithFlexGrow(1)),
 		widget.CodeWithActiveLine(0),
 	)
 	lineNumbers := widget.NewLineNumber(codeWidget)
 
-	wrapMode := widget.WrapNone
+	wrapMode := textbuf.WrapNone
 	statusText := widget.NewText(
-		"Wrap: OFF | Scroll: mouse wheel or Up/Down | w: toggle wrap | Esc/q: quit",
-		widget.TextWithHeight(layout.Points(1)),
+		"Wrap: OFF | Esc/Q: Exit | Wheel/Up/Down: Scroll | W: Toggle wrap",
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 	)
 
 	container := widget.NewBox(
-		widget.BoxWithFlexGrow(1),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
-		widget.BoxWithPadding(layout.Points(1)),
-		widget.BoxWithGap(layout.Points(1)),
+		widget.BoxWithLayout(
+			layout.WithFlexGrow(1),
+			layout.WithFlexDirection(layout.DirectionColumn),
+			layout.WithPadding(layout.Points(1)),
+			layout.WithGap(1),
+		),
 		widget.Children(
 			widget.NewText("Code Viewer Demo — Go Syntax Highlighting",
-				widget.TextWithHeight(layout.Points(1)),
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 			widget.NewBox(
-				widget.BoxWithFlexGrow(1),
-				widget.BoxWithFlexDirection(layout.DirectionRow),
+				widget.BoxWithLayout(
+					layout.WithFlexGrow(1),
+					layout.WithFlexDirection(layout.DirectionRow),
+				),
 				widget.BoxWithBorder(style.BorderAll()),
 				widget.BoxWithBorderStyle(style.BorderSingle),
 				widget.BoxWithTitle("main.go"),
@@ -173,19 +175,19 @@ func runCodeDemo(ctx context.Context, o DemoOptions) error {
 		}
 		k := e.Key
 
-		if k.Name == "escape" || (k.Name == "q" && !k.Ctrl && !k.Alt) {
+		if k.Name == "escape" || (k.Name == "q" && !k.Mods.Has(input.ModCtrl) && !k.Mods.Has(input.ModAlt)) {
 			r.Destroy()
 			return
 		}
-		if k.Name == "w" && !k.Ctrl && !k.Alt {
-			if wrapMode == widget.WrapNone {
-				wrapMode = widget.WrapWord
-				codeWidget.SetWrapMode(widget.WrapWord)
-				statusText.SetContent("Wrap: WORD | Scroll: mouse wheel or Up/Down | w: toggle wrap | Esc/q: quit")
+		if k.Name == "w" && !k.Mods.Has(input.ModCtrl) && !k.Mods.Has(input.ModAlt) {
+			if wrapMode == textbuf.WrapNone {
+				wrapMode = textbuf.WrapWord
+				codeWidget.SetWrapMode(textbuf.WrapWord)
+				statusText.SetContent("Wrap: WORD | Esc/Q: Exit | Wheel/Up/Down: Scroll | W: Toggle wrap")
 			} else {
-				wrapMode = widget.WrapNone
-				codeWidget.SetWrapMode(widget.WrapNone)
-				statusText.SetContent("Wrap: OFF | Scroll: mouse wheel or Up/Down | w: toggle wrap | Esc/q: quit")
+				wrapMode = textbuf.WrapNone
+				codeWidget.SetWrapMode(textbuf.WrapNone)
+				statusText.SetContent("Wrap: OFF | Esc/Q: Exit | Wheel/Up/Down: Scroll | W: Toggle wrap")
 			}
 			return
 		}

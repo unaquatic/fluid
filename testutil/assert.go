@@ -33,7 +33,7 @@ func AssertCellFg(t *testing.T, buf *buffer.Buffer, x, y int, char rune, fg styl
 
 // AssertCellStyle reports test errors unless the cell at (x, y) matches
 // char, fg, bg, and the exact attribute bitmask.
-func AssertCellStyle(t *testing.T, buf *buffer.Buffer, x, y int, char rune, fg, bg style.Color, attrs uint32) {
+func AssertCellStyle(t *testing.T, buf *buffer.Buffer, x, y int, char rune, fg, bg style.Color, attrs style.Attrs) {
 	t.Helper()
 	cell := buf.Cell(x, y)
 	if cell.Char != char {
@@ -52,7 +52,7 @@ func AssertCellStyle(t *testing.T, buf *buffer.Buffer, x, y int, char rune, fg, 
 
 // AssertCellAttrs reports test errors unless the cell at (x, y) contains char
 // and every bit in attrs. Additional attribute bits are allowed.
-func AssertCellAttrs(t *testing.T, buf *buffer.Buffer, x, y int, char rune, attrs uint32) {
+func AssertCellAttrs(t *testing.T, buf *buffer.Buffer, x, y int, char rune, attrs style.Attrs) {
 	t.Helper()
 	cell := buf.Cell(x, y)
 	if cell.Char != char {

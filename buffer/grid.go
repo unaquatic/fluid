@@ -2,12 +2,13 @@ package buffer
 
 import (
 	"github.com/unaquatic/fluid/style"
+	"github.com/unaquatic/fluid/symbol"
 )
 
 // GridDrawOptions configures DrawGrid.
 type GridDrawOptions struct {
 	// Chars defines the border character set to use.
-	Chars style.BorderCharacters
+	Chars symbol.BorderCharacters
 	// BorderFg is the foreground color for all border characters.
 	BorderFg style.Color
 	// BorderBg is the background color for all border characters.
@@ -139,7 +140,7 @@ func (b *Buffer) DrawGrid(opts GridDrawOptions) {
 }
 
 // gridIntersection returns the junction rune for the connected directions.
-func gridIntersection(chars style.BorderCharacters, hasUp, hasDown, hasLeft, hasRight bool) rune {
+func gridIntersection(chars symbol.BorderCharacters, hasUp, hasDown, hasLeft, hasRight bool) rune {
 	if hasUp && hasDown && hasLeft && hasRight {
 		return chars.Cross
 	}

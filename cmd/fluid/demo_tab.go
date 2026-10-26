@@ -8,6 +8,7 @@ import (
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/style"
 	"github.com/unaquatic/fluid/terminal"
+	"github.com/unaquatic/fluid/textbuf"
 	"github.com/unaquatic/fluid/widget"
 )
 
@@ -21,10 +22,7 @@ const sampleTabCode = "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfor i 
 
 func runTabDemo(ctx context.Context, o DemoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
-		Fullscreen:  true,
-		ExitOnCtrlC: true,
-		UseMouse:    !o.NoMouse,
-		TargetFPS:   o.FPS,
+		UseMouse: !o.NoMouse,
 	})
 	if err != nil {
 		return fmt.Errorf("renderer: %w", err)
@@ -35,47 +33,55 @@ func runTabDemo(ctx context.Context, o DemoOptions) error {
 
 	codeWidget := widget.NewCode(sampleTabCode,
 		widget.CodeWithFiletype("go"),
-		widget.CodeWithTheme("dracula"),
-		widget.CodeWithWrapMode(widget.WrapWord),
-		widget.CodeWithFlexGrow(1),
+		widget.CodeWithTheme(style.DarculaSolid()),
+		widget.CodeWithWrapMode(textbuf.WrapWord),
+		widget.CodeWithLayout(layout.WithFlexGrow(1)),
 	)
 
 	ta := widget.NewTextarea(
 		widget.TextareaWithText("Line 1\n\tIndented once\n\t\tIndented twice\n\t\t\tIndented thrice\nNo indent\n\tMixed:\ttwo\ttabs\n"),
-		widget.TextareaWithFlexGrow(1),
-		widget.TextareaWithWrapMode(widget.WrapWord),
+		widget.TextareaWithLayout(layout.WithFlexGrow(1)),
+		widget.TextareaWithWrapMode(textbuf.WrapWord),
 	)
 
 	statusText := widget.NewText(
-		fmt.Sprintf("Tab width: %d | t: cycle (2/4/8) | Esc/q: quit", tabWidth),
-		widget.TextWithHeight(layout.Points(1)),
+		fmt.Sprintf("Tab width: %d | Esc/Q: Exit | T: Cycle 2/4/8", tabWidth),
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 	)
 
 	container := widget.NewBox(
-		widget.BoxWithFlexGrow(1),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
-		widget.BoxWithPadding(layout.Points(1)),
-		widget.BoxWithGap(layout.Points(1)),
+		widget.BoxWithLayout(
+			layout.WithFlexGrow(1),
+			layout.WithFlexDirection(layout.DirectionColumn),
+			layout.WithPadding(layout.Points(1)),
+			layout.WithGap(1),
+		),
 		widget.Children(
 			widget.NewText("Tab Handling Demo",
-				widget.TextWithHeight(layout.Points(1)),
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 			widget.NewBox(
-				widget.BoxWithFlexGrow(1),
-				widget.BoxWithFlexDirection(layout.DirectionRow),
-				widget.BoxWithGap(layout.Points(1)),
+				widget.BoxWithLayout(
+					layout.WithFlexGrow(1),
+					layout.WithFlexDirection(layout.DirectionRow),
+					layout.WithGap(1),
+				),
 				widget.Children(
 					widget.NewBox(
-						widget.BoxWithFlexGrow(1),
-						widget.BoxWithFlexDirection(layout.DirectionColumn),
+						widget.BoxWithLayout(
+							layout.WithFlexGrow(1),
+							layout.WithFlexDirection(layout.DirectionColumn),
+						),
 						widget.BoxWithBorder(style.BorderAll()),
 						widget.BoxWithBorderStyle(style.BorderSingle),
 						widget.BoxWithTitle("Code (read-only)"),
 						widget.Children(codeWidget),
 					),
 					widget.NewBox(
-						widget.BoxWithFlexGrow(1),
-						widget.BoxWithFlexDirection(layout.DirectionColumn),
+						widget.BoxWithLayout(
+							layout.WithFlexGrow(1),
+							layout.WithFlexDirection(layout.DirectionColumn),
+						),
 						widget.BoxWithBorder(style.BorderAll()),
 						widget.BoxWithBorderStyle(style.BorderSingle),
 						widget.BoxWithTitle("Textarea (editable)"),
@@ -94,11 +100,11 @@ func runTabDemo(ctx context.Context, o DemoOptions) error {
 		}
 		k := e.Key
 
-		if k.Name == "escape" || (k.Name == "q" && !k.Ctrl && !k.Alt) {
+		if k.Name == "escape" || (k.Name == "q" && !k.Mods.Has(input.ModCtrl) && !k.Mods.Has(input.ModAlt)) {
 			r.Destroy()
 			return
 		}
-		if k.Name == "t" && !k.Ctrl && !k.Alt {
+		if k.Name == "t" && !k.Mods.Has(input.ModCtrl) && !k.Mods.Has(input.ModAlt) {
 			switch tabWidth {
 			case 2:
 				tabWidth = 4
@@ -109,7 +115,7 @@ func runTabDemo(ctx context.Context, o DemoOptions) error {
 			}
 			codeWidget.TextBuffer().SetTabWidth(tabWidth)
 			ta.TextBuffer().SetTabWidth(tabWidth)
-			statusText.SetContent(fmt.Sprintf("Tab width: %d | t: cycle (2/4/8) | Esc/q: quit", tabWidth))
+			statusText.SetContent(fmt.Sprintf("Tab width: %d | Esc/Q: Exit | T: Cycle 2/4/8", tabWidth))
 			return
 		}
 	})

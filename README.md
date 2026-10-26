@@ -39,15 +39,14 @@ import (
 
 func main() {
 	r, err := terminal.NewRenderer(terminal.Config{
-		InlineMode:  true,
-		ExitOnCtrlC: true,
+		InlineMode: true,
 	})
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	r.Root().Add(widget.NewBox(
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
+		widget.BoxWithLayout(layout.WithFlexDirection(layout.DirectionColumn)),
 		widget.BoxWithBorder(style.BorderAll()),
 		widget.BoxWithBorderStyle(style.BorderSingle),
 		widget.Children(
@@ -76,12 +75,12 @@ Set `FLUID_COLOR` to `truecolor`, `24bit`, `256`, or `16` to choose one yourself
 ## Commands
 
 ```sh
-go run github.com/unaquatic/fluid/cmd/fluid demo markdown          # run a demo; fluid -h lists all 12
+go run github.com/unaquatic/fluid/cmd/fluid demo markdown          # run a demo; fluid -h lists all 13
 go run github.com/unaquatic/fluid/cmd/design -root .               # paint golden frames files in the browser
 go run github.com/unaquatic/fluid/cmd/goldenview -o goldens.html . # draw every golden frames file in color
 ```
 
-- `fluid demo <name>` runs an interactive demo of the widgets, the layout engine, or the inline and fullscreen modes, with `-fps`, `-no-mouse`, and `-bg`.
+- `fluid demo <name>` runs an interactive demo of the widgets, the layout engine, or the inline and fullscreen modes, with `-no-mouse`.
 - `design` serves an editor on port 4098 that paints the golden frames and sequence files under `-root` cell by cell and saves them as `testutil` writes them; `design ansi file...` prints them with ANSI escape sequences.
 - `goldenview` writes an HTML page that draws the golden frames files under the given directories in their colors.
 

@@ -8,6 +8,7 @@ import (
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/style"
 	"github.com/unaquatic/fluid/terminal"
+	"github.com/unaquatic/fluid/textbuf"
 	"github.com/unaquatic/fluid/widget"
 )
 
@@ -19,10 +20,8 @@ var demoInlineInputCmd = Demo{
 
 func runInlineInputDemo(ctx context.Context, o DemoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
-		InlineMode:  true,
-		UseMouse:    false,
-		ExitOnCtrlC: true,
-		TargetFPS:   o.FPS,
+		InlineMode: true,
+		UseMouse:   false,
 	})
 	if err != nil {
 		return fmt.Errorf("renderer: %w", err)
@@ -40,37 +39,37 @@ func runInlineInputDemo(ctx context.Context, o DemoOptions) error {
 	root.Add(titleBox)
 
 	helpText := widget.NewText(
-		" Type and press Enter to add messages. Esc to quit.",
-		widget.TextWithHeight(layout.Points(1)),
+		" Esc: Exit | Alt+Enter: Send",
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 	)
 	root.Add(helpText)
 
 	msgBox := widget.NewBox(
 		widget.BoxWithID("messages"),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
+		widget.BoxWithLayout(layout.WithFlexDirection(layout.DirectionColumn)),
 	)
 	root.Add(msgBox)
 
 	sep := widget.NewText(
 		"─────────────────────────────────────────────────",
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 	)
 	root.Add(sep)
 
 	inputRow := widget.NewBox(
-		widget.BoxWithFlexDirection(layout.DirectionRow),
+		widget.BoxWithLayout(layout.WithFlexDirection(layout.DirectionRow)),
 	)
 
 	inputRow.Add(widget.NewText(
 		" > ",
-		widget.TextWithWidth(layout.Points(4)),
+		widget.TextWithLayout(layout.WithWidth(layout.Points(4))),
 	))
 
 	ta := widget.NewTextarea(
 		widget.TextareaWithPlaceholder("Type a message... (Enter=newline, Alt+Enter=send)"),
-		widget.TextareaWithBackgroundColor(style.ColorTransparent),
-		widget.TextareaWithWidth(layout.Percent(100)),
-		widget.TextareaWithWrapMode(widget.WrapWord),
+		widget.TextareaWithBg(style.ColorTransparent),
+		widget.TextareaWithLayout(layout.WithWidth(layout.Percent(100))),
+		widget.TextareaWithWrapMode(textbuf.WrapWord),
 	)
 	inputRow.Add(ta)
 

@@ -1,6 +1,8 @@
 package widget
 
 import (
+	"time"
+
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/render"
@@ -32,10 +34,6 @@ type ScrollBar struct {
 
 	trackColor style.Color
 	thumbColor style.Color
-
-	// OnChange is reserved for interactive position changes. ScrollBar does not
-	// currently implement pointer interaction, so it does not call this callback.
-	OnChange func(position int)
 }
 
 // ScrollBarOption configures a ScrollBar.
@@ -121,7 +119,7 @@ func (sb *ScrollBar) SetScrollPosition(v int) {
 // ScrollBar rendering.
 
 // RenderSelf draws the track and thumb.
-func (sb *ScrollBar) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (sb *ScrollBar) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	w := sb.Width()
 	h := sb.Height()
 	if w <= 0 || h <= 0 {
@@ -241,9 +239,14 @@ func ScrollBarWithID(id string) ScrollBarOption {
 	return func(sb *ScrollBar) { sb.SetID(id) }
 }
 
-// ScrollBarWithOnChange sets the callback reserved for interactive position changes.
-func ScrollBarWithOnChange(fn func(int)) ScrollBarOption {
-	return func(sb *ScrollBar) { sb.OnChange = fn }
+// ScrollBarWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func ScrollBarWithLayout(opts ...layout.Option) ScrollBarOption {
+	return func(w *ScrollBar) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }
 
 // BindScrollBar keeps scrollBar synchronized with scrollBox's vertical state.
@@ -252,7 +255,7 @@ func BindScrollBar(scrollBox *ScrollBox, scrollBar *ScrollBar) {
 	// Reserve room for the one-column scrollbar in a row layout.
 	scrollBox.LayoutNode().FlexBasis = layout.Points(0)
 
-	scrollBox.RenderAfterHook = func(_ *buffer.Buffer, _ float64) {
+	scrollBox.RenderAfterHook = func(_ *buffer.Buffer, _ time.Duration) {
 		scrollBar.SetScrollState(
 			scrollBox.ContentHeight(),
 			scrollBox.ViewportHeight(),

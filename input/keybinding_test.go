@@ -2,28 +2,28 @@ package input
 
 import "testing"
 
-func TestGetKeyBindingKey(t *testing.T) {
+func TestKeyBindingKey(t *testing.T) {
 	tests := []struct {
 		binding KeyBinding
 		want    string
 	}{
 		{KeyBinding{Name: "a"}, "a"},
-		{KeyBinding{Name: "a", Ctrl: true}, "ctrl+a"},
-		{KeyBinding{Name: "a", Alt: true}, "alt+a"},
-		{KeyBinding{Name: "a", Shift: true}, "shift+a"},
-		{KeyBinding{Name: "up", Ctrl: true, Shift: true}, "ctrl+shift+up"},
-		{KeyBinding{Name: "x", Ctrl: true, Alt: true, Shift: true}, "ctrl+alt+shift+x"},
+		{KeyBinding{Name: "a", Mods: ModCtrl}, "ctrl+a"},
+		{KeyBinding{Name: "a", Mods: ModAlt}, "alt+a"},
+		{KeyBinding{Name: "a", Mods: ModShift}, "shift+a"},
+		{KeyBinding{Name: "up", Mods: ModCtrl | ModShift}, "ctrl+shift+up"},
+		{KeyBinding{Name: "x", Mods: ModCtrl | ModAlt | ModShift}, "ctrl+alt+shift+x"},
 	}
 	for _, tt := range tests {
-		got := GetKeyBindingKey(tt.binding)
+		got := tt.binding.Key()
 		if got != tt.want {
-			t.Errorf("GetKeyBindingKey(%+v) = %q, want %q", tt.binding, got, tt.want)
+			t.Errorf("%+v.Key() = %q, want %q", tt.binding, got, tt.want)
 		}
 	}
 }
 
 func TestKeyBindingToString(t *testing.T) {
-	b := KeyBinding{Name: "y", Ctrl: true, Shift: true, Action: "save"}
+	b := KeyBinding{Name: "y", Mods: ModCtrl | ModShift, Action: "save"}
 	got := KeyBindingToString(b)
 	if got != "ctrl+shift+y" {
 		t.Errorf("KeyBindingToString = %q, want 'ctrl+shift+y'", got)
@@ -36,7 +36,7 @@ func TestMergeKeyBindings_NoOverlap(t *testing.T) {
 		{Name: "down", Action: "move-down"},
 	}
 	custom := []KeyBinding{
-		{Name: "a", Ctrl: true, Action: "select-all"},
+		{Name: "a", Mods: ModCtrl, Action: "select-all"},
 	}
 
 	merged := MergeKeyBindings(defaults, custom)
@@ -111,7 +111,7 @@ func TestMergeKeyAliases(t *testing.T) {
 func TestBuildKeyBindingsMap(t *testing.T) {
 	bindings := []KeyBinding{
 		{Name: "up", Action: "move-up"},
-		{Name: "a", Ctrl: true, Action: "select-all"},
+		{Name: "a", Mods: ModCtrl, Action: "select-all"},
 		{Name: "return", Action: "submit"},
 	}
 
@@ -143,7 +143,7 @@ func TestBuildKeyBindingsMap_WithAliases(t *testing.T) {
 }
 
 func TestResolveAction(t *testing.T) {
-	m := map[string]string{
+	m := map[string]Action{
 		"up":     "move-up",
 		"ctrl+a": "select-all",
 		"return": "submit",
@@ -151,11 +151,11 @@ func TestResolveAction(t *testing.T) {
 
 	tests := []struct {
 		ev     KeyEvent
-		action string
+		action Action
 		found  bool
 	}{
 		{KeyEvent{Name: "up"}, "move-up", true},
-		{KeyEvent{Name: "a", Ctrl: true}, "select-all", true},
+		{KeyEvent{Name: "a", Mods: ModCtrl}, "select-all", true},
 		{KeyEvent{Name: "return"}, "submit", true},
 		{KeyEvent{Name: "x"}, "", false},
 		{KeyEvent{Name: "a"}, "", false}, // The map contains only Control-A.

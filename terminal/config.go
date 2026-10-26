@@ -3,6 +3,7 @@ package terminal
 import (
 	"io"
 	"os"
+	"strconv"
 
 	"github.com/unaquatic/fluid/input"
 	"github.com/unaquatic/fluid/style"
@@ -48,26 +49,39 @@ func (s ControlState) String() string {
 	}
 }
 
-// Selected Kitty keyboard flags re-exported from package input.
-const (
-	KittyFlagDisambiguate  = input.KittyFlagDisambiguate
-	KittyFlagAlternateKeys = input.KittyFlagAlternateKeys
-)
-
-// CursorStyle identifies a terminal cursor shape.
-type CursorStyle = string
+// CursorStyle identifies a terminal cursor shape. The zero value,
+// CursorDefault, leaves the shape to the terminal.
+type CursorStyle int
 
 const (
+	// CursorDefault is the terminal's own cursor shape.
+	CursorDefault CursorStyle = iota
 	// CursorBlock is a rectangular cursor.
-	CursorBlock CursorStyle = "block"
-	// CursorLine is a thin vertical cursor.
-	CursorLine CursorStyle = "line"
+	CursorBlock
 	// CursorUnderline is a horizontal cursor below the cell content.
-	CursorUnderline CursorStyle = "underline"
+	CursorUnderline
+	// CursorLine is a thin vertical cursor.
+	CursorLine
 )
 
-// MousePointerStyle identifies a pointer shape for terminals supporting OSC 22.
-type MousePointerStyle = string
+// String returns s's name, such as "block".
+func (s CursorStyle) String() string {
+	switch s {
+	case CursorDefault:
+		return "default"
+	case CursorBlock:
+		return "block"
+	case CursorUnderline:
+		return "underline"
+	case CursorLine:
+		return "line"
+	}
+	return "CursorStyle(" + strconv.Itoa(int(s)) + ")"
+}
+
+// MousePointerStyle identifies a pointer shape for terminals supporting OSC
+// 22, which takes a CSS cursor name, such as "pointer".
+type MousePointerStyle string
 
 const (
 	// MousePointerDefault is the standard arrow pointer.
@@ -87,7 +101,7 @@ const (
 // CursorStyleOptions contains optional cursor and pointer changes. A nil field
 // preserves its current value.
 type CursorStyleOptions struct {
-	// Style overrides the cursor shape (block, line, or underline).
+	// Style overrides the cursor shape.
 	Style *CursorStyle
 	// Blinking overrides the cursor blink state.
 	Blinking *bool
@@ -119,38 +133,31 @@ type Config struct {
 	// Stdout receives terminal output. The default is os.Stdout.
 	Stdout io.Writer
 
-	// TargetFPS records the desired render-loop rate. It is currently not used by
-	// the event loop. The default is 30.
-	TargetFPS int
-
-	// MaxFPS records the desired render-rate limit. It is currently not enforced.
-	// The default is 60.
-	MaxFPS int
-
-	// UseMouse enables click, drag, and scroll reporting. The default is true.
+	// UseMouse enables click, drag, and scroll reporting. The default is false.
 	UseMouse bool
 
 	// EnableMouseMovement enables reporting for motion without a pressed button.
-	// It applies only when UseMouse is true and defaults to false.
+	// It applies only when UseMouse is set and defaults to false.
 	EnableMouseMovement bool
 
-	// Fullscreen uses the alternate screen. InlineMode overrides it to false. The
-	// default is true.
-	Fullscreen bool
+	// EnableAutoFocus focuses the focusable renderable under a mouse down. The
+	// default is false.
+	EnableAutoFocus bool
 
-	// AutoFocus focuses a focusable renderable on mouse down. The default is true.
-	AutoFocus bool
-
-	// ExitOnCtrlC destroys the renderer after an unprevented Control-C event. The
-	// default is true.
-	ExitOnCtrlC bool
+	// HandleCtrlC passes the Control-C key to the application as an ordinary
+	// key instead of destroying the renderer. Without it, a Control-C that no
+	// key handler prevents destroys the renderer. The terminal's raw mode
+	// turns the key into input rather than SIGINT, and SIGINT and SIGTERM
+	// still stop Run and Wait. The default is false.
+	HandleCtrlC bool
 
 	// InlineMode renders in the normal screen and scrollback instead of the
 	// alternate screen. Content determines height; terminal width minus a
 	// one-column wrap margin determines width.
 	//
 	// Changed rows are updated in place while content fits. Overflow triggers a
-	// complete screen and scrollback rewrite. The default is false.
+	// complete screen and scrollback rewrite. The default is false, which
+	// renders full frames on the alternate screen.
 	InlineMode bool
 
 	// ClearScreenOnStart clears the screen and scrollback before the first inline
@@ -175,8 +182,9 @@ type Config struct {
 	// The default is false.
 	UseKittyKeyboard bool
 
-	// KittyKeyboardFlags is the bitwise union of enabled Kitty features.
-	// Default: KittyFlagDisambiguate | KittyFlagAlternateKeys.
+	// KittyKeyboardFlags is the bitwise union of the enabled Kitty features,
+	// the KittyFlag constants of package input. The default is
+	// input.KittyFlagDisambiguate | input.KittyFlagAlternateKeys.
 	KittyKeyboardFlags uint
 
 	// AltSendsEscPrefix enables the parser heuristic for terminals that encode
@@ -215,28 +223,17 @@ func DefaultConfig() Config {
 	return Config{
 		Stdin:               os.Stdin,
 		Stdout:              os.Stdout,
-		TargetFPS:           30,
-		MaxFPS:              60,
-		UseMouse:            true,
 		EnableMouseMovement: false,
-		Fullscreen:          true,
-		AutoFocus:           true,
-		ExitOnCtrlC:         true,
 		BackgroundColor:     style.ColorBlack,
 		UseKittyKeyboard:    false,
-		KittyKeyboardFlags:  KittyFlagDisambiguate | KittyFlagAlternateKeys,
+		KittyKeyboardFlags:  input.KittyFlagDisambiguate | input.KittyFlagAlternateKeys,
 	}
 }
 
-// mergeConfig overlays the first supplied configuration on DefaultConfig.
-func mergeConfig(configs []Config) Config {
+// mergeConfig overlays user on DefaultConfig, keeping the default of each
+// field user leaves unset.
+func mergeConfig(user Config) Config {
 	cfg := DefaultConfig()
-
-	if len(configs) == 0 {
-		return cfg
-	}
-
-	user := configs[0]
 
 	if user.Stdin != nil {
 		cfg.Stdin = user.Stdin
@@ -244,18 +241,11 @@ func mergeConfig(configs []Config) Config {
 	if user.Stdout != nil {
 		cfg.Stdout = user.Stdout
 	}
-	if user.TargetFPS > 0 {
-		cfg.TargetFPS = user.TargetFPS
-	}
-	if user.MaxFPS > 0 {
-		cfg.MaxFPS = user.MaxFPS
-	}
 
 	cfg.UseMouse = user.UseMouse
 	cfg.EnableMouseMovement = user.EnableMouseMovement
-	cfg.Fullscreen = user.Fullscreen
-	cfg.AutoFocus = user.AutoFocus
-	cfg.ExitOnCtrlC = user.ExitOnCtrlC
+	cfg.EnableAutoFocus = user.EnableAutoFocus
+	cfg.HandleCtrlC = user.HandleCtrlC
 	cfg.InlineMode = user.InlineMode
 	cfg.ClearScreenOnStart = user.ClearScreenOnStart
 	cfg.ClearOnExit = user.ClearOnExit
@@ -266,10 +256,6 @@ func mergeConfig(configs []Config) Config {
 		cfg.WidthProbe = user.WidthProbe
 	}
 	cfg.WidthProbeSamples = user.WidthProbeSamples
-
-	if cfg.InlineMode {
-		cfg.Fullscreen = false
-	}
 
 	if user.BackgroundColor != (style.Color{}) {
 		cfg.BackgroundColor = user.BackgroundColor

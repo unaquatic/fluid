@@ -29,8 +29,8 @@ type InputOption func(*Input)
 func NewInput(opts ...InputOption) *Input {
 	// Disable wrapping and constrain the embedded editor to one row.
 	ta := NewTextarea(
-		TextareaWithWrapMode(WrapNone),
-		TextareaWithHeight(layout.Points(1)),
+		TextareaWithWrapMode(textbuf.WrapNone),
+		TextareaWithLayout(layout.WithHeight(layout.Points(1))),
 	)
 
 	inp := &Input{
@@ -83,7 +83,7 @@ func (inp *Input) SetCursorPos(pos int) {
 }
 
 // blockedInputActions contains multiline actions that Input does not support.
-var blockedInputActions = map[string]bool{
+var blockedInputActions = map[input.Action]bool{
 	ActionNewline:  true,
 	ActionMoveUp:   true,
 	ActionMoveDown: true,
@@ -178,7 +178,7 @@ func (inp *Input) HandlePaste(e *input.PasteEvent) {
 
 // Input keybinding resolution.
 
-func (inp *Input) resolveInputAction(e *input.KeyEvent) (string, bool) {
+func (inp *Input) resolveInputAction(e *input.KeyEvent) (input.Action, bool) {
 	if inp.bindingsDirty {
 		inp.rebuildInputBindingMap()
 	}
@@ -219,18 +219,18 @@ func InputWithMaxLength(n int) InputOption {
 	return func(inp *Input) { inp.maxLength = n }
 }
 
-// InputWithTextColor sets the text color.
-func InputWithTextColor(c style.Color) InputOption {
+// InputWithFg sets the text color.
+func InputWithFg(c style.Color) InputOption {
 	return func(inp *Input) { inp.textColor = c }
 }
 
-// InputWithBackgroundColor sets the background color.
-func InputWithBackgroundColor(c style.Color) InputOption {
+// InputWithBg sets the background color.
+func InputWithBg(c style.Color) InputOption {
 	return func(inp *Input) { inp.backgroundColor = c }
 }
 
-// InputWithPlaceholderColor sets the placeholder text color.
-func InputWithPlaceholderColor(c style.Color) InputOption {
+// InputWithPlaceholderFg sets the placeholder text color.
+func InputWithPlaceholderFg(c style.Color) InputOption {
 	return func(inp *Input) {
 		phText, _ := inp.editSurface.PlaceholderText()
 		inp.editSurface.SetPlaceholderText(phText, c)
@@ -262,14 +262,14 @@ func InputWithID(id string) InputOption {
 	return func(inp *Input) { inp.SetID(id) }
 }
 
-// InputWithWidth sets the widget width.
-func InputWithWidth(s layout.Scalar) InputOption {
-	return func(inp *Input) { inp.LayoutNode().Width = s }
-}
-
-// InputWithHeight sets the widget height.
-func InputWithHeight(s layout.Scalar) InputOption {
-	return func(inp *Input) { inp.LayoutNode().Height = s }
+// InputWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func InputWithLayout(opts ...layout.Option) InputOption {
+	return func(w *Input) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }
 
 // InputWithKeyBindings sets custom keybinding overrides.

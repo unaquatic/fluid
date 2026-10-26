@@ -1,6 +1,8 @@
 package testutil
 
 import (
+	"time"
+
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/layout"
 )
@@ -44,7 +46,7 @@ func SetupWidgetTree(root Renderable, width, height int, children ...Renderable)
 
 // SelfRenderer draws its own cells without traversing child renderables.
 type SelfRenderer interface {
-	RenderSelf(buf *buffer.Buffer, deltaTime float64)
+	RenderSelf(buf *buffer.Buffer, deltaTime time.Duration)
 }
 
 // RenderWidget lays out w at an exact size and draws it into a new buffer.

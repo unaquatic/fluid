@@ -22,8 +22,8 @@ import (
 func setupRoot(w, h int) (*RootRenderable, *HitGrid) {
 	root := NewRootRenderable(w, h)
 	hitGrid := NewHitGrid(w, h)
-	ctx := &mockContext{hitGrid: hitGrid}
-	root.SetContext(ctx)
+	host := &mockHost{hitGrid: hitGrid}
+	root.SetHost(host)
 	return root, hitGrid
 }
 
@@ -50,12 +50,12 @@ func setupRenderer(w, h int) (*Renderer, *bytes.Buffer) {
 		stopChan:      make(chan struct{}, 1),
 		done:          make(chan struct{}),
 		sel:           render.NewSelection(),
-		linkRegistry:  NewLinkRegistry(),
-		stats:         NewStats(60),
+		linkRegistry:  newLinkRegistry(),
+		stats:         newStats(60),
 		lastFrameTime: time.Now(),
 	}
 
-	root.SetContext(r)
+	root.SetHost(r)
 
 	return r, &outBuf
 }
@@ -67,7 +67,7 @@ func makeRenderChild(id string, x, y, w, h int, ch rune, fg, bg style.Color) *re
 		render.WithWidth(layout.Points(w)),
 		render.WithHeight(layout.Points(h)),
 	)
-	child.RenderBeforeHook = func(buf *buffer.Buffer, dt float64) {
+	child.RenderBeforeHook = func(buf *buffer.Buffer, dt time.Duration) {
 		cx := child.X()
 		cy := child.Y()
 		cw := child.Width()
@@ -82,13 +82,13 @@ func makeRenderChild(id string, x, y, w, h int, ch rune, fg, bg style.Color) *re
 }
 
 // makeRenderChildAttrs returns a fixed-size fill renderable with attrs.
-func makeRenderChildAttrs(id string, x, y, w, h int, ch rune, fg, bg style.Color, attrs uint32) *render.BaseRenderable {
+func makeRenderChildAttrs(id string, x, y, w, h int, ch rune, fg, bg style.Color, attrs style.Attrs) *render.BaseRenderable {
 	child := render.NewBaseRenderable(
 		render.WithID(id),
 		render.WithWidth(layout.Points(w)),
 		render.WithHeight(layout.Points(h)),
 	)
-	child.RenderBeforeHook = func(buf *buffer.Buffer, dt float64) {
+	child.RenderBeforeHook = func(buf *buffer.Buffer, dt time.Duration) {
 		cx := child.X()
 		cy := child.Y()
 		cw := child.Width()
@@ -116,7 +116,7 @@ func TestPipeline_MultiChildRender(t *testing.T) {
 	root.Add(c3)
 
 	buf := buffer.New(20, 3)
-	root.Render(buf, 0.016)
+	root.Render(buf, 16*time.Millisecond)
 
 	for x := range 5 {
 		if cell := buf.Cell(x, 0); cell.Char != 'A' {
@@ -139,7 +139,7 @@ func TestPipeline_ChildColorsPreserved(t *testing.T) {
 	root.Add(child)
 
 	buf := buffer.New(10, 1)
-	root.Render(buf, 0.016)
+	root.Render(buf, 16*time.Millisecond)
 
 	cell := buf.Cell(0, 0)
 	if cell.Char != 'X' {
@@ -164,7 +164,7 @@ func TestPipeline_ChildrenOrderPaintersAlgorithm(t *testing.T) {
 		render.WithWidth(layout.Points(5)),
 		render.WithHeight(layout.Points(3)),
 	)
-	first.RenderBeforeHook = func(buf *buffer.Buffer, dt float64) {
+	first.RenderBeforeHook = func(buf *buffer.Buffer, dt time.Duration) {
 		for y := range 3 {
 			for x := range 5 {
 				buf.SetCell(x, y, 'F', style.ColorWhite, style.ColorTransparent, 0)
@@ -177,7 +177,7 @@ func TestPipeline_ChildrenOrderPaintersAlgorithm(t *testing.T) {
 		render.WithWidth(layout.Points(5)),
 		render.WithHeight(layout.Points(3)),
 	)
-	second.RenderBeforeHook = func(buf *buffer.Buffer, dt float64) {
+	second.RenderBeforeHook = func(buf *buffer.Buffer, dt time.Duration) {
 		for y := range 3 {
 			for x := range 5 {
 				buf.SetCell(x, y, 'S', style.ColorWhite, style.ColorTransparent, 0)
@@ -189,7 +189,7 @@ func TestPipeline_ChildrenOrderPaintersAlgorithm(t *testing.T) {
 	root.Add(second)
 
 	buf := buffer.New(10, 5)
-	root.Render(buf, 0.016)
+	root.Render(buf, 16*time.Millisecond)
 
 	// The second child paints last.
 	cell := buf.Cell(0, 0)
@@ -218,7 +218,7 @@ func TestPipeline_ScissorClipsBufferOutput(t *testing.T) {
 		render.WithWidth(layout.Points(20)),
 		render.WithHeight(layout.Points(1)),
 	)
-	child.RenderBeforeHook = func(buf *buffer.Buffer, dt float64) {
+	child.RenderBeforeHook = func(buf *buffer.Buffer, dt time.Duration) {
 		cx := child.X()
 		cy := child.Y()
 		for x := range 20 {
@@ -228,7 +228,7 @@ func TestPipeline_ScissorClipsBufferOutput(t *testing.T) {
 	container.Add(child)
 
 	buf := buffer.New(20, 10)
-	root.Render(buf, 0.016)
+	root.Render(buf, 16*time.Millisecond)
 
 	// Columns inside the container are painted.
 	for x := range 10 {
@@ -265,7 +265,7 @@ func TestPipeline_ScissorClipsVertically(t *testing.T) {
 		render.WithWidth(layout.Points(10)),
 		render.WithHeight(layout.Points(10)),
 	)
-	child.RenderBeforeHook = func(buf *buffer.Buffer, dt float64) {
+	child.RenderBeforeHook = func(buf *buffer.Buffer, dt time.Duration) {
 		cx := child.X()
 		cy := child.Y()
 		for y := range 10 {
@@ -275,7 +275,7 @@ func TestPipeline_ScissorClipsVertically(t *testing.T) {
 	container.Add(child)
 
 	buf := buffer.New(10, 10)
-	root.Render(buf, 0.016)
+	root.Render(buf, 16*time.Millisecond)
 
 	// Rows inside the container are painted.
 	for y := range 3 {
@@ -320,7 +320,7 @@ func TestPipeline_NestedScissor(t *testing.T) {
 		render.WithWidth(layout.Points(10)),
 		render.WithHeight(layout.Points(10)),
 	)
-	child.RenderBeforeHook = func(buf *buffer.Buffer, dt float64) {
+	child.RenderBeforeHook = func(buf *buffer.Buffer, dt time.Duration) {
 		cx := child.X()
 		cy := child.Y()
 		for y := range 10 {
@@ -330,7 +330,7 @@ func TestPipeline_NestedScissor(t *testing.T) {
 	inner.Add(child)
 
 	buf := buffer.New(20, 20)
-	root.Render(buf, 0.016)
+	root.Render(buf, 16*time.Millisecond)
 
 	// Rows inside both clips are painted.
 	for y := range 5 {
@@ -368,7 +368,7 @@ func TestPipeline_ScissorClipsHitGrid(t *testing.T) {
 	container.Add(child)
 
 	buf := buffer.New(20, 10)
-	root.Render(buf, 0.016)
+	root.Render(buf, 16*time.Millisecond)
 
 	// A point inside the clip resolves to a target.
 	insideID := hitGrid.Check(5, 0)
@@ -391,7 +391,7 @@ func TestPipeline_ExactCellOutput(t *testing.T) {
 	root.Add(child)
 
 	buf := buffer.New(5, 1)
-	root.Render(buf, 0.016)
+	root.Render(buf, 16*time.Millisecond)
 
 	cell := buf.Cell(0, 0)
 	if cell.Char != 'O' {
@@ -416,7 +416,7 @@ func TestPipeline_HitGridAutoPopulated(t *testing.T) {
 	root.Add(b)
 
 	buf := buffer.New(20, 10)
-	root.Render(buf, 0.016)
+	root.Render(buf, 16*time.Millisecond)
 
 	// The first child's area resolves to its ID.
 	idA := hitGrid.Check(2, 1)
@@ -446,7 +446,7 @@ func TestPipeline_MouseDispatchViaAutoHitGrid(t *testing.T) {
 		render.WithWidth(layout.Points(10)),
 		render.WithHeight(layout.Points(5)),
 	)
-	a.RenderBeforeHook = func(buf *buffer.Buffer, dt float64) {
+	a.RenderBeforeHook = func(buf *buffer.Buffer, dt time.Duration) {
 		// Paint one cell while registering the child's full hit region.
 		buf.SetCell(a.X(), a.Y(), 'A', style.ColorWhite, style.ColorTransparent, 0)
 	}
@@ -459,7 +459,7 @@ func TestPipeline_MouseDispatchViaAutoHitGrid(t *testing.T) {
 		render.WithWidth(layout.Points(10)),
 		render.WithHeight(layout.Points(5)),
 	)
-	b.RenderBeforeHook = func(buf *buffer.Buffer, dt float64) {
+	b.RenderBeforeHook = func(buf *buffer.Buffer, dt time.Duration) {
 		buf.SetCell(b.X(), b.Y(), 'B', style.ColorWhite, style.ColorTransparent, 0)
 	}
 	b.OnMouseDownHandler = func(e *input.MouseEvent) {
@@ -490,7 +490,7 @@ func TestPipeline_MouseDispatchViaAutoHitGrid(t *testing.T) {
 }
 
 // TestPipeline_RenderFrameProducesCorrectBuffer verifies that renderFrame copies
-// rendered output into CurrentBuffer.
+// rendered output into currentBuffer.
 func TestPipeline_RenderFrameProducesCorrectBuffer(t *testing.T) {
 	r, _ := setupRenderer(10, 3)
 	r.config.BackgroundColor = style.ColorBlack
@@ -500,7 +500,7 @@ func TestPipeline_RenderFrameProducesCorrectBuffer(t *testing.T) {
 		render.WithWidth(layout.Points(10)),
 		render.WithHeight(layout.Points(1)),
 	)
-	child.RenderBeforeHook = func(buf *buffer.Buffer, dt float64) {
+	child.RenderBeforeHook = func(buf *buffer.Buffer, dt time.Duration) {
 		text := "Hello"
 		cx := child.X()
 		cy := child.Y()
@@ -513,7 +513,7 @@ func TestPipeline_RenderFrameProducesCorrectBuffer(t *testing.T) {
 	r.renderFrame()
 
 	// renderFrame copies the completed next buffer into currentBuffer.
-	buf := r.CurrentBuffer()
+	buf := r.currentBuffer
 	cell := buf.Cell(0, 0)
 	if cell.Char != 'H' {
 		t.Errorf("expected 'H' at (0,0), got %q", cell.Char)
@@ -538,7 +538,7 @@ func TestPipeline_EventStateChangeRerender(t *testing.T) {
 		render.WithWidth(layout.Points(10)),
 		render.WithHeight(layout.Points(1)),
 	)
-	child.RenderBeforeHook = func(buf *buffer.Buffer, dt float64) {
+	child.RenderBeforeHook = func(buf *buffer.Buffer, dt time.Duration) {
 		cx := child.X()
 		cy := child.Y()
 		for i, ch := range label {
@@ -555,7 +555,7 @@ func TestPipeline_EventStateChangeRerender(t *testing.T) {
 
 	// The first frame contains the initial label.
 	r.renderFrame()
-	buf1 := r.CurrentBuffer()
+	buf1 := r.currentBuffer
 	if cell := buf1.Cell(0, 0); cell.Char != 'b' {
 		t.Errorf("frame 1: expected 'b' at (0,0), got %q", cell.Char)
 	}
@@ -563,12 +563,12 @@ func TestPipeline_EventStateChangeRerender(t *testing.T) {
 	// The key handler changes the label.
 	r.dispatchEvent(input.TerminalEvent{
 		Type: input.EventKeyboard,
-		Key:  &input.KeyEvent{Name: "x", Type: input.KeyPress, Raw: "x", Source: "raw"},
+		Key:  &input.KeyEvent{Name: "x", Type: input.KeyPress, Raw: "x", Source: input.KeySourceRaw},
 	})
 
 	// The second frame contains the updated label.
 	r.renderFrame()
-	buf2 := r.CurrentBuffer()
+	buf2 := r.currentBuffer
 	if cell := buf2.Cell(0, 0); cell.Char != 'a' {
 		t.Errorf("frame 2: expected 'a' at (0,0), got %q", cell.Char)
 	}
@@ -589,14 +589,14 @@ func TestPipeline_InvisibleChildNotRendered(t *testing.T) {
 		render.WithWidth(layout.Points(10)),
 		render.WithHeight(layout.Points(1)),
 	)
-	child.RenderBeforeHook = func(buf *buffer.Buffer, dt float64) {
+	child.RenderBeforeHook = func(buf *buffer.Buffer, dt time.Duration) {
 		rendered = true
 		buf.SetCell(0, 0, 'X', style.ColorWhite, style.ColorTransparent, 0)
 	}
 	root.Add(child)
 
 	buf := buffer.New(10, 3)
-	root.Render(buf, 0.016)
+	root.Render(buf, 16*time.Millisecond)
 
 	if rendered {
 		t.Error("expected invisible child's render hook NOT to be called")
@@ -620,7 +620,7 @@ func TestPipeline_InvisibleChildNoHitGrid(t *testing.T) {
 	root.Add(child)
 
 	buf := buffer.New(10, 5)
-	root.Render(buf, 0.016)
+	root.Render(buf, 16*time.Millisecond)
 
 	id := hitGrid.Check(5, 2)
 	if id == child.Num() {
@@ -638,11 +638,11 @@ func TestPipeline_HookOrdering(t *testing.T) {
 		render.WithWidth(layout.Points(10)),
 		render.WithHeight(layout.Points(1)),
 	)
-	child.RenderBeforeHook = func(buf *buffer.Buffer, dt float64) {
+	child.RenderBeforeHook = func(buf *buffer.Buffer, dt time.Duration) {
 		order = append(order, "before")
 		buf.SetCell(child.X(), child.Y(), 'B', style.ColorWhite, style.ColorTransparent, 0)
 	}
-	child.RenderAfterHook = func(buf *buffer.Buffer, dt float64) {
+	child.RenderAfterHook = func(buf *buffer.Buffer, dt time.Duration) {
 		order = append(order, "after")
 		// The after hook overwrites the before hook's cell.
 		buf.SetCell(child.X(), child.Y(), 'A', style.ColorWhite, style.ColorTransparent, 0)
@@ -650,7 +650,7 @@ func TestPipeline_HookOrdering(t *testing.T) {
 	root.Add(child)
 
 	buf := buffer.New(10, 1)
-	root.Render(buf, 0.016)
+	root.Render(buf, 16*time.Millisecond)
 
 	if len(order) != 2 || order[0] != "before" || order[1] != "after" {
 		t.Errorf("expected [before, after], got %v", order)
@@ -674,7 +674,7 @@ func TestPipeline_MultipleFramesNoArtifacts(t *testing.T) {
 		render.WithWidth(layout.Points(10)),
 		render.WithHeight(layout.Points(1)),
 	)
-	child.RenderBeforeHook = func(buf *buffer.Buffer, dt float64) {
+	child.RenderBeforeHook = func(buf *buffer.Buffer, dt time.Duration) {
 		cx := child.X()
 		cy := child.Y()
 		for i, ch := range content {
@@ -685,7 +685,7 @@ func TestPipeline_MultipleFramesNoArtifacts(t *testing.T) {
 
 	// Render the initial longer content.
 	r.renderFrame()
-	buf1 := r.CurrentBuffer()
+	buf1 := r.currentBuffer
 	if cell := buf1.Cell(0, 0); cell.Char != 'f' {
 		t.Errorf("frame 1: expected 'f', got %q", cell.Char)
 	}
@@ -693,7 +693,7 @@ func TestPipeline_MultipleFramesNoArtifacts(t *testing.T) {
 	// Replace it with shorter content for the next frame.
 	content = "XY"
 	r.renderFrame()
-	buf2 := r.CurrentBuffer()
+	buf2 := r.currentBuffer
 
 	if cell := buf2.Cell(0, 0); cell.Char != 'X' {
 		t.Errorf("frame 2: expected 'X' at (0,0), got %q", cell.Char)

@@ -4,13 +4,14 @@ import (
 	"testing"
 
 	"github.com/unaquatic/fluid/style"
+	"github.com/unaquatic/fluid/symbol"
 )
 
 func TestDrawGrid_2x2_FullBorder(t *testing.T) {
 	// Three boundaries along each axis define a two-column, two-row grid.
 	b := New(9, 7)
 	b.DrawGrid(GridDrawOptions{
-		Chars:         style.SingleChars,
+		Chars:         symbol.SingleChars,
 		BorderFg:      style.ColorWhite,
 		BorderBg:      style.ColorBlack,
 		ColumnOffsets: []int{0, 4, 8},
@@ -20,57 +21,57 @@ func TestDrawGrid_2x2_FullBorder(t *testing.T) {
 	})
 
 	c := b.Cell(0, 0)
-	if c.Char != style.SingleChars.TopLeft {
-		t.Errorf("(0,0) = %q (%U), want TopLeft %q", c.Char, c.Char, style.SingleChars.TopLeft)
+	if c.Char != symbol.SingleChars.TopLeft {
+		t.Errorf("(0,0) = %q (%U), want TopLeft %q", c.Char, c.Char, symbol.SingleChars.TopLeft)
 	}
 
 	c = b.Cell(8, 0)
-	if c.Char != style.SingleChars.TopRight {
+	if c.Char != symbol.SingleChars.TopRight {
 		t.Errorf("(8,0) = %q, want TopRight", c.Char)
 	}
 
 	c = b.Cell(0, 6)
-	if c.Char != style.SingleChars.BottomLeft {
+	if c.Char != symbol.SingleChars.BottomLeft {
 		t.Errorf("(0,6) = %q, want BottomLeft", c.Char)
 	}
 
 	c = b.Cell(8, 6)
-	if c.Char != style.SingleChars.BottomRight {
+	if c.Char != symbol.SingleChars.BottomRight {
 		t.Errorf("(8,6) = %q, want BottomRight", c.Char)
 	}
 
 	c = b.Cell(4, 3)
-	if c.Char != style.SingleChars.Cross {
-		t.Errorf("center (4,3) = %q (%U), want Cross %q", c.Char, c.Char, style.SingleChars.Cross)
+	if c.Char != symbol.SingleChars.Cross {
+		t.Errorf("center (4,3) = %q (%U), want Cross %q", c.Char, c.Char, symbol.SingleChars.Cross)
 	}
 
 	c = b.Cell(4, 0)
-	if c.Char != style.SingleChars.TopT {
+	if c.Char != symbol.SingleChars.TopT {
 		t.Errorf("top-T (4,0) = %q, want TopT", c.Char)
 	}
 
 	c = b.Cell(4, 6)
-	if c.Char != style.SingleChars.BottomT {
+	if c.Char != symbol.SingleChars.BottomT {
 		t.Errorf("bottom-T (4,6) = %q, want BottomT", c.Char)
 	}
 
 	c = b.Cell(0, 3)
-	if c.Char != style.SingleChars.LeftT {
+	if c.Char != symbol.SingleChars.LeftT {
 		t.Errorf("left-T (0,3) = %q, want LeftT", c.Char)
 	}
 
 	c = b.Cell(8, 3)
-	if c.Char != style.SingleChars.RightT {
+	if c.Char != symbol.SingleChars.RightT {
 		t.Errorf("right-T (8,3) = %q, want RightT", c.Char)
 	}
 
 	c = b.Cell(2, 0)
-	if c.Char != style.SingleChars.Horizontal {
+	if c.Char != symbol.SingleChars.Horizontal {
 		t.Errorf("horizontal (2,0) = %q, want Horizontal", c.Char)
 	}
 
 	c = b.Cell(0, 1)
-	if c.Char != style.SingleChars.Vertical {
+	if c.Char != symbol.SingleChars.Vertical {
 		t.Errorf("vertical (0,1) = %q, want Vertical", c.Char)
 	}
 }
@@ -78,7 +79,7 @@ func TestDrawGrid_2x2_FullBorder(t *testing.T) {
 func TestDrawGrid_InnerOnly(t *testing.T) {
 	b := New(9, 7)
 	b.DrawGrid(GridDrawOptions{
-		Chars:         style.SingleChars,
+		Chars:         symbol.SingleChars,
 		BorderFg:      style.ColorWhite,
 		BorderBg:      style.ColorBlack,
 		ColumnOffsets: []int{0, 4, 8},
@@ -89,13 +90,13 @@ func TestDrawGrid_InnerOnly(t *testing.T) {
 
 	// Disabling the outer border leaves its corner cells unchanged.
 	c := b.Cell(0, 0)
-	if c.Char == style.SingleChars.TopLeft {
+	if c.Char == symbol.SingleChars.TopLeft {
 		t.Error("outer=false: (0,0) should not be TopLeft corner")
 	}
 
 	// The enabled inner lines still meet at the center.
 	c = b.Cell(4, 3)
-	if c.Char != style.SingleChars.Cross {
+	if c.Char != symbol.SingleChars.Cross {
 		t.Errorf("inner cross (4,3) = %q, want Cross", c.Char)
 	}
 }
@@ -103,7 +104,7 @@ func TestDrawGrid_InnerOnly(t *testing.T) {
 func TestDrawGrid_OuterOnly(t *testing.T) {
 	b := New(9, 7)
 	b.DrawGrid(GridDrawOptions{
-		Chars:         style.SingleChars,
+		Chars:         symbol.SingleChars,
 		BorderFg:      style.ColorWhite,
 		BorderBg:      style.ColorBlack,
 		ColumnOffsets: []int{0, 4, 8},
@@ -114,13 +115,13 @@ func TestDrawGrid_OuterOnly(t *testing.T) {
 
 	// The enabled outer border draws its corner.
 	c := b.Cell(0, 0)
-	if c.Char != style.SingleChars.TopLeft {
+	if c.Char != symbol.SingleChars.TopLeft {
 		t.Errorf("outer=true: (0,0) = %q, want TopLeft", c.Char)
 	}
 
 	// Disabling inner lines leaves the center unchanged.
 	c = b.Cell(4, 3)
-	if c.Char == style.SingleChars.Cross {
+	if c.Char == symbol.SingleChars.Cross {
 		t.Error("inner=false: center should not be Cross")
 	}
 }
@@ -130,7 +131,7 @@ func TestDrawGrid_NeitherInnerNorOuter(t *testing.T) {
 	b.SetCell(0, 0, 'X', style.ColorWhite, style.ColorBlack, 0)
 
 	b.DrawGrid(GridDrawOptions{
-		Chars:         style.SingleChars,
+		Chars:         symbol.SingleChars,
 		BorderFg:      style.ColorWhite,
 		BorderBg:      style.ColorBlack,
 		ColumnOffsets: []int{0, 4, 8},
@@ -150,7 +151,7 @@ func TestDrawGrid_SingleCell(t *testing.T) {
 	// A grid with one row and one column is a box.
 	b := New(5, 5)
 	b.DrawGrid(GridDrawOptions{
-		Chars:         style.SingleChars,
+		Chars:         symbol.SingleChars,
 		BorderFg:      style.ColorWhite,
 		BorderBg:      style.ColorBlack,
 		ColumnOffsets: []int{0, 4},
@@ -160,11 +161,11 @@ func TestDrawGrid_SingleCell(t *testing.T) {
 	})
 
 	c := b.Cell(0, 0)
-	if c.Char != style.SingleChars.TopLeft {
+	if c.Char != symbol.SingleChars.TopLeft {
 		t.Errorf("1x1 grid TL = %q, want TopLeft", c.Char)
 	}
 	c = b.Cell(4, 4)
-	if c.Char != style.SingleChars.BottomRight {
+	if c.Char != symbol.SingleChars.BottomRight {
 		t.Errorf("1x1 grid BR = %q, want BottomRight", c.Char)
 	}
 }
@@ -175,7 +176,7 @@ func TestDrawGrid_EmptyOffsets(t *testing.T) {
 
 	// One column boundary defines no columns, so drawing is a no-op.
 	b.DrawGrid(GridDrawOptions{
-		Chars:         style.SingleChars,
+		Chars:         symbol.SingleChars,
 		BorderFg:      style.ColorWhite,
 		BorderBg:      style.ColorBlack,
 		ColumnOffsets: []int{0},
@@ -193,7 +194,7 @@ func TestDrawGrid_EmptyOffsets(t *testing.T) {
 func TestDrawGrid_DoubleChars(t *testing.T) {
 	b := New(5, 5)
 	b.DrawGrid(GridDrawOptions{
-		Chars:         style.DoubleChars,
+		Chars:         symbol.DoubleChars,
 		BorderFg:      style.ColorWhite,
 		BorderBg:      style.ColorBlack,
 		ColumnOffsets: []int{0, 4},
@@ -203,13 +204,13 @@ func TestDrawGrid_DoubleChars(t *testing.T) {
 	})
 
 	c := b.Cell(0, 0)
-	if c.Char != style.DoubleChars.TopLeft {
-		t.Errorf("double grid TL = %q, want %q", c.Char, style.DoubleChars.TopLeft)
+	if c.Char != symbol.DoubleChars.TopLeft {
+		t.Errorf("double grid TL = %q, want %q", c.Char, symbol.DoubleChars.TopLeft)
 	}
 }
 
 func TestGridIntersection(t *testing.T) {
-	chars := style.SingleChars
+	chars := symbol.SingleChars
 
 	tests := []struct {
 		up, down, left, right bool

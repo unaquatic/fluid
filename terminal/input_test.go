@@ -38,12 +38,12 @@ func newInputTestRenderer() *Renderer {
 		stopChan:      make(chan struct{}, 1),
 		done:          make(chan struct{}),
 		sel:           render.NewSelection(),
-		linkRegistry:  NewLinkRegistry(),
-		stats:         NewStats(60),
+		linkRegistry:  newLinkRegistry(),
+		stats:         newStats(60),
 		lastFrameTime: time.Now(),
 	}
 
-	root.SetContext(r)
+	root.SetHost(r)
 
 	return r
 }
@@ -62,7 +62,7 @@ func TestDispatchKeyEvent_EmitsOnBus(t *testing.T) {
 			Name:   "a",
 			Type:   input.KeyPress,
 			Raw:    "a",
-			Source: "raw",
+			Source: input.KeySourceRaw,
 		},
 	})
 
@@ -77,7 +77,7 @@ func TestDispatchKeyEvent_DeliveredToFocused(t *testing.T) {
 	child := render.NewBaseRenderable(render.WithID("focusable"), render.WithFocusable(true))
 	r.root.Add(child)
 
-	var keyReceived string
+	var keyReceived input.KeyName
 	child.OnKeyDownHandler = func(e *input.KeyEvent) {
 		keyReceived = e.Name
 	}
@@ -90,7 +90,7 @@ func TestDispatchKeyEvent_DeliveredToFocused(t *testing.T) {
 			Name:   "x",
 			Type:   input.KeyPress,
 			Raw:    "x",
-			Source: "raw",
+			Source: input.KeySourceRaw,
 		},
 	})
 
@@ -117,7 +117,7 @@ func TestDispatchKeyEvent_InputHandlerStops(t *testing.T) {
 			Name:   "a",
 			Type:   input.KeyPress,
 			Raw:    "a",
-			Source: "raw",
+			Source: input.KeySourceRaw,
 		},
 	})
 
@@ -127,14 +127,14 @@ func TestDispatchKeyEvent_InputHandlerStops(t *testing.T) {
 }
 
 // keyPressEvent returns a raw key-press terminal event.
-func keyPressEvent(name string) input.TerminalEvent {
+func keyPressEvent(name input.KeyName) input.TerminalEvent {
 	return input.TerminalEvent{
 		Type: input.EventKeyboard,
 		Key: &input.KeyEvent{
 			Name:   name,
 			Type:   input.KeyPress,
-			Raw:    name,
-			Source: "raw",
+			Raw:    string(name),
+			Source: input.KeySourceRaw,
 		},
 	}
 }
@@ -147,7 +147,7 @@ func TestDispatchKeyEvent_BubblesToParent(t *testing.T) {
 	r.root.Add(parent)
 	parent.Add(child)
 
-	var parentKey string
+	var parentKey input.KeyName
 	parent.OnKeyDownHandler = func(e *input.KeyEvent) { parentKey = e.Name }
 
 	r.focused = child
@@ -217,7 +217,7 @@ func TestDispatchKeyEvent_UnhandledReachesRoot(t *testing.T) {
 	r.root.Add(parent)
 	parent.Add(child)
 
-	var rootKey string
+	var rootKey input.KeyName
 	r.root.OnKeyDownHandler = func(e *input.KeyEvent) { rootKey = e.Name }
 
 	r.focused = child
@@ -228,12 +228,12 @@ func TestDispatchKeyEvent_UnhandledReachesRoot(t *testing.T) {
 	}
 }
 
-func TestDispatchKeyEvent_ExitOnCtrlC(t *testing.T) {
+func TestDispatchKeyEvent_CtrlCExits(t *testing.T) {
 	r := newInputTestRenderer()
-	r.config.ExitOnCtrlC = true
+	r.config.HandleCtrlC = false
 
 	evt := keyPressEvent("c")
-	evt.Key.Ctrl = true
+	evt.Key.Mods |= input.ModCtrl
 	r.dispatchEvent(evt)
 
 	if !r.IsDestroyed() {
@@ -241,20 +241,20 @@ func TestDispatchKeyEvent_ExitOnCtrlC(t *testing.T) {
 	}
 }
 
-func TestDispatchKeyEvent_BusVetoesExitOnCtrlC(t *testing.T) {
+func TestDispatchKeyEvent_BusVetoesCtrlCExit(t *testing.T) {
 	r := newInputTestRenderer()
-	r.config.ExitOnCtrlC = true
+	r.config.HandleCtrlC = false
 
 	r.eventBus.On(input.EventKeyboard, func(evt input.TerminalEvent) {
 		evt.Key.PreventDefault()
 	})
 
 	evt := keyPressEvent("c")
-	evt.Key.Ctrl = true
+	evt.Key.Mods |= input.ModCtrl
 	r.dispatchEvent(evt)
 
 	if r.IsDestroyed() {
-		t.Error("expected PreventDefault to veto the ExitOnCtrlC default action")
+		t.Error("expected PreventDefault to veto the Control-C exit")
 	}
 }
 
@@ -334,7 +334,7 @@ func TestPrependInputHandler(t *testing.T) {
 			Name:   "a",
 			Type:   input.KeyPress,
 			Raw:    "a",
-			Source: "raw",
+			Source: input.KeySourceRaw,
 		},
 	})
 
@@ -375,6 +375,7 @@ func TestDispatchMouseEvent_HitTest(t *testing.T) {
 
 func TestDispatchMouseEvent_AutoFocus(t *testing.T) {
 	r := newInputTestRenderer()
+	r.config.EnableAutoFocus = true
 
 	child := render.NewBaseRenderable(render.WithID("focusable-click"), render.WithFocusable(true))
 	child.SetBounds(0, 0, 10, 10)

@@ -1,41 +1,27 @@
 package textbuf
 
-// ExtmarksSnapshot captures extmarks and the next ID for undo or redo.
-type ExtmarksSnapshot struct {
+import "maps"
+
+// extmarksSnapshot captures extmarks and the next ID for undo or redo.
+type extmarksSnapshot struct {
 	extmarks map[int]Extmark
 	nextID   int
 }
 
-// cloneExtmarks copies the map and pointed-to colors. User Data remains a
-// shallow copy.
+// cloneExtmarks copies the map. User Data remains a shallow copy.
 func cloneExtmarks(src map[int]Extmark) map[int]Extmark {
-	if src == nil {
-		return nil
-	}
-	dst := make(map[int]Extmark, len(src))
-	for k, v := range src {
-		if v.Fg != nil {
-			fg := *v.Fg
-			v.Fg = &fg
-		}
-		if v.Bg != nil {
-			bg := *v.Bg
-			v.Bg = &bg
-		}
-		dst[k] = v
-	}
-	return dst
+	return maps.Clone(src)
 }
 
-// ExtmarksHistory tracks extmark snapshots alongside EditBuffer undo and redo.
-type ExtmarksHistory struct {
-	undoStack []ExtmarksSnapshot
-	redoStack []ExtmarksSnapshot
+// extmarksHistory tracks extmark snapshots alongside EditBuffer undo and redo.
+type extmarksHistory struct {
+	undoStack []extmarksSnapshot
+	redoStack []extmarksSnapshot
 }
 
 // SaveSnapshot copies the current state onto the undo stack and clears redo.
-func (h *ExtmarksHistory) SaveSnapshot(extmarks map[int]Extmark, nextID int) {
-	h.undoStack = append(h.undoStack, ExtmarksSnapshot{
+func (h *extmarksHistory) SaveSnapshot(extmarks map[int]Extmark, nextID int) {
+	h.undoStack = append(h.undoStack, extmarksSnapshot{
 		extmarks: cloneExtmarks(extmarks),
 		nextID:   nextID,
 	})
@@ -43,7 +29,7 @@ func (h *ExtmarksHistory) SaveSnapshot(extmarks map[int]Extmark, nextID int) {
 }
 
 // Undo removes and returns the newest undo snapshot, or nil when empty.
-func (h *ExtmarksHistory) Undo() *ExtmarksSnapshot {
+func (h *extmarksHistory) Undo() *extmarksSnapshot {
 	if len(h.undoStack) == 0 {
 		return nil
 	}
@@ -53,7 +39,7 @@ func (h *ExtmarksHistory) Undo() *ExtmarksSnapshot {
 }
 
 // Redo removes and returns the newest redo snapshot, or nil when empty.
-func (h *ExtmarksHistory) Redo() *ExtmarksSnapshot {
+func (h *extmarksHistory) Redo() *extmarksSnapshot {
 	if len(h.redoStack) == 0 {
 		return nil
 	}
@@ -63,23 +49,23 @@ func (h *ExtmarksHistory) Redo() *ExtmarksSnapshot {
 }
 
 // PushUndo adds snap to the undo stack.
-func (h *ExtmarksHistory) PushUndo(snap ExtmarksSnapshot) {
+func (h *extmarksHistory) PushUndo(snap extmarksSnapshot) {
 	h.undoStack = append(h.undoStack, snap)
 }
 
 // PushRedo adds snap to the redo stack.
-func (h *ExtmarksHistory) PushRedo(snap ExtmarksSnapshot) {
+func (h *extmarksHistory) PushRedo(snap extmarksSnapshot) {
 	h.redoStack = append(h.redoStack, snap)
 }
 
 // Clear empties both stacks.
-func (h *ExtmarksHistory) Clear() {
+func (h *extmarksHistory) Clear() {
 	h.undoStack = nil
 	h.redoStack = nil
 }
 
 // CanUndo reports whether the undo stack is nonempty.
-func (h *ExtmarksHistory) CanUndo() bool { return len(h.undoStack) > 0 }
+func (h *extmarksHistory) CanUndo() bool { return len(h.undoStack) > 0 }
 
 // CanRedo reports whether the redo stack is nonempty.
-func (h *ExtmarksHistory) CanRedo() bool { return len(h.redoStack) > 0 }
+func (h *extmarksHistory) CanRedo() bool { return len(h.redoStack) > 0 }

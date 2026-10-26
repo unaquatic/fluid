@@ -268,7 +268,7 @@ func TestReanchor_DriftBoundedToOneGlyph(t *testing.T) {
 		cur := buffer.New(W, 1)
 		cur.Clear(style.ColorBlack)
 		r, out := newTestRenderer(W, 1)
-		r.DiffAndFlush(cur, build())
+		r.diffAndFlush(cur, build())
 		term := newDisagreeingTerm(W, 1, jamoTerm)
 		term.feed(out.String())
 		if got := columnOf(term.row(0), tail); got != want {
@@ -410,14 +410,14 @@ func checkRightEdgeFlush(t *testing.T, mode string, row int) {
 		r.FullFlush(prev)
 		term.feed(out.String())
 		out.Reset()
-		r.DiffAndFlush(prev, next)
+		r.diffAndFlush(prev, next)
 	case "inline full":
-		r.InlineFlush(next)
+		r.inlineFlush(next)
 	case "inline diff":
-		r.InlineFlush(prev)
+		r.inlineFlush(prev)
 		term.feed(out.String())
 		out.Reset()
-		r.InlineFlush(next)
+		r.inlineFlush(next)
 	}
 	term.feed(out.String())
 	checkRightEdgeRows(t, term, next, row)

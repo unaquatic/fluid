@@ -178,11 +178,11 @@ func (b *Buffer) drawSurfaceInternal(view textbuf.Surface, x, y int) {
 				sourceCol := vline.SourceColOffset + columnInLine
 				for _, hl := range highlights {
 					if sourceCol >= hl.Start && sourceCol < hl.End {
-						if hl.Fg != nil {
-							finalFg = *hl.Fg
+						if !hl.Fg.IsTransparent() {
+							finalFg = hl.Fg
 						}
-						if hl.Bg != nil {
-							finalBg = *hl.Bg
+						if !hl.Bg.IsTransparent() {
+							finalBg = hl.Bg
 						}
 						finalAttrs |= hl.Attributes
 						break
@@ -193,16 +193,16 @@ func (b *Buffer) drawSurfaceInternal(view textbuf.Surface, x, y int) {
 				if sel != nil {
 					for c := range rw {
 						if globalCharPos+c >= sel.Start && globalCharPos+c < sel.End {
-							if sel.BgColor != nil {
-								finalBg = *sel.BgColor
+							if !sel.BgColor.IsTransparent() {
+								finalBg = sel.BgColor
 							} else {
 								finalFg, finalBg = defaultBg, chunkFg
 								if finalFg.A == 0 {
 									finalFg = style.ColorFromInts(0, 0, 0, 255)
 								}
 							}
-							if sel.FgColor != nil {
-								finalFg = *sel.FgColor
+							if !sel.FgColor.IsTransparent() {
+								finalFg = sel.FgColor
 							}
 							break
 						}

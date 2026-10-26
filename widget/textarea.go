@@ -2,6 +2,7 @@ package widget
 
 import (
 	"math"
+	"time"
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
@@ -30,32 +31,27 @@ type Textarea struct {
 	backgroundColor    style.Color // Active background selected by Focus or Blur.
 	cursorColor        style.Color
 	selectionBg        style.Color
-	selectionFg        *style.Color // Nil preserves the text foreground.
+	selectionFg        style.Color // Transparent preserves the text foreground.
 
-	showCursor     bool
-	cursorShape    string // One of "block", "line", or "underline".
-	cursorBlinking bool
-	readOnly       bool
+	showCursor bool
+	readOnly   bool
 
 	// Custom bindings and aliases are compiled only after they change.
 	keyBindings   []input.KeyBinding
 	keyAliases    input.KeyAliasMap
-	bindingMap    map[string]string
+	bindingMap    map[string]input.Action
 	bindingsDirty bool
 
 	// actionHandlers dispatches resolved action names.
-	actionHandlers map[string]func() bool
+	actionHandlers map[input.Action]func() bool
 
-	// Selection uses render.Context for screen coordinates and an offset anchor
+	// Selection uses the render.Host for screen coordinates and an offset anchor
 	// for EditSurface text coordinates.
 	selAnchorOffset         int
 	keyboardSelectionActive bool // True while a movement action extends selection.
 
 	// defaultAttributes applies to text without an explicit highlight style.
-	defaultAttributes uint32
-
-	// initialValueSet prevents reactive callers from reapplying an initial value.
-	initialValueSet bool
+	defaultAttributes style.Attrs
 
 	// Drag selection accumulates fractional automatic scrolling over time.
 	autoScrollVelocity    float64
@@ -102,8 +98,6 @@ func NewTextarea(opts ...TextareaOption) *Textarea {
 		cursorColor:        style.ColorWhite,
 		selectionBg:        style.ColorFromInts(51, 153, 255, 255),
 		showCursor:         true,
-		cursorShape:        "block",
-		cursorBlinking:     true,
 		bindingsDirty:      true,
 		scrollSpeed:        16,
 	}
@@ -239,6 +233,9 @@ func (ta *Textarea) SetCursor(row, col int) {
 	ta.RequestRender()
 }
 
+// A LineNumber beside a Textarea styles the cursor's line as active.
+var _ CursorTracker = (*Textarea)(nil)
+
 // CursorPosition returns the logical row and display-column position.
 func (ta *Textarea) CursorPosition() (row, col int) {
 	return ta.editBuffer().CursorRow(), ta.editBuffer().CursorCol()
@@ -301,23 +298,23 @@ func (ta *Textarea) SelectAll() {
 	sel := &textbuf.TextSelection{
 		Start:   0,
 		End:     totalLen,
-		BgColor: &ta.selectionBg,
+		BgColor: ta.selectionBg,
 		FgColor: ta.selectionFg,
 	}
 	ta.editSurface.SetSelection(sel)
 
-	// Start a corresponding screen-coordinate selection in the render context.
-	ctx := ta.Context()
-	ctx.StartSelection(ta, ta.X(), ta.Y())
+	// Start a corresponding screen-coordinate selection in the host.
+	host := ta.Host()
+	host.StartSelection(ta, ta.X(), ta.Y())
 
 	// Finish the selection with the cursor at the end of the buffer.
 	lastRow := eb.LineCount() - 1
 	lastCol := ta.textBuffer().LineWidthAt(lastRow)
 	eb.SetCursor(lastRow, lastCol)
 
-	// Synchronize the render-context focus with the final visual cursor.
+	// Synchronize the host's selection focus with the final visual cursor.
 	vc := ta.editSurface.VisualCursor()
-	ctx.UpdateSelection(ta, ta.X()+vc.VisualCol, ta.Y()+vc.VisualRow,
+	host.UpdateSelection(ta, ta.X()+vc.VisualCol, ta.Y()+vc.VisualRow,
 		render.SelectionUpdateOption{FinishDragging: true})
 
 	ta.RequestRender()
@@ -414,17 +411,6 @@ func (ta *Textarea) LineInfo() textbuf.LineInfo {
 
 // Syntax highlighting.
 
-// SetSyntaxStyle sets the token-style registry used by the text buffer.
-func (ta *Textarea) SetSyntaxStyle(ss *style.SyntaxStyle) {
-	ta.textBuffer().SetSyntaxStyle(ss)
-	ta.RequestRender()
-}
-
-// SyntaxStyle returns the current token-style registry, or nil.
-func (ta *Textarea) SyntaxStyle() *style.SyntaxStyle {
-	return ta.textBuffer().SyntaxStyle()
-}
-
 // AddHighlight adds hl to a zero-based logical line.
 func (ta *Textarea) AddHighlight(lineIdx int, hl textbuf.Highlight) {
 	ta.textBuffer().AddHighlight(lineIdx, hl)
@@ -463,7 +449,7 @@ func (ta *Textarea) LineHighlights(lineIdx int) []textbuf.Highlight {
 // Textarea configuration.
 
 // SetWrapMode sets the text wrapping mode.
-func (ta *Textarea) SetWrapMode(m WrapMode) {
+func (ta *Textarea) SetWrapMode(m textbuf.WrapMode) {
 	ta.editSurface.SetWrapMode(m)
 	ta.RequestRender()
 }
@@ -492,7 +478,7 @@ func (ta *Textarea) SetKeyAliases(aliases input.KeyAliasMap) {
 
 // SetSelectionFg sets the selection foreground color.
 func (ta *Textarea) SetSelectionFg(c style.Color) {
-	ta.selectionFg = &c
+	ta.selectionFg = c
 }
 
 // SetSelectionBg sets the selection background color.
@@ -510,36 +496,15 @@ func (ta *Textarea) SetPlaceholderSpans(spans []textbuf.Span) {
 	ta.editSurface.SetPlaceholderSpans(spans)
 }
 
-// SetCursorShape sets the cursor shape: "block", "line", or "underline".
-func (ta *Textarea) SetCursorShape(shape string) {
-	ta.cursorShape = shape
-	if ta.Focused() {
-		ta.RequestRender()
-	}
-}
-
-// CursorShape returns the current cursor shape.
-func (ta *Textarea) CursorShape() string {
-	return ta.cursorShape
-}
-
-// SetCursorBlinking sets whether the cursor blinks.
-func (ta *Textarea) SetCursorBlinking(b bool) {
-	ta.cursorBlinking = b
-	if ta.Focused() {
-		ta.RequestRender()
-	}
-}
-
 // SetDefaultAttributes sets the default text attributes (bold, italic, etc.).
-func (ta *Textarea) SetDefaultAttributes(attrs uint32) {
+func (ta *Textarea) SetDefaultAttributes(attrs style.Attrs) {
 	ta.defaultAttributes = attrs
 	ta.textBuffer().SetDefaultAttributes(attrs)
 	ta.RequestRender()
 }
 
 // DefaultAttributes returns the default text attributes.
-func (ta *Textarea) DefaultAttributes() uint32 {
+func (ta *Textarea) DefaultAttributes() style.Attrs {
 	return ta.defaultAttributes
 }
 
@@ -575,14 +540,6 @@ func (ta *Textarea) Extmarks() *textbuf.ExtmarksController {
 	return ta.extmarksCtrl
 }
 
-// SetInitialValue sets text on its first call and ignores later calls.
-func (ta *Textarea) SetInitialValue(text string) {
-	if !ta.initialValueSet {
-		ta.SetText(text)
-		ta.initialValueSet = true
-	}
-}
-
 // Focus state.
 
 // Focus activates focused colors and cursor rendering.
@@ -590,7 +547,6 @@ func (ta *Textarea) Focus() {
 	ta.BaseRenderable.Focus()
 	ta.textColor = ta.focusedTextColor
 	ta.backgroundColor = ta.focusedBgColor
-	ta.applyCursorStyle()
 	ta.RequestRender()
 }
 
@@ -599,7 +555,7 @@ func (ta *Textarea) Blur() {
 	ta.BaseRenderable.Blur()
 	ta.textColor = ta.unfocusedTextColor
 	ta.backgroundColor = ta.unfocusedBgColor
-	ta.Context().SetCursorPosition(0, 0, false)
+	ta.Host().SetCursorPosition(0, 0, false)
 	ta.RequestRender()
 }
 
@@ -611,7 +567,7 @@ func (ta *Textarea) OnResize(width, height int) {
 // Textarea rendering.
 
 // RenderSelf draws the textarea into the buffer.
-func (ta *Textarea) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (ta *Textarea) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	w := ta.Width()
 	h := ta.Height()
 	if w <= 0 || h <= 0 {
@@ -628,7 +584,7 @@ func (ta *Textarea) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 	ta.textBuffer().SetDefaultFg(ta.textColor)
 
 	// Register the viewport for pointer-event routing.
-	ta.Context().AddToHitGrid(x, y, w, h, ta.Num())
+	ta.Host().AddToHitGrid(x, y, w, h, ta.Num())
 
 	// Draw background
 	if !ta.backgroundColor.IsTransparent() {
@@ -643,8 +599,7 @@ func (ta *Textarea) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 			buf.DrawText(drawText, x, y, phColor)
 		}
 		if ta.Focused() && ta.showCursor {
-			ta.Context().SetCursorPosition(x, y, true)
-			ta.applyCursorStyle()
+			ta.Host().SetCursorPosition(x, y, true)
 		}
 		return
 	}
@@ -660,8 +615,7 @@ func (ta *Textarea) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 		// Permit one-past-the-right-edge at the end of a full-width line.
 		if cursorScreenX >= x && cursorScreenX <= x+w &&
 			cursorScreenY >= y && cursorScreenY < y+h {
-			ta.Context().SetCursorPosition(cursorScreenX, cursorScreenY, true)
-			ta.applyCursorStyle()
+			ta.Host().SetCursorPosition(cursorScreenX, cursorScreenY, true)
 		}
 	}
 }
@@ -792,18 +746,18 @@ func (ta *Textarea) handleMouseDown(e *input.MouseEvent) {
 
 	// Resolve the clicked visual coordinate through EditSurface.
 	ta.editSurface.SetLocalSelection(localX, localY, localX, localY,
-		&ta.selectionBg, ta.selectionFg, true, false)
+		ta.selectionBg, ta.selectionFg, true, false)
 
 	// Store a viewport-local anchor for subsequent drag events.
 	ta.mouseSelAnchorX = localX
 	ta.mouseSelAnchorY = localY
 	ta.mouseSelecting = true
 
-	// Replace any keyboard selection with a render-context drag selection.
+	// Replace any keyboard selection with a drag selection in the host.
 	ta.keyboardSelectionActive = false
 	ta.selAnchorOffset = 0
 	ta.editSurface.ResetSelection()
-	ta.Context().StartSelection(ta, e.X, e.Y)
+	ta.Host().StartSelection(ta, e.X, e.Y)
 
 	e.StopPropagation()
 }
@@ -820,7 +774,7 @@ func (ta *Textarea) handleMouseDrag(e *input.MouseEvent) {
 	ok := ta.editSurface.UpdateLocalSelection(
 		ta.mouseSelAnchorX, ta.mouseSelAnchorY,
 		localX, localY,
-		&ta.selectionBg, ta.selectionFg,
+		ta.selectionBg, ta.selectionFg,
 	)
 
 	// Start automatic vertical scrolling within the outer fifth of the viewport.
@@ -838,7 +792,7 @@ func (ta *Textarea) handleMouseDrag(e *input.MouseEvent) {
 
 	if ok {
 		// Keep screen-coordinate selection synchronized with EditSurface.
-		ta.Context().UpdateSelection(ta, e.X, e.Y)
+		ta.Host().UpdateSelection(ta, e.X, e.Y)
 		ta.RequestRender()
 	}
 
@@ -847,8 +801,8 @@ func (ta *Textarea) handleMouseDrag(e *input.MouseEvent) {
 
 func (ta *Textarea) handleMouseDragEnd(e *input.MouseEvent) {
 	if ta.mouseSelecting {
-		// Mark the render-context drag as complete.
-		ta.Context().UpdateSelection(ta, e.X, e.Y,
+		// Mark the host's drag as complete.
+		ta.Host().UpdateSelection(ta, e.X, e.Y,
 			render.SelectionUpdateOption{FinishDragging: true})
 	}
 	ta.mouseSelecting = false
@@ -862,14 +816,14 @@ func (ta *Textarea) handleMouseUp(e *input.MouseEvent) {
 	ta.autoScrollAccumulator = 0
 }
 
-// OnPostLayout advances drag-selection auto-scroll using elapsed milliseconds.
-func (ta *Textarea) OnPostLayout(deltaTime float64) {
+// OnPostLayout advances drag-selection auto-scroll by the time deltaTime
+// since the last frame.
+func (ta *Textarea) OnPostLayout(deltaTime time.Duration) {
 	if ta.autoScrollVelocity == 0 || !ta.mouseSelecting {
 		return
 	}
 
-	deltaSec := deltaTime / 1000.0
-	ta.autoScrollAccumulator += ta.autoScrollVelocity * deltaSec
+	ta.autoScrollAccumulator += ta.autoScrollVelocity * deltaTime.Seconds()
 
 	linesToScroll := int(math.Abs(ta.autoScrollAccumulator))
 	if linesToScroll > 0 {
@@ -910,7 +864,7 @@ func (ta *Textarea) Destroy() {
 		ta.extmarksCtrl = nil
 	}
 	if ta.Focused() {
-		ta.Context().SetCursorPosition(0, 0, false)
+		ta.Host().SetCursorPosition(0, 0, false)
 	}
 	ta.BaseRenderable.Destroy()
 }
@@ -918,8 +872,8 @@ func (ta *Textarea) Destroy() {
 // Action dispatch.
 
 // buildActionHandlers maps each supported action name to its handler.
-func (ta *Textarea) buildActionHandlers() map[string]func() bool {
-	return map[string]func() bool{
+func (ta *Textarea) buildActionHandlers() map[input.Action]func() bool {
+	return map[input.Action]func() bool{
 		// Navigation
 		ActionMoveLeft:      ta.actionMoveLeft,
 		ActionMoveRight:     ta.actionMoveRight,
@@ -1370,7 +1324,7 @@ func (ta *Textarea) updateSelectionForMovement(shiftPressed, isBeforeMovement bo
 		// Record both screen and text-offset anchors when selection begins.
 		if !ta.HasSelection() {
 			vc := ta.editSurface.VisualCursor()
-			ta.Context().StartSelection(ta, ta.X()+vc.VisualCol, ta.Y()+vc.VisualRow)
+			ta.Host().StartSelection(ta, ta.X()+vc.VisualCol, ta.Y()+vc.VisualRow)
 			eb := ta.editBuffer()
 			ta.selAnchorOffset = eb.PositionToOffset(eb.CursorRow(), eb.CursorCol())
 		}
@@ -1379,7 +1333,7 @@ func (ta *Textarea) updateSelectionForMovement(shiftPressed, isBeforeMovement bo
 
 	// Move the screen-coordinate focus to the new visual cursor.
 	vc := ta.editSurface.VisualCursor()
-	ta.Context().UpdateSelection(ta, ta.X()+vc.VisualCol, ta.Y()+vc.VisualRow,
+	ta.Host().UpdateSelection(ta, ta.X()+vc.VisualCol, ta.Y()+vc.VisualRow,
 		render.SelectionUpdateOption{FinishDragging: true})
 
 	// Apply the same range to EditSurface for rendering and editing.
@@ -1399,7 +1353,7 @@ func (ta *Textarea) syncSelectionToEditBufferView() {
 	sel := &textbuf.TextSelection{
 		Start:   start,
 		End:     end,
-		BgColor: &ta.selectionBg,
+		BgColor: ta.selectionBg,
 		FgColor: ta.selectionFg,
 	}
 	ta.editSurface.SetSelection(sel)
@@ -1410,7 +1364,7 @@ func (ta *Textarea) clearSelection() {
 	ta.keyboardSelectionActive = false
 	ta.selAnchorOffset = 0
 	ta.editSurface.ResetSelection()
-	ta.Context().ClearSelection()
+	ta.Host().ClearSelection()
 }
 
 // deleteSelectedText removes the active range and reports whether one existed.
@@ -1421,7 +1375,7 @@ func (ta *Textarea) deleteSelectedText() bool {
 	ta.editSurface.DeleteSelectedText()
 	ta.keyboardSelectionActive = false
 	ta.selAnchorOffset = 0
-	ta.Context().ClearSelection()
+	ta.Host().ClearSelection()
 	return true
 }
 
@@ -1451,7 +1405,7 @@ func (ta *Textarea) emitContentChange() {
 	}
 }
 
-func (ta *Textarea) resolveAction(e *input.KeyEvent) (string, bool) {
+func (ta *Textarea) resolveAction(e *input.KeyEvent) (input.Action, bool) {
 	if ta.bindingsDirty {
 		ta.rebuildBindingMap()
 	}
@@ -1471,24 +1425,12 @@ func (ta *Textarea) defaultBindings() []input.KeyBinding {
 	return DefaultTextareaBindings
 }
 
-// applyCursorStyle is retained for internal call-site compatibility.
-// Renderer applies cursor style during its render pass.
-func (ta *Textarea) applyCursorStyle() {}
-
 // Textarea options.
 
 // TextareaWithText sets the initial text.
 func TextareaWithText(text string) TextareaOption {
 	return func(ta *Textarea) {
 		ta.editBuffer().SetText(text)
-	}
-}
-
-// TextareaWithInitialValue sets initial text and prevents later SetInitialValue calls.
-func TextareaWithInitialValue(text string) TextareaOption {
-	return func(ta *Textarea) {
-		ta.editBuffer().SetText(text)
-		ta.initialValueSet = true
 	}
 }
 
@@ -1499,16 +1441,16 @@ func TextareaWithPlaceholder(text string) TextareaOption {
 	}
 }
 
-// TextareaWithPlaceholderColor sets the placeholder color.
-func TextareaWithPlaceholderColor(fg style.Color) TextareaOption {
+// TextareaWithPlaceholderFg sets the placeholder color.
+func TextareaWithPlaceholderFg(fg style.Color) TextareaOption {
 	return func(ta *Textarea) {
 		phText, _ := ta.editSurface.PlaceholderText()
 		ta.editSurface.SetPlaceholderText(phText, fg)
 	}
 }
 
-// TextareaWithTextColor sets both focused and unfocused foreground colors.
-func TextareaWithTextColor(c style.Color) TextareaOption {
+// TextareaWithFg sets both focused and unfocused foreground colors.
+func TextareaWithFg(c style.Color) TextareaOption {
 	return func(ta *Textarea) {
 		ta.unfocusedTextColor = c
 		ta.focusedTextColor = c
@@ -1516,13 +1458,13 @@ func TextareaWithTextColor(c style.Color) TextareaOption {
 	}
 }
 
-// TextareaWithFocusedTextColor sets the text color used when focused.
-func TextareaWithFocusedTextColor(c style.Color) TextareaOption {
+// TextareaWithFocusedFg sets the text color used when focused.
+func TextareaWithFocusedFg(c style.Color) TextareaOption {
 	return func(ta *Textarea) { ta.focusedTextColor = c }
 }
 
-// TextareaWithBackgroundColor sets both focused and unfocused background colors.
-func TextareaWithBackgroundColor(c style.Color) TextareaOption {
+// TextareaWithBg sets both focused and unfocused background colors.
+func TextareaWithBg(c style.Color) TextareaOption {
 	return func(ta *Textarea) {
 		ta.unfocusedBgColor = c
 		ta.focusedBgColor = c
@@ -1530,8 +1472,8 @@ func TextareaWithBackgroundColor(c style.Color) TextareaOption {
 	}
 }
 
-// TextareaWithFocusedBackgroundColor sets the background color when focused.
-func TextareaWithFocusedBackgroundColor(c style.Color) TextareaOption {
+// TextareaWithFocusedBg sets the background color when focused.
+func TextareaWithFocusedBg(c style.Color) TextareaOption {
 	return func(ta *Textarea) { ta.focusedBgColor = c }
 }
 
@@ -1541,14 +1483,14 @@ func TextareaWithReadOnly(v bool) TextareaOption {
 }
 
 // TextareaWithWrapMode sets the wrap mode.
-func TextareaWithWrapMode(m WrapMode) TextareaOption {
+func TextareaWithWrapMode(m textbuf.WrapMode) TextareaOption {
 	return func(ta *Textarea) {
 		ta.editSurface.SetWrapMode(m)
 	}
 }
 
 // TextareaWithScrollMargin sets the viewport fraction kept around the cursor.
-func TextareaWithScrollMargin(m float32) TextareaOption {
+func TextareaWithScrollMargin(m float64) TextareaOption {
 	return func(ta *Textarea) {
 		ta.editSurface.SetScrollMargin(m)
 	}
@@ -1562,14 +1504,6 @@ func TextareaWithShowCursor(v bool) TextareaOption {
 // TextareaWithCursorColor sets the cursor color.
 func TextareaWithCursorColor(c style.Color) TextareaOption {
 	return func(ta *Textarea) { ta.cursorColor = c }
-}
-
-// TextareaWithCursorStyle sets the cursor shape and whether it blinks.
-func TextareaWithCursorStyle(shape string, blinking bool) TextareaOption {
-	return func(ta *Textarea) {
-		ta.cursorShape = shape
-		ta.cursorBlinking = blinking
-	}
 }
 
 // TextareaWithMaxUndo sets the maximum undo history size.
@@ -1602,7 +1536,7 @@ func TextareaWithSelectionBg(c style.Color) TextareaOption {
 
 // TextareaWithSelectionFg sets the selection foreground color.
 func TextareaWithSelectionFg(c style.Color) TextareaOption {
-	return func(ta *Textarea) { ta.selectionFg = &c }
+	return func(ta *Textarea) { ta.selectionFg = c }
 }
 
 // TextareaWithOnCursorChange sets the callback invoked after cursor movement.
@@ -1625,41 +1559,19 @@ func TextareaWithID(id string) TextareaOption {
 	return func(ta *Textarea) { ta.SetID(id) }
 }
 
-// TextareaWithWidth sets the widget width.
-func TextareaWithWidth(s layout.Scalar) TextareaOption {
-	return func(ta *Textarea) { ta.LayoutNode().Width = s }
-}
-
-// TextareaWithHeight sets the widget height.
-func TextareaWithHeight(s layout.Scalar) TextareaOption {
-	return func(ta *Textarea) { ta.LayoutNode().Height = s }
-}
-
-// TextareaWithFlexGrow sets the flex-grow factor.
-func TextareaWithFlexGrow(v int) TextareaOption {
-	return func(ta *Textarea) { ta.LayoutNode().FlexGrow = v }
-}
-
-// TextareaWithMinHeight sets the minimum height constraint.
-func TextareaWithMinHeight(s layout.Scalar) TextareaOption {
-	return func(ta *Textarea) { ta.LayoutNode().MinHeight = s }
-}
-
-// TextareaWithMaxHeight sets the maximum height constraint.
-func TextareaWithMaxHeight(s layout.Scalar) TextareaOption {
-	return func(ta *Textarea) { ta.LayoutNode().MaxHeight = s }
+// TextareaWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func TextareaWithLayout(opts ...layout.Option) TextareaOption {
+	return func(w *Textarea) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }
 
 // TextareaWithDefaultAttributes sets the default text attributes (bold, italic, etc.).
-func TextareaWithDefaultAttributes(attrs uint32) TextareaOption {
+func TextareaWithDefaultAttributes(attrs style.Attrs) TextareaOption {
 	return func(ta *Textarea) { ta.defaultAttributes = attrs }
-}
-
-// TextareaWithSyntaxStyle sets the token-style registry used by the text buffer.
-func TextareaWithSyntaxStyle(ss *style.SyntaxStyle) TextareaOption {
-	return func(ta *Textarea) {
-		ta.textBuffer().SetSyntaxStyle(ss)
-	}
 }
 
 // TextareaWithSelectable controls whether mouse selection can start in the editor.

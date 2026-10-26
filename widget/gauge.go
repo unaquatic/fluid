@@ -2,6 +2,7 @@ package widget
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/layout"
@@ -73,7 +74,7 @@ func (g *Gauge) SetLabel(label string) {
 }
 
 // RenderSelf draws the gauge.
-func (g *Gauge) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (g *Gauge) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	w := g.Width()
 	h := g.Height()
 	if w <= 0 || h <= 0 {
@@ -90,7 +91,7 @@ func (g *Gauge) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 			if col < fillWidth {
 				fillColor := g.fillColor
 				if g.useGradient && fillWidth > 0 {
-					t := float32(col) / float32(fillWidth)
+					t := float64(col) / float64(fillWidth)
 					fillColor = g.fillColor.Blend(g.gradientEnd, t)
 				}
 				buf.SetCell(x+col, y+row, symbol.GaugeFill, fillColor, fillColor, 0)
@@ -153,17 +154,12 @@ func GaugeWithID(id string) GaugeOption {
 	return func(g *Gauge) { g.SetID(id) }
 }
 
-// GaugeWithWidth sets the widget width.
-func GaugeWithWidth(s layout.Scalar) GaugeOption {
-	return func(g *Gauge) { g.LayoutNode().Width = s }
-}
-
-// GaugeWithHeight sets the widget height.
-func GaugeWithHeight(s layout.Scalar) GaugeOption {
-	return func(g *Gauge) { g.LayoutNode().Height = s }
-}
-
-// GaugeWithFlexGrow sets the flex-grow factor.
-func GaugeWithFlexGrow(v int) GaugeOption {
-	return func(g *Gauge) { g.LayoutNode().FlexGrow = v }
+// GaugeWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func GaugeWithLayout(opts ...layout.Option) GaugeOption {
+	return func(w *Gauge) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }

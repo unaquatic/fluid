@@ -1,6 +1,8 @@
 package widget
 
 import (
+	"time"
+
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
 	"github.com/unaquatic/fluid/layout"
@@ -41,7 +43,7 @@ type Select struct {
 	descriptionColor        style.Color
 	// hintColor, when set, colors the hint after each name on every row, the
 	// selected one included.
-	hintColor *style.Color
+	hintColor style.Color
 
 	showScrollIndicator bool
 	wrapSelection       bool
@@ -139,7 +141,7 @@ func (s *Select) SetItems(items []SelectItem) {
 func (s *Select) Items() []SelectItem { return s.items }
 
 // RenderSelf draws the select list.
-func (s *Select) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (s *Select) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	w := s.Width()
 	h := s.Height()
 	if w <= 0 || h <= 0 || len(s.items) == 0 {
@@ -168,7 +170,7 @@ func (s *Select) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 		// Resolve the selected-row appearance from focus state and options.
 		fg := s.textColor
 		bg := s.backgroundColor
-		var attrs uint32
+		var attrs style.Attrs
 
 		if isSelected {
 			if s.focusedUseBold {
@@ -219,8 +221,8 @@ func (s *Select) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 			if isSelected {
 				hintFg = fg
 			}
-			if s.hintColor != nil {
-				hintFg = *s.hintColor
+			if !s.hintColor.IsTransparent() {
+				hintFg = s.hintColor
 			}
 			buf.DrawText(hint, hintX, drawY, hintFg)
 			nameLen += displayWidth(hint)
@@ -272,19 +274,19 @@ func (s *Select) HandleKeyPress(e *input.KeyEvent) bool {
 	handled := true
 
 	switch {
-	case e.Matches(input.KeyUp) || e.Matches("k"):
+	case e.Matches(input.KeyUp, 0) || e.Matches("k", 0):
 		s.MoveUp()
 
-	case e.Matches(input.KeyDown) || e.Matches("j"):
+	case e.Matches(input.KeyDown, 0) || e.Matches("j", 0):
 		s.MoveDown()
 
-	case e.Matches(input.KeyHome):
+	case e.Matches(input.KeyHome, 0):
 		s.SetSelectedIndex(0)
 
-	case e.Matches(input.KeyEnd):
+	case e.Matches(input.KeyEnd, 0):
 		s.SetSelectedIndex(len(s.items) - 1)
 
-	case e.Matches(input.KeyReturn) || e.Matches(input.KeySpace):
+	case e.Matches(input.KeyReturn, 0) || e.Matches(input.KeySpace, 0):
 		if s.OnItemSelected != nil && s.selectedIndex >= 0 && s.selectedIndex < len(s.items) {
 			s.OnItemSelected(s.selectedIndex, s.items[s.selectedIndex])
 		}
@@ -381,46 +383,46 @@ func (s *Select) ensureVisible() {
 
 // Select options.
 
-// SelectWithBackgroundColor sets the background color.
-func SelectWithBackgroundColor(c style.Color) SelectOption {
+// SelectWithBg sets the background color.
+func SelectWithBg(c style.Color) SelectOption {
 	return func(s *Select) { s.backgroundColor = c }
 }
 
-// SelectWithTextColor sets the text color.
-func SelectWithTextColor(c style.Color) SelectOption {
+// SelectWithFg sets the text color.
+func SelectWithFg(c style.Color) SelectOption {
 	return func(s *Select) { s.textColor = c }
 }
 
-// SelectWithFocusedBackgroundColor sets the focused background color.
-func SelectWithFocusedBackgroundColor(c style.Color) SelectOption {
+// SelectWithFocusedBg sets the focused background color.
+func SelectWithFocusedBg(c style.Color) SelectOption {
 	return func(s *Select) { s.focusedBackgroundColor = c }
 }
 
-// SelectWithFocusedTextColor sets the focused text color.
-func SelectWithFocusedTextColor(c style.Color) SelectOption {
+// SelectWithFocusedFg sets the focused text color.
+func SelectWithFocusedFg(c style.Color) SelectOption {
 	return func(s *Select) { s.focusedTextColor = c }
 }
 
-// SelectWithSelectedBackgroundColor sets the selected background color.
-func SelectWithSelectedBackgroundColor(c style.Color) SelectOption {
+// SelectWithSelectedBg sets the selected background color.
+func SelectWithSelectedBg(c style.Color) SelectOption {
 	return func(s *Select) { s.selectedBackgroundColor = c }
 }
 
-// SelectWithSelectedTextColor sets the selected text color.
-func SelectWithSelectedTextColor(c style.Color) SelectOption {
+// SelectWithSelectedFg sets the selected text color.
+func SelectWithSelectedFg(c style.Color) SelectOption {
 	return func(s *Select) { s.selectedTextColor = c }
 }
 
-// SelectWithDescriptionColor sets the description color.
-func SelectWithDescriptionColor(c style.Color) SelectOption {
+// SelectWithDescriptionFg sets the description color.
+func SelectWithDescriptionFg(c style.Color) SelectOption {
 	return func(s *Select) { s.descriptionColor = c }
 }
 
-// SelectWithHintColor colors the hint after each name with c on every row,
+// SelectWithHintFg colors the hint after each name with c on every row,
 // the selected one included. Without it, a hint takes the description color,
 // and the selected row's text color on that row.
-func SelectWithHintColor(c style.Color) SelectOption {
-	return func(s *Select) { s.hintColor = &c }
+func SelectWithHintFg(c style.Color) SelectOption {
+	return func(s *Select) { s.hintColor = c }
 }
 
 // SelectWithShowScrollIndicator controls whether overflow arrows are shown.
@@ -495,19 +497,14 @@ func SelectWithID(id string) SelectOption {
 	return func(s *Select) { s.SetID(id) }
 }
 
-// SelectWithWidth sets the widget width.
-func SelectWithWidth(w layout.Scalar) SelectOption {
-	return func(s *Select) { s.LayoutNode().Width = w }
-}
-
-// SelectWithHeight sets the widget height.
-func SelectWithHeight(h layout.Scalar) SelectOption {
-	return func(s *Select) { s.LayoutNode().Height = h }
-}
-
-// SelectWithFlexGrow sets the flex-grow factor.
-func SelectWithFlexGrow(v int) SelectOption {
-	return func(s *Select) { s.LayoutNode().FlexGrow = v }
+// SelectWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func SelectWithLayout(opts ...layout.Option) SelectOption {
+	return func(w *Select) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }
 
 // SetHeight sets the select widget height dynamically after construction.

@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
@@ -19,7 +20,6 @@ func benchInlineRenderer(width, height int) *Renderer {
 	root := NewRootRenderable(width, height)
 	cfg := DefaultConfig()
 	cfg.InlineMode = true
-	cfg.Fullscreen = false
 	r := &Renderer{
 		root:          root,
 		hitGrid:       NewHitGrid(width, height),
@@ -37,10 +37,10 @@ func benchInlineRenderer(width, height int) *Renderer {
 		stopChan:      make(chan struct{}, 1),
 		done:          make(chan struct{}),
 		sel:           render.NewSelection(),
-		linkRegistry:  NewLinkRegistry(),
-		stats:         NewStats(60),
+		linkRegistry:  newLinkRegistry(),
+		stats:         newStats(60),
 	}
-	root.SetContext(r)
+	root.SetHost(r)
 	return r
 }
 
@@ -63,7 +63,7 @@ func newTextRow(id string, width, height int) *textRow {
 
 // RenderSelf is the widget content override point, so the base keeps its damage
 // bookkeeping, exactly as the real widgets do.
-func (t *textRow) RenderSelf(buf *buffer.Buffer, _ float64) {
+func (t *textRow) RenderSelf(buf *buffer.Buffer, _ time.Duration) {
 	for y := range t.Height() {
 		buf.DrawText(t.text, t.X(), t.Y()+y, style.ColorWhite)
 	}

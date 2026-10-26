@@ -22,7 +22,7 @@ type Cell struct {
 	Bg style.Color
 	// Attributes holds style flags in its low 8 bits and a link ID in the
 	// upper bits.
-	Attributes uint32
+	Attributes style.Attrs
 	// Width is a head's column width, or a continuation's negative offset to
 	// its head.
 	Width int16
@@ -57,7 +57,7 @@ var CellClear = Cell{
 }
 
 // NewCell returns a cell whose width is derived from char.
-func NewCell(char rune, fg, bg style.Color, attrs uint32) Cell {
+func NewCell(char rune, fg, bg style.Color, attrs style.Attrs) Cell {
 	return Cell{
 		Char:       char,
 		Fg:         fg,
@@ -176,7 +176,7 @@ func BlendCell(dst, src Cell) Cell {
 		}
 	}
 
-	var finalAttrs uint32
+	var finalAttrs style.Attrs
 	if preserveChar {
 		finalAttrs = dst.Attributes
 	} else {

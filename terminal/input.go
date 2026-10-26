@@ -3,6 +3,7 @@ package terminal
 import (
 	"os"
 	"os/signal"
+	"slices"
 	"syscall"
 
 	"github.com/unaquatic/fluid/input"
@@ -52,12 +53,11 @@ func (r *Renderer) dispatchKeyEvent(evt input.TerminalEvent) {
 
 	// A preprocessor returning true consumes the raw sequence.
 	r.mu.Lock()
-	handlers := make([]func(string) bool, len(r.inputHandlers))
-	copy(handlers, r.inputHandlers)
+	handlers := slices.Clone(r.inputHandlers)
 	r.mu.Unlock()
 
-	for _, handler := range handlers {
-		if handler(evt.Key.Raw) {
+	for _, h := range handlers {
+		if h.fn(evt.Key.Raw) {
 			return
 		}
 	}
@@ -69,7 +69,7 @@ func (r *Renderer) dispatchKeyEvent(evt input.TerminalEvent) {
 	}
 
 	// Unprevented Control-C is a configurable framework shutdown action.
-	if r.config.ExitOnCtrlC && evt.Key.Ctrl && evt.Key.Name == "c" {
+	if !r.config.HandleCtrlC && evt.Key.Mods.Has(input.ModCtrl) && evt.Key.Name == "c" {
 		r.Destroy()
 		return
 	}
@@ -132,12 +132,12 @@ func (r *Renderer) dispatchMouseEvent(evt input.TerminalEvent) {
 		// Notify the previous target before publishing its MouseOut event.
 		if lastHovered != nil && !lastHovered.IsDestroyed() {
 			outEvent := &input.MouseEvent{
-				Type:      input.MouseOut,
-				Button:    me.Button,
-				X:         x,
-				Y:         y,
-				Modifiers: me.Modifiers,
-				Target:    lastHovered,
+				Type:   input.MouseOut,
+				Button: me.Button,
+				X:      x,
+				Y:      y,
+				Mods:   me.Mods,
+				Target: lastHovered,
 			}
 			lastHovered.ProcessMouseEvent(outEvent)
 
@@ -150,12 +150,12 @@ func (r *Renderer) dispatchMouseEvent(evt input.TerminalEvent) {
 		// Notify the new target before publishing its MouseOver event.
 		if target != nil && !target.IsDestroyed() {
 			overEvent := &input.MouseEvent{
-				Type:      input.MouseOver,
-				Button:    me.Button,
-				X:         x,
-				Y:         y,
-				Modifiers: me.Modifiers,
-				Target:    target,
+				Type:   input.MouseOver,
+				Button: me.Button,
+				X:      x,
+				Y:      y,
+				Mods:   me.Mods,
+				Target: target,
 			}
 			target.ProcessMouseEvent(overEvent)
 
@@ -208,13 +208,13 @@ func (r *Renderer) dispatchMouseEvent(evt input.TerminalEvent) {
 			// Send MouseDragEnd to the original press target.
 			if dragSrc != nil && !dragSrc.IsDestroyed() {
 				dragEndEvent := &input.MouseEvent{
-					Type:      input.MouseDragEnd,
-					Button:    me.Button,
-					X:         x,
-					Y:         y,
-					Modifiers: me.Modifiers,
-					Source:    dragSrc,
-					Target:    dragSrc,
+					Type:   input.MouseDragEnd,
+					Button: me.Button,
+					X:      x,
+					Y:      y,
+					Mods:   me.Mods,
+					Source: dragSrc,
+					Target: dragSrc,
 				}
 				dragSrc.ProcessMouseEvent(dragEndEvent)
 				r.eventBus.Emit(input.TerminalEvent{
@@ -226,13 +226,13 @@ func (r *Renderer) dispatchMouseEvent(evt input.TerminalEvent) {
 			// Send MouseDrop to a distinct release target.
 			if target != nil && !target.IsDestroyed() && target != dragSrc {
 				dropEvent := &input.MouseEvent{
-					Type:      input.MouseDrop,
-					Button:    me.Button,
-					X:         x,
-					Y:         y,
-					Modifiers: me.Modifiers,
-					Source:    dragSrc,
-					Target:    target,
+					Type:   input.MouseDrop,
+					Button: me.Button,
+					X:      x,
+					Y:      y,
+					Mods:   me.Mods,
+					Source: dragSrc,
+					Target: target,
 				}
 				target.ProcessMouseEvent(dropEvent)
 				r.eventBus.Emit(input.TerminalEvent{
@@ -244,7 +244,7 @@ func (r *Renderer) dispatchMouseEvent(evt input.TerminalEvent) {
 	}
 
 	// Mouse down can transfer focus to a focusable target.
-	if me.Type == input.MouseDown && r.config.AutoFocus && target != nil {
+	if me.Type == input.MouseDown && r.config.EnableAutoFocus && target != nil {
 		if target.Focusable() {
 			r.FocusRenderable(target)
 		}

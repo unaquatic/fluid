@@ -1,43 +1,27 @@
 package widget
 
 import (
+	"time"
+
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/render"
 	"github.com/unaquatic/fluid/style"
 )
 
-// Box lays out child renderables with optional borders, background fill, and gaps.
-//
-// After construction, change a Box through its setters. A field written
-// directly shows only at the next frame something else requests, and Border
-// and the gaps reach the layout only through NewBox or their setters.
+// Box lays out child renderables with optional borders and background fill.
+// BoxWithLayout sets its layout, such as the gaps between its children.
 type Box struct {
 	*render.BaseRenderable
 
-	// BackgroundColor fills the box, inside any border, while ShouldFill is set.
-	BackgroundColor style.Color
-	// BorderStyle is the border's line style, such as style.BorderSingle.
-	BorderStyle style.BorderStyle
-	// Border selects the sides the border draws.
-	Border style.Border
-	// BorderColor colors the border.
-	BorderColor style.Color
-	// ShouldFill fills the box with BackgroundColor.
-	ShouldFill bool
-	// Title is drawn in the top border.
-	Title string
-	// TitleAlignment places Title along the top border.
-	TitleAlignment layout.Alignment
-	// FocusedBorderColor colors the border while the box has focus, unless it
-	// is transparent.
-	FocusedBorderColor style.Color
-	// Gap is the gap between children on both axes.
-	Gap layout.Scalar
-	// RowGap is the vertical gap between children, which overrides Gap.
-	RowGap layout.Scalar
-	// ColumnGap is the horizontal gap between children, which overrides Gap.
-	ColumnGap layout.Scalar
+	backgroundColor    style.Color
+	borderStyle        style.BorderStyle
+	border             style.Border
+	borderColor        style.Color
+	shouldFill         bool
+	title              string
+	titleAlignment     layout.Alignment
+	focusedBorderColor style.Color
 }
 
 // BoxOption configures a Box during construction.
@@ -47,12 +31,12 @@ type BoxOption func(*Box)
 func NewBox(opts ...BoxOption) *Box {
 	b := &Box{
 		BaseRenderable:     render.NewBaseRenderable(),
-		BackgroundColor:    style.ColorTransparent,
-		BorderStyle:        style.BorderNone,
-		Border:             style.BorderNoBorder(),
-		BorderColor:        style.ColorWhite,
-		FocusedBorderColor: style.ColorTransparent,
-		TitleAlignment:     layout.TextAlignLeft,
+		backgroundColor:    style.ColorTransparent,
+		borderStyle:        style.BorderNone,
+		border:             style.BorderNoBorder(),
+		borderColor:        style.ColorWhite,
+		focusedBorderColor: style.ColorTransparent,
+		titleAlignment:     layout.TextAlignLeft,
 	}
 
 	// Containers stack children vertically unless an option changes the direction.
@@ -65,15 +49,12 @@ func NewBox(opts ...BoxOption) *Box {
 	// Keep children inside every active border side.
 	b.applyBorderPadding()
 
-	// Resolve the general and axis-specific gap options after all options run.
-	b.applyGap()
-
 	return b
 }
 
 // applyBorderPadding reserves at least one cell inside each active border side.
 func (b *Box) applyBorderPadding() {
-	sides := style.GetBorderSides(b.Border)
+	sides := b.border
 	ln := b.LayoutNode()
 
 	if sides.Top {
@@ -98,24 +79,8 @@ func (b *Box) applyBorderPadding() {
 	}
 }
 
-// applyGap copies resolved gap options to the layout node.
-func (b *Box) applyGap() {
-	ln := b.LayoutNode()
-	if g, ok := b.Gap.Resolve(0); ok {
-		ln.Gap = g
-		ln.RowGap = g
-		ln.ColumnGap = g
-	}
-	if g, ok := b.RowGap.Resolve(0); ok {
-		ln.RowGap = g
-	}
-	if g, ok := b.ColumnGap.Resolve(0); ok {
-		ln.ColumnGap = g
-	}
-}
-
 // RenderSelf draws the box background, border, and title.
-func (b *Box) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (b *Box) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	w := b.Width()
 	h := b.Height()
 	if w <= 0 || h <= 0 {
@@ -126,26 +91,26 @@ func (b *Box) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 	y := b.Y()
 
 	// A partial border is active when any side is enabled.
-	sides := style.GetBorderSides(b.Border)
+	sides := b.border
 	hasBorder := sides.Top || sides.Right || sides.Bottom || sides.Left
 
 	// Fill only the content area when a border is present.
-	if b.ShouldFill && !b.BackgroundColor.IsTransparent() {
+	if b.shouldFill && !b.backgroundColor.IsTransparent() {
 		if hasBorder {
 			inner := buffer.InnerRect(x, y, w, h, sides)
 			if inner.Width > 0 && inner.Height > 0 {
-				buf.FillRect(inner.X, inner.Y, inner.Width, inner.Height, b.BackgroundColor)
+				buf.FillRect(inner.X, inner.Y, inner.Width, inner.Height, b.backgroundColor)
 			}
 		} else {
-			buf.FillRect(x, y, w, h, b.BackgroundColor)
+			buf.FillRect(x, y, w, h, b.backgroundColor)
 		}
 	}
 
 	// Focus color overrides the normal border color when configured.
 	if hasBorder {
-		borderColor := b.BorderColor
-		if b.Focused() && !b.FocusedBorderColor.IsTransparent() {
-			borderColor = b.FocusedBorderColor
+		borderColor := b.borderColor
+		if b.Focused() && !b.focusedBorderColor.IsTransparent() {
+			borderColor = b.focusedBorderColor
 		}
 
 		buf.DrawBorder(buffer.BorderDrawOptions{
@@ -153,40 +118,65 @@ func (b *Box) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 			Y:               y,
 			Width:           w,
 			Height:          h,
-			Style:           b.BorderStyle,
-			Border:          b.Border,
+			Style:           b.borderStyle,
+			Border:          b.border,
 			Color:           borderColor,
-			BackgroundColor: b.BackgroundColor,
+			BackgroundColor: b.backgroundColor,
 			ShouldFill:      false, // The content area was filled above.
-			Title:           b.Title,
-			TitleAlignment:  b.TitleAlignment,
+			Title:           b.title,
+			TitleAlignment:  b.titleAlignment,
 		})
 	}
 }
 
 // InnerRect returns the drawable content area inside active border sides.
 func (b *Box) InnerRect() buffer.Rect {
-	sides := style.GetBorderSides(b.Border)
+	sides := b.border
 	return buffer.InnerRect(b.X(), b.Y(), b.Width(), b.Height(), sides)
 }
 
-// SetBackgroundColor fills the box with c, as BoxWithBackgroundColor does,
-// and requests a frame.
-func (b *Box) SetBackgroundColor(c style.Color) {
-	b.BackgroundColor = c
-	b.ShouldFill = true
+// Bg returns the color that fills the box, inside any border, while
+// ShouldFill reports true.
+func (b *Box) Bg() style.Color { return b.backgroundColor }
+
+// ShouldFill reports whether the box fills itself with Bg.
+func (b *Box) ShouldFill() bool { return b.shouldFill }
+
+// BorderStyle returns the border's line style, such as style.BorderSingle.
+func (b *Box) BorderStyle() style.BorderStyle { return b.borderStyle }
+
+// Border returns the sides the border draws.
+func (b *Box) Border() style.Border { return b.border }
+
+// BorderColor returns the color of the border.
+func (b *Box) BorderColor() style.Color { return b.borderColor }
+
+// FocusedBorderColor returns the border color used while the box has focus,
+// or a transparent color when the box keeps BorderColor.
+func (b *Box) FocusedBorderColor() style.Color { return b.focusedBorderColor }
+
+// Title returns the title drawn in the top border.
+func (b *Box) Title() string { return b.title }
+
+// TitleAlignment returns where Title sits along the top border.
+func (b *Box) TitleAlignment() layout.Alignment { return b.titleAlignment }
+
+// SetBg fills the box with c, as BoxWithBg does, and requests a frame.
+func (b *Box) SetBg(c style.Color) {
+	b.backgroundColor = c
+	b.shouldFill = true
 	b.RequestRender()
 }
 
 // SetShouldFill turns the background fill on or off and requests a frame.
 func (b *Box) SetShouldFill(v bool) {
-	b.ShouldFill = v
+	b.shouldFill = v
 	b.RequestRender()
 }
 
 // SetBorderStyle sets the border's line style and requests a frame.
 func (b *Box) SetBorderStyle(s style.BorderStyle) {
-	b.BorderStyle = s
+	b.borderStyle = s
 	b.RequestRender()
 }
 
@@ -194,7 +184,7 @@ func (b *Box) SetBorderStyle(s style.BorderStyle) {
 // each active side, as NewBox does, and lays the box out again. The padding
 // stays when a side is turned off.
 func (b *Box) SetBorder(brd style.Border) {
-	b.Border = brd
+	b.border = brd
 	b.applyBorderPadding()
 	b.LayoutNode().MarkDirty()
 	b.RequestRender()
@@ -202,133 +192,86 @@ func (b *Box) SetBorder(brd style.Border) {
 
 // SetBorderColor sets the border color and requests a frame.
 func (b *Box) SetBorderColor(c style.Color) {
-	b.BorderColor = c
+	b.borderColor = c
 	b.RequestRender()
 }
 
 // SetFocusedBorderColor sets the border color used while the box has focus
 // and requests a frame.
 func (b *Box) SetFocusedBorderColor(c style.Color) {
-	b.FocusedBorderColor = c
+	b.focusedBorderColor = c
 	b.RequestRender()
 }
 
 // SetTitle sets the title drawn in the top border and requests a frame.
 func (b *Box) SetTitle(t string) {
-	b.Title = t
+	b.title = t
 	b.RequestRender()
 }
 
 // SetTitleAlignment sets where the title sits along the top border and
 // requests a frame.
 func (b *Box) SetTitleAlignment(a layout.Alignment) {
-	b.TitleAlignment = a
-	b.RequestRender()
-}
-
-// SetGap sets the gap between children on both axes and lays the box out
-// again.
-func (b *Box) SetGap(g layout.Scalar) {
-	b.Gap = g
-	b.applyGap()
-	b.LayoutNode().MarkDirty()
-	b.RequestRender()
-}
-
-// SetRowGap sets the vertical gap between children and lays the box out again.
-func (b *Box) SetRowGap(g layout.Scalar) {
-	b.RowGap = g
-	b.applyGap()
-	b.LayoutNode().MarkDirty()
-	b.RequestRender()
-}
-
-// SetColumnGap sets the horizontal gap between children and lays the box out
-// again.
-func (b *Box) SetColumnGap(g layout.Scalar) {
-	b.ColumnGap = g
-	b.applyGap()
-	b.LayoutNode().MarkDirty()
+	b.titleAlignment = a
 	b.RequestRender()
 }
 
 // Box options.
 
-// BoxWithBackgroundColor sets the background color.
-func BoxWithBackgroundColor(c style.Color) BoxOption {
+// BoxWithBg sets the background color.
+func BoxWithBg(c style.Color) BoxOption {
 	return func(b *Box) {
-		b.BackgroundColor = c
-		b.ShouldFill = true
+		b.backgroundColor = c
+		b.shouldFill = true
 	}
 }
 
 // BoxWithBorderStyle sets the border style.
 func BoxWithBorderStyle(s style.BorderStyle) BoxOption {
 	return func(b *Box) {
-		b.BorderStyle = s
+		b.borderStyle = s
 	}
 }
 
 // BoxWithBorder sets which border sides to draw.
 func BoxWithBorder(brd style.Border) BoxOption {
 	return func(b *Box) {
-		b.Border = brd
+		b.border = brd
 	}
 }
 
 // BoxWithBorderColor sets the border color.
 func BoxWithBorderColor(c style.Color) BoxOption {
 	return func(b *Box) {
-		b.BorderColor = c
+		b.borderColor = c
 	}
 }
 
 // BoxWithTitle sets the title drawn in the top border.
 func BoxWithTitle(t string) BoxOption {
 	return func(b *Box) {
-		b.Title = t
+		b.title = t
 	}
 }
 
 // BoxWithTitleAlignment sets the title alignment.
 func BoxWithTitleAlignment(a layout.Alignment) BoxOption {
 	return func(b *Box) {
-		b.TitleAlignment = a
+		b.titleAlignment = a
 	}
 }
 
 // BoxWithFocusedBorderColor sets the border color when focused.
 func BoxWithFocusedBorderColor(c style.Color) BoxOption {
 	return func(b *Box) {
-		b.FocusedBorderColor = c
+		b.focusedBorderColor = c
 	}
 }
 
 // BoxWithShouldFill enables or disables background fill.
 func BoxWithShouldFill(v bool) BoxOption {
 	return func(b *Box) {
-		b.ShouldFill = v
-	}
-}
-
-// BoxWithGap sets both row and column gaps between children.
-func BoxWithGap(g layout.Scalar) BoxOption {
-	return func(b *Box) {
-		b.Gap = g
-	}
-}
-
-// BoxWithRowGap sets the vertical gap between children.
-func BoxWithRowGap(g layout.Scalar) BoxOption {
-	return func(b *Box) {
-		b.RowGap = g
-	}
-}
-
-// BoxWithColumnGap sets the horizontal gap between children.
-func BoxWithColumnGap(g layout.Scalar) BoxOption {
-	return func(b *Box) {
-		b.ColumnGap = g
+		b.shouldFill = v
 	}
 }
 
@@ -339,110 +282,20 @@ func BoxWithID(id string) BoxOption {
 	return func(b *Box) { b.SetID(id) }
 }
 
-// BoxWithWidth sets the widget width.
-func BoxWithWidth(s layout.Scalar) BoxOption {
-	return func(b *Box) { b.LayoutNode().Width = s }
-}
-
-// BoxWithHeight sets the widget height.
-func BoxWithHeight(s layout.Scalar) BoxOption {
-	return func(b *Box) { b.LayoutNode().Height = s }
-}
-
-// BoxWithMinHeight sets the minimum height.
-func BoxWithMinHeight(s layout.Scalar) BoxOption {
-	return func(b *Box) { b.LayoutNode().MinHeight = s }
-}
-
-// BoxWithFlexGrow sets the flex-grow factor.
-func BoxWithFlexGrow(v int) BoxOption {
-	return func(b *Box) { b.LayoutNode().FlexGrow = v }
-}
-
-// BoxWithFlexShrink sets the flex-shrink factor.
-func BoxWithFlexShrink(v int) BoxOption {
-	return func(b *Box) { b.LayoutNode().FlexShrink = v }
-}
-
-// BoxWithFlexDirection sets the flex direction.
-func BoxWithFlexDirection(d layout.FlexDirection) BoxOption {
-	return func(b *Box) { b.LayoutNode().FlexDirection = d }
-}
-
-// BoxWithJustifyContent sets how children are distributed along the main axis.
-func BoxWithJustifyContent(j layout.JustifyContent) BoxOption {
-	return func(b *Box) { b.LayoutNode().JustifyContent = j }
-}
-
-// BoxWithAlignItems sets how children align along the cross axis.
-func BoxWithAlignItems(a layout.Align) BoxOption {
-	return func(b *Box) { b.LayoutNode().AlignItems = a }
-}
-
-// BoxWithPadding sets padding on all sides.
-func BoxWithPadding(s layout.Scalar) BoxOption {
-	return func(b *Box) { b.LayoutNode().SetPadding(s) }
-}
-
-// BoxWithMargin sets the margin on all sides.
-func BoxWithMargin(s layout.Scalar) BoxOption {
-	return func(b *Box) { b.LayoutNode().SetMargin(s) }
-}
-
-// BoxWithMarginTop sets the top margin.
-func BoxWithMarginTop(s layout.Scalar) BoxOption {
-	return func(b *Box) { b.LayoutNode().MarginTop = s }
-}
-
-// BoxWithMarginRight sets the right margin.
-func BoxWithMarginRight(s layout.Scalar) BoxOption {
-	return func(b *Box) { b.LayoutNode().MarginRight = s }
-}
-
-// BoxWithMarginBottom sets the bottom margin.
-func BoxWithMarginBottom(s layout.Scalar) BoxOption {
-	return func(b *Box) { b.LayoutNode().MarginBottom = s }
-}
-
-// BoxWithMarginLeft sets the left margin.
-func BoxWithMarginLeft(s layout.Scalar) BoxOption {
-	return func(b *Box) { b.LayoutNode().MarginLeft = s }
-}
-
-// BoxWithFlexBasis sets the flex basis.
-func BoxWithFlexBasis(s layout.Scalar) BoxOption {
-	return func(b *Box) { b.LayoutNode().FlexBasis = s }
-}
-
-// BoxWithPaddingTop sets the top padding.
-func BoxWithPaddingTop(s layout.Scalar) BoxOption {
-	return func(b *Box) { b.LayoutNode().PaddingTop = s }
-}
-
-// BoxWithPaddingRight sets the right padding.
-func BoxWithPaddingRight(s layout.Scalar) BoxOption {
-	return func(b *Box) { b.LayoutNode().PaddingRight = s }
-}
-
-// BoxWithPaddingBottom sets the bottom padding.
-func BoxWithPaddingBottom(s layout.Scalar) BoxOption {
-	return func(b *Box) { b.LayoutNode().PaddingBottom = s }
-}
-
-// BoxWithPaddingLeft sets the left padding.
-func BoxWithPaddingLeft(s layout.Scalar) BoxOption {
-	return func(b *Box) { b.LayoutNode().PaddingLeft = s }
-}
-
-// BoxWithOverflow sets the overflow mode.
-func BoxWithOverflow(o layout.Overflow) BoxOption {
-	return func(b *Box) { b.LayoutNode().Overflow = o }
+// BoxWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func BoxWithLayout(opts ...layout.Option) BoxOption {
+	return func(w *Box) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }
 
 // Children adds non-nil child renderables to a Box during construction.
 //
 //	widget.NewBox(
-//	    widget.BoxWithFlexDirection(layout.DirectionRow),
+//	    widget.BoxWithLayout(layout.WithFlexDirection(layout.DirectionRow)),
 //	    widget.Children(
 //	        widget.NewText("Hello"),
 //	        widget.NewGauge(),

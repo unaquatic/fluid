@@ -34,7 +34,7 @@ type Renderer struct {
 	// Input state.
 	parser        *input.Parser
 	eventBus      *input.EventBus
-	inputHandlers []func(sequence string) bool // Raw-sequence preprocessors.
+	inputHandlers []*inputHandler // Raw-sequence preprocessors.
 
 	// Focus and hover state.
 	focused     render.Renderable
@@ -75,9 +75,6 @@ type Renderer struct {
 	// OSC 8 hyperlinks.
 	linkRegistry *LinkRegistry
 
-	// Live-render references.
-	liveCount atomic.Int32
-
 	// Frame state owned by the event-loop goroutine. These fields carry no
 	// lock: reach them from setup, or through Enqueue, and never from another
 	// goroutine.
@@ -116,9 +113,10 @@ type Renderer struct {
 	probeErr     error
 }
 
-// NewRenderer returns an idle renderer using the first supplied configuration.
-func NewRenderer(config ...Config) (*Renderer, error) {
-	cfg := mergeConfig(config)
+// NewRenderer returns an idle renderer configured by cfg, whose unset fields
+// take their defaults.
+func NewRenderer(cfg Config) (*Renderer, error) {
+	cfg = mergeConfig(cfg)
 
 	backend := NewBackend(cfg.Stdin, cfg.Stdout)
 
@@ -154,10 +152,10 @@ func NewRenderer(config ...Config) (*Renderer, error) {
 		stopChan:      make(chan struct{}, 1),
 		done:          make(chan struct{}),
 		invalidated:   true,
-		stats:         NewStats(60),
+		stats:         newStats(60),
 		lastFrameTime: time.Now(),
 		sel:           render.NewSelection(),
-		linkRegistry:  NewLinkRegistry(),
+		linkRegistry:  newLinkRegistry(),
 	}
 
 	// Failure to open an optional debug log does not prevent renderer creation.
@@ -170,8 +168,8 @@ func NewRenderer(config ...Config) (*Renderer, error) {
 		}
 	}
 
-	// Widgets communicate with the renderer through the render.Context interface.
-	root.SetContext(r)
+	// Widgets communicate with the renderer through the render.Host interface.
+	root.SetHost(r)
 
 	if cfg.UseKittyKeyboard {
 		parser.SetKittyEnabled(true)
@@ -218,12 +216,6 @@ func (r *Renderer) ControlState() ControlState {
 	return r.controlState
 }
 
-// CurrentBuffer returns the fullscreen buffer representing terminal state.
-func (r *Renderer) CurrentBuffer() *buffer.Buffer { return r.currentBuffer }
-
-// NextBuffer returns the frame buffer used for the next draw.
-func (r *Renderer) NextBuffer() *buffer.Buffer { return r.nextBuffer }
-
 // EventBus returns the renderer's terminal event bus.
 func (r *Renderer) EventBus() *input.EventBus { return r.eventBus }
 
@@ -248,6 +240,12 @@ func (r *Renderer) ColorMode() style.ColorMode { return r.backend.ColorMode() }
 
 // SetColorMode overrides the auto-detected color mode.
 func (r *Renderer) SetColorMode(m style.ColorMode) { r.backend.SetColorMode(m) }
+
+// SetIndexers sets the Indexers that convert colors to palette entries while
+// the color mode is m.
+func (r *Renderer) SetIndexers(m style.ColorMode, x style.Indexers) {
+	r.backend.SetIndexers(m, x)
+}
 
 // Start sets up terminal modes and starts explicit rendering. In explicit mode,
 // every event-loop wake renders a frame regardless of dirty state.
@@ -559,17 +557,6 @@ func (r *Renderer) ClearSelection() {
 	r.sel.Clear()
 }
 
-// RequestLive increments the live-render reference count and requests a frame.
-func (r *Renderer) RequestLive() {
-	r.liveCount.Add(1)
-	r.RequestRender()
-}
-
-// DropLive decrements the live-render reference count.
-func (r *Renderer) DropLive() {
-	r.liveCount.Add(-1)
-}
-
 // Enqueue sends fn to the event-loop goroutine before its next frame.
 //
 // Enqueue blocks until the loop receives fn or the renderer is destroyed. Do
@@ -686,7 +673,7 @@ func (r *Renderer) renderFrame() {
 	frameStart := time.Now()
 
 	r.mu.Lock()
-	deltaTime := frameStart.Sub(r.lastFrameTime).Seconds()
+	deltaTime := frameStart.Sub(r.lastFrameTime)
 	r.lastFrameTime = frameStart
 	bgColor := r.config.BackgroundColor
 	r.mu.Unlock()
@@ -708,7 +695,7 @@ func (r *Renderer) renderFrame() {
 		r.FullFlush(r.nextBuffer)
 		r.invalidated = false
 	} else {
-		r.DiffAndFlush(r.currentBuffer, r.nextBuffer)
+		r.diffAndFlush(r.currentBuffer, r.nextBuffer)
 	}
 
 	// Record flush and total frame durations.
@@ -736,7 +723,7 @@ func (r *Renderer) renderFrame() {
 
 	// Aggregate frame duration only when configured.
 	if r.config.GatherStats {
-		renderTime := time.Since(frameStart).Seconds()
+		renderTime := time.Since(frameStart)
 		r.mu.Lock()
 		r.stats.record(renderTime)
 		r.mu.Unlock()
@@ -787,26 +774,41 @@ func (r *Renderer) FocusRenderable(renderable render.Renderable) {
 	r.RequestRender()
 }
 
-// AddInputHandler appends a raw-input preprocessor. A preprocessor returning
-// true prevents later input handling.
-func (r *Renderer) AddInputHandler(handler func(string) bool) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.inputHandlers = append(r.inputHandlers, handler)
+// inputHandler holds a raw-input preprocessor by pointer, which identifies
+// it for removal, as function values cannot be compared.
+type inputHandler struct {
+	fn func(sequence string) bool
 }
 
-// PrependInputHandler inserts a raw-input preprocessor before existing handlers.
-func (r *Renderer) PrependInputHandler(handler func(string) bool) {
+// AddInputHandler appends a raw-input preprocessor and returns a function
+// that removes it. A preprocessor returning true prevents later input
+// handling.
+func (r *Renderer) AddInputHandler(handler func(string) bool) (remove func()) {
+	h := &inputHandler{fn: handler}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.inputHandlers = append([]func(string) bool{handler}, r.inputHandlers...)
+	r.inputHandlers = append(r.inputHandlers, h)
+	return r.inputHandlerRemover(h)
 }
 
-// RemoveInputHandler currently does nothing because Go function values cannot
-// be compared for identity.
-func (r *Renderer) RemoveInputHandler(handler func(string) bool) {
+// PrependInputHandler inserts a raw-input preprocessor before existing
+// handlers and returns a function that removes it.
+func (r *Renderer) PrependInputHandler(handler func(string) bool) (remove func()) {
+	h := &inputHandler{fn: handler}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.inputHandlers = slices.Insert(r.inputHandlers, 0, h)
+	return r.inputHandlerRemover(h)
+}
+
+// inputHandlerRemover returns a function that removes h, and does nothing
+// once h is gone.
+func (r *Renderer) inputHandlerRemover(h *inputHandler) func() {
+	return func() {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		r.inputHandlers = slices.DeleteFunc(r.inputHandlers, func(x *inputHandler) bool { return x == h })
+	}
 }
 
 // SetCursorPosition records zero-based hardware cursor coordinates and
@@ -820,7 +822,7 @@ func (r *Renderer) SetCursorPosition(x, y int, visible bool) {
 }
 
 // SetCursorStyle records and immediately writes the cursor shape.
-func (r *Renderer) SetCursorStyle(cursorStyle string) {
+func (r *Renderer) SetCursorStyle(cursorStyle CursorStyle) {
 	r.mu.Lock()
 	r.cursorStyle = cursorStyle
 	r.mu.Unlock()
@@ -977,7 +979,7 @@ func (r *Renderer) SetGatherStats(enabled bool) {
 // setup initializes terminal modes, optional protocols and probing, and current
 // terminal dimensions.
 func (r *Renderer) setup() error {
-	if err := r.backend.Setup(r.config.Fullscreen); err != nil {
+	if err := r.backend.Setup(!r.config.InlineMode); err != nil {
 		return err
 	}
 

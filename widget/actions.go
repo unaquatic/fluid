@@ -2,59 +2,58 @@ package widget
 
 import "github.com/unaquatic/fluid/input"
 
-// Textarea action names.
-
+// Textarea actions.
 const (
 	// Cursor movement.
-	ActionMoveLeft      = "move-left"
-	ActionMoveRight     = "move-right"
-	ActionMoveUp        = "move-up"
-	ActionMoveDown      = "move-down"
-	ActionMoveWordLeft  = "word-backward"
-	ActionMoveWordRight = "word-forward"
-	ActionMoveHome      = "line-home"   // Start of the logical line.
-	ActionMoveEnd       = "line-end"    // End of the logical line.
-	ActionMoveDocStart  = "buffer-home" // Start of the document.
-	ActionMoveDocEnd    = "buffer-end"  // End of the document.
-	ActionPageUp        = "page-up"
-	ActionPageDown      = "page-down"
+	ActionMoveLeft      input.Action = "move-left"
+	ActionMoveRight     input.Action = "move-right"
+	ActionMoveUp        input.Action = "move-up"
+	ActionMoveDown      input.Action = "move-down"
+	ActionMoveWordLeft  input.Action = "word-backward"
+	ActionMoveWordRight input.Action = "word-forward"
+	ActionMoveHome      input.Action = "line-home"   // Start of the logical line.
+	ActionMoveEnd       input.Action = "line-end"    // End of the logical line.
+	ActionMoveDocStart  input.Action = "buffer-home" // Start of the document.
+	ActionMoveDocEnd    input.Action = "buffer-end"  // End of the document.
+	ActionPageUp        input.Action = "page-up"
+	ActionPageDown      input.Action = "page-down"
 
 	// Movement within the current wrapped line.
-	ActionVisualHome = "visual-line-home" // Start of the visual line.
-	ActionVisualEnd  = "visual-line-end"  // End of the visual line.
+	ActionVisualHome input.Action = "visual-line-home" // Start of the visual line.
+	ActionVisualEnd  input.Action = "visual-line-end"  // End of the visual line.
 
 	// Selection movement extends the current selection.
-	ActionSelectLeft       = "select-left"
-	ActionSelectRight      = "select-right"
-	ActionSelectUp         = "select-up"
-	ActionSelectDown       = "select-down"
-	ActionSelectWordLeft   = "select-word-backward"
-	ActionSelectWordRight  = "select-word-forward"
-	ActionSelectHome       = "select-line-home"
-	ActionSelectEnd        = "select-line-end"
-	ActionSelectDocStart   = "select-buffer-home"
-	ActionSelectDocEnd     = "select-buffer-end"
-	ActionSelectAll        = "select-all"
-	ActionSelectVisualHome = "select-visual-line-home"
-	ActionSelectVisualEnd  = "select-visual-line-end"
+	ActionSelectLeft       input.Action = "select-left"
+	ActionSelectRight      input.Action = "select-right"
+	ActionSelectUp         input.Action = "select-up"
+	ActionSelectDown       input.Action = "select-down"
+	ActionSelectWordLeft   input.Action = "select-word-backward"
+	ActionSelectWordRight  input.Action = "select-word-forward"
+	ActionSelectHome       input.Action = "select-line-home"
+	ActionSelectEnd        input.Action = "select-line-end"
+	ActionSelectDocStart   input.Action = "select-buffer-home"
+	ActionSelectDocEnd     input.Action = "select-buffer-end"
+	ActionSelectAll        input.Action = "select-all"
+	ActionSelectVisualHome input.Action = "select-visual-line-home"
+	ActionSelectVisualEnd  input.Action = "select-visual-line-end"
 
 	// Editing
-	ActionBackspace     = "backspace"
-	ActionDelete        = "delete"
-	ActionDeleteLine    = "delete-line"
-	ActionDeleteToEnd   = "delete-to-line-end"
-	ActionDeleteToStart = "delete-to-line-start"
-	ActionDeleteWordFwd = "delete-word-forward"
-	ActionDeleteWordBwd = "delete-word-backward"
-	ActionNewline       = "newline"
-	ActionTab           = "tab"
-	ActionUndo          = "undo"
-	ActionRedo          = "redo"
-	ActionSubmit        = "submit"
+	ActionBackspace     input.Action = "backspace"
+	ActionDelete        input.Action = "delete"
+	ActionDeleteLine    input.Action = "delete-line"
+	ActionDeleteToEnd   input.Action = "delete-to-line-end"
+	ActionDeleteToStart input.Action = "delete-to-line-start"
+	ActionDeleteWordFwd input.Action = "delete-word-forward"
+	ActionDeleteWordBwd input.Action = "delete-word-backward"
+	ActionNewline       input.Action = "newline"
+	ActionTab           input.Action = "tab"
+	ActionUndo          input.Action = "undo"
+	ActionRedo          input.Action = "redo"
+	ActionSubmit        input.Action = "submit"
 )
 
 // navActions is the set of actions allowed in read-only mode.
-var navActions = map[string]bool{
+var navActions = map[input.Action]bool{
 	ActionMoveLeft: true, ActionMoveRight: true,
 	ActionMoveUp: true, ActionMoveDown: true,
 	ActionMoveWordLeft: true, ActionMoveWordRight: true,
@@ -81,92 +80,92 @@ var DefaultTextareaBindings = []input.KeyBinding{
 	{Name: input.KeyDown, Action: ActionMoveDown},
 
 	// Emacs-style character movement.
-	{Name: "f", Ctrl: true, Action: ActionMoveRight},
-	{Name: "b", Ctrl: true, Action: ActionMoveLeft},
+	{Name: "f", Mods: input.ModCtrl, Action: ActionMoveRight},
+	{Name: "b", Mods: input.ModCtrl, Action: ActionMoveLeft},
 
 	// Arrow-key selection.
-	{Name: input.KeyLeft, Shift: true, Action: ActionSelectLeft},
-	{Name: input.KeyRight, Shift: true, Action: ActionSelectRight},
-	{Name: input.KeyUp, Shift: true, Action: ActionSelectUp},
-	{Name: input.KeyDown, Shift: true, Action: ActionSelectDown},
+	{Name: input.KeyLeft, Mods: input.ModShift, Action: ActionSelectLeft},
+	{Name: input.KeyRight, Mods: input.ModShift, Action: ActionSelectRight},
+	{Name: input.KeyUp, Mods: input.ModShift, Action: ActionSelectUp},
+	{Name: input.KeyDown, Mods: input.ModShift, Action: ActionSelectDown},
 
 	// Emacs-style logical line movement.
-	{Name: "a", Ctrl: true, Action: ActionMoveHome},
-	{Name: "e", Ctrl: true, Action: ActionMoveEnd},
-	{Name: "a", Ctrl: true, Shift: true, Action: ActionSelectHome},
-	{Name: "e", Ctrl: true, Shift: true, Action: ActionSelectEnd},
+	{Name: "a", Mods: input.ModCtrl, Action: ActionMoveHome},
+	{Name: "e", Mods: input.ModCtrl, Action: ActionMoveEnd},
+	{Name: "a", Mods: input.ModCtrl | input.ModShift, Action: ActionSelectHome},
+	{Name: "e", Mods: input.ModCtrl | input.ModShift, Action: ActionSelectEnd},
 
 	// Wrapped-line movement.
-	{Name: "a", Alt: true, Action: ActionVisualHome},
-	{Name: "e", Alt: true, Action: ActionVisualEnd},
-	{Name: "a", Alt: true, Shift: true, Action: ActionSelectVisualHome},
-	{Name: "e", Alt: true, Shift: true, Action: ActionSelectVisualEnd},
+	{Name: "a", Mods: input.ModAlt, Action: ActionVisualHome},
+	{Name: "e", Mods: input.ModAlt, Action: ActionVisualEnd},
+	{Name: "a", Mods: input.ModAlt | input.ModShift, Action: ActionSelectVisualHome},
+	{Name: "e", Mods: input.ModAlt | input.ModShift, Action: ActionSelectVisualEnd},
 
 	// Document movement.
 	{Name: input.KeyHome, Action: ActionMoveDocStart},
 	{Name: input.KeyEnd, Action: ActionMoveDocEnd},
-	{Name: input.KeyHome, Shift: true, Action: ActionSelectDocStart},
-	{Name: input.KeyEnd, Shift: true, Action: ActionSelectDocEnd},
+	{Name: input.KeyHome, Mods: input.ModShift, Action: ActionSelectDocStart},
+	{Name: input.KeyEnd, Mods: input.ModShift, Action: ActionSelectDocEnd},
 
 	// Page movement.
 	{Name: input.KeyPageUp, Action: ActionPageUp},
 	{Name: input.KeyPageDown, Action: ActionPageDown},
 
 	// Word movement.
-	{Name: input.KeyLeft, Ctrl: true, Action: ActionMoveWordLeft},
-	{Name: input.KeyRight, Ctrl: true, Action: ActionMoveWordRight},
-	{Name: input.KeyLeft, Alt: true, Action: ActionMoveWordLeft},
-	{Name: input.KeyRight, Alt: true, Action: ActionMoveWordRight},
-	{Name: "b", Alt: true, Action: ActionMoveWordLeft},
-	{Name: "f", Alt: true, Action: ActionMoveWordRight},
+	{Name: input.KeyLeft, Mods: input.ModCtrl, Action: ActionMoveWordLeft},
+	{Name: input.KeyRight, Mods: input.ModCtrl, Action: ActionMoveWordRight},
+	{Name: input.KeyLeft, Mods: input.ModAlt, Action: ActionMoveWordLeft},
+	{Name: input.KeyRight, Mods: input.ModAlt, Action: ActionMoveWordRight},
+	{Name: "b", Mods: input.ModAlt, Action: ActionMoveWordLeft},
+	{Name: "f", Mods: input.ModAlt, Action: ActionMoveWordRight},
 
 	// Word selection.
-	{Name: input.KeyLeft, Ctrl: true, Shift: true, Action: ActionSelectWordLeft},
-	{Name: input.KeyRight, Ctrl: true, Shift: true, Action: ActionSelectWordRight},
-	{Name: input.KeyLeft, Alt: true, Shift: true, Action: ActionSelectWordLeft},
-	{Name: input.KeyRight, Alt: true, Shift: true, Action: ActionSelectWordRight},
-	{Name: "b", Alt: true, Shift: true, Action: ActionSelectWordLeft},
-	{Name: "f", Alt: true, Shift: true, Action: ActionSelectWordRight},
+	{Name: input.KeyLeft, Mods: input.ModCtrl | input.ModShift, Action: ActionSelectWordLeft},
+	{Name: input.KeyRight, Mods: input.ModCtrl | input.ModShift, Action: ActionSelectWordRight},
+	{Name: input.KeyLeft, Mods: input.ModAlt | input.ModShift, Action: ActionSelectWordLeft},
+	{Name: input.KeyRight, Mods: input.ModAlt | input.ModShift, Action: ActionSelectWordRight},
+	{Name: "b", Mods: input.ModAlt | input.ModShift, Action: ActionSelectWordLeft},
+	{Name: "f", Mods: input.ModAlt | input.ModShift, Action: ActionSelectWordRight},
 
 	// Editing
 	{Name: input.KeyBackspace, Action: ActionBackspace},
-	{Name: input.KeyBackspace, Shift: true, Action: ActionBackspace},
-	{Name: "d", Ctrl: true, Action: ActionDelete},
+	{Name: input.KeyBackspace, Mods: input.ModShift, Action: ActionBackspace},
+	{Name: "d", Mods: input.ModCtrl, Action: ActionDelete},
 	{Name: input.KeyDelete, Action: ActionDelete},
-	{Name: input.KeyDelete, Shift: true, Action: ActionDelete},
+	{Name: input.KeyDelete, Mods: input.ModShift, Action: ActionDelete},
 	{Name: input.KeyReturn, Action: ActionNewline},
 	{Name: input.KeyTab, Action: ActionTab},
-	{Name: input.KeyReturn, Alt: true, Action: ActionSubmit},
+	{Name: input.KeyReturn, Mods: input.ModAlt, Action: ActionSubmit},
 
 	// Word deletion.
-	{Name: "w", Ctrl: true, Action: ActionDeleteWordBwd},
-	{Name: input.KeyBackspace, Ctrl: true, Action: ActionDeleteWordBwd},
-	{Name: input.KeyBackspace, Alt: true, Action: ActionDeleteWordBwd},
-	{Name: "d", Alt: true, Action: ActionDeleteWordFwd},
-	{Name: input.KeyDelete, Alt: true, Action: ActionDeleteWordFwd},
-	{Name: input.KeyDelete, Ctrl: true, Action: ActionDeleteWordFwd},
+	{Name: "w", Mods: input.ModCtrl, Action: ActionDeleteWordBwd},
+	{Name: input.KeyBackspace, Mods: input.ModCtrl, Action: ActionDeleteWordBwd},
+	{Name: input.KeyBackspace, Mods: input.ModAlt, Action: ActionDeleteWordBwd},
+	{Name: "d", Mods: input.ModAlt, Action: ActionDeleteWordFwd},
+	{Name: input.KeyDelete, Mods: input.ModAlt, Action: ActionDeleteWordFwd},
+	{Name: input.KeyDelete, Mods: input.ModCtrl, Action: ActionDeleteWordFwd},
 
 	// Line deletion.
-	{Name: "d", Ctrl: true, Shift: true, Action: ActionDeleteLine},
-	{Name: "k", Ctrl: true, Action: ActionDeleteToEnd},
-	{Name: "u", Ctrl: true, Action: ActionDeleteToStart},
+	{Name: "d", Mods: input.ModCtrl | input.ModShift, Action: ActionDeleteLine},
+	{Name: "k", Mods: input.ModCtrl, Action: ActionDeleteToEnd},
+	{Name: "u", Mods: input.ModCtrl, Action: ActionDeleteToStart},
 
 	// Undo and redo.
-	{Name: "-", Ctrl: true, Action: ActionUndo},
-	{Name: ".", Ctrl: true, Action: ActionRedo},
+	{Name: "-", Mods: input.ModCtrl, Action: ActionUndo},
+	{Name: ".", Mods: input.ModCtrl, Action: ActionRedo},
 
 	// Command-key bindings reported through the Kitty keyboard protocol.
-	{Name: input.KeyLeft, Meta: true, Action: ActionVisualHome},
-	{Name: input.KeyRight, Meta: true, Action: ActionVisualEnd},
-	{Name: input.KeyUp, Meta: true, Action: ActionMoveDocStart},
-	{Name: input.KeyDown, Meta: true, Action: ActionMoveDocEnd},
-	{Name: input.KeyLeft, Meta: true, Shift: true, Action: ActionSelectVisualHome},
-	{Name: input.KeyRight, Meta: true, Shift: true, Action: ActionSelectVisualEnd},
-	{Name: input.KeyUp, Meta: true, Shift: true, Action: ActionSelectDocStart},
-	{Name: input.KeyDown, Meta: true, Shift: true, Action: ActionSelectDocEnd},
-	{Name: "a", Meta: true, Action: ActionSelectAll},
-	{Name: "z", Meta: true, Action: ActionUndo},
-	{Name: "z", Meta: true, Shift: true, Action: ActionRedo},
+	{Name: input.KeyLeft, Mods: input.ModMeta, Action: ActionVisualHome},
+	{Name: input.KeyRight, Mods: input.ModMeta, Action: ActionVisualEnd},
+	{Name: input.KeyUp, Mods: input.ModMeta, Action: ActionMoveDocStart},
+	{Name: input.KeyDown, Mods: input.ModMeta, Action: ActionMoveDocEnd},
+	{Name: input.KeyLeft, Mods: input.ModMeta | input.ModShift, Action: ActionSelectVisualHome},
+	{Name: input.KeyRight, Mods: input.ModMeta | input.ModShift, Action: ActionSelectVisualEnd},
+	{Name: input.KeyUp, Mods: input.ModMeta | input.ModShift, Action: ActionSelectDocStart},
+	{Name: input.KeyDown, Mods: input.ModMeta | input.ModShift, Action: ActionSelectDocEnd},
+	{Name: "a", Mods: input.ModMeta, Action: ActionSelectAll},
+	{Name: "z", Mods: input.ModMeta, Action: ActionUndo},
+	{Name: "z", Mods: input.ModMeta | input.ModShift, Action: ActionRedo},
 }
 
 // DefaultInputBindings contains the standard single-line editor bindings.
@@ -175,66 +174,66 @@ var DefaultInputBindings = []input.KeyBinding{
 	// Navigation
 	{Name: input.KeyLeft, Action: ActionMoveLeft},
 	{Name: input.KeyRight, Action: ActionMoveRight},
-	{Name: "f", Ctrl: true, Action: ActionMoveRight},
-	{Name: "b", Ctrl: true, Action: ActionMoveLeft},
+	{Name: "f", Mods: input.ModCtrl, Action: ActionMoveRight},
+	{Name: "b", Mods: input.ModCtrl, Action: ActionMoveLeft},
 
 	// Logical line movement.
-	{Name: "a", Ctrl: true, Action: ActionMoveHome},
-	{Name: "e", Ctrl: true, Action: ActionMoveEnd},
+	{Name: "a", Mods: input.ModCtrl, Action: ActionMoveHome},
+	{Name: "e", Mods: input.ModCtrl, Action: ActionMoveEnd},
 
 	// Word navigation
-	{Name: input.KeyLeft, Ctrl: true, Action: ActionMoveWordLeft},
-	{Name: input.KeyRight, Ctrl: true, Action: ActionMoveWordRight},
-	{Name: input.KeyLeft, Alt: true, Action: ActionMoveWordLeft},
-	{Name: input.KeyRight, Alt: true, Action: ActionMoveWordRight},
-	{Name: "b", Alt: true, Action: ActionMoveWordLeft},
-	{Name: "f", Alt: true, Action: ActionMoveWordRight},
+	{Name: input.KeyLeft, Mods: input.ModCtrl, Action: ActionMoveWordLeft},
+	{Name: input.KeyRight, Mods: input.ModCtrl, Action: ActionMoveWordRight},
+	{Name: input.KeyLeft, Mods: input.ModAlt, Action: ActionMoveWordLeft},
+	{Name: input.KeyRight, Mods: input.ModAlt, Action: ActionMoveWordRight},
+	{Name: "b", Mods: input.ModAlt, Action: ActionMoveWordLeft},
+	{Name: "f", Mods: input.ModAlt, Action: ActionMoveWordRight},
 
 	// Document movement.
 	{Name: input.KeyHome, Action: ActionMoveDocStart},
 	{Name: input.KeyEnd, Action: ActionMoveDocEnd},
 
 	// Selection
-	{Name: input.KeyLeft, Shift: true, Action: ActionSelectLeft},
-	{Name: input.KeyRight, Shift: true, Action: ActionSelectRight},
-	{Name: "a", Ctrl: true, Shift: true, Action: ActionSelectHome},
-	{Name: "e", Ctrl: true, Shift: true, Action: ActionSelectEnd},
-	{Name: input.KeyLeft, Ctrl: true, Shift: true, Action: ActionSelectWordLeft},
-	{Name: input.KeyRight, Ctrl: true, Shift: true, Action: ActionSelectWordRight},
-	{Name: input.KeyLeft, Alt: true, Shift: true, Action: ActionSelectWordLeft},
-	{Name: input.KeyRight, Alt: true, Shift: true, Action: ActionSelectWordRight},
-	{Name: "b", Alt: true, Shift: true, Action: ActionSelectWordLeft},
-	{Name: "f", Alt: true, Shift: true, Action: ActionSelectWordRight},
-	{Name: input.KeyHome, Shift: true, Action: ActionSelectDocStart},
-	{Name: input.KeyEnd, Shift: true, Action: ActionSelectDocEnd},
+	{Name: input.KeyLeft, Mods: input.ModShift, Action: ActionSelectLeft},
+	{Name: input.KeyRight, Mods: input.ModShift, Action: ActionSelectRight},
+	{Name: "a", Mods: input.ModCtrl | input.ModShift, Action: ActionSelectHome},
+	{Name: "e", Mods: input.ModCtrl | input.ModShift, Action: ActionSelectEnd},
+	{Name: input.KeyLeft, Mods: input.ModCtrl | input.ModShift, Action: ActionSelectWordLeft},
+	{Name: input.KeyRight, Mods: input.ModCtrl | input.ModShift, Action: ActionSelectWordRight},
+	{Name: input.KeyLeft, Mods: input.ModAlt | input.ModShift, Action: ActionSelectWordLeft},
+	{Name: input.KeyRight, Mods: input.ModAlt | input.ModShift, Action: ActionSelectWordRight},
+	{Name: "b", Mods: input.ModAlt | input.ModShift, Action: ActionSelectWordLeft},
+	{Name: "f", Mods: input.ModAlt | input.ModShift, Action: ActionSelectWordRight},
+	{Name: input.KeyHome, Mods: input.ModShift, Action: ActionSelectDocStart},
+	{Name: input.KeyEnd, Mods: input.ModShift, Action: ActionSelectDocEnd},
 
 	// Editing
 	{Name: input.KeyBackspace, Action: ActionBackspace},
-	{Name: input.KeyBackspace, Shift: true, Action: ActionBackspace},
-	{Name: "d", Ctrl: true, Action: ActionDelete},
+	{Name: input.KeyBackspace, Mods: input.ModShift, Action: ActionBackspace},
+	{Name: "d", Mods: input.ModCtrl, Action: ActionDelete},
 	{Name: input.KeyDelete, Action: ActionDelete},
-	{Name: input.KeyDelete, Shift: true, Action: ActionDelete},
+	{Name: input.KeyDelete, Mods: input.ModShift, Action: ActionDelete},
 	{Name: input.KeyReturn, Action: ActionSubmit},
-	{Name: input.KeyReturn, Alt: true, Action: ActionSubmit},
+	{Name: input.KeyReturn, Mods: input.ModAlt, Action: ActionSubmit},
 
 	// Word deletion.
-	{Name: "w", Ctrl: true, Action: ActionDeleteWordBwd},
-	{Name: input.KeyBackspace, Ctrl: true, Action: ActionDeleteWordBwd},
-	{Name: input.KeyBackspace, Alt: true, Action: ActionDeleteWordBwd},
-	{Name: "d", Alt: true, Action: ActionDeleteWordFwd},
-	{Name: input.KeyDelete, Alt: true, Action: ActionDeleteWordFwd},
-	{Name: input.KeyDelete, Ctrl: true, Action: ActionDeleteWordFwd},
+	{Name: "w", Mods: input.ModCtrl, Action: ActionDeleteWordBwd},
+	{Name: input.KeyBackspace, Mods: input.ModCtrl, Action: ActionDeleteWordBwd},
+	{Name: input.KeyBackspace, Mods: input.ModAlt, Action: ActionDeleteWordBwd},
+	{Name: "d", Mods: input.ModAlt, Action: ActionDeleteWordFwd},
+	{Name: input.KeyDelete, Mods: input.ModAlt, Action: ActionDeleteWordFwd},
+	{Name: input.KeyDelete, Mods: input.ModCtrl, Action: ActionDeleteWordFwd},
 
 	// Delete to a line boundary.
-	{Name: "k", Ctrl: true, Action: ActionDeleteToEnd},
-	{Name: "u", Ctrl: true, Action: ActionDeleteToStart},
+	{Name: "k", Mods: input.ModCtrl, Action: ActionDeleteToEnd},
+	{Name: "u", Mods: input.ModCtrl, Action: ActionDeleteToStart},
 
 	// Command+A reported through the Kitty keyboard protocol.
-	{Name: "a", Meta: true, Action: ActionSelectAll},
+	{Name: "a", Mods: input.ModMeta, Action: ActionSelectAll},
 
 	// Undo and redo.
-	{Name: "-", Ctrl: true, Action: ActionUndo},
-	{Name: ".", Ctrl: true, Action: ActionRedo},
-	{Name: "z", Meta: true, Action: ActionUndo},
-	{Name: "z", Meta: true, Shift: true, Action: ActionRedo},
+	{Name: "-", Mods: input.ModCtrl, Action: ActionUndo},
+	{Name: ".", Mods: input.ModCtrl, Action: ActionRedo},
+	{Name: "z", Mods: input.ModMeta, Action: ActionUndo},
+	{Name: "z", Mods: input.ModMeta | input.ModShift, Action: ActionRedo},
 }

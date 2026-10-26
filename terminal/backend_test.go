@@ -164,18 +164,17 @@ func TestTerminal_SetCursorPosition_Hidden(t *testing.T) {
 
 func TestTerminal_SetCursorStyle(t *testing.T) {
 	tests := []struct {
-		style    string
+		style    CursorStyle
 		expected string
 	}{
-		{"block", "\x1b[2 q"},
-		{"underline", "\x1b[4 q"},
-		{"line", "\x1b[6 q"},
-		{"bar", "\x1b[6 q"},
-		{"unknown", "\x1b[0 q"},
+		{CursorBlock, "\x1b[2 q"},
+		{CursorUnderline, "\x1b[4 q"},
+		{CursorLine, "\x1b[6 q"},
+		{CursorDefault, "\x1b[0 q"},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.style, func(t *testing.T) {
+		t.Run(tt.style.String(), func(t *testing.T) {
 			term, buf := newTestBackend()
 			term.SetCursorStyle(tt.style)
 			output := buf.String()
@@ -204,18 +203,17 @@ func TestTerminal_ShowHideCursor(t *testing.T) {
 func TestTerminal_SetCursorBlinking(t *testing.T) {
 	tests := []struct {
 		name     string
-		style    string
+		style    CursorStyle
 		blinking bool
 		expected string
 	}{
-		{"block steady", "block", false, "\x1b[2 q"},
-		{"block blinking", "block", true, "\x1b[1 q"},
-		{"underline steady", "underline", false, "\x1b[4 q"},
-		{"underline blinking", "underline", true, "\x1b[3 q"},
-		{"line steady", "line", false, "\x1b[6 q"},
-		{"line blinking", "line", true, "\x1b[5 q"},
-		{"bar steady", "bar", false, "\x1b[6 q"},
-		{"bar blinking", "bar", true, "\x1b[5 q"},
+		{"block steady", CursorBlock, false, "\x1b[2 q"},
+		{"block blinking", CursorBlock, true, "\x1b[1 q"},
+		{"underline steady", CursorUnderline, false, "\x1b[4 q"},
+		{"underline blinking", CursorUnderline, true, "\x1b[3 q"},
+		{"line steady", CursorLine, false, "\x1b[6 q"},
+		{"line blinking", CursorLine, true, "\x1b[5 q"},
+		{"default blinking", CursorDefault, true, "\x1b[0 q"},
 	}
 
 	for _, tt := range tests {
@@ -236,9 +234,9 @@ func TestTerminal_SetCursorBlinking(t *testing.T) {
 func TestTerminal_CursorStyleAccessors(t *testing.T) {
 	term, _ := newTestBackend()
 
-	term.SetCursorStyle("underline")
-	if term.CursorStyle() != "underline" {
-		t.Errorf("expected 'underline', got %q", term.CursorStyle())
+	term.SetCursorStyle(CursorUnderline)
+	if term.CursorStyle() != CursorUnderline {
+		t.Errorf("expected underline, got %v", term.CursorStyle())
 	}
 
 	term.SetCursorBlinking(true)
@@ -276,7 +274,7 @@ func TestTerminal_ResetCursorColor(t *testing.T) {
 
 func TestTerminal_SetMousePointer(t *testing.T) {
 	tests := []struct {
-		style    string
+		style    MousePointerStyle
 		expected string
 	}{
 		{"default", "\x1b]22;default\x1b\\"},
@@ -288,7 +286,7 @@ func TestTerminal_SetMousePointer(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.style, func(t *testing.T) {
+		t.Run(string(tt.style), func(t *testing.T) {
 			term, buf := newTestBackend()
 			term.SetMousePointer(tt.style)
 			output := buf.String()

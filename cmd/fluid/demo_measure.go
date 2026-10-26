@@ -8,6 +8,7 @@ import (
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/style"
 	"github.com/unaquatic/fluid/terminal"
+	"github.com/unaquatic/fluid/textbuf"
 	"github.com/unaquatic/fluid/widget"
 )
 
@@ -19,10 +20,7 @@ var demoMeasureCmd = Demo{
 
 func runMeasureDemo(ctx context.Context, o DemoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
-		Fullscreen:  true,
-		ExitOnCtrlC: true,
-		UseMouse:    !o.NoMouse,
-		TargetFPS:   o.FPS,
+		UseMouse: !o.NoMouse,
 	})
 	if err != nil {
 		return fmt.Errorf("renderer: %w", err)
@@ -33,32 +31,36 @@ func runMeasureDemo(ctx context.Context, o DemoOptions) error {
 	autoHeightTA := widget.NewTextarea(
 		widget.TextareaWithID("auto-height"),
 		widget.TextareaWithText("Type here and watch the box grow.\nAdd more lines with Enter!"),
-		widget.TextareaWithWrapMode(widget.WrapWord),
+		widget.TextareaWithWrapMode(textbuf.WrapWord),
 		widget.TextareaWithShowCursor(true),
-		widget.TextareaWithHeight(layout.Auto()),
-		widget.TextareaWithMaxHeight(layout.Points(10)),
+		widget.TextareaWithLayout(
+			layout.WithHeight(layout.Auto()),
+			layout.WithMaxHeight(layout.Points(10)),
+		),
 	)
 
 	fixedTA := widget.NewTextarea(
 		widget.TextareaWithID("fixed"),
 		widget.TextareaWithText("This textarea has a fixed height of 5 lines.\nIt scrolls when content exceeds the viewport.\nLine 3\nLine 4\nLine 5\nLine 6 (scroll to see)"),
-		widget.TextareaWithWrapMode(widget.WrapWord),
+		widget.TextareaWithWrapMode(textbuf.WrapWord),
 		widget.TextareaWithShowCursor(true),
-		widget.TextareaWithHeight(layout.Points(5)),
+		widget.TextareaWithLayout(layout.WithHeight(layout.Points(5))),
 	)
 
 	autoTA := widget.NewTextarea(
 		widget.TextareaWithID("auto"),
 		widget.TextareaWithText("short"),
-		widget.TextareaWithWrapMode(widget.WrapNone),
+		widget.TextareaWithWrapMode(textbuf.WrapNone),
 		widget.TextareaWithShowCursor(true),
-		widget.TextareaWithWidth(layout.Auto()),
-		widget.TextareaWithHeight(layout.Auto()),
-		widget.TextareaWithMaxHeight(layout.Points(8)),
+		widget.TextareaWithLayout(
+			layout.WithWidth(layout.Auto()),
+			layout.WithHeight(layout.Auto()),
+			layout.WithMaxHeight(layout.Points(8)),
+		),
 	)
 
 	statusText := widget.NewText("",
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 	)
 
 	autoHeightBox := widget.NewBox(
@@ -66,7 +68,7 @@ func runMeasureDemo(ctx context.Context, o DemoOptions) error {
 		widget.BoxWithBorder(style.BorderAll()),
 		widget.BoxWithBorderStyle(style.BorderSingle),
 		widget.BoxWithTitle("Auto Height"),
-		widget.BoxWithPadding(layout.Points(1)),
+		widget.BoxWithLayout(layout.WithPadding(layout.Points(1))),
 		widget.Children(autoHeightTA),
 	)
 	fixedBox := widget.NewBox(
@@ -74,7 +76,7 @@ func runMeasureDemo(ctx context.Context, o DemoOptions) error {
 		widget.BoxWithBorder(style.BorderAll()),
 		widget.BoxWithBorderStyle(style.BorderSingle),
 		widget.BoxWithTitle("Fixed Height"),
-		widget.BoxWithPadding(layout.Points(1)),
+		widget.BoxWithLayout(layout.WithPadding(layout.Points(1))),
 		widget.Children(fixedTA),
 	)
 	autoBox := widget.NewBox(
@@ -82,34 +84,36 @@ func runMeasureDemo(ctx context.Context, o DemoOptions) error {
 		widget.BoxWithBorder(style.BorderAll()),
 		widget.BoxWithBorderStyle(style.BorderSingle),
 		widget.BoxWithTitle("Auto Width + Height"),
-		widget.BoxWithPadding(layout.Points(1)),
+		widget.BoxWithLayout(layout.WithPadding(layout.Points(1))),
 		widget.Children(autoTA),
 	)
 
 	container := widget.NewBox(
 		widget.BoxWithID("container"),
-		widget.BoxWithFlexGrow(1),
-		widget.BoxWithPadding(layout.Points(1)),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
-		widget.BoxWithGap(layout.Points(1)),
+		widget.BoxWithLayout(
+			layout.WithFlexGrow(1),
+			layout.WithPadding(layout.Points(1)),
+			layout.WithFlexDirection(layout.DirectionColumn),
+			layout.WithGap(1),
+		),
 		widget.Children(
 			widget.NewText("MeasureFunc Demo - Textarea Intrinsic Sizing",
-				widget.TextWithHeight(layout.Points(1)),
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 			widget.NewText("Auto Height (grows with content, max 10 lines):",
-				widget.TextWithHeight(layout.Points(1)),
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 			autoHeightBox,
 			widget.NewText("Fixed Height (5 lines, scrolls when content overflows):",
-				widget.TextWithHeight(layout.Points(1)),
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 			fixedBox,
 			widget.NewText("Auto Width + Height (no wrap, sizes to content):",
-				widget.TextWithHeight(layout.Points(1)),
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 			autoBox,
-			widget.NewText("Tab: cycle focus | Esc/q: quit",
-				widget.TextWithHeight(layout.Points(1)),
+			widget.NewText("Esc/Q: Exit | Tab: Cycle focus",
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 			statusText,
 		),
@@ -149,12 +153,12 @@ func runMeasureDemo(ctx context.Context, o DemoOptions) error {
 		}
 		k := e.Key
 
-		if k.Name == "escape" || (k.Name == "q" && !k.Ctrl && !k.Alt) {
+		if k.Name == "escape" || (k.Name == "q" && !k.Mods.Has(input.ModCtrl) && !k.Mods.Has(input.ModAlt)) {
 			r.Destroy()
 			return
 		}
 
-		if k.Name == "tab" && !k.Ctrl && !k.Alt {
+		if k.Name == "tab" && !k.Mods.Has(input.ModCtrl) && !k.Mods.Has(input.ModAlt) {
 			k.PreventDefault()
 			focusIdx = (focusIdx + 1) % len(textareas)
 			r.FocusRenderable(textareas[focusIdx])

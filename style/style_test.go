@@ -33,55 +33,55 @@ func TestStyleFrom(t *testing.T) {
 
 func TestStyleBold(t *testing.T) {
 	s := New().Bold()
-	if !HasAttribute(s.Attributes, AttrBold) {
+	if !s.Attributes.Has(AttrBold) {
 		t.Error("should have Bold")
 	}
 }
 
 func TestStyleItalic(t *testing.T) {
 	s := New().Italic()
-	if !HasAttribute(s.Attributes, AttrItalic) {
+	if !s.Attributes.Has(AttrItalic) {
 		t.Error("should have Italic")
 	}
 }
 
 func TestStyleUnderline(t *testing.T) {
 	s := New().Underline()
-	if !HasAttribute(s.Attributes, AttrUnderline) {
+	if !s.Attributes.Has(AttrUnderline) {
 		t.Error("should have Underline")
 	}
 }
 
 func TestStyleDim(t *testing.T) {
 	s := New().Dim()
-	if !HasAttribute(s.Attributes, AttrDim) {
+	if !s.Attributes.Has(AttrDim) {
 		t.Error("should have Dim")
 	}
 }
 
 func TestStyleStrikethrough(t *testing.T) {
 	s := New().Strikethrough()
-	if !HasAttribute(s.Attributes, AttrStrikethrough) {
+	if !s.Attributes.Has(AttrStrikethrough) {
 		t.Error("should have Strikethrough")
 	}
 }
 
 func TestStyleInverse(t *testing.T) {
 	s := New().Inverse()
-	if !HasAttribute(s.Attributes, AttrInverse) {
+	if !s.Attributes.Has(AttrInverse) {
 		t.Error("should have Inverse")
 	}
 }
 
 func TestStyleChaining(t *testing.T) {
 	s := New().Bold().Italic().Underline().WithFg(ColorRed).WithBg(ColorBlue)
-	if !HasAttribute(s.Attributes, AttrBold) {
+	if !s.Attributes.Has(AttrBold) {
 		t.Error("should have Bold")
 	}
-	if !HasAttribute(s.Attributes, AttrItalic) {
+	if !s.Attributes.Has(AttrItalic) {
 		t.Error("should have Italic")
 	}
-	if !HasAttribute(s.Attributes, AttrUnderline) {
+	if !s.Attributes.Has(AttrUnderline) {
 		t.Error("should have Underline")
 	}
 	if !s.Fg.Equals(ColorRed) {
@@ -116,10 +116,10 @@ func TestStyleWithAttrs(t *testing.T) {
 func TestStyleImmutability(t *testing.T) {
 	s1 := New()
 	s2 := s1.Bold()
-	if HasAttribute(s1.Attributes, AttrBold) {
+	if s1.Attributes.Has(AttrBold) {
 		t.Error("original style should not be modified")
 	}
-	if !HasAttribute(s2.Attributes, AttrBold) {
+	if !s2.Attributes.Has(AttrBold) {
 		t.Error("new style should have Bold")
 	}
 }
@@ -155,10 +155,10 @@ func TestStyleMerge_AttributesCombine(t *testing.T) {
 	base := New().Bold()
 	overlay := Style{Fg: ColorTransparent, Bg: ColorTransparent, Attributes: AttrItalic}
 	merged := base.Merge(overlay)
-	if !HasAttribute(merged.Attributes, AttrBold) {
+	if !merged.Attributes.Has(AttrBold) {
 		t.Error("merged should have Bold from base")
 	}
-	if !HasAttribute(merged.Attributes, AttrItalic) {
+	if !merged.Attributes.Has(AttrItalic) {
 		t.Error("merged should have Italic from overlay")
 	}
 }
@@ -179,15 +179,15 @@ func TestStyleEquals_Different(t *testing.T) {
 	}
 }
 
-func TestAttrsANSI_None(t *testing.T) {
-	result := AttrsANSI(AttrNone)
+func TestAttrs_ANSI_None(t *testing.T) {
+	result := AttrNone.ANSI()
 	if result != "" {
 		t.Errorf("AttrNone should produce empty string, got %q", result)
 	}
 }
 
-func TestAttrsANSI_Multiple(t *testing.T) {
-	result := AttrsANSI(AttrBold | AttrUnderline | AttrStrikethrough)
+func TestAttrs_ANSI_Multiple(t *testing.T) {
+	result := (AttrBold | AttrUnderline | AttrStrikethrough).ANSI()
 	if !strings.Contains(result, "1") || !strings.Contains(result, "4") || !strings.Contains(result, "9") {
 		t.Errorf("should contain codes 1, 4, 9, got %q", result)
 	}

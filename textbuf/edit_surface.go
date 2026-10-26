@@ -24,17 +24,13 @@ type VisualCursor struct {
 type EditSurface struct {
 	surface      *TextSurface
 	editBuf      *EditBuffer
-	scrollMargin float32 // Fraction of viewport height in [0, 0.5].
+	scrollMargin float64 // Fraction of viewport height in [0, 0.5].
 	desiredCol   *int    // Visual column preserved during vertical movement.
 
 	// Placeholder data read by widgets when the buffer is empty.
 	placeholderText  string
 	placeholderFg    style.Color
 	placeholderSpans []Span // Styled placeholder, taking priority over plain text.
-
-	// Tab-indicator configuration mirrored to surface.
-	tabIndicator      rune
-	tabIndicatorColor *style.Color
 
 	// Movement and deletion interceptors installed by ExtmarksController.
 	overrideMoveUpVisual       func()
@@ -85,13 +81,16 @@ func (ev *EditSurface) clampScrollPosition() {
 	}
 }
 
-// SetViewport replaces the viewport. When the first optional argument is true,
-// it scrolls to keep the cursor visible.
-func (ev *EditSurface) SetViewport(vp *Viewport, moveCursor ...bool) {
+// SetViewport replaces the viewport without scrolling it. Call ScrollToCursor
+// afterward to bring the cursor into view.
+func (ev *EditSurface) SetViewport(vp *Viewport) {
 	ev.surface.SetViewport(vp)
-	if len(moveCursor) > 0 && moveCursor[0] && vp != nil {
-		ev.ensureCursorVisible()
-	}
+}
+
+// ScrollToCursor scrolls the viewport, if there is one, so that the cursor is
+// visible.
+func (ev *EditSurface) ScrollToCursor() {
+	ev.ensureCursorVisible()
 }
 
 // SetWrapMode sets the underlying line-wrapping mode.
@@ -101,7 +100,7 @@ func (ev *EditSurface) SetWrapMode(mode WrapMode) {
 
 // SetScrollMargin sets the viewport-height fraction kept around the cursor,
 // clamped to [0, 0.5].
-func (ev *EditSurface) SetScrollMargin(margin float32) {
+func (ev *EditSurface) SetScrollMargin(margin float64) {
 	if margin < 0 {
 		margin = 0
 	}
@@ -133,18 +132,6 @@ func (ev *EditSurface) SetPlaceholderText(text string, fg style.Color) {
 func (ev *EditSurface) SetPlaceholderSpans(spans []Span) {
 	ev.placeholderSpans = spans
 	ev.placeholderText = ""
-}
-
-// SetTabIndicator stores and forwards the tab-indicator configuration.
-func (ev *EditSurface) SetTabIndicator(indicator rune) {
-	ev.tabIndicator = indicator
-	ev.surface.SetTabIndicator(indicator)
-}
-
-// SetTabIndicatorColor stores and forwards the tab-indicator color.
-func (ev *EditSurface) SetTabIndicatorColor(color style.Color) {
-	ev.tabIndicatorColor = &color
-	ev.surface.SetTabIndicatorColor(color)
 }
 
 // NotifyCursorChange resets the desired vertical-navigation column and scrolls
@@ -479,7 +466,7 @@ func (ev *EditSurface) doDeleteSelectedText() {
 
 // SetLocalSelection maps viewport-relative endpoints into a selection. It can
 // also move the cursor to the focus and scroll to follow it.
-func (ev *EditSurface) SetLocalSelection(anchorX, anchorY, focusX, focusY int, bg, fg *style.Color, updateCursor, followCursor bool) bool {
+func (ev *EditSurface) SetLocalSelection(anchorX, anchorY, focusX, focusY int, bg, fg style.Color, updateCursor, followCursor bool) bool {
 	ok := ev.surface.SetLocalSelection(anchorX, anchorY, focusX, focusY, bg, fg)
 	if ok && updateCursor {
 		// Move the cursor to a valid focus offset when requested.
@@ -495,12 +482,12 @@ func (ev *EditSurface) SetLocalSelection(anchorX, anchorY, focusX, focusY int, b
 }
 
 // UpdateSelection updates the selection end offset.
-func (ev *EditSurface) UpdateSelection(end int, bg, fg *style.Color) {
+func (ev *EditSurface) UpdateSelection(end int, bg, fg style.Color) {
 	ev.surface.UpdateSelection(end, bg, fg)
 }
 
 // UpdateLocalSelection replaces selection from viewport-relative coordinates.
-func (ev *EditSurface) UpdateLocalSelection(anchorX, anchorY, focusX, focusY int, bg, fg *style.Color) bool {
+func (ev *EditSurface) UpdateLocalSelection(anchorX, anchorY, focusX, focusY int, bg, fg style.Color) bool {
 	return ev.surface.UpdateLocalSelection(anchorX, anchorY, focusX, focusY, bg, fg)
 }
 
@@ -535,7 +522,7 @@ func (ev *EditSurface) ensureCursorVisible() {
 	// Recover the cursor's absolute virtual-line index.
 	absVisRow := vc.VisualRow + vp.Y
 
-	marginLines := min(max(int(float32(vp.Height)*ev.scrollMargin), 1), (vp.Height-1)/2)
+	marginLines := min(max(int(float64(vp.Height)*ev.scrollMargin), 1), (vp.Height-1)/2)
 
 	newY := vp.Y
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/style"
@@ -64,9 +65,9 @@ func anchorColumn(out *bytes.Buffer, x int) {
 	fmt.Fprintf(out, "\x1b[%dG", x+1)
 }
 
-// DiffAndFlush compares current and next and writes changed cells to the
+// diffAndFlush compares current and next and writes changed cells to the
 // terminal.
-func (r *Renderer) DiffAndFlush(current, next *buffer.Buffer) {
+func (r *Renderer) diffAndFlush(current, next *buffer.Buffer) {
 	width := next.Width()
 	height := next.Height()
 	var output bytes.Buffer
@@ -76,7 +77,7 @@ func (r *Renderer) DiffAndFlush(current, next *buffer.Buffer) {
 	cursorX, cursorY := -1, -1
 	curFg := style.Color{}
 	curBg := style.Color{}
-	var curAttrs uint32
+	var curAttrs style.Attrs
 	var curLinkID uint32
 
 	needsReset := true // Emit SGR before the first changed cell.
@@ -98,7 +99,7 @@ func (r *Renderer) DiffAndFlush(current, next *buffer.Buffer) {
 
 			// Emit SGR only when the output style changes.
 			if needsReset || !nxt.Fg.Equals(curFg) || !nxt.Bg.Equals(curBg) || nxt.Attributes != curAttrs {
-				output.WriteString(buildSGR(nxt.Fg, nxt.Bg, nxt.Attributes, r.backend.ColorMode()))
+				output.WriteString(buildSGR(nxt.Fg, nxt.Bg, nxt.Attributes, r.backend.ColorMode(), r.backend.Indexers()))
 				curFg = nxt.Fg
 				curBg = nxt.Bg
 				curAttrs = nxt.Attributes
@@ -106,7 +107,7 @@ func (r *Renderer) DiffAndFlush(current, next *buffer.Buffer) {
 			}
 
 			// Open or close OSC 8 links at link-ID boundaries.
-			linkID := style.GetLinkID(nxt.Attributes)
+			linkID := nxt.Attributes.LinkID()
 			if linkID != curLinkID {
 				if linkID != 0 {
 					url := r.linkRegistry.URL(linkID)
@@ -148,8 +149,9 @@ func (r *Renderer) DiffAndFlush(current, next *buffer.Buffer) {
 	r.backend.WriteOut(output.Bytes())
 }
 
-// buildSGR returns one reset-prefixed ANSI SGR sequence for the supplied style.
-func buildSGR(fg, bg style.Color, attrs uint32, mode style.ColorMode) string {
+// buildSGR returns one reset-prefixed ANSI SGR sequence for the supplied style,
+// with the colors in mode, in the palette entries that x converts them to.
+func buildSGR(fg, bg style.Color, attrs style.Attrs, mode style.ColorMode, x style.Indexers) string {
 	var buf bytes.Buffer
 	buf.WriteString("\x1b[0") // Reset attributes before applying the complete style.
 
@@ -180,7 +182,7 @@ func buildSGR(fg, bg style.Color, attrs uint32, mode style.ColorMode) string {
 	}
 
 	if fg.A > 0 {
-		seq := style.FgColorSeq(fg, mode)
+		seq := x.FgSeq(fg, mode)
 		if len(seq) > 3 {
 			params := seq[2 : len(seq)-1]
 			buf.WriteString(";" + params)
@@ -188,7 +190,7 @@ func buildSGR(fg, bg style.Color, attrs uint32, mode style.ColorMode) string {
 	}
 
 	if bg.A > 0 {
-		seq := style.BgColorSeq(bg, mode)
+		seq := x.BgSeq(bg, mode)
 		if len(seq) > 3 {
 			params := seq[2 : len(seq)-1]
 			buf.WriteString(";" + params)
@@ -209,7 +211,7 @@ func (r *Renderer) FullFlush(buf *buffer.Buffer) {
 
 	curFg := style.Color{}
 	curBg := style.Color{}
-	var curAttrs uint32
+	var curAttrs style.Attrs
 	var curLinkID uint32
 	needsReset := true
 
@@ -231,7 +233,7 @@ func (r *Renderer) FullFlush(buf *buffer.Buffer) {
 			}
 
 			if needsReset || !cell.Fg.Equals(curFg) || !cell.Bg.Equals(curBg) || cell.Attributes != curAttrs {
-				output.WriteString(buildSGR(cell.Fg, cell.Bg, cell.Attributes, r.backend.ColorMode()))
+				output.WriteString(buildSGR(cell.Fg, cell.Bg, cell.Attributes, r.backend.ColorMode(), r.backend.Indexers()))
 				curFg = cell.Fg
 				curBg = cell.Bg
 				curAttrs = cell.Attributes
@@ -239,7 +241,7 @@ func (r *Renderer) FullFlush(buf *buffer.Buffer) {
 			}
 
 			// Open or close OSC 8 links at link-ID boundaries.
-			linkID := style.GetLinkID(cell.Attributes)
+			linkID := cell.Attributes.LinkID()
 			if linkID != curLinkID {
 				if linkID != 0 {
 					url := r.linkRegistry.URL(linkID)
@@ -274,54 +276,49 @@ type Stats struct {
 	FrameCount uint64
 	// FPS is the reciprocal of the average frame duration, capped at 999.
 	FPS float64
-	// LastRenderTime is the wall-clock duration of the most recent frame
-	// in seconds.
-	LastRenderTime float64
-	// AvgRenderTime is the average frame duration across the sample window
-	// in seconds.
-	AvgRenderTime float64
-	// MaxRenderTime is the longest frame duration since the last reset, in seconds.
-	MaxRenderTime float64
-	samples       []float64
+	// LastRenderTime is the wall-clock duration of the most recent frame.
+	LastRenderTime time.Duration
+	// AvgRenderTime is the average frame duration across the sample window.
+	AvgRenderTime time.Duration
+	// MaxRenderTime is the longest frame duration since the last reset.
+	MaxRenderTime time.Duration
+	samples       []time.Duration
 	maxSamples    int
 }
 
-// NewStats returns empty statistics with a sliding window of maxSamples. A
+// newStats returns empty statistics with a sliding window of maxSamples. A
 // nonpositive capacity uses 60 samples.
-func NewStats(maxSamples int) Stats {
+func newStats(maxSamples int) Stats {
 	if maxSamples <= 0 {
 		maxSamples = 60
 	}
 	return Stats{
 		maxSamples: maxSamples,
-		samples:    make([]float64, 0, maxSamples),
+		samples:    make([]time.Duration, 0, maxSamples),
 	}
 }
 
-// record adds a frame-duration sample in seconds and updates derived values.
-func (s *Stats) record(renderTimeSec float64) {
+// record adds a frame-duration sample and updates derived values.
+func (s *Stats) record(renderTime time.Duration) {
 	s.FrameCount++
-	s.LastRenderTime = renderTimeSec
-
-	if renderTimeSec > s.MaxRenderTime {
-		s.MaxRenderTime = renderTimeSec
-	}
+	s.LastRenderTime = renderTime
+	s.MaxRenderTime = max(s.MaxRenderTime, renderTime)
 
 	// Keep only the most recent samples for the average.
-	s.samples = append(s.samples, renderTimeSec)
+	s.samples = append(s.samples, renderTime)
 	if len(s.samples) > s.maxSamples {
 		s.samples = s.samples[1:]
 	}
 
-	sum := 0.0
+	var sum time.Duration
 	for _, v := range s.samples {
 		sum += v
 	}
-	s.AvgRenderTime = sum / float64(len(s.samples))
+	s.AvgRenderTime = sum / time.Duration(len(s.samples))
 
 	// Derive FPS from the same sliding-window average.
 	if s.AvgRenderTime > 0 {
-		s.FPS = math.Min(1.0/s.AvgRenderTime, 999)
+		s.FPS = math.Min(1/s.AvgRenderTime.Seconds(), 999)
 	}
 }
 

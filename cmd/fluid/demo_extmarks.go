@@ -35,10 +35,7 @@ Regular text can be edited normally.`
 
 func runExtmarksDemo(ctx context.Context, o DemoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
-		Fullscreen:        true,
-		ExitOnCtrlC:       true,
 		UseMouse:          !o.NoMouse,
-		TargetFPS:         o.FPS,
 		AltSendsEscPrefix: true,
 	})
 	if err != nil {
@@ -50,34 +47,35 @@ func runExtmarksDemo(ctx context.Context, o DemoOptions) error {
 	editor := widget.NewTextarea(
 		widget.TextareaWithID("editor"),
 		widget.TextareaWithText(extmarksInitialContent),
-		widget.TextareaWithWrapMode(widget.WrapWord),
+		widget.TextareaWithWrapMode(textbuf.WrapWord),
 		widget.TextareaWithShowCursor(true),
-		widget.TextareaWithFlexGrow(1),
+		widget.TextareaWithLayout(layout.WithFlexGrow(1)),
 	)
 	helpText := widget.NewText(
-		"Arrows: move | Shift+Opt+Arrow: select word | Ctrl+L: add marker | Ctrl+D/K: delete/clear | Esc/q: quit",
-		widget.TextWithHeight(layout.Points(1)),
+		"Esc/Q: Exit | Arrows: Move | Shift+Opt+Arrow: Select word | Ctrl+L: Add marker | Ctrl+D/K: Delete/Clear",
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 	)
 	statusText := widget.NewText("",
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 	)
 	debugText := widget.NewText("Press any key to see raw input...",
-		widget.TextWithHeight(layout.Points(2)),
+		widget.TextWithLayout(layout.WithHeight(layout.Points(2))),
 	)
 
 	container := widget.NewBox(
 		widget.BoxWithID("container"),
-		widget.BoxWithFlexGrow(1),
-		widget.BoxWithPadding(layout.Points(1)),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
+		widget.BoxWithLayout(
+			layout.WithFlexGrow(1),
+			layout.WithPadding(layout.Points(1)),
+			layout.WithFlexDirection(layout.DirectionColumn),
+		),
 		widget.Children(
 			widget.NewBox(
 				widget.BoxWithID("editor-box"),
 				widget.BoxWithBorder(style.BorderAll()),
 				widget.BoxWithBorderStyle(style.BorderSingle),
 				widget.BoxWithTitle("Extmarks Demo"),
-				widget.BoxWithPadding(layout.Points(1)),
-				widget.BoxWithFlexGrow(1),
+				widget.BoxWithLayout(layout.WithPadding(layout.Points(1)), layout.WithFlexGrow(1)),
 				widget.Children(editor),
 			),
 			helpText,
@@ -113,18 +111,18 @@ func runExtmarksDemo(ctx context.Context, o DemoOptions) error {
 				hexParts[i] = fmt.Sprintf("%02x", b)
 			}
 			debugInfo := fmt.Sprintf("Key: name=%q ctrl=%v shift=%v alt=%v meta=%v | Raw: [%s] src=%s",
-				k.Name, k.Ctrl, k.Shift, k.Alt, k.Meta,
+				k.Name, k.Mods.Has(input.ModCtrl), k.Mods.Has(input.ModShift), k.Mods.Has(input.ModAlt), k.Mods.Has(input.ModMeta),
 				strings.Join(hexParts, " "),
 				k.Source)
 			debugText.SetContent(debugInfo)
 		}
 
-		if k.Name == "escape" || (k.Name == "q" && !k.Ctrl && !k.Alt) {
+		if k.Name == "escape" || (k.Name == "q" && !k.Mods.Has(input.ModCtrl) && !k.Mods.Has(input.ModAlt)) {
 			r.Destroy()
 			return
 		}
 
-		if k.Ctrl && k.Name == "l" {
+		if k.Mods.Has(input.ModCtrl) && k.Name == "l" {
 			k.PreventDefault()
 			offset := editor.CursorOffset()
 			markerText := "[MARKER]"
@@ -133,8 +131,8 @@ func runExtmarksDemo(ctx context.Context, o DemoOptions) error {
 				Start:   offset,
 				End:     offset + textbuf.DisplayWidthOfText(markerText),
 				Virtual: true,
-				Fg:      &virtualFg,
-				Bg:      &virtualBg,
+				Fg:      virtualFg,
+				Bg:      virtualBg,
 				TypeID:  markerTypeID,
 				Data:    "manual",
 			})
@@ -142,7 +140,7 @@ func runExtmarksDemo(ctx context.Context, o DemoOptions) error {
 			return
 		}
 
-		if k.Ctrl && k.Name == "d" {
+		if k.Mods.Has(input.ModCtrl) && k.Name == "d" {
 			k.PreventDefault()
 			offset := editor.CursorOffset()
 			ems := ec.AtOffset(offset)
@@ -155,7 +153,7 @@ func runExtmarksDemo(ctx context.Context, o DemoOptions) error {
 			return
 		}
 
-		if k.Ctrl && k.Name == "k" {
+		if k.Mods.Has(input.ModCtrl) && k.Name == "k" {
 			k.PreventDefault()
 			count := len(ec.All())
 			ec.Clear()
@@ -212,13 +210,13 @@ func autoDetectExtmarks(
 
 		fg, bg := virtualFg, virtualBg
 		typeID := markerTypeID
-		var attrs uint32
+		var attrs style.Attrs
 
 		if len(content) > 5 && content[1:5] == "LINK" {
 			typeID = linkTypeID
 			url := content[6 : len(content)-1]
 			linkID := lr.Alloc(url)
-			attrs = style.AttributesWithLink(style.AttrUnderline, linkID)
+			attrs = style.AttrUnderline.WithLink(linkID)
 		} else if len(content) > 4 && content[1:4] == "TAG" {
 			typeID = tagTypeID
 			fg, bg = tagFg, tagBg
@@ -228,8 +226,8 @@ func autoDetectExtmarks(
 			Start:      start,
 			End:        end,
 			Virtual:    true,
-			Fg:         &fg,
-			Bg:         &bg,
+			Fg:         fg,
+			Bg:         bg,
 			Attributes: attrs,
 			TypeID:     typeID,
 			Data:       content,

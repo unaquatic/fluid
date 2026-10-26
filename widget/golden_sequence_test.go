@@ -8,6 +8,7 @@ import (
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/style"
 	"github.com/unaquatic/fluid/testutil"
+	"github.com/unaquatic/fluid/textbuf"
 	"github.com/unaquatic/fluid/widget"
 )
 
@@ -128,12 +129,12 @@ func TestGoldenSeq_TextNodeColorChange(t *testing.T) {
 
 	// Change the node foreground to green.
 	green := style.ColorGreen
-	span.SetFg(&green)
+	span.SetFg(green)
 	seq.AddFrames("green", rerender(txt, 10, 1), nil)
 
 	// Change the node foreground to blue.
 	blue := style.ColorBlue
-	span.SetFg(&blue)
+	span.SetFg(blue)
 	seq.AddFrames("blue", rerender(txt, 10, 1), nil)
 
 	testutil.AssertGoldenSequence(t, "text_node_color_change", seq)
@@ -145,7 +146,7 @@ func TestGoldenSeq_TextNodeColorChange(t *testing.T) {
 func TestGoldenSeq_InputFocusUnfocus(t *testing.T) {
 	inp := widget.NewInput(
 		widget.InputWithPlaceholder("Type here"),
-		widget.InputWithPlaceholderColor(style.ColorFromInts(128, 128, 128, 255)),
+		widget.InputWithPlaceholderFg(style.ColorFromInts(128, 128, 128, 255)),
 	)
 	testutil.SetupWidget(inp, 15, 1)
 
@@ -180,7 +181,7 @@ func TestGoldenSeq_InputTypingSequence(t *testing.T) {
 	seq.AddFrames("empty", rerender(inp, 10, 1), nil)
 
 	for _, ch := range "Hello" {
-		pressKey(inp, string(ch))
+		pressKey(inp, input.KeyName(ch))
 		seq.AddFrames("typed_"+string(ch), rerender(inp, 10, 1), nil)
 	}
 
@@ -198,7 +199,7 @@ func TestGoldenSeq_InputTypingSequence(t *testing.T) {
 
 // TestGoldenSeq_TextWrapGrowingContent captures wrapping as content grows.
 func TestGoldenSeq_TextWrapGrowingContent(t *testing.T) {
-	txt := widget.NewText("", widget.TextWithWrapMode(widget.WrapWord))
+	txt := widget.NewText("", widget.TextWithWrapMode(textbuf.WrapWord))
 	testutil.SetupWidget(txt, 10, 4)
 
 	seq := testutil.NewGoldenSequence()
@@ -230,8 +231,10 @@ func TestGoldenSeq_BoxFocusBorderColor(t *testing.T) {
 		widget.BoxWithBorderStyle(style.BorderSingle),
 		widget.BoxWithBorderColor(style.ColorWhite),
 		widget.BoxWithFocusedBorderColor(style.ColorGreen),
-		widget.BoxWithWidth(layout.Points(10)),
-		widget.BoxWithHeight(layout.Points(3)),
+		widget.BoxWithLayout(
+			layout.WithWidth(layout.Points(10)),
+			layout.WithHeight(layout.Points(3)),
+		),
 	)
 	box.SetFocusable(true)
 	testutil.SetupWidget(box, 10, 3)
@@ -257,7 +260,7 @@ func TestGoldenSeq_BoxFocusBorderColor(t *testing.T) {
 // TestGoldenSeq_TextWrapThenScroll tests wrapped text that is scrolled.
 func TestGoldenSeq_TextWrapThenScroll(t *testing.T) {
 	txt := widget.NewText("Line 1 content\nLine 2 content\nLine 3 content\nLine 4 content",
-		widget.TextWithWrapMode(widget.WrapWord))
+		widget.TextWithWrapMode(textbuf.WrapWord))
 	testutil.SetupWidget(txt, 10, 3)
 
 	seq := testutil.NewGoldenSequence()

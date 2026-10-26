@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"testing"
+	"time"
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/layout"
@@ -46,7 +47,7 @@ func TestRootRenderable_RenderPipeline(t *testing.T) {
 	root := NewRootRenderable(80, 24)
 
 	hitGrid := NewHitGrid(80, 24)
-	root.SetContext(&mockContext{hitGrid: hitGrid})
+	root.SetHost(&mockHost{hitGrid: hitGrid})
 
 	// Add one fixed-size child to exercise layout and rendering.
 	child := render.NewBaseRenderable(
@@ -57,7 +58,7 @@ func TestRootRenderable_RenderPipeline(t *testing.T) {
 	root.Add(child)
 
 	buf := buffer.New(80, 24)
-	root.Render(buf, 0.016)
+	root.Render(buf, 16*time.Millisecond)
 
 	// Rendering synchronizes the child's computed geometry.
 	if child.Width() != 20 {
@@ -70,46 +71,38 @@ func TestRootRenderable_RenderPipeline(t *testing.T) {
 
 func TestRootRenderable_LifecyclePass(t *testing.T) {
 	root := NewRootRenderable(80, 24)
-	root.SetContext(&mockContext{hitGrid: NewHitGrid(80, 24)})
+	root.SetHost(&mockHost{hitGrid: NewHitGrid(80, 24)})
 
 	lifecycleCalled := false
-	child := render.NewBaseRenderable(render.WithID("child"))
-	child.OnLifecyclePass = func() { lifecycleCalled = true }
-	root.Add(child)
-
-	root.RegisterLifecyclePass(child)
+	root.AddLifecyclePass(func() { lifecycleCalled = true })
 
 	buf := buffer.New(80, 24)
-	root.Render(buf, 0.016)
+	root.Render(buf, 16*time.Millisecond)
 
 	if !lifecycleCalled {
-		t.Error("expected lifecycle pass to call OnLifecyclePass")
+		t.Error("expected the lifecycle pass to run")
 	}
 }
 
-func TestRootRenderable_UnregisterLifecyclePass(t *testing.T) {
+func TestRootRenderable_RemoveLifecyclePass(t *testing.T) {
 	root := NewRootRenderable(80, 24)
-	root.SetContext(&mockContext{hitGrid: NewHitGrid(80, 24)})
+	root.SetHost(&mockHost{hitGrid: NewHitGrid(80, 24)})
 
 	lifecycleCalled := false
-	child := render.NewBaseRenderable(render.WithID("child"))
-	child.OnLifecyclePass = func() { lifecycleCalled = true }
-	root.Add(child)
-
-	root.RegisterLifecyclePass(child)
-	root.UnregisterLifecyclePass(child.Num())
+	remove := root.AddLifecyclePass(func() { lifecycleCalled = true })
+	remove()
 
 	buf := buffer.New(80, 24)
-	root.Render(buf, 0.016)
+	root.Render(buf, 16*time.Millisecond)
 
 	if lifecycleCalled {
-		t.Error("expected lifecycle pass NOT to call after unregister")
+		t.Error("expected a removed lifecycle pass not to run")
 	}
 }
 
 func TestRootRenderable_ScissorForOverflowHidden(t *testing.T) {
 	root := NewRootRenderable(80, 24)
-	root.SetContext(&mockContext{hitGrid: NewHitGrid(80, 24)})
+	root.SetHost(&mockHost{hitGrid: NewHitGrid(80, 24)})
 
 	container := render.NewBaseRenderable(
 		render.WithID("container"),
@@ -119,16 +112,16 @@ func TestRootRenderable_ScissorForOverflowHidden(t *testing.T) {
 	)
 	root.Add(container)
 
-	commands := root.UpdateLayout()
+	commands := root.updateLayout()
 
 	// A clipping container surrounds its child commands with scissor operations.
 	hasPush := false
 	hasPop := false
 	for _, cmd := range commands {
-		if cmd.Action == "pushScissorRect" {
+		if cmd.Action == drawPushScissor {
 			hasPush = true
 		}
-		if cmd.Action == "popScissorRect" {
+		if cmd.Action == drawPopScissor {
 			hasPop = true
 		}
 	}
@@ -152,11 +145,11 @@ func TestRootRenderable_ChildrenOrder(t *testing.T) {
 	root.Add(c)
 
 	root.CalculateLayout()
-	commands := root.UpdateLayout()
+	commands := root.updateLayout()
 
 	var renderOrder []string
 	for _, cmd := range commands {
-		if cmd.Action == "render" && cmd.Target != nil {
+		if cmd.Action == drawRender && cmd.Target != nil {
 			id := cmd.Target.ID()
 			if id == "a" || id == "b" || id == "c" {
 				renderOrder = append(renderOrder, id)
@@ -180,10 +173,10 @@ func TestRootRenderable_InvisibleChildSkipped(t *testing.T) {
 	root.Add(child)
 
 	root.CalculateLayout()
-	commands := root.UpdateLayout()
+	commands := root.updateLayout()
 
 	for _, cmd := range commands {
-		if cmd.Action == "render" && cmd.Target != nil && cmd.Target.ID() == "hidden" {
+		if cmd.Action == drawRender && cmd.Target != nil && cmd.Target.ID() == "hidden" {
 			t.Error("expected invisible child to be skipped in render commands")
 		}
 	}
@@ -192,7 +185,7 @@ func TestRootRenderable_InvisibleChildSkipped(t *testing.T) {
 func TestRootRenderable_HitGridRebuilt(t *testing.T) {
 	root := NewRootRenderable(80, 24)
 	hitGrid := NewHitGrid(80, 24)
-	root.SetContext(&mockContext{hitGrid: hitGrid})
+	root.SetHost(&mockHost{hitGrid: hitGrid})
 
 	child := render.NewBaseRenderable(
 		render.WithID("clickable"),
@@ -202,7 +195,7 @@ func TestRootRenderable_HitGridRebuilt(t *testing.T) {
 	root.Add(child)
 
 	buf := buffer.New(80, 24)
-	root.Render(buf, 0.016)
+	root.Render(buf, 16*time.Millisecond)
 
 	// Rendering registers the child at its synchronized position.
 	id := hitGrid.Check(child.X(), child.Y())

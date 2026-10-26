@@ -24,13 +24,13 @@ func TestKeyEvent_String(t *testing.T) {
 		want string
 	}{
 		{KeyEvent{Name: "a"}, "a"},
-		{KeyEvent{Name: "a", Ctrl: true}, "ctrl+a"},
-		{KeyEvent{Name: "a", Alt: true}, "alt+a"},
-		{KeyEvent{Name: "a", Shift: true}, "shift+a"},
-		{KeyEvent{Name: "a", Ctrl: true, Shift: true}, "ctrl+shift+a"},
-		{KeyEvent{Name: "a", Ctrl: true, Alt: true, Shift: true}, "ctrl+alt+shift+a"},
+		{KeyEvent{Name: "a", Mods: ModCtrl}, "ctrl+a"},
+		{KeyEvent{Name: "a", Mods: ModAlt}, "alt+a"},
+		{KeyEvent{Name: "a", Mods: ModShift}, "shift+a"},
+		{KeyEvent{Name: "a", Mods: ModCtrl | ModShift}, "ctrl+shift+a"},
+		{KeyEvent{Name: "a", Mods: ModCtrl | ModAlt | ModShift}, "ctrl+alt+shift+a"},
 		{KeyEvent{Name: "up"}, "up"},
-		{KeyEvent{Name: "return", Meta: true}, "meta+return"},
+		{KeyEvent{Name: "return", Mods: ModMeta}, "meta+return"},
 	}
 	for _, tt := range tests {
 		if got := tt.ev.String(); got != tt.want {
@@ -40,25 +40,25 @@ func TestKeyEvent_String(t *testing.T) {
 }
 
 func TestKeyEvent_Matches(t *testing.T) {
-	ev := KeyEvent{Name: "a", Ctrl: true}
+	ev := KeyEvent{Name: "a", Mods: ModCtrl}
 
 	if !ev.Matches("a", ModCtrl) {
 		t.Error("should match ctrl+a")
 	}
-	if ev.Matches("a") {
+	if ev.Matches("a", 0) {
 		t.Error("should not match plain 'a' (has ctrl)")
 	}
 	if ev.Matches("b", ModCtrl) {
 		t.Error("should not match ctrl+b")
 	}
-	if ev.Matches("a", ModCtrl, ModShift) {
+	if ev.Matches("a", ModCtrl|ModShift) {
 		t.Error("should not match ctrl+shift+a (no shift)")
 	}
 }
 
 func TestKeyEvent_Matches_NoModifiers(t *testing.T) {
 	ev := KeyEvent{Name: "return"}
-	if !ev.Matches("return") {
+	if !ev.Matches("return", 0) {
 		t.Error("should match plain return")
 	}
 	if ev.Matches("return", ModCtrl) {
@@ -67,12 +67,12 @@ func TestKeyEvent_Matches_NoModifiers(t *testing.T) {
 }
 
 func TestKeyEvent_Matches_MultipleModifiers(t *testing.T) {
-	ev := KeyEvent{Name: "x", Ctrl: true, Shift: true, Alt: true}
+	ev := KeyEvent{Name: "x", Mods: ModCtrl | ModShift | ModAlt}
 
-	if !ev.Matches("x", ModCtrl, ModShift, ModAlt) {
+	if !ev.Matches("x", ModCtrl|ModShift|ModAlt) {
 		t.Error("should match ctrl+shift+alt+x")
 	}
-	if ev.Matches("x", ModCtrl, ModShift) {
+	if ev.Matches("x", ModCtrl|ModShift) {
 		t.Error("should not match without alt")
 	}
 }
@@ -88,14 +88,14 @@ func TestKeyEvent_IsRune(t *testing.T) {
 		{KeyEvent{Name: "Z"}, true, "plain 'Z' (fallback, no Text)"},
 		{KeyEvent{Name: "\u4e16"}, true, "CJK (fallback, no Text)"},
 		{KeyEvent{Name: "return"}, false, "return (multi-char Name, no Text)"},
-		{KeyEvent{Name: "a", Ctrl: true}, false, "ctrl+a"},
-		{KeyEvent{Name: "a", Alt: true}, false, "alt+a"},
-		{KeyEvent{Name: "a", Meta: true}, false, "meta+a"},
+		{KeyEvent{Name: "a", Mods: ModCtrl}, false, "ctrl+a"},
+		{KeyEvent{Name: "a", Mods: ModAlt}, false, "alt+a"},
+		{KeyEvent{Name: "a", Mods: ModMeta}, false, "meta+a"},
 		// Parsed events use Text to distinguish printable input.
 		{KeyEvent{Name: "a", Text: "a"}, true, "'a' with Text"},
 		{KeyEvent{Name: KeySpace, Text: " "}, true, "space with Text"},
 		{KeyEvent{Name: KeySpace}, false, "space without Text (fallback: multi-char Name)"},
-		{KeyEvent{Name: KeySpace, Text: " ", Ctrl: true}, false, "ctrl+space"},
+		{KeyEvent{Name: KeySpace, Text: " ", Mods: ModCtrl}, false, "ctrl+space"},
 		{KeyEvent{Name: KeyReturn}, false, "return key"},
 		{KeyEvent{Name: KeyTab}, false, "tab key"},
 	}
@@ -118,7 +118,7 @@ func TestKeyEvent_Rune(t *testing.T) {
 		t.Errorf("Rune() for non-rune = %q, want 0", r)
 	}
 
-	ev3 := KeyEvent{Name: "a", Ctrl: true}
+	ev3 := KeyEvent{Name: "a", Mods: ModCtrl}
 	if r := ev3.Rune(); r != 0 {
 		t.Errorf("Rune() for ctrl = %q, want 0", r)
 	}
@@ -129,7 +129,7 @@ func TestKeyEvent_Rune(t *testing.T) {
 		t.Errorf("Rune() for space with Text = %q, want ' '", r)
 	}
 
-	ev5 := KeyEvent{Name: KeySpace, Text: " ", Ctrl: true}
+	ev5 := KeyEvent{Name: KeySpace, Text: " ", Mods: ModCtrl}
 	if r := ev5.Rune(); r != 0 {
 		t.Errorf("Rune() for ctrl+space = %q, want 0", r)
 	}

@@ -1,6 +1,7 @@
 package input
 
 import (
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
@@ -28,71 +29,127 @@ func (t KeyEventType) String() string {
 	}
 }
 
-// Modifier identifies a keyboard modifier.
-type Modifier int
+// Mods is a set of modifier keys held during an input event. Combine them
+// with |, as in ModCtrl|ModShift.
+type Mods uint8
 
 const (
-	ModCtrl Modifier = iota
+	// ModCtrl is Control.
+	ModCtrl Mods = 1 << iota
+	// ModShift is Shift.
 	ModShift
+	// ModAlt is Alt or Option.
 	ModAlt
+	// ModMeta is a distinct Meta, Super, or Command key.
 	ModMeta
 )
 
+// Has reports whether m includes every key in mod.
+func (m Mods) Has(mod Mods) bool {
+	return m&mod == mod
+}
+
+// String returns the keys of m in canonical order, joined by "+", such as
+// "ctrl+alt+meta+shift", or "" when m is empty.
+func (m Mods) String() string {
+	var parts []string
+	if m.Has(ModCtrl) {
+		parts = append(parts, "ctrl")
+	}
+	if m.Has(ModAlt) {
+		parts = append(parts, "alt")
+	}
+	if m.Has(ModMeta) {
+		parts = append(parts, "meta")
+	}
+	if m.Has(ModShift) {
+		parts = append(parts, "shift")
+	}
+	return strings.Join(parts, "+")
+}
+
+// comboString returns name with the modifiers mods before it in canonical
+// order, such as "ctrl+shift+a".
+func comboString(name KeyName, mods Mods) string {
+	if mods == 0 {
+		return string(name)
+	}
+	return mods.String() + "+" + string(name)
+}
+
+// KeyName is the canonical name of a key: a named key such as "return",
+// "up", or "f1", or the text a printable key types, such as "a".
+type KeyName string
+
+// Named keys.
 const (
-	KeyReturn    = "return"
-	KeyEnter     = "return" // KeyEnter is an alias for KeyReturn.
-	KeyEscape    = "escape"
-	KeyTab       = "tab"
-	KeyBackspace = "backspace"
-	KeyDelete    = "delete"
-	KeyInsert    = "insert"
-	KeyUp        = "up"
-	KeyDown      = "down"
-	KeyLeft      = "left"
-	KeyRight     = "right"
-	KeyHome      = "home"
-	KeyEnd       = "end"
-	KeyPageUp    = "pageup"
-	KeyPageDown  = "pagedown"
-	KeySpace     = "space"
-	KeyF1        = "f1"
-	KeyF2        = "f2"
-	KeyF3        = "f3"
-	KeyF4        = "f4"
-	KeyF5        = "f5"
-	KeyF6        = "f6"
-	KeyF7        = "f7"
-	KeyF8        = "f8"
-	KeyF9        = "f9"
-	KeyF10       = "f10"
-	KeyF11       = "f11"
-	KeyF12       = "f12"
+	KeyReturn    KeyName = "return"
+	KeyEnter     KeyName = "return" // KeyEnter is an alias for KeyReturn.
+	KeyEscape    KeyName = "escape"
+	KeyTab       KeyName = "tab"
+	KeyBackspace KeyName = "backspace"
+	KeyDelete    KeyName = "delete"
+	KeyInsert    KeyName = "insert"
+	KeyUp        KeyName = "up"
+	KeyDown      KeyName = "down"
+	KeyLeft      KeyName = "left"
+	KeyRight     KeyName = "right"
+	KeyHome      KeyName = "home"
+	KeyEnd       KeyName = "end"
+	KeyPageUp    KeyName = "pageup"
+	KeyPageDown  KeyName = "pagedown"
+	KeySpace     KeyName = "space"
+	KeyF1        KeyName = "f1"
+	KeyF2        KeyName = "f2"
+	KeyF3        KeyName = "f3"
+	KeyF4        KeyName = "f4"
+	KeyF5        KeyName = "f5"
+	KeyF6        KeyName = "f6"
+	KeyF7        KeyName = "f7"
+	KeyF8        KeyName = "f8"
+	KeyF9        KeyName = "f9"
+	KeyF10       KeyName = "f10"
+	KeyF11       KeyName = "f11"
+	KeyF12       KeyName = "f12"
 )
+
+// KeySource identifies the encoding a key event was read from.
+type KeySource int
+
+const (
+	// KeySourceRaw is a legacy terminal key sequence or a printable byte.
+	KeySourceRaw KeySource = iota
+	// KeySourceKitty is a Kitty keyboard protocol sequence.
+	KeySourceKitty
+)
+
+// String returns s's name, such as "kitty".
+func (s KeySource) String() string {
+	switch s {
+	case KeySourceRaw:
+		return "raw"
+	case KeySourceKitty:
+		return "kitty"
+	}
+	return "KeySource(" + strconv.Itoa(int(s)) + ")"
+}
 
 // KeyEvent describes one keyboard input event.
 type KeyEvent struct {
 	// Name is the canonical key name, such as "a", "return", "up", or "f1".
-	Name string
+	Name KeyName
 	// Text is the printable input text, or empty for a non-printable key.
 	Text string
-	// Ctrl reports whether Control was held.
-	Ctrl bool
-	// Shift reports whether Shift was held.
-	Shift bool
-	// Alt reports whether Alt was held.
-	Alt bool
-	// Meta reports whether a distinct Meta, Super, or Command key was held.
-	Meta bool
+	// Mods are the modifier keys held.
+	Mods Mods
 	// Raw is the original terminal input sequence.
 	Raw string
 	// Type is the key's press, release, or repeat state.
 	Type KeyEventType
 	// Code is the Kitty keyboard protocol code point, when available.
 	Code string
-	// Source is the parser source, either "raw" or "kitty".
-	Source string
-	// Repeated reports whether this is an automatic key repeat.
-	Repeated bool
+	// Source is the encoding the parser read the key from.
+	Source KeySource
 
 	propagationStopped bool
 	defaultPrevented   bool
@@ -113,48 +170,12 @@ func (e *KeyEvent) DefaultPrevented() bool { return e.defaultPrevented }
 // String returns the key combination in canonical modifier order, such as
 // "ctrl+shift+a".
 func (e *KeyEvent) String() string {
-	var parts []string
-	if e.Ctrl {
-		parts = append(parts, "ctrl")
-	}
-	if e.Alt {
-		parts = append(parts, "alt")
-	}
-	if e.Meta {
-		parts = append(parts, "meta")
-	}
-	if e.Shift {
-		parts = append(parts, "shift")
-	}
-	parts = append(parts, e.Name)
-	return strings.Join(parts, "+")
+	return comboString(e.Name, e.Mods)
 }
 
-// Matches reports whether the event has name and exactly the supplied
-// modifiers.
-func (e *KeyEvent) Matches(name string, modifiers ...Modifier) bool {
-	if e.Name != name {
-		return false
-	}
-
-	wantCtrl, wantShift, wantAlt, wantMeta := false, false, false, false
-	for _, m := range modifiers {
-		switch m {
-		case ModCtrl:
-			wantCtrl = true
-		case ModShift:
-			wantShift = true
-		case ModAlt:
-			wantAlt = true
-		case ModMeta:
-			wantMeta = true
-		}
-	}
-
-	return e.Ctrl == wantCtrl &&
-		e.Shift == wantShift &&
-		e.Alt == wantAlt &&
-		e.Meta == wantMeta
+// Matches reports whether the event has name and exactly the modifiers mods.
+func (e *KeyEvent) Matches(name KeyName, mods Mods) bool {
+	return e.Name == name && e.Mods == mods
 }
 
 // IsRune reports whether the event represents printable text without Control,
@@ -163,14 +184,14 @@ func (e *KeyEvent) Matches(name string, modifiers ...Modifier) bool {
 // A non-empty Text field identifies printable input. For events constructed
 // without Text, IsRune falls back to a Name containing exactly one rune.
 func (e *KeyEvent) IsRune() bool {
-	if e.Ctrl || e.Alt || e.Meta {
+	if e.Mods&(ModCtrl|ModAlt|ModMeta) != 0 {
 		return false
 	}
 	if len(e.Text) > 0 {
 		return true
 	}
 	// Support manually constructed events that predate the Text field.
-	return utf8.RuneCountInString(e.Name) == 1
+	return utf8.RuneCountInString(string(e.Name)) == 1
 }
 
 // Rune returns the first rune in Text, or in Name when Text is empty. It
@@ -183,6 +204,6 @@ func (e *KeyEvent) Rune() rune {
 		r, _ := utf8.DecodeRuneInString(e.Text)
 		return r
 	}
-	r, _ := utf8.DecodeRuneInString(e.Name)
+	r, _ := utf8.DecodeRuneInString(string(e.Name))
 	return r
 }

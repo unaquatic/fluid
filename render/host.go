@@ -6,9 +6,10 @@ type SelectionUpdateOption struct {
 	FinishDragging bool
 }
 
-// Context exposes renderer services to widgets. A detached widget uses
-// NoopContext.
-type Context interface {
+// Host is the renderer that hosts a widget, and exposes its services, such
+// as repainting, focus, hit testing, the cursor, and selection, to the
+// widget. A detached widget uses NoopHost.
+type Host interface {
 	// RequestRender marks the scene for repainting.
 	RequestRender()
 
@@ -45,58 +46,46 @@ type Context interface {
 
 	// ClearSelection discards the active text selection.
 	ClearSelection()
-
-	// RequestLive acquires a continuous-rendering reference.
-	RequestLive()
-
-	// DropLive releases a continuous-rendering reference.
-	DropLive()
 }
 
-// NoopContext implements Context without side effects. Test contexts can embed
-// it and override only the methods they observe.
-type NoopContext struct{}
+// NoopHost implements Host without side effects. Test hosts can embed it and
+// override only the methods they observe.
+type NoopHost struct{}
 
-var _ Context = NoopContext{}
+var _ Host = NoopHost{}
 
 // RequestRender does nothing.
-func (NoopContext) RequestRender() {}
+func (NoopHost) RequestRender() {}
 
 // FocusRenderable does nothing.
-func (NoopContext) FocusRenderable(Renderable) {}
+func (NoopHost) FocusRenderable(Renderable) {}
 
 // AddToHitGrid does nothing.
-func (NoopContext) AddToHitGrid(x, y, w, h int, id uint64) {}
+func (NoopHost) AddToHitGrid(x, y, w, h int, id uint64) {}
 
 // PushHitGridScissorRect does nothing.
-func (NoopContext) PushHitGridScissorRect(x, y, w, h int) {}
+func (NoopHost) PushHitGridScissorRect(x, y, w, h int) {}
 
 // PopHitGridScissorRect does nothing.
-func (NoopContext) PopHitGridScissorRect() {}
+func (NoopHost) PopHitGridScissorRect() {}
 
 // ClearHitGrid does nothing.
-func (NoopContext) ClearHitGrid() {}
+func (NoopHost) ClearHitGrid() {}
 
 // SetCursorPosition does nothing.
-func (NoopContext) SetCursorPosition(x, y int, visible bool) {}
+func (NoopHost) SetCursorPosition(x, y int, visible bool) {}
 
-// Selection returns nil, since a NoopContext never holds a selection.
-func (NoopContext) Selection() *Selection { return nil }
+// Selection returns nil, since a NoopHost never holds a selection.
+func (NoopHost) Selection() *Selection { return nil }
 
 // StartSelection does nothing.
-func (NoopContext) StartSelection(Renderable, int, int) {}
+func (NoopHost) StartSelection(Renderable, int, int) {}
 
 // UpdateSelection does nothing.
-func (NoopContext) UpdateSelection(Renderable, int, int, ...SelectionUpdateOption) {}
+func (NoopHost) UpdateSelection(Renderable, int, int, ...SelectionUpdateOption) {}
 
 // ClearSelection does nothing.
-func (NoopContext) ClearSelection() {}
+func (NoopHost) ClearSelection() {}
 
-// RequestLive does nothing.
-func (NoopContext) RequestLive() {}
-
-// DropLive does nothing.
-func (NoopContext) DropLive() {}
-
-// noopContext keeps detached BaseRenderable contexts non-nil.
-var noopContext Context = NoopContext{}
+// noopHost keeps the host of a detached BaseRenderable non-nil.
+var noopHost Host = NoopHost{}

@@ -1,6 +1,8 @@
 package widget
 
 import (
+	"time"
+
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/render"
@@ -61,7 +63,7 @@ func (s *Sparkline) AddPoint(v float64) {
 }
 
 // RenderSelf draws the sparkline.
-func (s *Sparkline) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (s *Sparkline) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	w := s.Width()
 	h := s.Height()
 	if w <= 0 || h <= 0 || len(s.data) == 0 {
@@ -161,17 +163,12 @@ func SparklineWithID(id string) SparklineOption {
 	return func(s *Sparkline) { s.SetID(id) }
 }
 
-// SparklineWithWidth sets the widget width.
-func SparklineWithWidth(sc layout.Scalar) SparklineOption {
-	return func(s *Sparkline) { s.LayoutNode().Width = sc }
-}
-
-// SparklineWithHeight sets the widget height.
-func SparklineWithHeight(sc layout.Scalar) SparklineOption {
-	return func(s *Sparkline) { s.LayoutNode().Height = sc }
-}
-
-// SparklineWithFlexGrow sets the flex-grow factor.
-func SparklineWithFlexGrow(v int) SparklineOption {
-	return func(s *Sparkline) { s.LayoutNode().FlexGrow = v }
+// SparklineWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func SparklineWithLayout(opts ...layout.Option) SparklineOption {
+	return func(w *Sparkline) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }

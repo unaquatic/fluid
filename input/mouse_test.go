@@ -66,9 +66,9 @@ func TestMouseEvent_String(t *testing.T) {
 
 func TestMouseEvent_String_WithModifiers(t *testing.T) {
 	ev := MouseEvent{
-		Type:      MouseDown,
-		Button:    ButtonLeft,
-		Modifiers: MouseModifiers{Ctrl: true, Alt: true},
+		Type:   MouseDown,
+		Button: ButtonLeft,
+		Mods:   ModCtrl | ModAlt,
 	}
 	s := ev.String()
 	if !strings.Contains(s, "ctrl") {

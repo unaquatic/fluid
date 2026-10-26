@@ -3,6 +3,7 @@ package widget
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/layout"
@@ -10,24 +11,27 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// LineInfoProvider reports the logical line count displayed by a target widget.
-type LineInfoProvider interface {
+// LineCounter reports the logical line count displayed by a target widget.
+type LineCounter interface {
 	LineCount() int
 }
 
-// ScrollInfoProvider reports a target widget's vertical scroll offset.
-type ScrollInfoProvider interface {
+// Scroller reports a target widget's vertical scroll offset.
+type Scroller interface {
 	ScrollY() int
 }
 
-// CursorInfoProvider reports the logical cursor row used for active-line styling.
-type CursorInfoProvider interface {
-	CursorRow() int
+// CursorTracker reports the cursor position of a target widget, whose
+// logical row LineNumber styles as the active line.
+type CursorTracker interface {
+	// CursorPosition returns the cursor's logical row and display column.
+	CursorPosition() (row, col int)
 }
 
-// VisualLineProvider maps wrapped visual lines to logical source lines.
-// LineNumber leaves continuation rows blank when a target implements this interface.
-type VisualLineProvider interface {
+// LineMapper maps the wrapped visual lines a target widget shows to its
+// logical source lines. LineNumber leaves continuation rows blank when a
+// target implements this interface.
+type LineMapper interface {
 	VisualLineCount() int
 	// LogicalLineForVisualLine returns the logical line for a visual line index.
 	LogicalLineForVisualLine(visualLine int) int
@@ -64,6 +68,12 @@ type LineColorConfig struct {
 // LineNumber draws a gutter synchronized with a target renderable.
 // It supports wrapped and relative numbering, active-line styles, signs,
 // custom numbers, and per-line gutter or content backgrounds.
+//
+// Without an explicit width, the gutter is as wide as its numbers. The target
+// changes its line count without the gutter knowing, so only drawing finds a
+// new width: when the count gains a digit, as from 999 lines to 1000, one
+// frame draws the numbers cut off at the old width, and the next frame lays
+// the gutter out at the new one.
 type LineNumber struct {
 	*render.BaseRenderable
 
@@ -88,6 +98,19 @@ type LineNumber struct {
 	// Sign widths reserve stable columns across every gutter row.
 	maxBeforeWidth int
 	maxAfterWidth  int
+
+	// drawn is the state of the target the gutter last drew, which the
+	// target can change without the gutter, as by scrolling.
+	drawn targetState
+	// measuredWidth is the width the gutter reported when the layout last
+	// measured it, or -1 when the layout never has, as when options set both
+	// its width and height.
+	measuredWidth int
+}
+
+// targetState holds what of a LineNumber's target its gutter shows.
+type targetState struct {
+	lineCount, scrollY, activeLine, visualLines, height int
 }
 
 // LineNumberOption configures a LineNumber widget.
@@ -108,6 +131,21 @@ func NewLineNumber(target render.Renderable, opts ...LineNumberOption) *LineNumb
 		mode:             LineNumberAbsolute,
 		separator:        0,
 		separatorFg:      style.ColorGray,
+		measuredWidth:    -1,
+	}
+
+	// Size the gutter to its numbers when no option sets its width.
+	ln.LayoutNode().Measure = func(
+		width int, widthMode layout.MeasureMode,
+		height int, heightMode layout.MeasureMode,
+	) layout.MeasureResult {
+		w := ln.ComputedWidth()
+		ln.measuredWidth = w
+		h := height
+		if heightMode == layout.MeasureUndefined {
+			h = ln.getLineCount()
+		}
+		return layout.MeasureResult{Width: w, Height: h}
 	}
 
 	for _, opt := range opts {
@@ -117,9 +155,67 @@ func NewLineNumber(target render.Renderable, opts ...LineNumberOption) *LineNumb
 	return ln
 }
 
+// targetState returns the state of the target that the gutter shows.
+func (ln *LineNumber) targetState() targetState {
+	st := targetState{activeLine: -1}
+	if ln.target == nil {
+		return st
+	}
+	st.lineCount = ln.getLineCount()
+	st.scrollY = ln.getScrollY()
+	st.activeLine = ln.getActiveLine()
+	if m, ok := ln.target.(LineMapper); ok {
+		st.visualLines = m.VisualLineCount()
+	}
+	st.height = ln.target.Height()
+	return st
+}
+
+// targetChanged reports whether the target changed what the gutter shows
+// since it last drew, as by scrolling or moving its cursor. A gutter with no
+// area shows nothing, and never draws, so its target cannot change it.
+func (ln *LineNumber) targetChanged() bool {
+	return ln.Width() > 0 && ln.Height() > 0 && ln.targetState() != ln.drawn
+}
+
+// remeasure lays the gutter out again when the width of its numbers no
+// longer matches the width the layout measured, as when the target's line
+// count gains a digit or a setter adds a sign column. It reports whether it
+// did.
+func (ln *LineNumber) remeasure() bool {
+	w := ln.ComputedWidth()
+	if ln.measuredWidth < 0 || w == ln.measuredWidth {
+		return false
+	}
+	ln.measuredWidth = w
+	ln.LayoutNode().MarkDirty()
+	return true
+}
+
+// IsDirty reports whether the gutter needs repainting: whether the widget
+// changed, its target changed what the gutter shows, or the layout resized
+// the gutter, as when the target's line count gains a digit, without the
+// gutter taking the new size yet.
+func (ln *LineNumber) IsDirty() bool {
+	c := ln.LayoutNode().Computed
+	return ln.BaseRenderable.IsDirty() || ln.targetChanged() ||
+		c.Width != ln.Width() || c.Height != ln.Height()
+}
+
+// Damage returns the region to repaint, which covers the gutter when its
+// target changed what the gutter shows since it last drew.
+func (ln *LineNumber) Damage() buffer.Rect {
+	d := ln.BaseRenderable.Damage()
+	if ln.Visible() && !ln.IsDestroyed() && ln.targetChanged() {
+		d = d.Union(ln.Rect())
+	}
+	return d
+}
+
 // SetTarget changes the widget that supplies line, scroll, and cursor data.
 func (ln *LineNumber) SetTarget(target render.Renderable) {
 	ln.target = target
+	ln.remeasure()
 	ln.RequestRender()
 }
 
@@ -140,6 +236,7 @@ func (ln *LineNumber) Mode() LineNumberMode { return ln.mode }
 // SetShowLineNumbers controls whether the gutter is displayed.
 func (ln *LineNumber) SetShowLineNumbers(v bool) {
 	ln.showLineNumbers = v
+	ln.remeasure()
 	ln.RequestRender()
 }
 
@@ -158,12 +255,14 @@ func (ln *LineNumber) SetLineColors(colors map[int]LineColorConfig) {
 func (ln *LineNumber) SetLineSigns(signs map[int]LineSign) {
 	ln.lineSigns = signs
 	ln.calculateSignWidths()
+	ln.remeasure()
 	ln.RequestRender()
 }
 
 // SetLineNumbers maps zero-based logical lines to displayed numbers.
 func (ln *LineNumber) SetLineNumbers(numbers map[int]int) {
 	ln.lineNumbers = numbers
+	ln.remeasure()
 	ln.RequestRender()
 }
 
@@ -225,7 +324,15 @@ func (ln *LineNumber) ComputedWidth() int {
 // LineNumber rendering.
 
 // RenderSelf draws the line numbers and per-line content backgrounds.
-func (ln *LineNumber) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (ln *LineNumber) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
+	ln.drawn = ln.targetState()
+
+	// The target changes its line count without the gutter, so only drawing
+	// finds the width it needs. The next frame lays the gutter out at it.
+	if ln.remeasure() {
+		ln.RequestRender()
+	}
+
 	w := ln.Width()
 	h := ln.Height()
 	if w <= 0 || h <= 0 {
@@ -253,10 +360,10 @@ func (ln *LineNumber) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 
 	// Wrapped targets provide visual-to-logical line mapping.
 	hasVisualLines := false
-	var vlp VisualLineProvider
-	if vl, ok := ln.target.(VisualLineProvider); ok {
+	var lm LineMapper
+	if m, ok := ln.target.(LineMapper); ok {
 		hasVisualLines = true
-		vlp = vl
+		lm = m
 	}
 
 	// numWidth excludes sign and separator columns.
@@ -266,12 +373,14 @@ func (ln *LineNumber) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 		sepWidth = 1
 	}
 
-	// ComputedWidth locates the target content area for row backgrounds.
-	gutterW := ln.ComputedWidth()
+	// ComputedWidth locates the target content area for row backgrounds. A
+	// gutter narrower than its numbers, as for the frame before the layout
+	// widens it, clips them at its edge.
+	gutterW := min(ln.ComputedWidth(), w)
 
 	// Paint configured target-row backgrounds before drawing the gutter.
 	if ln.lineColors != nil && ln.showLineNumbers {
-		ln.drawContentBackgrounds(buf, x, y, w, h, gutterW, scrollY, lineCount, hasVisualLines, vlp)
+		ln.drawContentBackgrounds(buf, x, y, w, h, gutterW, scrollY, lineCount, hasVisualLines, lm)
 	}
 
 	if !ln.showLineNumbers {
@@ -288,11 +397,11 @@ func (ln *LineNumber) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 		isFirstVisualLine := true
 
 		if hasVisualLines {
-			totalVisual := vlp.VisualLineCount()
+			totalVisual := lm.VisualLineCount()
 			if visualLine < totalVisual {
-				logicalLine = vlp.LogicalLineForVisualLine(visualLine)
+				logicalLine = lm.LogicalLineForVisualLine(visualLine)
 				if visualLine > 0 {
-					prevLogical := vlp.LogicalLineForVisualLine(visualLine - 1)
+					prevLogical := lm.LogicalLineForVisualLine(visualLine - 1)
 					isFirstVisualLine = prevLogical != logicalLine
 				}
 			}
@@ -396,7 +505,7 @@ func (ln *LineNumber) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 		if availDigits < 1 {
 			availDigits = 1
 		}
-		padded := strings.Repeat(" ", availDigits-len(numStr)) + numStr + trailingSpace
+		padded := strings.Repeat(" ", max(availDigits-len(numStr), 0)) + numStr + trailingSpace
 		for _, r := range padded {
 			if cx-x >= gutterW-sepWidth-ln.maxAfterWidth {
 				break
@@ -430,7 +539,7 @@ func (ln *LineNumber) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 }
 
 // drawContentBackgrounds paints configured target-row backgrounds to the right of the gutter.
-func (ln *LineNumber) drawContentBackgrounds(buf *buffer.Buffer, x, y, w, h, gutterW, scrollY, lineCount int, hasVisualLines bool, vlp VisualLineProvider) {
+func (ln *LineNumber) drawContentBackgrounds(buf *buffer.Buffer, x, y, w, h, gutterW, scrollY, lineCount int, hasVisualLines bool, lm LineMapper) {
 	contentX := x + gutterW
 	contentW := w - gutterW
 	if contentW <= 0 {
@@ -443,9 +552,9 @@ func (ln *LineNumber) drawContentBackgrounds(buf *buffer.Buffer, x, y, w, h, gut
 
 		logicalLine := -1
 		if hasVisualLines {
-			totalVisual := vlp.VisualLineCount()
+			totalVisual := lm.VisualLineCount()
 			if visualLine < totalVisual {
-				logicalLine = vlp.LogicalLineForVisualLine(visualLine)
+				logicalLine = lm.LogicalLineForVisualLine(visualLine)
 			}
 		} else {
 			if visualLine < lineCount {
@@ -465,24 +574,25 @@ func (ln *LineNumber) drawContentBackgrounds(buf *buffer.Buffer, x, y, w, h, gut
 
 // getLineCount returns the target's logical line count, or zero when unsupported.
 func (ln *LineNumber) getLineCount() int {
-	if lip, ok := ln.target.(LineInfoProvider); ok {
-		return lip.LineCount()
+	if lc, ok := ln.target.(LineCounter); ok {
+		return lc.LineCount()
 	}
 	return 0
 }
 
 // getScrollY returns the target's vertical offset, or zero when unsupported.
 func (ln *LineNumber) getScrollY() int {
-	if sip, ok := ln.target.(ScrollInfoProvider); ok {
-		return sip.ScrollY()
+	if sc, ok := ln.target.(Scroller); ok {
+		return sc.ScrollY()
 	}
 	return 0
 }
 
 // getActiveLine returns the target's cursor row, or -1 when unsupported.
 func (ln *LineNumber) getActiveLine() int {
-	if cip, ok := ln.target.(CursorInfoProvider); ok {
-		return cip.CursorRow()
+	if ct, ok := ln.target.(CursorTracker); ok {
+		row, _ := ct.CursorPosition()
+		return row
 	}
 	return -1
 }
@@ -549,6 +659,7 @@ func (ln *LineNumber) SetActiveBg(c style.Color) {
 // SetSeparator sets the separator character drawn after the gutter (0 to disable).
 func (ln *LineNumber) SetSeparator(r rune) {
 	ln.separator = r
+	ln.remeasure()
 	ln.RequestRender()
 }
 
@@ -632,12 +743,12 @@ func LineNumberWithID(id string) LineNumberOption {
 	return func(ln *LineNumber) { ln.SetID(id) }
 }
 
-// LineNumberWithWidth sets the widget width.
-func LineNumberWithWidth(s layout.Scalar) LineNumberOption {
-	return func(ln *LineNumber) { ln.LayoutNode().Width = s }
-}
-
-// LineNumberWithHeight sets the widget height.
-func LineNumberWithHeight(s layout.Scalar) LineNumberOption {
-	return func(ln *LineNumber) { ln.LayoutNode().Height = s }
+// LineNumberWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func LineNumberWithLayout(opts ...layout.Option) LineNumberOption {
+	return func(w *LineNumber) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }

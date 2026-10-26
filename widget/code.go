@@ -2,6 +2,7 @@ package widget
 
 import (
 	"strings"
+	"time"
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
@@ -11,18 +12,18 @@ import (
 	"github.com/unaquatic/fluid/textbuf"
 )
 
-// HighlightContext identifies the source and theme supplied to an OnHighlightCallback.
-type HighlightContext struct {
+// HighlightInfo identifies the source and theme supplied to a HighlightFunc.
+type HighlightInfo struct {
 	// Content is the source being highlighted.
 	Content string
 	// Filetype is the source's language, as the Code widget was given it.
 	Filetype string
-	// Theme is the name of the Chroma theme, such as "monokai".
-	Theme string
+	// Theme is the theme whose code palette colors the source.
+	Theme *style.Theme
 }
 
-// OnHighlightCallback transforms highlighted lines before Code stores them for rendering.
-type OnHighlightCallback func(lines []textbuf.Line, ctx HighlightContext) []textbuf.Line
+// HighlightFunc transforms highlighted lines before Code stores them for rendering.
+type HighlightFunc func(lines []textbuf.Line, info HighlightInfo) []textbuf.Line
 
 // SelectionRange contains the start and end character offsets of a selection.
 type SelectionRange struct {
@@ -41,9 +42,9 @@ type Code struct {
 	filetype   string // language identifier
 	fg         style.Color
 	bg         style.Color
-	wrapMode   WrapMode
-	theme      string // theme name (e.g. "monokai", "dracula")
-	attributes uint32 // default text attributes
+	wrapMode   textbuf.WrapMode
+	theme      *style.Theme // theme whose code palette colors tokens
+	attributes style.Attrs  // default text attributes
 
 	// conceal controls whether formatting text marked as concealed is hidden.
 	conceal bool
@@ -61,7 +62,7 @@ type Code struct {
 	truncate bool
 
 	// onHighlight can transform the highlighter output before it is stored.
-	onHighlight OnHighlightCallback
+	onHighlight HighlightFunc
 
 	// Scroll
 	scrollX int
@@ -70,7 +71,7 @@ type Code struct {
 	// Selection
 	selectable_ bool
 	selectionBg style.Color
-	selectionFg *style.Color
+	selectionFg style.Color
 
 	// Active line highlighting
 	activeLine   int // -1 = none
@@ -111,8 +112,7 @@ func NewCode(content string, opts ...CodeOption) *Code {
 		content:                content,
 		fg:                     style.ColorWhite,
 		bg:                     style.ColorTransparent,
-		wrapMode:               WrapWord,
-		theme:                  "monokai",
+		wrapMode:               textbuf.WrapWord,
 		conceal:                true,
 		drawUnstyledText:       true,
 		shouldRenderTextBuffer: true,
@@ -134,9 +134,12 @@ func NewCode(content string, opts ...CodeOption) *Code {
 	tb.SetDefaultBg(c.bg)
 	tb.SetExpandTabs(true)
 
-	// Use Chroma unless the caller supplied a highlighter.
+	// Use a Highlighter unless the caller supplied a highlighter.
+	if c.theme == nil {
+		c.theme = defaultTheme()
+	}
 	if c.highlighter == nil {
-		c.highlighter = NewChromaHighlighter(c.theme)
+		c.highlighter = NewHighlighter(c.theme)
 	}
 
 	// Populate the text buffer before the first measurement or render.
@@ -230,12 +233,12 @@ func (c *Code) highlightContent() {
 
 	// Allow callers to transform successful highlighter output.
 	if c.onHighlight != nil {
-		ctx := HighlightContext{
+		info := HighlightInfo{
 			Content:  c.content,
 			Filetype: c.filetype,
 			Theme:    c.theme,
 		}
-		highlighted = c.onHighlight(highlighted, ctx)
+		highlighted = c.onHighlight(highlighted, info)
 	}
 
 	c.textBuf.SetLines(highlighted)
@@ -348,24 +351,30 @@ func (c *Code) Streaming() bool { return c.streaming }
 
 // Theme configuration.
 
-// SetTheme sets the syntax highlighting theme by name (e.g. "monokai", "dracula", "github").
-func (c *Code) SetTheme(name string) {
-	if c.theme == name {
+// SetTheme sets the theme whose code palette colors the source. A nil
+// theme selects style.DefaultDark.
+func (c *Code) SetTheme(t *style.Theme) {
+	if t == nil {
+		t = defaultTheme()
+	}
+	if c.theme == t {
 		return
 	}
-	c.theme = name
+	c.theme = t
 	// Update highlighters that expose mutable theme selection.
-	type themeSetter interface{ SetTheme(string) }
+	type themeSetter interface{ SetTheme(*style.Theme) }
 	if ts, ok := c.highlighter.(themeSetter); ok {
-		ts.SetTheme(name)
+		ts.SetTheme(t)
 	}
 	c.linesDirty = true
 	c.highlightContent()
 	c.RequestRender()
 }
 
-// Theme returns the current theme name.
-func (c *Code) Theme() string { return c.theme }
+// Theme returns the theme whose code palette colors the source. Without one
+// set, it is a default theme that every such Code shares, which must not be
+// changed.
+func (c *Code) Theme() *style.Theme { return c.theme }
 
 // Conceal returns whether concealed text is hidden.
 func (c *Code) Conceal() bool { return c.conceal }
@@ -409,10 +418,10 @@ func (c *Code) SetTruncate(v bool) {
 func (c *Code) TextBuffer() *textbuf.TextBuffer { return c.textBuf }
 
 // Attributes returns the default text attribute bitmask.
-func (c *Code) Attributes() uint32 { return c.attributes }
+func (c *Code) Attributes() style.Attrs { return c.attributes }
 
 // SetAttributes sets the default text attributes.
-func (c *Code) SetAttributes(attrs uint32) {
+func (c *Code) SetAttributes(attrs style.Attrs) {
 	if c.attributes != attrs {
 		c.attributes = attrs
 		c.linesDirty = true
@@ -421,14 +430,14 @@ func (c *Code) SetAttributes(attrs uint32) {
 }
 
 // SetOnHighlight sets the transformation applied to successful highlighter output.
-func (c *Code) SetOnHighlight(fn OnHighlightCallback) {
+func (c *Code) SetOnHighlight(fn HighlightFunc) {
 	c.onHighlight = fn
 	c.linesDirty = true
 	c.RequestRender()
 }
 
-// OnHighlightFn returns the current highlight transformation, or nil.
-func (c *Code) OnHighlightFn() OnHighlightCallback { return c.onHighlight }
+// OnHighlight returns the current highlight transformation, or nil.
+func (c *Code) OnHighlight() HighlightFunc { return c.onHighlight }
 
 // PlainText returns the raw content string (without styling).
 func (c *Code) PlainText() string { return c.content }
@@ -539,7 +548,7 @@ func (c *Code) ScrollToBottom() {
 // handleScroll processes mouse scroll events.
 func (c *Code) handleScroll(deltaX, deltaY int) {
 	c.SetScrollY(c.scrollY + deltaY)
-	if c.wrapMode == WrapNone {
+	if c.wrapMode == textbuf.WrapNone {
 		c.SetScrollX(c.scrollX + deltaX)
 	}
 }
@@ -568,7 +577,7 @@ func (c *Code) SetSelectable(v bool) {
 
 // SelectedText returns the text covered by the active selection in this widget.
 func (c *Code) SelectedText() string {
-	sel := c.Context().Selection()
+	sel := c.Host().Selection()
 	if sel == nil || !sel.IsActive() {
 		return ""
 	}
@@ -616,7 +625,7 @@ func (c *Code) SelectedText() string {
 
 // HasSelection reports whether an active selection intersects this widget.
 func (c *Code) HasSelection() bool {
-	sel := c.Context().Selection()
+	sel := c.Host().Selection()
 	if sel == nil || !sel.IsActive() {
 		return false
 	}
@@ -637,7 +646,7 @@ func (c *Code) ShouldStartSelection(x, y int) bool {
 // Selection returns the character-offset range of the current selection,
 // or nil if there is no active selection intersecting this widget.
 func (c *Code) Selection() *SelectionRange {
-	sel := c.Context().Selection()
+	sel := c.Host().Selection()
 	if sel == nil || !sel.IsActive() {
 		return nil
 	}
@@ -718,7 +727,7 @@ func (c *Code) SetBg(bg style.Color) {
 }
 
 // SetWrapMode sets the wrap mode.
-func (c *Code) SetWrapMode(m WrapMode) {
+func (c *Code) SetWrapMode(m textbuf.WrapMode) {
 	if c.wrapMode != m {
 		c.wrapMode = m
 		c.textSurface.SetWrapMode(m)
@@ -733,12 +742,12 @@ func (c *Code) Fg() style.Color { return c.fg }
 func (c *Code) Bg() style.Color { return c.bg }
 
 // WrapModeValue returns the configured wrap mode.
-func (c *Code) WrapModeValue() WrapMode { return c.wrapMode }
+func (c *Code) WrapModeValue() textbuf.WrapMode { return c.wrapMode }
 
 // Rendering.
 
 // RenderSelf draws the code content into the buffer.
-func (c *Code) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (c *Code) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	w := c.Width()
 	h := c.Height()
 	if w <= 0 || h <= 0 {
@@ -795,7 +804,7 @@ func (c *Code) syncSelection() {
 	if !c.selectable_ {
 		return
 	}
-	sel := c.Context().Selection()
+	sel := c.Host().Selection()
 	if sel == nil || !sel.IsActive() {
 		return
 	}
@@ -804,7 +813,7 @@ func (c *Code) syncSelection() {
 		return
 	}
 	bg := c.selectionBg
-	c.textSurface.SetLocalSelection(localSel.AnchorX, localSel.AnchorY, localSel.FocusX, localSel.FocusY, &bg, c.selectionFg)
+	c.textSurface.SetLocalSelection(localSel.AnchorX, localSel.AnchorY, localSel.FocusX, localSel.FocusY, bg, c.selectionFg)
 }
 
 // LogicalLineForVisualLine returns the logical source line for a wrapped visual line.
@@ -835,8 +844,8 @@ func (c *Code) LineHighlights(lineIdx int) []style.TextChunk {
 		bg := sp.Bg
 		chunks[i] = style.TextChunk{
 			Text:       sp.Text,
-			Fg:         &fg,
-			Bg:         &bg,
+			Fg:         fg,
+			Bg:         bg,
 			Attributes: sp.Attributes,
 		}
 	}
@@ -861,7 +870,7 @@ func CodeWithBg(color style.Color) CodeOption {
 }
 
 // CodeWithWrapMode sets the wrap mode.
-func CodeWithWrapMode(m WrapMode) CodeOption {
+func CodeWithWrapMode(m textbuf.WrapMode) CodeOption {
 	return func(c *Code) { c.wrapMode = m }
 }
 
@@ -870,9 +879,10 @@ func CodeWithStreaming(v bool) CodeOption {
 	return func(c *Code) { c.streaming = v }
 }
 
-// CodeWithTheme sets the syntax highlighting theme name.
-func CodeWithTheme(name string) CodeOption {
-	return func(c *Code) { c.theme = name }
+// CodeWithTheme sets the theme whose code palette colors the source. A nil
+// theme selects style.DefaultDark.
+func CodeWithTheme(t *style.Theme) CodeOption {
+	return func(c *Code) { c.theme = t }
 }
 
 // CodeWithSelectable controls whether pointer selections can start in the code.
@@ -887,7 +897,7 @@ func CodeWithSelectionBg(color style.Color) CodeOption {
 
 // CodeWithSelectionFg sets the selection foreground color.
 func CodeWithSelectionFg(color style.Color) CodeOption {
-	return func(c *Code) { c.selectionFg = &color }
+	return func(c *Code) { c.selectionFg = color }
 }
 
 // CodeWithScrollX sets the initial horizontal scroll offset.
@@ -915,19 +925,14 @@ func CodeWithID(id string) CodeOption {
 	return func(c *Code) { c.SetID(id) }
 }
 
-// CodeWithWidth sets the widget width.
-func CodeWithWidth(s layout.Scalar) CodeOption {
-	return func(c *Code) { c.LayoutNode().Width = s }
-}
-
-// CodeWithHeight sets the widget height.
-func CodeWithHeight(s layout.Scalar) CodeOption {
-	return func(c *Code) { c.LayoutNode().Height = s }
-}
-
-// CodeWithFlexGrow sets the flex-grow factor.
-func CodeWithFlexGrow(v int) CodeOption {
-	return func(c *Code) { c.LayoutNode().FlexGrow = v }
+// CodeWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func CodeWithLayout(opts ...layout.Option) CodeOption {
+	return func(w *Code) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }
 
 // CodeWithConceal controls whether concealed text is hidden; the default is true.
@@ -946,17 +951,17 @@ func CodeWithTruncate(v bool) CodeOption {
 }
 
 // CodeWithAttributes sets the default text attributes.
-func CodeWithAttributes(attrs uint32) CodeOption {
+func CodeWithAttributes(attrs style.Attrs) CodeOption {
 	return func(c *Code) { c.attributes = attrs }
 }
 
 // CodeWithOnHighlight sets the transformation applied after successful highlighting.
-func CodeWithOnHighlight(fn OnHighlightCallback) CodeOption {
+func CodeWithOnHighlight(fn HighlightFunc) CodeOption {
 	return func(c *Code) { c.onHighlight = fn }
 }
 
 // CodeWithHighlighter sets a custom SyntaxHighlighter implementation.
-// When nil (default), a ChromaHighlighter is used.
+// When nil (default), a Highlighter of the Code's theme is used.
 func CodeWithHighlighter(h SyntaxHighlighter) CodeOption {
 	return func(c *Code) { c.highlighter = h }
 }

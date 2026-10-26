@@ -4,60 +4,6 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// WidthMethod selects code-point or grapheme-cluster terminal width calculation.
-//
-// WcWidth sums each code point's East Asian width. Unicode segments text using
-// UAX #29 before calculating each cluster's width.
-type WidthMethod int
-
-const (
-	// WcWidth sums per-code-point widths.
-	WcWidth WidthMethod = iota
-
-	// Unicode calculates widths for extended grapheme clusters.
-	Unicode
-)
-
-// String returns w's name.
-func (w WidthMethod) String() string {
-	switch w {
-	case WcWidth:
-		return "wcwidth"
-	case Unicode:
-		return "unicode"
-	default:
-		return "unknown"
-	}
-}
-
-// ParseWidthMethod returns WcWidth for "wcwidth" and Unicode for every other
-// value.
-func ParseWidthMethod(s string) WidthMethod {
-	switch s {
-	case "wcwidth":
-		return WcWidth
-	default:
-		return Unicode
-	}
-}
-
-// DefaultWidthMethod returns Unicode.
-func DefaultWidthMethod() WidthMethod {
-	return Unicode
-}
-
-// StringWidthMethod returns s's terminal width using m.
-func StringWidthMethod(s string, m WidthMethod) int {
-	if m == WcWidth {
-		w := 0
-		for _, r := range s {
-			w += RuneWidth(r)
-		}
-		return w
-	}
-	return StringWidth(s)
-}
-
 // ClusterWidth returns at least one column for a grapheme cluster. This lets
 // cursor movement advance past isolated zero-width clusters.
 func ClusterWidth(cw int) int {
@@ -92,10 +38,12 @@ type Viewport struct {
 type TextSelection struct {
 	// Start and End are the inclusive start and exclusive end offsets.
 	Start, End int
-	// BgColor is the selected text's background; nil leaves the text's.
-	BgColor *style.Color
-	// FgColor is the selected text's foreground; nil leaves the text's.
-	FgColor *style.Color
+	// BgColor is the selected text's background; a transparent one leaves
+	// the text's.
+	BgColor style.Color
+	// FgColor is the selected text's foreground; a transparent one leaves
+	// the text's.
+	FgColor style.Color
 }
 
 // Span is a run of text with uniform styling.
@@ -107,7 +55,7 @@ type Span struct {
 	// Bg is the background color.
 	Bg style.Color
 	// Attributes is a bitmask of the style.Attr flags, such as style.AttrBold.
-	Attributes uint32
+	Attributes style.Attrs
 	// Width is the cached display width; zero can mean not yet measured.
 	Width int
 }
@@ -125,7 +73,7 @@ type VirtualChunk struct {
 	// Bg is the background color.
 	Bg style.Color
 	// Attributes is a bitmask of the style.Attr flags, such as style.AttrBold.
-	Attributes uint32
+	Attributes style.Attrs
 }
 
 // VirtualLine is one visual row produced by wrapping a logical source line.

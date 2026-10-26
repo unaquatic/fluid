@@ -19,10 +19,7 @@ var demoLayoutCmd = Demo{
 
 func runLayoutDemo(ctx context.Context, o DemoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
-		Fullscreen:  true,
-		ExitOnCtrlC: true,
-		UseMouse:    !o.NoMouse,
-		TargetFPS:   o.FPS,
+		UseMouse: !o.NoMouse,
 	})
 	if err != nil {
 		return fmt.Errorf("renderer: %w", err)
@@ -32,17 +29,21 @@ func runLayoutDemo(ctx context.Context, o DemoOptions) error {
 
 	outer := widget.NewBox(
 		widget.BoxWithID("outer"),
-		widget.BoxWithFlexGrow(1),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
+		widget.BoxWithLayout(
+			layout.WithFlexGrow(1),
+			layout.WithFlexDirection(layout.DirectionColumn),
+		),
 		widget.Children(
 			widget.NewBox(
 				widget.BoxWithID("header"),
-				widget.BoxWithHeight(layout.Points(3)),
+				widget.BoxWithLayout(
+					layout.WithHeight(layout.Points(3)),
+					layout.WithPadding(layout.Points(1)),
+					layout.WithJustifyContent(layout.JustifyCenter),
+					layout.WithAlignItems(layout.AlignCenter),
+				),
 				widget.BoxWithBorder(style.BorderSides(style.SideBottom)),
 				widget.BoxWithBorderStyle(style.BorderSingle),
-				widget.BoxWithPadding(layout.Points(1)),
-				widget.BoxWithJustifyContent(layout.JustifyCenter),
-				widget.BoxWithAlignItems(layout.AlignCenter),
 				widget.Children(
 					widget.NewText("Fluid Layout Demo"),
 				),
@@ -50,20 +51,24 @@ func runLayoutDemo(ctx context.Context, o DemoOptions) error {
 
 			widget.NewBox(
 				widget.BoxWithID("body"),
-				widget.BoxWithFlexGrow(1),
-				widget.BoxWithFlexDirection(layout.DirectionRow),
-				widget.BoxWithGap(layout.Points(1)),
-				widget.BoxWithPadding(layout.Points(1)),
+				widget.BoxWithLayout(
+					layout.WithFlexGrow(1),
+					layout.WithFlexDirection(layout.DirectionRow),
+					layout.WithPadding(layout.Points(1)),
+					layout.WithGap(1),
+				),
 				widget.Children(
 					widget.NewBox(
 						widget.BoxWithID("col1"),
-						widget.BoxWithFlexGrow(1),
+						widget.BoxWithLayout(
+							layout.WithFlexGrow(1),
+							layout.WithFlexDirection(layout.DirectionColumn),
+							layout.WithPadding(layout.Points(1)),
+							layout.WithGap(1),
+						),
 						widget.BoxWithBorder(style.BorderAll()),
 						widget.BoxWithBorderStyle(style.BorderSingle),
 						widget.BoxWithTitle("Grow: 1"),
-						widget.BoxWithFlexDirection(layout.DirectionColumn),
-						widget.BoxWithPadding(layout.Points(1)),
-						widget.BoxWithGap(layout.Points(1)),
 						widget.Children(
 							widget.NewText("flexGrow: 1"),
 							widget.NewText("This column takes"),
@@ -73,30 +78,36 @@ func runLayoutDemo(ctx context.Context, o DemoOptions) error {
 
 					widget.NewBox(
 						widget.BoxWithID("col2"),
-						widget.BoxWithFlexGrow(2),
+						widget.BoxWithLayout(
+							layout.WithFlexGrow(2),
+							layout.WithFlexDirection(layout.DirectionColumn),
+							layout.WithPadding(layout.Points(1)),
+							layout.WithGap(1),
+						),
 						widget.BoxWithBorder(style.BorderAll()),
 						widget.BoxWithBorderStyle(style.BorderSingle),
 						widget.BoxWithTitle("Grow: 2 (nested)"),
-						widget.BoxWithFlexDirection(layout.DirectionColumn),
-						widget.BoxWithPadding(layout.Points(1)),
-						widget.BoxWithGap(layout.Points(1)),
 						widget.Children(
 							widget.NewText("flexGrow: 2 — 2/4 of space"),
 
 							widget.NewBox(
 								widget.BoxWithID("nested-row"),
-								widget.BoxWithFlexDirection(layout.DirectionRow),
-								widget.BoxWithFlexGrow(1),
-								widget.BoxWithGap(layout.Points(1)),
+								widget.BoxWithLayout(
+									layout.WithFlexDirection(layout.DirectionRow),
+									layout.WithFlexGrow(1),
+									layout.WithGap(1),
+								),
 								widget.Children(
 									widget.NewBox(
 										widget.BoxWithID("nested-a"),
-										widget.BoxWithFlexGrow(1),
+										widget.BoxWithLayout(
+											layout.WithFlexGrow(1),
+											layout.WithPadding(layout.Points(1)),
+											layout.WithFlexDirection(layout.DirectionColumn),
+										),
 										widget.BoxWithBorder(style.BorderAll()),
 										widget.BoxWithBorderStyle(style.BorderSingle),
 										widget.BoxWithTitle("Nested A"),
-										widget.BoxWithPadding(layout.Points(1)),
-										widget.BoxWithFlexDirection(layout.DirectionColumn),
 										widget.Children(
 											widget.NewText("Sub-box A"),
 											widget.NewText("grow: 1"),
@@ -104,12 +115,14 @@ func runLayoutDemo(ctx context.Context, o DemoOptions) error {
 									),
 									widget.NewBox(
 										widget.BoxWithID("nested-b"),
-										widget.BoxWithFlexGrow(1),
+										widget.BoxWithLayout(
+											layout.WithFlexGrow(1),
+											layout.WithPadding(layout.Points(1)),
+											layout.WithFlexDirection(layout.DirectionColumn),
+										),
 										widget.BoxWithBorder(style.BorderAll()),
 										widget.BoxWithBorderStyle(style.BorderSingle),
 										widget.BoxWithTitle("Nested B"),
-										widget.BoxWithPadding(layout.Points(1)),
-										widget.BoxWithFlexDirection(layout.DirectionColumn),
 										widget.Children(
 											widget.NewText("Sub-box B"),
 											widget.NewText("grow: 1"),
@@ -122,13 +135,15 @@ func runLayoutDemo(ctx context.Context, o DemoOptions) error {
 
 					widget.NewBox(
 						widget.BoxWithID("col3"),
-						widget.BoxWithFlexGrow(1),
+						widget.BoxWithLayout(
+							layout.WithFlexGrow(1),
+							layout.WithFlexDirection(layout.DirectionColumn),
+							layout.WithPadding(layout.Points(1)),
+							layout.WithGap(1),
+						),
 						widget.BoxWithBorder(style.BorderAll()),
 						widget.BoxWithBorderStyle(style.BorderSingle),
 						widget.BoxWithTitle("Grow: 1"),
-						widget.BoxWithFlexDirection(layout.DirectionColumn),
-						widget.BoxWithPadding(layout.Points(1)),
-						widget.BoxWithGap(layout.Points(1)),
 						widget.Children(
 							widget.NewText("flexGrow: 1"),
 							widget.NewText("This column takes"),
@@ -143,12 +158,14 @@ func runLayoutDemo(ctx context.Context, o DemoOptions) error {
 
 			widget.NewBox(
 				widget.BoxWithID("footer"),
-				widget.BoxWithHeight(layout.Points(1)),
-				widget.BoxWithFlexDirection(layout.DirectionRow),
-				widget.BoxWithJustifyContent(layout.JustifySpaceBetween),
-				widget.BoxWithPadding(layout.Points(0)),
+				widget.BoxWithLayout(
+					layout.WithHeight(layout.Points(1)),
+					layout.WithFlexDirection(layout.DirectionRow),
+					layout.WithJustifyContent(layout.JustifySpaceBetween),
+					layout.WithPadding(layout.Points(0)),
+				),
 				widget.Children(
-					widget.NewText(" Esc/q: quit"),
+					widget.NewText(" Esc/Q: Exit"),
 					widget.NewText("Fluid Layout Engine "),
 				),
 			),
@@ -160,7 +177,7 @@ func runLayoutDemo(ctx context.Context, o DemoOptions) error {
 		if e.Key == nil {
 			return
 		}
-		if e.Key.Name == "escape" || (e.Key.Name == "q" && !e.Key.Ctrl && !e.Key.Alt) {
+		if e.Key.Name == "escape" || (e.Key.Name == "q" && !e.Key.Mods.Has(input.ModCtrl) && !e.Key.Mods.Has(input.ModAlt)) {
 			r.Destroy()
 		}
 	})

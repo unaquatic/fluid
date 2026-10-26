@@ -8,6 +8,7 @@ import (
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/style"
 	"github.com/unaquatic/fluid/terminal"
+	"github.com/unaquatic/fluid/textbuf"
 	"github.com/unaquatic/fluid/widget"
 )
 
@@ -53,13 +54,11 @@ import (
 )
 
 func main() {
-    r, _ := terminal.NewRenderer(terminal.Config{
-        Fullscreen: true,
-    })
+    r, _ := terminal.NewRenderer(terminal.Config{})
     defer r.Destroy()
 
     box := widget.NewBox(
-        widget.BoxWithFlexGrow(1),
+        widget.BoxWithLayout(layout.WithFlexGrow(1)),
     )
     box.Add(widget.NewText("Hello, Fluid!"))
     r.Root().Add(box)
@@ -127,10 +126,7 @@ go build -o fluid ./cmd/fluid
 
 func runMarkdownDemo(ctx context.Context, o DemoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
-		Fullscreen:  true,
-		ExitOnCtrlC: true,
-		UseMouse:    !o.NoMouse,
-		TargetFPS:   o.FPS,
+		UseMouse: !o.NoMouse,
 	})
 	if err != nil {
 		return fmt.Errorf("renderer: %w", err)
@@ -139,10 +135,10 @@ func runMarkdownDemo(ctx context.Context, o DemoOptions) error {
 	root := r.Root()
 
 	md := widget.NewMarkdown(sampleMarkdown,
-		widget.MarkdownWithWrapMode(widget.WrapWord),
+		widget.MarkdownWithWrapMode(textbuf.WrapWord),
 	)
 	scrollBox := widget.NewScrollBox(
-		widget.ScrollBoxWithFlexGrow(1),
+		widget.ScrollBoxWithLayout(layout.WithFlexGrow(1)),
 		widget.ScrollBoxWithBorderConfig(style.BorderAll(), style.BorderSingle),
 		widget.ScrollBoxWithChildren(md),
 	)
@@ -150,21 +146,25 @@ func runMarkdownDemo(ctx context.Context, o DemoOptions) error {
 	widget.BindScrollBar(scrollBox, scrollBar)
 
 	container := widget.NewBox(
-		widget.BoxWithFlexGrow(1),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
-		widget.BoxWithPadding(layout.Points(1)),
-		widget.BoxWithGap(layout.Points(1)),
+		widget.BoxWithLayout(
+			layout.WithFlexGrow(1),
+			layout.WithFlexDirection(layout.DirectionColumn),
+			layout.WithPadding(layout.Points(1)),
+			layout.WithGap(1),
+		),
 		widget.Children(
 			widget.NewText("Markdown Viewer Demo",
-				widget.TextWithHeight(layout.Points(1)),
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 			widget.NewBox(
-				widget.BoxWithFlexGrow(1),
-				widget.BoxWithFlexDirection(layout.DirectionRow),
+				widget.BoxWithLayout(
+					layout.WithFlexGrow(1),
+					layout.WithFlexDirection(layout.DirectionRow),
+				),
 				widget.Children(scrollBox, scrollBar),
 			),
-			widget.NewText("Scroll: mouse wheel | Esc/q: quit",
-				widget.TextWithHeight(layout.Points(1)),
+			widget.NewText("Esc/Q: Exit | Wheel: Scroll",
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 		),
 	)
@@ -174,7 +174,7 @@ func runMarkdownDemo(ctx context.Context, o DemoOptions) error {
 		if e.Key == nil {
 			return
 		}
-		if e.Key.Name == "escape" || (e.Key.Name == "q" && !e.Key.Ctrl && !e.Key.Alt) {
+		if e.Key.Name == "escape" || (e.Key.Name == "q" && !e.Key.Mods.Has(input.ModCtrl) && !e.Key.Mods.Has(input.ModAlt)) {
 			r.Destroy()
 		}
 	})

@@ -265,7 +265,7 @@ func cellStyle(c buffer.Cell) template.CSS {
 	}
 	attrs := c.Attributes
 	for _, r := range []struct {
-		attr uint32
+		attr style.Attrs
 		css  string
 	}{
 		{style.AttrBold, "font-weight:700"},

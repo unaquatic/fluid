@@ -1,6 +1,8 @@
 package widget
 
 import (
+	"time"
+
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
 	"github.com/unaquatic/fluid/layout"
@@ -61,7 +63,7 @@ type ScrollBoxOption func(*ScrollBox)
 // NewScrollBox returns a clipping, scrollable Box with optional configuration.
 func NewScrollBox(opts ...ScrollBoxOption) *ScrollBox {
 	sb := &ScrollBox{
-		Box:        NewBox(BoxWithOverflow(layout.OverflowHidden)),
+		Box:        NewBox(BoxWithLayout(layout.WithOverflow(layout.OverflowHidden))),
 		autoScroll: AutoScrollNone,
 	}
 
@@ -85,7 +87,7 @@ func NewScrollBox(opts ...ScrollBoxOption) *ScrollBox {
 		if e.Scroll != nil {
 			oldY := sb.scrollY
 			oldX := sb.scrollX
-			sb.handleScroll(e.Scroll.DeltaX, e.Scroll.DeltaY, e.Modifiers.Ctrl)
+			sb.handleScroll(e.Scroll.DeltaX, e.Scroll.DeltaY, e.Mods.Has(input.ModCtrl))
 			if sb.scrollY != oldY || sb.scrollX != oldX {
 				e.StopPropagation()
 			}
@@ -251,7 +253,7 @@ func (sb *ScrollBox) SetContentWidth(w int) {
 }
 
 // RenderSelf draws the embedded Box; a separate ScrollBar renders any indicator.
-func (sb *ScrollBox) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (sb *ScrollBox) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	sb.Box.RenderSelf(buf, deltaTime)
 }
 
@@ -265,7 +267,7 @@ func (sb *ScrollBox) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 // A child's bottom and right margins count as content, so the space they leave
 // after the last child can be scrolled into view. They resolve against the
 // content box, as layout resolves them. Gone children take no space.
-func (sb *ScrollBox) OnPostLayout(deltaTime float64) {
+func (sb *ScrollBox) OnPostLayout(deltaTime time.Duration) {
 	ln := sb.LayoutNode()
 	sbComputed := ln.Computed
 	contentWidth, contentHeight := contentBoxSize(ln)
@@ -342,33 +344,33 @@ func (sb *ScrollBox) HandleKeyPress(e *input.KeyEvent) bool {
 
 	switch {
 	// Vertical movement uses one fifth of the viewport.
-	case e.Matches(input.KeyUp) || e.Matches("k"):
+	case e.Matches(input.KeyUp, 0) || e.Matches("k", 0):
 		sb.SetScrollY(sb.scrollY - maxInt(1, vpH/5))
 
-	case e.Matches(input.KeyDown) || e.Matches("j"):
+	case e.Matches(input.KeyDown, 0) || e.Matches("j", 0):
 		sb.SetScrollY(sb.scrollY + maxInt(1, vpH/5))
 
 	// Horizontal movement uses one fifth of the viewport.
-	case e.Matches(input.KeyLeft) || e.Matches("h"):
+	case e.Matches(input.KeyLeft, 0) || e.Matches("h", 0):
 		sb.SetScrollX(sb.scrollX - maxInt(1, vpW/5))
 
-	case e.Matches(input.KeyRight) || e.Matches("l"):
+	case e.Matches(input.KeyRight, 0) || e.Matches("l", 0):
 		sb.SetScrollX(sb.scrollX + maxInt(1, vpW/5))
 
 	// Page movement uses half of the viewport.
-	case e.Matches(input.KeyPageUp):
+	case e.Matches(input.KeyPageUp, 0):
 		sb.SetScrollY(sb.scrollY - maxInt(1, vpH/2))
 
-	case e.Matches(input.KeyPageDown):
+	case e.Matches(input.KeyPageDown, 0):
 		sb.SetScrollY(sb.scrollY + maxInt(1, vpH/2))
 
 	// Home moves to the origin on both axes.
-	case e.Matches(input.KeyHome):
+	case e.Matches(input.KeyHome, 0):
 		sb.SetScrollY(0)
 		sb.SetScrollX(0)
 
 	// End moves to the maximum offset on both axes.
-	case e.Matches(input.KeyEnd):
+	case e.Matches(input.KeyEnd, 0):
 		sb.SetScrollY(sb.maxScrollY())
 		sb.SetScrollX(sb.maxScrollX())
 
@@ -724,25 +726,25 @@ func ScrollBoxWithStickyGap(gap int) ScrollBoxOption {
 	return func(sb *ScrollBox) { sb.stickyGap = gap }
 }
 
-// ScrollBoxWithBackgroundColor sets the background color.
-func ScrollBoxWithBackgroundColor(c style.Color) ScrollBoxOption {
+// ScrollBoxWithBg sets the background color.
+func ScrollBoxWithBg(c style.Color) ScrollBoxOption {
 	return func(sb *ScrollBox) {
-		sb.BackgroundColor = c
-		sb.ShouldFill = true
+		sb.backgroundColor = c
+		sb.shouldFill = true
 	}
 }
 
 // ScrollBoxWithBorderConfig sets border properties.
 func ScrollBoxWithBorderConfig(brd style.Border, bs style.BorderStyle) ScrollBoxOption {
 	return func(sb *ScrollBox) {
-		sb.Border = brd
-		sb.BorderStyle = bs
+		sb.border = brd
+		sb.borderStyle = bs
 	}
 }
 
 // ScrollBoxWithBorderColor sets the border color.
 func ScrollBoxWithBorderColor(c style.Color) ScrollBoxOption {
-	return func(sb *ScrollBox) { sb.BorderColor = c }
+	return func(sb *ScrollBox) { sb.borderColor = c }
 }
 
 // ScrollBoxWithID sets the widget ID.
@@ -750,24 +752,14 @@ func ScrollBoxWithID(id string) ScrollBoxOption {
 	return func(sb *ScrollBox) { sb.SetID(id) }
 }
 
-// ScrollBoxWithWidth sets the widget width.
-func ScrollBoxWithWidth(s layout.Scalar) ScrollBoxOption {
-	return func(sb *ScrollBox) { sb.LayoutNode().Width = s }
-}
-
-// ScrollBoxWithHeight sets the widget height.
-func ScrollBoxWithHeight(s layout.Scalar) ScrollBoxOption {
-	return func(sb *ScrollBox) { sb.LayoutNode().Height = s }
-}
-
-// ScrollBoxWithFlexDirection sets the flex direction.
-func ScrollBoxWithFlexDirection(d layout.FlexDirection) ScrollBoxOption {
-	return func(sb *ScrollBox) { sb.LayoutNode().FlexDirection = d }
-}
-
-// ScrollBoxWithFlexGrow sets flex grow.
-func ScrollBoxWithFlexGrow(v int) ScrollBoxOption {
-	return func(sb *ScrollBox) { sb.LayoutNode().FlexGrow = v }
+// ScrollBoxWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func ScrollBoxWithLayout(opts ...layout.Option) ScrollBoxOption {
+	return func(w *ScrollBox) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }
 
 // ScrollBoxWithFocusable controls whether the scrollbox can receive keyboard navigation.

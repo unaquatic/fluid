@@ -197,7 +197,7 @@ func TestTextarea_SelectAll(t *testing.T) {
 	ta := setupTextarea("hello\nworld")
 
 	// The Kitty protocol reports Command+A as Meta+A.
-	ta.HandleKeyPress(&input.KeyEvent{Name: "a", Meta: true, Type: input.KeyPress})
+	ta.HandleKeyPress(&input.KeyEvent{Name: "a", Mods: input.ModMeta, Type: input.KeyPress})
 
 	selected := ta.SelectedText()
 	if selected != "hello\nworld" {
@@ -209,7 +209,7 @@ func TestTextarea_DeleteLine(t *testing.T) {
 	ta := setupTextarea("line1\nline2\nline3")
 	ta.SetCursor(1, 0)
 
-	ta.HandleKeyPress(&input.KeyEvent{Name: "d", Ctrl: true, Shift: true, Type: input.KeyPress})
+	ta.HandleKeyPress(&input.KeyEvent{Name: "d", Mods: input.ModCtrl | input.ModShift, Type: input.KeyPress})
 	if ta.LineCount() != 2 {
 		t.Errorf("expected 2 lines, got %d", ta.LineCount())
 	}
@@ -260,7 +260,7 @@ func TestTextarea_ScrollTo(t *testing.T) {
 func TestTextarea_WrapMode(t *testing.T) {
 	ta := NewTextarea(
 		TextareaWithText("hello world foo bar"),
-		TextareaWithWrapMode(WrapWord),
+		TextareaWithWrapMode(textbuf.WrapWord),
 	)
 	testutil.SetupWidget(ta, 10, 5)
 
@@ -277,7 +277,7 @@ func TestTextarea_WrapMode(t *testing.T) {
 
 func TestTextarea_SetWrapMode(t *testing.T) {
 	ta := setupTextarea("hello world")
-	ta.SetWrapMode(WrapChar)
+	ta.SetWrapMode(textbuf.WrapChar)
 
 	// Character wrapping must render safely.
 	buf := buffer.New(40, 10)
@@ -292,10 +292,10 @@ func TestTextarea_CustomKeyBindings(t *testing.T) {
 
 	// Replace the default Control+B movement with backspace.
 	ta.SetKeyBindings([]input.KeyBinding{
-		{Name: "b", Ctrl: true, Action: ActionBackspace},
+		{Name: "b", Mods: input.ModCtrl, Action: ActionBackspace},
 	})
 
-	ta.HandleKeyPress(&input.KeyEvent{Name: "b", Ctrl: true, Type: input.KeyPress})
+	ta.HandleKeyPress(&input.KeyEvent{Name: "b", Mods: input.ModCtrl, Type: input.KeyPress})
 	if ta.Text() != "hell" {
 		t.Errorf("expected custom Ctrl+B to backspace, got %q", ta.Text())
 	}
@@ -325,7 +325,7 @@ func TestTextarea_ShiftArrowSelection(t *testing.T) {
 
 	// Extend the selection across the first five characters.
 	for range 5 {
-		ta.HandleKeyPress(&input.KeyEvent{Name: input.KeyRight, Shift: true, Type: input.KeyPress})
+		ta.HandleKeyPress(&input.KeyEvent{Name: input.KeyRight, Mods: input.ModShift, Type: input.KeyPress})
 	}
 
 	if !ta.HasSelection() {
@@ -342,7 +342,7 @@ func TestTextarea_ShiftCtrlWordSelection(t *testing.T) {
 	ta.SetCursor(0, 0)
 
 	// Extend to the next word boundary.
-	ta.HandleKeyPress(&input.KeyEvent{Name: input.KeyRight, Ctrl: true, Shift: true, Type: input.KeyPress})
+	ta.HandleKeyPress(&input.KeyEvent{Name: input.KeyRight, Mods: input.ModCtrl | input.ModShift, Type: input.KeyPress})
 
 	if !ta.HasSelection() {
 		t.Error("expected selection to be active")
@@ -376,7 +376,7 @@ func TestTextarea_DeleteSelection(t *testing.T) {
 
 	// Select the first five characters.
 	for range 5 {
-		ta.HandleKeyPress(&input.KeyEvent{Name: input.KeyRight, Shift: true, Type: input.KeyPress})
+		ta.HandleKeyPress(&input.KeyEvent{Name: input.KeyRight, Mods: input.ModShift, Type: input.KeyPress})
 	}
 
 	// Printable input replaces the selected range.
@@ -393,14 +393,14 @@ func TestTextarea_CtrlLeftRight(t *testing.T) {
 	ta.SetCursor(0, 0)
 
 	// Control+Right moves to the next word boundary.
-	ta.HandleKeyPress(&input.KeyEvent{Name: input.KeyRight, Ctrl: true, Type: input.KeyPress})
+	ta.HandleKeyPress(&input.KeyEvent{Name: input.KeyRight, Mods: input.ModCtrl, Type: input.KeyPress})
 	_, col := ta.CursorPosition()
 	if col == 0 {
 		t.Error("expected cursor to move past first word")
 	}
 
 	// Control+Left returns to the previous word boundary.
-	ta.HandleKeyPress(&input.KeyEvent{Name: input.KeyLeft, Ctrl: true, Type: input.KeyPress})
+	ta.HandleKeyPress(&input.KeyEvent{Name: input.KeyLeft, Mods: input.ModCtrl, Type: input.KeyPress})
 	_, col = ta.CursorPosition()
 	if col != 0 {
 		t.Errorf("expected cursor at 0 after Ctrl+Left, got %d", col)
@@ -484,10 +484,10 @@ func TestTextarea_OnSubmit(t *testing.T) {
 
 	// Textarea maps Enter to newline by default, so bind submit explicitly.
 	ta.SetKeyBindings([]input.KeyBinding{
-		{Name: "s", Ctrl: true, Action: ActionSubmit},
+		{Name: "s", Mods: input.ModCtrl, Action: ActionSubmit},
 	})
 
-	ta.HandleKeyPress(&input.KeyEvent{Name: "s", Ctrl: true, Type: input.KeyPress})
+	ta.HandleKeyPress(&input.KeyEvent{Name: "s", Mods: input.ModCtrl, Type: input.KeyPress})
 	if submitted != "hello" {
 		t.Errorf("expected submitted 'hello', got %q", submitted)
 	}
@@ -523,7 +523,7 @@ func TestTextarea_SelectionFg(t *testing.T) {
 	)
 	testutil.SetupWidget(ta, 20, 5)
 
-	if ta.selectionFg == nil {
+	if ta.selectionFg.IsTransparent() {
 		t.Error("expected selectionFg to be set")
 	}
 }
@@ -583,10 +583,10 @@ func TestTextarea_DeleteToEnd(t *testing.T) {
 
 	// Bind Control+K to deletion through line end.
 	ta.SetKeyBindings([]input.KeyBinding{
-		{Name: "k", Ctrl: true, Action: ActionDeleteToEnd},
+		{Name: "k", Mods: input.ModCtrl, Action: ActionDeleteToEnd},
 	})
 
-	ta.HandleKeyPress(&input.KeyEvent{Name: "k", Ctrl: true, Type: input.KeyPress})
+	ta.HandleKeyPress(&input.KeyEvent{Name: "k", Mods: input.ModCtrl, Type: input.KeyPress})
 	if ta.Text() != "hello" {
 		t.Errorf("expected 'hello', got %q", ta.Text())
 	}
@@ -598,10 +598,10 @@ func TestTextarea_DeleteToStart(t *testing.T) {
 
 	// Bind Control+U to deletion through line start.
 	ta.SetKeyBindings([]input.KeyBinding{
-		{Name: "u", Ctrl: true, Action: ActionDeleteToStart},
+		{Name: "u", Mods: input.ModCtrl, Action: ActionDeleteToStart},
 	})
 
-	ta.HandleKeyPress(&input.KeyEvent{Name: "u", Ctrl: true, Type: input.KeyPress})
+	ta.HandleKeyPress(&input.KeyEvent{Name: "u", Mods: input.ModCtrl, Type: input.KeyPress})
 	if ta.Text() != "world" {
 		t.Errorf("expected 'world', got %q", ta.Text())
 	}

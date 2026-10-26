@@ -18,7 +18,6 @@ func startedTestRenderer() (*Renderer, *bytes.Buffer) {
 func TestSetInlineMode_LeavesAlternateScreen(t *testing.T) {
 	r, outBuf := startedTestRenderer()
 	r.config.InlineMode = false
-	r.config.Fullscreen = true
 	r.backend.EnterAlternateScreen()
 	outBuf.Reset()
 
@@ -30,9 +29,8 @@ func TestSetInlineMode_LeavesAlternateScreen(t *testing.T) {
 	if r.backend.AlternateScreen() {
 		t.Error("expected AlternateScreen=false")
 	}
-	if !r.config.InlineMode || r.config.Fullscreen {
-		t.Errorf("expected inline config, got InlineMode=%v Fullscreen=%v",
-			r.config.InlineMode, r.config.Fullscreen)
+	if !r.config.InlineMode {
+		t.Error("expected InlineMode=true")
 	}
 }
 
@@ -47,9 +45,8 @@ func TestSetInlineMode_EntersAlternateScreen(t *testing.T) {
 	if !r.backend.AlternateScreen() {
 		t.Error("expected AlternateScreen=true")
 	}
-	if r.config.InlineMode || !r.config.Fullscreen {
-		t.Errorf("expected fullscreen config, got InlineMode=%v Fullscreen=%v",
-			r.config.InlineMode, r.config.Fullscreen)
+	if r.config.InlineMode {
+		t.Error("expected InlineMode=false")
 	}
 }
 
@@ -81,7 +78,7 @@ func TestSetInlineMode_BeforeSetupWritesNothing(t *testing.T) {
 // output on the normal screen, so a return can compare against it.
 func TestSetInlineMode_KeepsTrackedTerminalState(t *testing.T) {
 	r, _ := startedTestRenderer()
-	r.InlineFlush(rowsBuffer(10, strings.Repeat("A", testTermHeight+5), 5))
+	r.inlineFlush(rowsBuffer(10, strings.Repeat("A", testTermHeight+5), 5))
 	if r.inlineViewportTop == 0 {
 		t.Fatal("expected the tall frame to advance the viewport")
 	}
@@ -106,7 +103,7 @@ func TestSetInlineMode_KeepsTrackedTerminalState(t *testing.T) {
 // to the screen.
 func TestSetInlineMode_BeforeSetupDiscardsTrackedTerminalState(t *testing.T) {
 	r, _ := newInlineTestRenderer()
-	r.InlineFlush(rowsBuffer(10, strings.Repeat("A", testTermHeight+5), 5))
+	r.inlineFlush(rowsBuffer(10, strings.Repeat("A", testTermHeight+5), 5))
 
 	r.SetInlineMode(false)
 
@@ -389,7 +386,7 @@ func TestRender_NotRunning(t *testing.T) {
 // never drew inline: leaving the alternate screen restores the shell as it was.
 func TestDestroy_FullscreenWithoutInlineOutput(t *testing.T) {
 	r, out := startedTestRenderer()
-	r.config.InlineMode, r.config.Fullscreen = false, true
+	r.config.InlineMode = false
 	term := newDisagreeingTerm(testTermWidth, testTermHeight, func(rune) int { return 1 })
 	term.feed(shellPrompt + "\r\n")
 	r.backend.EnterAlternateScreen()

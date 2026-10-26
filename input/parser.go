@@ -17,7 +17,7 @@ const (
 )
 
 // csiKeyMap maps complete CSI key suffixes to canonical key names.
-var csiKeyMap = map[string]string{
+var csiKeyMap = map[string]KeyName{
 	"A":   "up",
 	"B":   "down",
 	"C":   "right",
@@ -44,7 +44,7 @@ var csiKeyMap = map[string]string{
 
 // csiModifiedKeyMap maps the final byte in a CSI 1;modifier key sequence to a
 // canonical key name.
-var csiModifiedKeyMap = map[byte]string{
+var csiModifiedKeyMap = map[byte]KeyName{
 	'A': "up",
 	'B': "down",
 	'C': "right",
@@ -58,7 +58,7 @@ var csiModifiedKeyMap = map[byte]string{
 }
 
 // ss3KeyMap maps the final byte in an SS3 sequence to a canonical key name.
-var ss3KeyMap = map[byte]string{
+var ss3KeyMap = map[byte]KeyName{
 	'A': "up",
 	'B': "down",
 	'C': "right",
@@ -72,7 +72,7 @@ var ss3KeyMap = map[byte]string{
 }
 
 // ctrlKeyMap maps supported C0 control bytes to their Control-letter names.
-var ctrlKeyMap = map[byte]string{
+var ctrlKeyMap = map[byte]KeyName{
 	1: "a", 2: "b", 3: "c", 4: "d", 5: "e", 6: "f", 7: "g",
 	8: "h", 10: "j", 11: "k", 12: "l", 14: "n", 15: "o",
 	16: "p", 17: "q", 18: "r", 19: "s", 20: "t", 21: "u",
@@ -81,7 +81,7 @@ var ctrlKeyMap = map[byte]string{
 
 // kittySpecialKeys maps Kitty keyboard protocol code points to canonical key
 // names.
-var kittySpecialKeys = map[int]string{
+var kittySpecialKeys = map[int]KeyName{
 	9:     "tab",
 	13:    "return",
 	27:    "escape",
@@ -207,7 +207,7 @@ func (p *Parser) parseOne(buf []byte) (TerminalEvent, int) {
 				Name:   KeyReturn,
 				Type:   KeyPress,
 				Raw:    string(buf[:1]),
-				Source: "raw",
+				Source: KeySourceRaw,
 			},
 		}, 1
 	}
@@ -220,10 +220,10 @@ func (p *Parser) parseOne(buf []byte) (TerminalEvent, int) {
 				Type: EventKeyboard,
 				Key: &KeyEvent{
 					Name:   name,
-					Ctrl:   true,
+					Mods:   ModCtrl,
 					Type:   KeyPress,
 					Raw:    string(buf[:1]),
-					Source: "raw",
+					Source: KeySourceRaw,
 				},
 			}, 1
 		}
@@ -236,7 +236,7 @@ func (p *Parser) parseOne(buf []byte) (TerminalEvent, int) {
 				Name:   KeyTab,
 				Type:   KeyPress,
 				Raw:    string(buf[:1]),
-				Source: "raw",
+				Source: KeySourceRaw,
 			},
 		}, 1
 	}
@@ -248,7 +248,7 @@ func (p *Parser) parseOne(buf []byte) (TerminalEvent, int) {
 				Name:   KeyReturn,
 				Type:   KeyPress,
 				Raw:    string(buf[:1]),
-				Source: "raw",
+				Source: KeySourceRaw,
 			},
 		}, 1
 	}
@@ -260,7 +260,7 @@ func (p *Parser) parseOne(buf []byte) (TerminalEvent, int) {
 				Name:   KeyBackspace,
 				Type:   KeyPress,
 				Raw:    string(buf[:1]),
-				Source: "raw",
+				Source: KeySourceRaw,
 			},
 		}, 1
 	}
@@ -283,7 +283,7 @@ func (p *Parser) parseEsc(buf []byte) (TerminalEvent, int) {
 				Name:   KeyEscape,
 				Type:   KeyPress,
 				Raw:    string(buf[:1]),
-				Source: "raw",
+				Source: KeySourceRaw,
 			},
 		}, 1
 	}
@@ -297,16 +297,16 @@ func (p *Parser) parseEsc(buf []byte) (TerminalEvent, int) {
 		// Parse the following key recursively, then add the Alt modifier.
 		ev, consumed := p.parseOne(buf[1:])
 		if consumed > 0 && ev.Type == EventKeyboard && ev.Key != nil {
-			ev.Key.Alt = true
+			ev.Key.Mods |= ModAlt
 			ev.Key.Raw = string(buf[:1+consumed])
 
 			// Some terminals use ESC b/f for Option+Arrow but double ESC for
 			// Shift+Option+Arrow. In that mode, infer Shift for an otherwise
 			// unmodified navigation sequence nested inside ESC.
 			if p.altSendsEscPrefix && buf[1] == 0x1b &&
-				!ev.Key.Shift && !ev.Key.Ctrl && !ev.Key.Meta {
+				ev.Key.Mods&(ModShift|ModCtrl|ModMeta) == 0 {
 				if isNavigationKey(ev.Key.Name) {
-					ev.Key.Shift = true
+					ev.Key.Mods |= ModShift
 				}
 			}
 
@@ -323,7 +323,7 @@ func (p *Parser) parseEsc(buf []byte) (TerminalEvent, int) {
 				Name:   KeyEscape,
 				Type:   KeyPress,
 				Raw:    string(buf[:1]),
-				Source: "raw",
+				Source: KeySourceRaw,
 			},
 		}, 1
 	}
@@ -390,7 +390,7 @@ func parseCSIKey(raw []byte, paramStr string, finalByte byte) (TerminalEvent, in
 				Name:   name,
 				Type:   KeyPress,
 				Raw:    string(raw),
-				Source: "raw",
+				Source: KeySourceRaw,
 			},
 		}, consumed
 	}
@@ -403,7 +403,7 @@ func parseCSIKey(raw []byte, paramStr string, finalByte byte) (TerminalEvent, in
 				Name:   name,
 				Type:   KeyPress,
 				Raw:    string(raw),
-				Source: "raw",
+				Source: KeySourceRaw,
 			},
 		}, consumed
 	}
@@ -413,7 +413,7 @@ func parseCSIKey(raw []byte, paramStr string, finalByte byte) (TerminalEvent, in
 	if len(parts) == 2 {
 		mod, err := strconv.Atoi(parts[1])
 		if err == nil {
-			shift, alt, ctrl, meta := decodeXtermModifiers(mod)
+			mods := decodeXtermModifiers(mod)
 
 			// CSI 1;modifier X encodes modified arrows and function keys.
 			if parts[0] == "1" || parts[0] == "" {
@@ -422,13 +422,10 @@ func parseCSIKey(raw []byte, paramStr string, finalByte byte) (TerminalEvent, in
 						Type: EventKeyboard,
 						Key: &KeyEvent{
 							Name:   name,
-							Ctrl:   ctrl,
-							Shift:  shift,
-							Alt:    alt,
-							Meta:   meta,
+							Mods:   mods,
 							Type:   KeyPress,
 							Raw:    string(raw),
-							Source: "raw",
+							Source: KeySourceRaw,
 						},
 					}, consumed
 				}
@@ -442,13 +439,10 @@ func parseCSIKey(raw []byte, paramStr string, finalByte byte) (TerminalEvent, in
 						Type: EventKeyboard,
 						Key: &KeyEvent{
 							Name:   name,
-							Ctrl:   ctrl,
-							Shift:  shift,
-							Alt:    alt,
-							Meta:   meta,
+							Mods:   mods,
 							Type:   KeyPress,
 							Raw:    string(raw),
-							Source: "raw",
+							Source: KeySourceRaw,
 						},
 					}, consumed
 				}
@@ -462,16 +456,25 @@ func parseCSIKey(raw []byte, paramStr string, finalByte byte) (TerminalEvent, in
 
 // decodeXtermModifiers decodes an xterm modifier parameter. Its value is one
 // plus a bitmask containing Shift, Alt, Control, and Meta in ascending bits.
-func decodeXtermModifiers(mod int) (shift, alt, ctrl, meta bool) {
+func decodeXtermModifiers(mod int) Mods {
 	mod-- // Remove xterm's one-based offset.
 	if mod < 0 {
-		return
+		return 0
 	}
-	shift = mod&1 != 0
-	alt = mod&2 != 0
-	ctrl = mod&4 != 0
-	meta = mod&8 != 0
-	return
+	var mods Mods
+	if mod&1 != 0 {
+		mods |= ModShift
+	}
+	if mod&2 != 0 {
+		mods |= ModAlt
+	}
+	if mod&4 != 0 {
+		mods |= ModCtrl
+	}
+	if mod&8 != 0 {
+		mods |= ModMeta
+	}
+	return mods
 }
 
 // parseSS3 parses a three-byte SS3 key sequence beginning with ESC O.
@@ -487,7 +490,7 @@ func parseSS3(buf []byte) (TerminalEvent, int) {
 				Name:   name,
 				Type:   KeyPress,
 				Raw:    string(buf[:3]),
-				Source: "raw",
+				Source: KeySourceRaw,
 			},
 		}, 3
 	}
@@ -498,7 +501,7 @@ func parseSS3(buf []byte) (TerminalEvent, int) {
 
 // isNavigationKey reports whether name identifies a navigation, editing, or
 // function key accepted by the double-ESC Shift heuristic.
-func isNavigationKey(name string) bool {
+func isNavigationKey(name KeyName) bool {
 	switch name {
 	case "up", "down", "left", "right",
 		"home", "end", "pageup", "pagedown",
@@ -556,10 +559,15 @@ func parseMouseComplete(raw []byte) (TerminalEvent, int) {
 	cy--
 
 	// Modifier flags occupy bits 2 through 4 of the button mask.
-	mods := MouseModifiers{
-		Shift: cb&4 != 0,
-		Alt:   cb&8 != 0,
-		Ctrl:  cb&16 != 0,
+	var mods Mods
+	if cb&4 != 0 {
+		mods |= ModShift
+	}
+	if cb&8 != 0 {
+		mods |= ModAlt
+	}
+	if cb&16 != 0 {
+		mods |= ModCtrl
 	}
 
 	isMotion := cb&32 != 0
@@ -569,9 +577,9 @@ func parseMouseComplete(raw []byte) (TerminalEvent, int) {
 	btnBits := cb & 3
 
 	me := &MouseEvent{
-		X:         cx,
-		Y:         cy,
-		Modifiers: mods,
+		X:    cx,
+		Y:    cy,
+		Mods: mods,
 	}
 
 	if isWheel {
@@ -645,14 +653,14 @@ func parseKittyKey(raw []byte, paramStr string) (TerminalEvent, int) {
 		return TerminalEvent{Type: EventType(-1)}, consumed
 	}
 
-	var shift, alt, ctrl, meta bool
+	var mods Mods
 	var eventType KeyEventType = KeyPress
 
 	if len(parts) >= 2 {
 		modParts := strings.Split(parts[1], ":")
 		mod, err := strconv.Atoi(modParts[0])
 		if err == nil {
-			shift, alt, ctrl, meta = decodeXtermModifiers(mod)
+			mods = decodeXtermModifiers(mod)
 		}
 		if len(modParts) >= 2 {
 			et, err := strconv.Atoi(modParts[1])
@@ -670,7 +678,7 @@ func parseKittyKey(raw []byte, paramStr string) (TerminalEvent, int) {
 	}
 
 	// Resolve the protocol code point to a canonical name and printable text.
-	name := ""
+	var name KeyName
 	text := "" // Non-empty only for printable input.
 	if n, ok := kittySpecialKeys[codepoint]; ok {
 		name = n
@@ -681,26 +689,22 @@ func parseKittyKey(raw []byte, paramStr string) (TerminalEvent, int) {
 	} else if n, ok := csiKeyMap[strconv.Itoa(codepoint)+"~"]; ok {
 		name = n
 	} else if codepoint >= 32 && codepoint < 0x110000 {
-		name = string(rune(codepoint))
-		text = name // Preserve printable Unicode input.
+		text = string(rune(codepoint)) // Preserve printable Unicode input.
+		name = KeyName(text)
 	} else {
-		name = strconv.Itoa(codepoint)
+		name = KeyName(strconv.Itoa(codepoint))
 	}
 
 	return TerminalEvent{
 		Type: EventKeyboard,
 		Key: &KeyEvent{
-			Name:     name,
-			Text:     text,
-			Ctrl:     ctrl,
-			Shift:    shift,
-			Alt:      alt,
-			Meta:     meta,
-			Type:     eventType,
-			Code:     strconv.Itoa(codepoint),
-			Raw:      string(raw),
-			Source:   "kitty",
-			Repeated: eventType == KeyRepeat,
+			Name:   name,
+			Text:   text,
+			Mods:   mods,
+			Type:   eventType,
+			Code:   strconv.Itoa(codepoint),
+			Raw:    string(raw),
+			Source: KeySourceKitty,
 		},
 	}, consumed
 }
@@ -745,7 +749,7 @@ func parseUTF8(buf []byte) (TerminalEvent, int) {
 	}
 
 	text := string(r) // Text retains the literal printable character.
-	name := text
+	name := KeyName(text)
 	if r == ' ' {
 		name = KeySpace // Key bindings use the symbolic name for space.
 	}
@@ -757,7 +761,7 @@ func parseUTF8(buf []byte) (TerminalEvent, int) {
 			Text:   text,
 			Type:   KeyPress,
 			Raw:    string(buf[:size]),
-			Source: "raw",
+			Source: KeySourceRaw,
 		},
 	}, size
 }

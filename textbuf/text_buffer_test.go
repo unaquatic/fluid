@@ -264,8 +264,8 @@ func TestTextBuffer_ResetDefaults(t *testing.T) {
 func TestTextBuffer_LoadFile(t *testing.T) {
 	tb := NewTextBuffer()
 	// A missing file reports failure without replacing content.
-	if tb.LoadFile("/tmp/nonexistent_fluid_test_file_xyz") {
-		t.Error("LoadFile should return false for non-existent file")
+	if err := tb.LoadFile("/tmp/nonexistent_fluid_test_file_xyz"); err == nil {
+		t.Error("LoadFile should return an error for a non-existent file")
 	}
 }
 
@@ -327,38 +327,5 @@ func TestTextBuffer_HighlightCount(t *testing.T) {
 
 	if tb.HighlightCount() != 3 {
 		t.Errorf("expected 3, got %d", tb.HighlightCount())
-	}
-}
-
-func TestTextBuffer_SyntaxStyle(t *testing.T) {
-	tb := NewTextBuffer()
-
-	// New buffers have no syntax registry.
-	if tb.SyntaxStyle() != nil {
-		t.Error("expected nil SyntaxStyle initially")
-	}
-
-	// Attach a syntax registry.
-	ss := style.NewSyntaxStyle()
-	red := style.ColorRed
-	ss.Register("keyword", &red, nil, style.AttrBold)
-
-	tb.SetSyntaxStyle(ss)
-
-	got := tb.SyntaxStyle()
-	if got == nil {
-		t.Fatal("expected SyntaxStyle to be set")
-	}
-	if got.StyleCount() != 1 {
-		t.Errorf("expected 1 style, got %d", got.StyleCount())
-	}
-	if got.ResolveByName("keyword") != 1 {
-		t.Errorf("expected 'keyword' ID=1, got %d", got.ResolveByName("keyword"))
-	}
-
-	// A nil registry detaches it.
-	tb.SetSyntaxStyle(nil)
-	if tb.SyntaxStyle() != nil {
-		t.Error("expected nil after detaching SyntaxStyle")
 	}
 }

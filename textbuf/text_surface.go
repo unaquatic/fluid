@@ -17,10 +17,6 @@ type TextSurface struct {
 	wrapWidth int // Explicit wrap width; zero uses viewport width.
 	truncate  bool
 
-	// Configured tab indicator.
-	tabIndicator      rune // Zero disables the indicator.
-	tabIndicatorColor *style.Color
-
 	// Per-line backgrounds.
 	lineBackgrounds map[int]style.Color // Logical line to background color.
 	activeLine      int                 // Negative means no active line.
@@ -114,17 +110,6 @@ func (v *TextSurface) LineBackground(lineIdx int) style.Color {
 		}
 	}
 	return style.Color{}
-}
-
-// SetTabIndicator stores the configured tab indicator. Zero disables it.
-func (v *TextSurface) SetTabIndicator(indicator rune) {
-	v.tabIndicator = indicator
-	v.dirty = true
-}
-
-// SetTabIndicatorColor stores the configured tab-indicator color.
-func (v *TextSurface) SetTabIndicatorColor(color style.Color) {
-	v.tabIndicatorColor = &color
 }
 
 // SetSelection sets the global display-width selection range.
@@ -239,7 +224,7 @@ func (v *TextSurface) LogicalLineInfo() LineInfo {
 
 // SetLocalSelection maps viewport-relative endpoints to a global selection and
 // reports whether both coordinates were valid.
-func (v *TextSurface) SetLocalSelection(anchorX, anchorY, focusX, focusY int, bg, fg *style.Color) bool {
+func (v *TextSurface) SetLocalSelection(anchorX, anchorY, focusX, focusY int, bg, fg style.Color) bool {
 	startOff := v.visualToCharOffset(anchorX, anchorY)
 	endOff := v.visualToCharOffset(focusX, focusY)
 	if startOff < 0 || endOff < 0 {
@@ -252,23 +237,24 @@ func (v *TextSurface) SetLocalSelection(anchorX, anchorY, focusX, focusY int, bg
 	return true
 }
 
-// UpdateSelection sets the selection end offset and replaces non-nil colors.
-func (v *TextSurface) UpdateSelection(end int, bg, fg *style.Color) {
+// UpdateSelection sets the selection end offset and replaces the colors that
+// are not transparent.
+func (v *TextSurface) UpdateSelection(end int, bg, fg style.Color) {
 	if v.selection == nil {
 		v.selection = &TextSelection{Start: end, End: end, BgColor: bg, FgColor: fg}
 		return
 	}
 	v.selection.End = end
-	if bg != nil {
+	if !bg.IsTransparent() {
 		v.selection.BgColor = bg
 	}
-	if fg != nil {
+	if !fg.IsTransparent() {
 		v.selection.FgColor = fg
 	}
 }
 
 // UpdateLocalSelection replaces the selection from viewport-relative endpoints.
-func (v *TextSurface) UpdateLocalSelection(anchorX, anchorY, focusX, focusY int, bg, fg *style.Color) bool {
+func (v *TextSurface) UpdateLocalSelection(anchorX, anchorY, focusX, focusY int, bg, fg style.Color) bool {
 	return v.SetLocalSelection(anchorX, anchorY, focusX, focusY, bg, fg)
 }
 
@@ -448,7 +434,7 @@ type styledRune struct {
 	w    int // Display width, or zero for trailing cluster code points.
 	fg   style.Color
 	bg   style.Color
-	attr uint32
+	attr style.Attrs
 }
 
 // flattenSpans expands a line into styled code points while recording display

@@ -23,7 +23,7 @@ func newTestScrollBox(vpW, vpH, contentW, contentH int, opts ...ScrollBoxOption)
 	return sb
 }
 
-func pressKey(sb *ScrollBox, name string) bool {
+func pressKey(sb *ScrollBox, name input.KeyName) bool {
 	e := &input.KeyEvent{Name: name, Type: input.KeyPress}
 	return sb.HandleKeyPress(e)
 }
@@ -109,7 +109,7 @@ func TestScrollBox_AutoScroll(t *testing.T) {
 
 func TestScrollBox_Render(t *testing.T) {
 	sb := NewScrollBox(
-		ScrollBoxWithBackgroundColor(style.ColorBlack),
+		ScrollBoxWithBg(style.ColorBlack),
 	)
 	testutil.SetupWidget(sb, 20, 10)
 
@@ -121,9 +121,11 @@ func TestScrollBox_Render(t *testing.T) {
 func TestScrollBox_Options(t *testing.T) {
 	sb := NewScrollBox(
 		ScrollBoxWithID("my-scroll"),
-		ScrollBoxWithWidth(layout.Points(30)),
-		ScrollBoxWithHeight(layout.Points(20)),
-		ScrollBoxWithFlexGrow(1),
+		ScrollBoxWithLayout(
+			layout.WithWidth(layout.Points(30)),
+			layout.WithHeight(layout.Points(20)),
+			layout.WithFlexGrow(1),
+		),
 	)
 
 	if sb.ID() != "my-scroll" {
@@ -188,7 +190,10 @@ func TestScrollBox_ScrollTo(t *testing.T) {
 // and right margins count as content, so a viewport at the end shows the space
 // they leave. A Gone child takes no space, margins included.
 func TestScrollBox_ContentSizeIncludesTrailingMargins(t *testing.T) {
-	gone := NewBox(BoxWithHeight(layout.Points(1)), BoxWithMarginBottom(layout.Points(5)))
+	gone := NewBox(BoxWithLayout(
+		layout.WithHeight(layout.Points(1)),
+		layout.WithMarginBottom(layout.Points(5)),
+	))
 	gone.SetGone(true)
 
 	for _, tt := range []struct {
@@ -200,27 +205,38 @@ func TestScrollBox_ContentSizeIncludesTrailingMargins(t *testing.T) {
 		{
 			name: "bottom margin",
 			dir:  layout.DirectionColumn,
-			children: []render.Renderable{NewBox(BoxWithWidth(layout.Points(4)),
-				BoxWithHeight(layout.Points(3)), BoxWithFlexShrink(0), BoxWithMarginBottom(layout.Points(1)))},
+			children: []render.Renderable{NewBox(BoxWithLayout(
+				layout.WithWidth(layout.Points(4)),
+				layout.WithHeight(layout.Points(3)),
+				layout.WithFlexShrink(0),
+				layout.WithMarginBottom(layout.Points(1)),
+			))},
 			width: 4, height: 4,
 		},
 		{
 			name: "right margin",
 			dir:  layout.DirectionRow,
-			children: []render.Renderable{NewBox(BoxWithWidth(layout.Points(5)),
-				BoxWithHeight(layout.Points(1)), BoxWithFlexShrink(0), BoxWithMarginRight(layout.Points(2)))},
+			children: []render.Renderable{NewBox(BoxWithLayout(
+				layout.WithWidth(layout.Points(5)),
+				layout.WithHeight(layout.Points(1)),
+				layout.WithFlexShrink(0),
+				layout.WithMarginRight(layout.Points(2)),
+			))},
 			width: 7, height: 1,
 		},
 		{
 			name: "gone child",
 			dir:  layout.DirectionColumn,
-			children: []render.Renderable{NewBox(BoxWithWidth(layout.Points(4)),
-				BoxWithHeight(layout.Points(2)), BoxWithFlexShrink(0)), gone},
+			children: []render.Renderable{NewBox(BoxWithLayout(
+				layout.WithWidth(layout.Points(4)),
+				layout.WithHeight(layout.Points(2)),
+				layout.WithFlexShrink(0),
+			)), gone},
 			width: 4, height: 2,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			sb := NewScrollBox(ScrollBoxWithFlexDirection(tt.dir), ScrollBoxWithChildren(tt.children...))
+			sb := NewScrollBox(ScrollBoxWithLayout(layout.WithFlexDirection(tt.dir)), ScrollBoxWithChildren(tt.children...))
 			testutil.SetupWidget(sb, 3, 1)
 			sb.OnPostLayout(0)
 
@@ -234,9 +250,13 @@ func TestScrollBox_ContentSizeIncludesTrailingMargins(t *testing.T) {
 // TestScrollBox_AutoScroll_BottomShowsTrailingMargin checks that following the
 // bottom edge keeps the last child's bottom margin in view.
 func TestScrollBox_AutoScroll_BottomShowsTrailingMargin(t *testing.T) {
-	last := NewBox(BoxWithHeight(layout.Points(3)), BoxWithFlexShrink(0), BoxWithMarginBottom(layout.Points(1)))
+	last := NewBox(BoxWithLayout(
+		layout.WithHeight(layout.Points(3)),
+		layout.WithFlexShrink(0),
+		layout.WithMarginBottom(layout.Points(1)),
+	))
 	sb := NewScrollBox(
-		ScrollBoxWithFlexDirection(layout.DirectionColumn),
+		ScrollBoxWithLayout(layout.WithFlexDirection(layout.DirectionColumn)),
 		ScrollBoxWithAutoScroll(AutoScrollBottom),
 		ScrollBoxWithChildren(last),
 	)
@@ -623,13 +643,13 @@ func newAnchorScrollBox(vpW, vpH int, childHeights ...int) *ScrollBox {
 	for i, h := range childHeights {
 		txt := NewText(
 			fmt.Sprintf("child-%d", i),
-			TextWithHeight(layout.Points(h)),
+			TextWithLayout(layout.WithHeight(layout.Points(h))),
 		)
 		children = append(children, Box_ChildEntry{child: txt})
 	}
 
 	sb := NewScrollBox(
-		ScrollBoxWithFlexDirection(layout.DirectionColumn),
+		ScrollBoxWithLayout(layout.WithFlexDirection(layout.DirectionColumn)),
 		ScrollBoxWithAnchorScroll(true),
 		ScrollBoxWithAutoScroll(AutoScrollBottom),
 	)
@@ -1001,13 +1021,13 @@ func newStickyScrollBox(vpW, vpH int, childHeights []int, stickyIndices []int) *
 	}
 
 	sb := NewScrollBox(
-		ScrollBoxWithFlexDirection(layout.DirectionColumn),
+		ScrollBoxWithLayout(layout.WithFlexDirection(layout.DirectionColumn)),
 		ScrollBoxWithAutoScroll(AutoScrollBottom),
 	)
 	for i, h := range childHeights {
 		txt := NewText(
 			fmt.Sprintf("child-%d", i),
-			TextWithHeight(layout.Points(h)),
+			TextWithLayout(layout.WithHeight(layout.Points(h))),
 		)
 		if stickySet[i] {
 			txt.LayoutNode().Sticky = layout.StickyTop
@@ -1142,10 +1162,10 @@ func TestScrollBox_StickyBottom_NoOffset_WhenVisible(t *testing.T) {
 func TestScrollBox_StickyLeft_PinsAtLeft(t *testing.T) {
 	// Child 0 sticks to the left in a horizontally scrolling row.
 	sb := NewScrollBox(
-		ScrollBoxWithFlexDirection(layout.DirectionRow),
+		ScrollBoxWithLayout(layout.WithFlexDirection(layout.DirectionRow)),
 	)
 	for i, w := range []int{10, 30, 10} {
-		txt := NewText(fmt.Sprintf("c%d", i), TextWithWidth(layout.Points(w)))
+		txt := NewText(fmt.Sprintf("c%d", i), TextWithLayout(layout.WithWidth(layout.Points(w))))
 		if i == 0 {
 			txt.LayoutNode().Sticky = layout.StickyLeft
 		}
@@ -1171,10 +1191,10 @@ func TestScrollBox_StickyLeft_PinsAtLeft(t *testing.T) {
 func TestScrollBox_StickyRight_PinsAtRight(t *testing.T) {
 	// Child 2 ends at 50 while the viewport ends at 20, requiring offset -30.
 	sb := NewScrollBox(
-		ScrollBoxWithFlexDirection(layout.DirectionRow),
+		ScrollBoxWithLayout(layout.WithFlexDirection(layout.DirectionRow)),
 	)
 	for i, w := range []int{10, 30, 10} {
-		txt := NewText(fmt.Sprintf("c%d", i), TextWithWidth(layout.Points(w)))
+		txt := NewText(fmt.Sprintf("c%d", i), TextWithLayout(layout.WithWidth(layout.Points(w))))
 		if i == 2 {
 			txt.LayoutNode().Sticky = layout.StickyRight
 		}

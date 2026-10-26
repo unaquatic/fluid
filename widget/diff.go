@@ -3,6 +3,7 @@ package widget
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
@@ -10,6 +11,7 @@ import (
 	"github.com/unaquatic/fluid/render"
 	"github.com/unaquatic/fluid/style"
 	"github.com/unaquatic/fluid/symbol"
+	"github.com/unaquatic/fluid/textbuf"
 )
 
 // DiffViewMode controls how the diff is displayed.
@@ -44,9 +46,9 @@ type Diff struct {
 	patch       string // Raw unified diff text.
 	viewMode    DiffViewMode
 	filetype    string            // Language used for syntax highlighting.
-	theme       string            // Chroma theme name.
-	wrapMode    *WrapMode         // Nil uses Code's default WrapWord mode.
-	highlighter SyntaxHighlighter // Nil uses Code's default Chroma highlighter.
+	theme       *style.Theme      // Theme whose code palette colors tokens.
+	wrapMode    *textbuf.WrapMode // Nil uses Code's default textbuf.WrapWord mode.
+	highlighter SyntaxHighlighter // Nil uses Code's default Highlighter.
 
 	showLineNumbers bool
 	inlineHighlight bool // Enables character-level change highlighting.
@@ -77,8 +79,8 @@ type Diff struct {
 	scrollX int
 
 	// parsed and layout are rebuilt from patch when needsRebuild is true.
-	parsed *StructuredPatch
-	layout *DiffLayout
+	parsed *structuredPatch
+	layout *diffLayout
 
 	// Child widgets
 	leftCode  *Code
@@ -104,7 +106,7 @@ func NewDiff(patch string, opts ...DiffOption) *Diff {
 		),
 		patch:           patch,
 		viewMode:        DiffUnified,
-		theme:           "monokai",
+		theme:           defaultTheme(),
 		showLineNumbers: true,
 		inlineHighlight: true,
 		showSigns:       true,
@@ -217,19 +219,25 @@ func (d *Diff) SetFiletype(ft string) {
 // Filetype returns the current filetype.
 func (d *Diff) Filetype() string { return d.filetype }
 
-// SetTheme sets the theme for syntax highlighting.
-func (d *Diff) SetTheme(name string) {
-	if d.theme == name {
+// SetTheme sets the theme whose code palette colors the diff's source. A
+// nil theme selects style.DefaultDark.
+func (d *Diff) SetTheme(t *style.Theme) {
+	if t == nil {
+		t = defaultTheme()
+	}
+	if d.theme == t {
 		return
 	}
-	d.theme = name
+	d.theme = t
 	d.needsRebuild = true
 	d.rebuild()
 	d.RequestRender()
 }
 
-// Theme returns the current theme.
-func (d *Diff) Theme() string { return d.theme }
+// Theme returns the theme whose code palette colors the diff's source.
+// Without one set, it is a default theme that every such Diff shares, which
+// must not be changed.
+func (d *Diff) Theme() *style.Theme { return d.theme }
 
 // LineCount returns the total number of display lines.
 func (d *Diff) LineCount() int {
@@ -316,7 +324,7 @@ func (d *Diff) OnResize(width, height int) {
 // RenderSelf positions and draws the active diff view.
 // Diff renders its Code and LineNumber children manually because pane widths
 // and wrapped row pairing depend on the final viewport size.
-func (d *Diff) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (d *Diff) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	if d.needsRebuild {
 		d.rebuild()
 		d.needsRebuild = false
@@ -338,7 +346,7 @@ func (d *Diff) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 }
 
 // renderUnifiedView draws one full-width gutter and content pane.
-func (d *Diff) renderUnifiedView(buf *buffer.Buffer, x, y, w, h int, deltaTime float64) {
+func (d *Diff) renderUnifiedView(buf *buffer.Buffer, x, y, w, h int, deltaTime time.Duration) {
 	if d.leftCode == nil || d.leftSide == nil {
 		return
 	}
@@ -358,13 +366,13 @@ func (d *Diff) renderUnifiedView(buf *buffer.Buffer, x, y, w, h int, deltaTime f
 
 // renderSplitView draws headers across the viewport and content in paired panes.
 // It wraps each side at render time using the final pane widths.
-func (d *Diff) renderSplitView(buf *buffer.Buffer, x, y, w, h int, deltaTime float64) {
+func (d *Diff) renderSplitView(buf *buffer.Buffer, x, y, w, h int, deltaTime time.Duration) {
 	if d.layout == nil || len(d.layout.Blocks) == 0 {
 		return
 	}
 
 	// Match Code's default wrap mode when no explicit mode was configured.
-	effectiveWrap := WrapWord
+	effectiveWrap := textbuf.WrapWord
 	if d.wrapMode != nil {
 		effectiveWrap = *d.wrapMode
 	}
@@ -400,7 +408,7 @@ func (d *Diff) renderSplitView(buf *buffer.Buffer, x, y, w, h int, deltaTime flo
 
 	for _, block := range d.layout.Blocks {
 		switch block.Kind {
-		case DiffBlockFullWidth:
+		case diffBlockFullWidth:
 			// Headers and hunk markers span both content panes.
 			fg := d.splitFgForType(block.Type)
 			lines := splitWrapText(block.Text, fullContentW, effectiveWrap, fg, style.ColorTransparent)
@@ -416,7 +424,7 @@ func (d *Diff) renderSplitView(buf *buffer.Buffer, x, y, w, h int, deltaTime flo
 				visualRow++
 			}
 
-		case DiffBlockContext:
+		case diffBlockContext:
 			// Context rows repeat the unchanged content on both sides.
 			bg := d.splitBgForType(diffContext)
 			fg := d.splitFgForType(diffContext)
@@ -471,7 +479,7 @@ func (d *Diff) renderSplitView(buf *buffer.Buffer, x, y, w, h int, deltaTime flo
 				visualRow++
 			}
 
-		case DiffBlockChange:
+		case diffBlockChange:
 			// Pair removed and added lines by index, padding the shorter side.
 			pairLen := max(len(block.Adds), len(block.Removes))
 
@@ -669,17 +677,17 @@ func (d *Diff) renderSplitLine(buf *buffer.Buffer, bx, by, width int, line wrapp
 }
 
 // splitWrapText applies the shared Text wrapping functions to one diff line.
-func splitWrapText(text string, width int, mode WrapMode, fg, bg style.Color) []wrappedLine {
+func splitWrapText(text string, width int, mode textbuf.WrapMode, fg, bg style.Color) []wrappedLine {
 	segments := []styledSegment{{text: text, fg: fg, bg: bg}}
 
-	if mode == WrapNone || width <= 0 {
+	if mode == textbuf.WrapNone || width <= 0 {
 		return []wrappedLine{segmentsToWrappedLine(segments)}
 	}
 
 	switch mode {
-	case WrapChar:
+	case textbuf.WrapChar:
 		return wrapSegmentsChar(segments, width)
-	case WrapWord:
+	case textbuf.WrapWord:
 		return wrapSegmentsWord(segments, width)
 	default:
 		return []wrappedLine{segmentsToWrappedLine(segments)}
@@ -706,8 +714,8 @@ func (d *Diff) rebuild() {
 	d.parsed = nil
 	d.layout = nil
 	if d.patch != "" {
-		d.parsed = ParsePatch(d.patch)
-		d.layout = BuildDiffLayout(d.parsed)
+		d.parsed = parsePatch(d.patch)
+		d.layout = buildDiffLayout(d.parsed)
 
 		if d.viewMode == DiffSplit {
 			d.buildSplitView()
@@ -749,13 +757,13 @@ func (d *Diff) buildUnifiedView() {
 
 	for _, block := range d.layout.Blocks {
 		switch block.Kind {
-		case DiffBlockFullWidth:
+		case diffBlockFullWidth:
 			// File and hunk headers do not display source line numbers.
 			contentLines = append(contentLines, block.Text)
 			hideLineNums[lineIndex] = true
 			lineIndex++
 
-		case DiffBlockContext:
+		case diffBlockContext:
 			// Context rows display their new-file line number.
 			contentLines = append(contentLines, block.Text)
 			if !d.contextBg.IsTransparent() {
@@ -767,7 +775,7 @@ func (d *Diff) buildUnifiedView() {
 			lineNumbers[lineIndex] = block.NewLineNum
 			lineIndex++
 
-		case DiffBlockChange:
+		case diffBlockChange:
 			// Emit all removals before additions in each change block.
 			for _, rm := range block.Removes {
 				contentLines = append(contentLines, rm.Content)
@@ -806,8 +814,10 @@ func (d *Diff) buildUnifiedView() {
 		CodeWithTheme(d.theme),
 		CodeWithFg(d.contextFg),
 		CodeWithBg(style.ColorTransparent),
-		CodeWithWidth(layout.Percent(100)),
-		CodeWithHeight(layout.Percent(100)),
+		CodeWithLayout(
+			layout.WithWidth(layout.Percent(100)),
+			layout.WithHeight(layout.Percent(100)),
+		),
 		CodeWithScrollY(d.scrollY),
 		CodeWithScrollX(d.scrollX),
 	}
@@ -850,8 +860,10 @@ func (d *Diff) buildUnifiedView() {
 		LineNumberWithLineSigns(lineSigns),
 		LineNumberWithLineNumbers(lineNumbers),
 		LineNumberWithHideLineNumbers(hideLineNums),
-		LineNumberWithWidth(layout.Percent(100)),
-		LineNumberWithHeight(layout.Percent(100)),
+		LineNumberWithLayout(
+			layout.WithWidth(layout.Percent(100)),
+			layout.WithHeight(layout.Percent(100)),
+		),
 	)
 
 	if d.gutterSeparator {
@@ -930,9 +942,15 @@ func DiffWithFiletype(ft string) DiffOption {
 	return func(d *Diff) { d.filetype = ft }
 }
 
-// DiffWithTheme sets the syntax highlighting theme name.
-func DiffWithTheme(name string) DiffOption {
-	return func(d *Diff) { d.theme = name }
+// DiffWithTheme sets the theme whose code palette colors the diff's source.
+// A nil theme selects style.DefaultDark.
+func DiffWithTheme(t *style.Theme) DiffOption {
+	return func(d *Diff) {
+		if t == nil {
+			t = defaultTheme()
+		}
+		d.theme = t
+	}
 }
 
 // DiffWithShowLineNumbers controls whether gutters display line numbers.
@@ -975,28 +993,24 @@ func DiffWithID(id string) DiffOption {
 	return func(d *Diff) { d.SetID(id) }
 }
 
-// DiffWithWidth sets the widget width.
-func DiffWithWidth(s layout.Scalar) DiffOption {
-	return func(d *Diff) { d.LayoutNode().Width = s }
+// DiffWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func DiffWithLayout(opts ...layout.Option) DiffOption {
+	return func(w *Diff) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }
 
-// DiffWithHeight sets the widget height.
-func DiffWithHeight(s layout.Scalar) DiffOption {
-	return func(d *Diff) { d.LayoutNode().Height = s }
-}
-
-// DiffWithFlexGrow sets the flex-grow factor.
-func DiffWithFlexGrow(v int) DiffOption {
-	return func(d *Diff) { d.LayoutNode().FlexGrow = v }
-}
-
-// DiffWithWrapMode sets the content wrapping mode; the default is WrapWord.
-func DiffWithWrapMode(m WrapMode) DiffOption {
+// DiffWithWrapMode sets the content wrapping mode; the default is textbuf.WrapWord.
+func DiffWithWrapMode(m textbuf.WrapMode) DiffOption {
 	return func(d *Diff) { d.wrapMode = &m }
 }
 
 // DiffWithHighlighter sets a custom SyntaxHighlighter for the diff and its
-// child Code widgets. When nil (default), a ChromaHighlighter is used.
+// child Code widgets. When nil (default), a Highlighter of the diff's
+// theme is used.
 func DiffWithHighlighter(h SyntaxHighlighter) DiffOption {
 	return func(d *Diff) { d.highlighter = h }
 }

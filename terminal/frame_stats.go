@@ -5,10 +5,8 @@ import "time"
 // FrameStats contains timings and counts from the most recent frame. Fields
 // not measured by a rendering path remain zero.
 type FrameStats struct {
-	// Lifecycle is time spent calling OnUpdate on registered widgets.
+	// Lifecycle is time spent running the passes added with AddLifecyclePass.
 	Lifecycle time.Duration
-	// Update is reserved for a distinct update-pass duration.
-	Update time.Duration
 	// Layout is time spent computing the flexbox layout.
 	Layout time.Duration
 	// Sync is time spent synchronizing layout positions to renderables.

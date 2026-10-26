@@ -20,10 +20,8 @@ var demoInlineCmd = Demo{
 
 func runInlineDemo(ctx context.Context, o DemoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
-		InlineMode:  true,
-		UseMouse:    false,
-		ExitOnCtrlC: true,
-		TargetFPS:   o.FPS,
+		InlineMode: true,
+		UseMouse:   false,
 	})
 	if err != nil {
 		return fmt.Errorf("renderer: %w", err)
@@ -33,7 +31,7 @@ func runInlineDemo(ctx context.Context, o DemoOptions) error {
 
 	outer := widget.NewBox(
 		widget.BoxWithID("outer"),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
+		widget.BoxWithLayout(layout.WithFlexDirection(layout.DirectionColumn)),
 		widget.Children(
 			widget.NewBox(
 				widget.BoxWithBorder(style.BorderAll()),
@@ -44,8 +42,8 @@ func runInlineDemo(ctx context.Context, o DemoOptions) error {
 			),
 
 			widget.NewText(
-				" a: add line | d: delete | q: quit",
-				widget.TextWithHeight(layout.Points(1)),
+				" Esc/Q: Exit | A: Add line | D: Delete",
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 		),
 	)
@@ -56,7 +54,7 @@ func runInlineDemo(ctx context.Context, o DemoOptions) error {
 		widget.BoxWithBorder(style.BorderAll()),
 		widget.BoxWithBorderStyle(style.BorderSingle),
 		widget.BoxWithTitle("Content"),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
+		widget.BoxWithLayout(layout.WithFlexDirection(layout.DirectionColumn)),
 	)
 	root.Add(contentBox)
 
@@ -65,7 +63,7 @@ func runInlineDemo(ctx context.Context, o DemoOptions) error {
 		lineCount++
 		t := widget.NewText(
 			fmt.Sprintf("  Line %d — added at %s", lineCount, time.Now().Format("15:04:05")),
-			widget.TextWithHeight(layout.Points(1)),
+			widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 		)
 		contentBox.Add(t)
 		r.RequestRender()
@@ -80,7 +78,7 @@ func runInlineDemo(ctx context.Context, o DemoOptions) error {
 			return
 		}
 		switch {
-		case e.Key.Name == "escape" || (e.Key.Name == "q" && !e.Key.Ctrl && !e.Key.Alt):
+		case e.Key.Name == "escape" || (e.Key.Name == "q" && !e.Key.Mods.Has(input.ModCtrl) && !e.Key.Mods.Has(input.ModAlt)):
 			r.Destroy()
 		case e.Key.Name == "a":
 			addLine()

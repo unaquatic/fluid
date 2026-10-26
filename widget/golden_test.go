@@ -7,6 +7,7 @@ import (
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/style"
 	"github.com/unaquatic/fluid/testutil"
+	"github.com/unaquatic/fluid/textbuf"
 	"github.com/unaquatic/fluid/widget"
 )
 
@@ -82,7 +83,7 @@ func TestGolden_BoxPartialBorder_TopBottom(t *testing.T) {
 
 func TestGolden_BoxFilled(t *testing.T) {
 	box := widget.NewBox(
-		widget.BoxWithBackgroundColor(style.ColorRed),
+		widget.BoxWithBg(style.ColorRed),
 		widget.BoxWithBorder(style.BorderAll()),
 		widget.BoxWithBorderStyle(style.BorderSingle),
 	)
@@ -100,14 +101,14 @@ func TestGolden_TextWrapNone(t *testing.T) {
 }
 
 func TestGolden_TextWrapChar(t *testing.T) {
-	txt := widget.NewText("ABCDEFGHIJKLMNO", widget.TextWithWrapMode(widget.WrapChar))
+	txt := widget.NewText("ABCDEFGHIJKLMNO", widget.TextWithWrapMode(textbuf.WrapChar))
 	buf := testutil.RenderWidget(txt, 5, 4)
 	testutil.AssertGoldenFrames(t, "text_wrap_char", buf, nil)
 }
 
 func TestGolden_TextWrapWord(t *testing.T) {
 	txt := widget.NewText("The quick brown fox jumps over",
-		widget.TextWithWrapMode(widget.WrapWord))
+		widget.TextWithWrapMode(textbuf.WrapWord))
 	buf := testutil.RenderWidget(txt, 12, 5)
 	testutil.AssertGoldenFrames(t, "text_wrap_word", buf, nil)
 }
@@ -126,7 +127,7 @@ func TestGolden_TextHardLineBreaks(t *testing.T) {
 
 func TestGolden_TextWrapWordLongWord(t *testing.T) {
 	txt := widget.NewText("A superlongword here",
-		widget.TextWithWrapMode(widget.WrapWord))
+		widget.TextWithWrapMode(textbuf.WrapWord))
 	buf := testutil.RenderWidget(txt, 8, 4)
 	testutil.AssertGoldenFrames(t, "text_wrap_word_long", buf, nil)
 }
@@ -190,30 +191,40 @@ func TestGolden_StyledTextWithLineBreak(t *testing.T) {
 // A four-cell child with a three-cell right margin precedes another four-cell child.
 func TestGolden_BoxMarginRight_RowChildren(t *testing.T) {
 	container := widget.NewBox(
-		widget.BoxWithWidth(layout.Points(20)),
-		widget.BoxWithHeight(layout.Points(1)),
-		widget.BoxWithFlexDirection(layout.DirectionRow),
+		widget.BoxWithLayout(
+			layout.WithWidth(layout.Points(20)),
+			layout.WithHeight(layout.Points(1)),
+			layout.WithFlexDirection(layout.DirectionRow),
+		),
 	)
 	childA := widget.NewBox(
-		widget.BoxWithWidth(layout.Points(4)),
-		widget.BoxWithHeight(layout.Points(1)),
-		widget.BoxWithMarginRight(layout.Points(3)),
-		widget.BoxWithBackgroundColor(style.ColorRed),
+		widget.BoxWithLayout(
+			layout.WithWidth(layout.Points(4)),
+			layout.WithHeight(layout.Points(1)),
+			layout.WithMarginRight(layout.Points(3)),
+		),
+		widget.BoxWithBg(style.ColorRed),
 	)
 	txtA := widget.NewText("AAAA",
-		widget.TextWithWidth(layout.Points(4)),
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(
+			layout.WithWidth(layout.Points(4)),
+			layout.WithHeight(layout.Points(1)),
+		),
 	)
 	childA.Add(txtA)
 
 	childB := widget.NewBox(
-		widget.BoxWithWidth(layout.Points(4)),
-		widget.BoxWithHeight(layout.Points(1)),
-		widget.BoxWithBackgroundColor(style.ColorBlue),
+		widget.BoxWithLayout(
+			layout.WithWidth(layout.Points(4)),
+			layout.WithHeight(layout.Points(1)),
+		),
+		widget.BoxWithBg(style.ColorBlue),
 	)
 	txtB := widget.NewText("BBBB",
-		widget.TextWithWidth(layout.Points(4)),
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(
+			layout.WithWidth(layout.Points(4)),
+			layout.WithHeight(layout.Points(1)),
+		),
 	)
 	childB.Add(txtB)
 
@@ -235,18 +246,24 @@ func TestGolden_BoxMarginRight_RowChildren(t *testing.T) {
 // TestGolden_BoxMarginLeft_RowChildren verifies a child's offset from the left edge.
 func TestGolden_BoxMarginLeft_RowChildren(t *testing.T) {
 	container := widget.NewBox(
-		widget.BoxWithWidth(layout.Points(20)),
-		widget.BoxWithHeight(layout.Points(1)),
-		widget.BoxWithFlexDirection(layout.DirectionRow),
+		widget.BoxWithLayout(
+			layout.WithWidth(layout.Points(20)),
+			layout.WithHeight(layout.Points(1)),
+			layout.WithFlexDirection(layout.DirectionRow),
+		),
 	)
 	child := widget.NewBox(
-		widget.BoxWithWidth(layout.Points(4)),
-		widget.BoxWithHeight(layout.Points(1)),
-		widget.BoxWithMarginLeft(layout.Points(3)),
+		widget.BoxWithLayout(
+			layout.WithWidth(layout.Points(4)),
+			layout.WithHeight(layout.Points(1)),
+			layout.WithMarginLeft(layout.Points(3)),
+		),
 	)
 	txt := widget.NewText("CCCC",
-		widget.TextWithWidth(layout.Points(4)),
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(
+			layout.WithWidth(layout.Points(4)),
+			layout.WithHeight(layout.Points(1)),
+		),
 	)
 	child.Add(txt)
 	container.Add(child)
@@ -264,16 +281,20 @@ func TestGolden_BoxMarginLeft_RowChildren(t *testing.T) {
 // TestGolden_BoxMarginTop_ColumnChildren verifies a two-row top margin.
 func TestGolden_BoxMarginTop_ColumnChildren(t *testing.T) {
 	container := widget.NewBox(
-		widget.BoxWithWidth(layout.Points(10)),
-		widget.BoxWithHeight(layout.Points(5)),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
+		widget.BoxWithLayout(
+			layout.WithWidth(layout.Points(10)),
+			layout.WithHeight(layout.Points(5)),
+			layout.WithFlexDirection(layout.DirectionColumn),
+		),
 	)
 	child := widget.NewBox(
-		widget.BoxWithHeight(layout.Points(1)),
-		widget.BoxWithMarginTop(layout.Points(2)),
+		widget.BoxWithLayout(
+			layout.WithHeight(layout.Points(1)),
+			layout.WithMarginTop(layout.Points(2)),
+		),
 	)
 	txt := widget.NewText("Hello",
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 	)
 	child.Add(txt)
 	container.Add(child)
@@ -291,22 +312,25 @@ func TestGolden_BoxMarginTop_ColumnChildren(t *testing.T) {
 // TestGolden_BoxMarginBottom_ColumnChildren verifies spacing between column children.
 func TestGolden_BoxMarginBottom_ColumnChildren(t *testing.T) {
 	container := widget.NewBox(
-		widget.BoxWithWidth(layout.Points(10)),
-		widget.BoxWithHeight(layout.Points(5)),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
+		widget.BoxWithLayout(
+			layout.WithWidth(layout.Points(10)),
+			layout.WithHeight(layout.Points(5)),
+			layout.WithFlexDirection(layout.DirectionColumn),
+		),
 	)
 	txt2 := widget.NewText("Second",
-		widget.TextWithHeight(layout.Points(1)),
-		widget.TextWithFlexGrow(0),
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1)), layout.WithFlexGrow(0)),
 	)
 
 	child1 := widget.NewBox(
-		widget.BoxWithHeight(layout.Points(1)),
-		widget.BoxWithFlexShrink(0),
-		widget.BoxWithMarginBottom(layout.Points(2)),
+		widget.BoxWithLayout(
+			layout.WithHeight(layout.Points(1)),
+			layout.WithFlexShrink(0),
+			layout.WithMarginBottom(layout.Points(2)),
+		),
 	)
 	child1Txt := widget.NewText("First",
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 	)
 	child1.Add(child1Txt)
 
@@ -327,18 +351,22 @@ func TestGolden_BoxMarginBottom_ColumnChildren(t *testing.T) {
 // TestGolden_BoxMarginRight_ColumnStretch verifies that a right margin reduces stretched width.
 func TestGolden_BoxMarginRight_ColumnStretch(t *testing.T) {
 	container := widget.NewBox(
-		widget.BoxWithWidth(layout.Points(20)),
-		widget.BoxWithHeight(layout.Points(3)),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
-		widget.BoxWithAlignItems(layout.AlignStretch),
+		widget.BoxWithLayout(
+			layout.WithWidth(layout.Points(20)),
+			layout.WithHeight(layout.Points(3)),
+			layout.WithFlexDirection(layout.DirectionColumn),
+			layout.WithAlignItems(layout.AlignStretch),
+		),
 	)
 	child := widget.NewBox(
-		widget.BoxWithHeight(layout.Points(1)),
-		widget.BoxWithMarginRight(layout.Points(5)),
-		widget.BoxWithBackgroundColor(style.ColorFromInts(40, 40, 40, 255)),
+		widget.BoxWithLayout(
+			layout.WithHeight(layout.Points(1)),
+			layout.WithMarginRight(layout.Points(5)),
+		),
+		widget.BoxWithBg(style.ColorFromInts(40, 40, 40, 255)),
 	)
 	txt := widget.NewText("Hello World Here!",
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 	)
 	child.Add(txt)
 	container.Add(child)
@@ -357,23 +385,31 @@ func TestGolden_BoxMarginRight_ColumnStretch(t *testing.T) {
 func TestGolden_BoxMarginRight_MatchesLayoutNode(t *testing.T) {
 	// Build one tree through the Box option.
 	container1 := widget.NewBox(
-		widget.BoxWithWidth(layout.Points(20)),
-		widget.BoxWithHeight(layout.Points(1)),
-		widget.BoxWithFlexDirection(layout.DirectionRow),
+		widget.BoxWithLayout(
+			layout.WithWidth(layout.Points(20)),
+			layout.WithHeight(layout.Points(1)),
+			layout.WithFlexDirection(layout.DirectionRow),
+		),
 	)
 	childA1 := widget.NewBox(
-		widget.BoxWithWidth(layout.Points(4)),
-		widget.BoxWithHeight(layout.Points(1)),
-		widget.BoxWithMarginRight(layout.Points(2)),
+		widget.BoxWithLayout(
+			layout.WithWidth(layout.Points(4)),
+			layout.WithHeight(layout.Points(1)),
+			layout.WithMarginRight(layout.Points(2)),
+		),
 	)
 	txtA1 := widget.NewText("AAAA",
-		widget.TextWithWidth(layout.Points(4)),
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(
+			layout.WithWidth(layout.Points(4)),
+			layout.WithHeight(layout.Points(1)),
+		),
 	)
 	childA1.Add(txtA1)
 	childB1 := widget.NewText("BBBB",
-		widget.TextWithWidth(layout.Points(4)),
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(
+			layout.WithWidth(layout.Points(4)),
+			layout.WithHeight(layout.Points(1)),
+		),
 	)
 	container1.Add(childA1)
 	container1.Add(childB1)
@@ -387,23 +423,31 @@ func TestGolden_BoxMarginRight_MatchesLayoutNode(t *testing.T) {
 
 	// Build the equivalent tree through its LayoutNode.
 	container2 := widget.NewBox(
-		widget.BoxWithWidth(layout.Points(20)),
-		widget.BoxWithHeight(layout.Points(1)),
-		widget.BoxWithFlexDirection(layout.DirectionRow),
+		widget.BoxWithLayout(
+			layout.WithWidth(layout.Points(20)),
+			layout.WithHeight(layout.Points(1)),
+			layout.WithFlexDirection(layout.DirectionRow),
+		),
 	)
 	childA2 := widget.NewBox(
-		widget.BoxWithWidth(layout.Points(4)),
-		widget.BoxWithHeight(layout.Points(1)),
+		widget.BoxWithLayout(
+			layout.WithWidth(layout.Points(4)),
+			layout.WithHeight(layout.Points(1)),
+		),
 	)
 	childA2.LayoutNode().MarginRight = layout.Points(2) // old way
 	txtA2 := widget.NewText("AAAA",
-		widget.TextWithWidth(layout.Points(4)),
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(
+			layout.WithWidth(layout.Points(4)),
+			layout.WithHeight(layout.Points(1)),
+		),
 	)
 	childA2.Add(txtA2)
 	childB2 := widget.NewText("BBBB",
-		widget.TextWithWidth(layout.Points(4)),
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(
+			layout.WithWidth(layout.Points(4)),
+			layout.WithHeight(layout.Points(1)),
+		),
 	)
 	container2.Add(childA2)
 	container2.Add(childB2)
@@ -419,15 +463,15 @@ func TestGolden_BoxMarginRight_MatchesLayoutNode(t *testing.T) {
 	golden1 := testutil.GoldenText(buf1)
 	golden2 := testutil.GoldenText(buf2)
 	if golden1 != golden2 {
-		t.Errorf("BoxWithMarginRight and LayoutNode().MarginRight produce different results:\n"+
-			"--- BoxWithMarginRight ---\n%s\n"+
+		t.Errorf("layout.WithMarginRight and LayoutNode().MarginRight produce different results:\n"+
+			"--- layout.WithMarginRight ---\n%s\n"+
 			"--- LayoutNode().MarginRight ---\n%s",
 			golden1, golden2)
 	}
 
 	// Their computed child positions must also match.
 	if childB1.X() != childB2.X() {
-		t.Errorf("childB X position differs: BoxWithMarginRight=%d, LayoutNode=%d",
+		t.Errorf("childB X position differs: layout.WithMarginRight=%d, LayoutNode=%d",
 			childB1.X(), childB2.X())
 	}
 
@@ -437,20 +481,24 @@ func TestGolden_BoxMarginRight_MatchesLayoutNode(t *testing.T) {
 // TestGolden_BoxCombinedMargins verifies independent margins on three sides.
 func TestGolden_BoxCombinedMargins(t *testing.T) {
 	container := widget.NewBox(
-		widget.BoxWithWidth(layout.Points(20)),
-		widget.BoxWithHeight(layout.Points(5)),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
+		widget.BoxWithLayout(
+			layout.WithWidth(layout.Points(20)),
+			layout.WithHeight(layout.Points(5)),
+			layout.WithFlexDirection(layout.DirectionColumn),
+		),
 	)
 	child := widget.NewBox(
-		widget.BoxWithHeight(layout.Points(1)),
-		widget.BoxWithFlexShrink(0),
-		widget.BoxWithMarginLeft(layout.Points(2)),
-		widget.BoxWithMarginRight(layout.Points(3)),
-		widget.BoxWithMarginTop(layout.Points(1)),
-		widget.BoxWithBackgroundColor(style.ColorFromInts(60, 60, 60, 255)),
+		widget.BoxWithLayout(
+			layout.WithHeight(layout.Points(1)),
+			layout.WithFlexShrink(0),
+			layout.WithMarginLeft(layout.Points(2)),
+			layout.WithMarginRight(layout.Points(3)),
+			layout.WithMarginTop(layout.Points(1)),
+		),
+		widget.BoxWithBg(style.ColorFromInts(60, 60, 60, 255)),
 	)
 	txt := widget.NewText("Margined",
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 	)
 	child.Add(txt)
 	container.Add(child)
@@ -469,13 +517,15 @@ func TestGolden_BoxCombinedMargins(t *testing.T) {
 
 func TestGolden_BoxWithTextChildren(t *testing.T) {
 	box := widget.NewBox(
-		widget.BoxWithWidth(layout.Points(15)),
-		widget.BoxWithHeight(layout.Points(3)),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
+		widget.BoxWithLayout(
+			layout.WithWidth(layout.Points(15)),
+			layout.WithHeight(layout.Points(3)),
+			layout.WithFlexDirection(layout.DirectionColumn),
+		),
 	)
-	t1 := widget.NewText("First", widget.TextWithHeight(layout.Points(1)))
-	t2 := widget.NewText("Second", widget.TextWithHeight(layout.Points(1)))
-	t3 := widget.NewText("Third", widget.TextWithHeight(layout.Points(1)))
+	t1 := widget.NewText("First", widget.TextWithLayout(layout.WithHeight(layout.Points(1))))
+	t2 := widget.NewText("Second", widget.TextWithLayout(layout.WithHeight(layout.Points(1))))
+	t3 := widget.NewText("Third", widget.TextWithLayout(layout.WithHeight(layout.Points(1))))
 	box.Add(t1)
 	box.Add(t2)
 	box.Add(t3)
@@ -493,21 +543,29 @@ func TestGolden_BoxWithTextChildren(t *testing.T) {
 
 func TestGolden_BoxRowWithChildren(t *testing.T) {
 	box := widget.NewBox(
-		widget.BoxWithWidth(layout.Points(12)),
-		widget.BoxWithHeight(layout.Points(1)),
-		widget.BoxWithFlexDirection(layout.DirectionRow),
+		widget.BoxWithLayout(
+			layout.WithWidth(layout.Points(12)),
+			layout.WithHeight(layout.Points(1)),
+			layout.WithFlexDirection(layout.DirectionRow),
+		),
 	)
 	t1 := widget.NewText("AB",
-		widget.TextWithWidth(layout.Points(3)),
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(
+			layout.WithWidth(layout.Points(3)),
+			layout.WithHeight(layout.Points(1)),
+		),
 	)
 	t2 := widget.NewText("CD",
-		widget.TextWithWidth(layout.Points(3)),
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(
+			layout.WithWidth(layout.Points(3)),
+			layout.WithHeight(layout.Points(1)),
+		),
 	)
 	t3 := widget.NewText("EF",
-		widget.TextWithWidth(layout.Points(3)),
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(
+			layout.WithWidth(layout.Points(3)),
+			layout.WithHeight(layout.Points(1)),
+		),
 	)
 	box.Add(t1)
 	box.Add(t2)
@@ -526,15 +584,16 @@ func TestGolden_BoxRowWithChildren(t *testing.T) {
 
 func TestGolden_BoxBorderPaddingChild(t *testing.T) {
 	box := widget.NewBox(
-		widget.BoxWithWidth(layout.Points(16)),
-		widget.BoxWithHeight(layout.Points(5)),
+		widget.BoxWithLayout(
+			layout.WithWidth(layout.Points(16)),
+			layout.WithHeight(layout.Points(5)),
+			layout.WithPadding(layout.Points(1)),
+		),
 		widget.BoxWithBorder(style.BorderAll()),
 		widget.BoxWithBorderStyle(style.BorderRounded),
-		widget.BoxWithPadding(layout.Points(1)),
 	)
 	txt := widget.NewText("Content",
-		widget.TextWithHeight(layout.Points(1)),
-		widget.TextWithFlexGrow(1),
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1)), layout.WithFlexGrow(1)),
 	)
 	box.Add(txt)
 
@@ -549,19 +608,21 @@ func TestGolden_BoxBorderPaddingChild(t *testing.T) {
 
 func TestGolden_NestedBoxesWithBorders(t *testing.T) {
 	outer := widget.NewBox(
-		widget.BoxWithWidth(layout.Points(20)),
-		widget.BoxWithHeight(layout.Points(7)),
+		widget.BoxWithLayout(
+			layout.WithWidth(layout.Points(20)),
+			layout.WithHeight(layout.Points(7)),
+			layout.WithPadding(layout.Points(1)),
+			layout.WithFlexDirection(layout.DirectionColumn),
+		),
 		widget.BoxWithBorder(style.BorderAll()),
 		widget.BoxWithBorderStyle(style.BorderSingle),
-		widget.BoxWithPadding(layout.Points(1)),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
 	)
 
 	txt := widget.NewText("Hello",
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 	)
 	inner := widget.NewBox(
-		widget.BoxWithFlexGrow(1),
+		widget.BoxWithLayout(layout.WithFlexGrow(1)),
 		widget.BoxWithBorder(style.BorderAll()),
 		widget.BoxWithBorderStyle(style.BorderRounded),
 	)
@@ -824,7 +885,7 @@ func TestGolden_TextareaWithContent(t *testing.T) {
 
 func TestGolden_CodeBasic(t *testing.T) {
 	c := widget.NewCode("func main() {\n\tfmt.Println(\"hello\")\n}",
-		widget.CodeWithWrapMode(widget.WrapNone))
+		widget.CodeWithWrapMode(textbuf.WrapNone))
 	buf := testutil.RenderWidget(c, 30, 4)
 	testutil.AssertGoldenFrames(t, "code_basic", buf, nil)
 }

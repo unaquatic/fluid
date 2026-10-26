@@ -2,6 +2,7 @@ package widget
 
 import (
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/unaquatic/fluid/buffer"
@@ -9,15 +10,6 @@ import (
 	"github.com/unaquatic/fluid/render"
 	"github.com/unaquatic/fluid/style"
 	"github.com/unaquatic/fluid/textbuf"
-)
-
-// WrapMode aliases textbuf.WrapMode for widget text APIs.
-type WrapMode = textbuf.WrapMode
-
-const (
-	WrapNone = textbuf.WrapNone // Preserves logical lines without wrapping.
-	WrapChar = textbuf.WrapChar // Wraps at grapheme-cluster boundaries.
-	WrapWord = textbuf.WrapWord // Wraps at whitespace boundaries when possible.
 )
 
 // wrappedLine contains one line produced by the local wrapping helpers.
@@ -39,7 +31,7 @@ type wrappedChunk struct {
 	text       string
 	fg         style.Color
 	bg         style.Color
-	attributes uint32
+	attributes style.Attrs
 }
 
 // styledSegment contains unwrapped text with one style.
@@ -47,7 +39,7 @@ type styledSegment struct {
 	text       string
 	fg         style.Color
 	bg         style.Color
-	attributes uint32
+	attributes style.Attrs
 }
 
 // Text displays styled, selectable text with wrapping, truncation, and scrolling.
@@ -62,12 +54,12 @@ type Text struct {
 	content     style.StyledText
 	fg          style.Color
 	bg          style.Color
-	attributes  uint32
-	wrapMode    WrapMode
+	attributes  style.Attrs
+	wrapMode    textbuf.WrapMode
 	truncate    bool
 	selectable_ bool
 	selectionBg style.Color
-	selectionFg *style.Color
+	selectionFg style.Color
 
 	// scrollX and scrollY are offsets in the rendered TextSurface.
 	scrollX int
@@ -117,7 +109,7 @@ func newTextBase(opts ...TextOption) *Text {
 		BaseRenderable: render.NewBaseRenderable(),
 		fg:             style.ColorWhite,
 		bg:             style.ColorTransparent,
-		wrapMode:       WrapNone,
+		wrapMode:       textbuf.WrapNone,
 		selectionBg:    style.ColorFromInts(51, 153, 255, 255),
 		linesDirty:     true,
 		textBuf:        tb,
@@ -374,7 +366,7 @@ func (t *Text) ScrollHeight() int {
 // Text rendering.
 
 // RenderSelf draws the text content into the buffer.
-func (t *Text) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (t *Text) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	w := t.Width()
 	h := t.Height()
 	if w <= 0 || h <= 0 {
@@ -402,7 +394,7 @@ func (t *Text) syncSelection() {
 	if !t.Selectable() {
 		return
 	}
-	sel := t.Context().Selection()
+	sel := t.Host().Selection()
 	if sel == nil || !sel.IsActive() {
 		return
 	}
@@ -411,7 +403,7 @@ func (t *Text) syncSelection() {
 		return
 	}
 	bg := t.selectionBg
-	t.textSurface.SetLocalSelection(localSel.AnchorX, localSel.AnchorY, localSel.FocusX, localSel.FocusY, &bg, t.selectionFg)
+	t.textSurface.SetLocalSelection(localSel.AnchorX, localSel.AnchorY, localSel.FocusX, localSel.FocusY, bg, t.selectionFg)
 }
 
 // isInSelection reports whether a visual coordinate lies within sel.
@@ -444,7 +436,7 @@ func isInSelection(x, y int, sel *render.LocalSelectionBounds) bool {
 
 // SelectedText returns the text covered by the active selection in this widget.
 func (t *Text) SelectedText() string {
-	sel := t.Context().Selection()
+	sel := t.Host().Selection()
 	if sel == nil || !sel.IsActive() {
 		return ""
 	}
@@ -499,7 +491,7 @@ func (t *Text) SelectedText() string {
 
 // HasSelection reports whether an active selection intersects this widget.
 func (t *Text) HasSelection() bool {
-	sel := t.Context().Selection()
+	sel := t.Host().Selection()
 	if sel == nil || !sel.IsActive() {
 		return false
 	}
@@ -558,11 +550,11 @@ func (t *Text) splitChunksIntoHardLines() [][]styledSegment {
 		bg := t.bg
 		attrs := t.attributes
 
-		if chunk.Fg != nil {
-			fg = *chunk.Fg
+		if !chunk.Fg.IsTransparent() {
+			fg = chunk.Fg
 		}
-		if chunk.Bg != nil {
-			bg = *chunk.Bg
+		if !chunk.Bg.IsTransparent() {
+			bg = chunk.Bg
 		}
 		// Chunk attributes add to the widget defaults.
 		attrs = attrs | chunk.Attributes
@@ -748,7 +740,7 @@ func splitSegmentsIntoWords(segments []styledSegment) []styledWord {
 		width      int
 		fg         style.Color
 		bg         style.Color
-		attributes uint32
+		attributes style.Attrs
 	}
 
 	// Flatten segments so style boundaries do not affect word detection.
@@ -901,7 +893,7 @@ func (t *Text) SetFg(c style.Color) {
 	t.fg = c
 	t.linesDirty = true
 	if t.rootTextNode != nil {
-		t.rootTextNode.fg = &c
+		t.rootTextNode.fg = c
 	}
 	t.RequestRender()
 }
@@ -911,13 +903,13 @@ func (t *Text) SetBg(c style.Color) {
 	t.bg = c
 	t.linesDirty = true
 	if t.rootTextNode != nil {
-		t.rootTextNode.bg = &c
+		t.rootTextNode.bg = c
 	}
 	t.RequestRender()
 }
 
 // SetAttributes sets default text attributes and schedules content synchronization.
-func (t *Text) SetAttributes(a uint32) {
+func (t *Text) SetAttributes(a style.Attrs) {
 	t.attributes = a
 	t.linesDirty = true
 	if t.rootTextNode != nil {
@@ -927,7 +919,7 @@ func (t *Text) SetAttributes(a uint32) {
 }
 
 // SetWrapMode sets the wrap mode and schedules content synchronization.
-func (t *Text) SetWrapMode(m WrapMode) {
+func (t *Text) SetWrapMode(m textbuf.WrapMode) {
 	t.wrapMode = m
 	t.linesDirty = true
 	t.RequestRender()
@@ -948,10 +940,10 @@ func (t *Text) Fg() style.Color { return t.fg }
 func (t *Text) Bg() style.Color { return t.bg }
 
 // Attributes returns the text attributes bitmask.
-func (t *Text) Attributes() uint32 { return t.attributes }
+func (t *Text) Attributes() style.Attrs { return t.attributes }
 
 // WrapModeValue returns the configured wrap mode.
-func (t *Text) WrapModeValue() WrapMode { return t.wrapMode }
+func (t *Text) WrapModeValue() textbuf.WrapMode { return t.wrapMode }
 
 // Truncate returns whether truncation is enabled.
 func (t *Text) Truncate() bool { return t.truncate }
@@ -969,12 +961,12 @@ func TextWithBg(c style.Color) TextOption {
 }
 
 // TextWithAttributes sets text attributes.
-func TextWithAttributes(a uint32) TextOption {
+func TextWithAttributes(a style.Attrs) TextOption {
 	return func(t *Text) { t.attributes = a }
 }
 
 // TextWithWrapMode sets the wrapping mode.
-func TextWithWrapMode(m WrapMode) TextOption {
+func TextWithWrapMode(m textbuf.WrapMode) TextOption {
 	return func(t *Text) { t.wrapMode = m }
 }
 
@@ -995,7 +987,7 @@ func TextWithSelectionBg(c style.Color) TextOption {
 
 // TextWithSelectionFg sets the selection foreground color.
 func TextWithSelectionFg(c style.Color) TextOption {
-	return func(t *Text) { t.selectionFg = &c }
+	return func(t *Text) { t.selectionFg = c }
 }
 
 // TextWithID sets the widget ID.
@@ -1003,24 +995,14 @@ func TextWithID(id string) TextOption {
 	return func(t *Text) { t.SetID(id) }
 }
 
-// TextWithWidth sets the widget width.
-func TextWithWidth(s layout.Scalar) TextOption {
-	return func(t *Text) { t.LayoutNode().Width = s }
-}
-
-// TextWithHeight sets the widget height.
-func TextWithHeight(s layout.Scalar) TextOption {
-	return func(t *Text) { t.LayoutNode().Height = s }
-}
-
-// TextWithFlexGrow sets the flex-grow factor.
-func TextWithFlexGrow(v int) TextOption {
-	return func(t *Text) { t.LayoutNode().FlexGrow = v }
-}
-
-// TextWithFlexShrink sets the flex-shrink factor.
-func TextWithFlexShrink(v int) TextOption {
-	return func(t *Text) { t.LayoutNode().FlexShrink = v }
+// TextWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func TextWithLayout(opts ...layout.Option) TextOption {
+	return func(w *Text) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }
 
 // TextWithScrollX sets the initial horizontal scroll offset.

@@ -11,6 +11,7 @@ import (
 	"github.com/unaquatic/fluid/render"
 	"github.com/unaquatic/fluid/style"
 	"github.com/unaquatic/fluid/testutil"
+	"github.com/unaquatic/fluid/textbuf"
 )
 
 // Code behavior.
@@ -128,10 +129,11 @@ func TestCode_SyntaxHighlighting_UnknownLanguage(t *testing.T) {
 
 func TestCode_ThemeSwitch(t *testing.T) {
 	code := "func main() {}"
-	c := NewCode(code, CodeWithFiletype("go"), CodeWithTheme("monokai"))
+	monokai, darcula := style.DefaultDark(), style.DarculaSolid()
+	c := NewCode(code, CodeWithFiletype("go"), CodeWithTheme(monokai))
 
-	if c.Theme() != "monokai" {
-		t.Errorf("expected theme 'monokai', got %q", c.Theme())
+	if c.Theme() != monokai {
+		t.Errorf("expected theme %q, got %q", monokai.Name, c.Theme().Name)
 	}
 
 	testutil.SetupWidget(c, 30, 1)
@@ -141,9 +143,9 @@ func TestCode_ThemeSwitch(t *testing.T) {
 	fgMonokai := buf1.Cell(0, 0).Fg
 
 	// Change the highlighter theme after construction.
-	c.SetTheme("github")
-	if c.Theme() != "github" {
-		t.Errorf("expected theme 'github', got %q", c.Theme())
+	c.SetTheme(darcula)
+	if c.Theme() != darcula {
+		t.Errorf("expected theme %q, got %q", darcula.Name, c.Theme().Name)
 	}
 
 	buf2 := buffer.New(30, 1)
@@ -219,7 +221,7 @@ func TestCode_ScrollY_Clamping(t *testing.T) {
 
 func TestCode_ScrollX(t *testing.T) {
 	// Disable wrapping so the long line has horizontal overflow.
-	c := NewCode("ABCDEFGHIJKLMNOPQRSTUVWXYZ", CodeWithWrapMode(WrapNone))
+	c := NewCode("ABCDEFGHIJKLMNOPQRSTUVWXYZ", CodeWithWrapMode(textbuf.WrapNone))
 	testutil.SetupWidget(c, 10, 1)
 
 	buf := buffer.New(10, 1)
@@ -297,7 +299,7 @@ func TestCode_MouseScroll(t *testing.T) {
 
 func TestCode_WrapModeChar(t *testing.T) {
 	// Twenty characters fill two ten-column visual lines.
-	c := NewCode("12345678901234567890", CodeWithWrapMode(WrapChar))
+	c := NewCode("12345678901234567890", CodeWithWrapMode(textbuf.WrapChar))
 	testutil.SetupWidget(c, 10, 5)
 
 	if c.VisualLineCount() != 2 {
@@ -317,7 +319,7 @@ func TestCode_WrapModeChar(t *testing.T) {
 
 func TestCode_WrapModeWord(t *testing.T) {
 	// A narrow viewport forces several word-boundary wraps.
-	c := NewCode("hello world foo bar", CodeWithWrapMode(WrapWord))
+	c := NewCode("hello world foo bar", CodeWithWrapMode(textbuf.WrapWord))
 	testutil.SetupWidget(c, 12, 5)
 
 	if c.VisualLineCount() < 2 {
@@ -327,7 +329,7 @@ func TestCode_WrapModeWord(t *testing.T) {
 
 func TestCode_WrapVisualToLogicalMapping(t *testing.T) {
 	// The first of two logical lines wraps at width 12; the second does not.
-	c := NewCode("hello world foo bar baz\nend", CodeWithWrapMode(WrapWord))
+	c := NewCode("hello world foo bar baz\nend", CodeWithWrapMode(textbuf.WrapWord))
 	testutil.SetupWidget(c, 12, 10)
 
 	if c.LineCount() != 2 {
@@ -355,17 +357,17 @@ func TestCode_WrapVisualToLogicalMapping(t *testing.T) {
 
 func TestCode_WrapModeNone_NoScrollX(t *testing.T) {
 	// No-wrap content retains horizontal overflow.
-	c := NewCode("ABCDEFGHIJKLMNOPQRSTUVWXYZ", CodeWithWrapMode(WrapNone))
+	c := NewCode("ABCDEFGHIJKLMNOPQRSTUVWXYZ", CodeWithWrapMode(textbuf.WrapNone))
 	testutil.SetupWidget(c, 10, 1)
 
 	// No wrapping produces one visual line.
 	if c.VisualLineCount() != 1 {
-		t.Errorf("expected 1 visual line with WrapNone, got %d", c.VisualLineCount())
+		t.Errorf("expected 1 visual line with textbuf.WrapNone, got %d", c.VisualLineCount())
 	}
 
 	// The long line must have a positive horizontal range.
 	if c.MaxScrollX() <= 0 {
-		t.Error("expected MaxScrollX > 0 with long line and WrapNone")
+		t.Error("expected MaxScrollX > 0 with long line and textbuf.WrapNone")
 	}
 }
 
@@ -443,21 +445,24 @@ func TestCode_ActiveLine(t *testing.T) {
 }
 
 func TestCode_Options(t *testing.T) {
+	theme := style.DarculaSolid()
 	c := NewCode("test",
 		CodeWithID("code1"),
 		CodeWithFg(style.ColorGreen),
 		CodeWithBg(style.ColorFromInts(30, 30, 30, 255)),
 		CodeWithFiletype("go"),
-		CodeWithTheme("dracula"),
-		CodeWithWrapMode(WrapWord),
+		CodeWithTheme(theme),
+		CodeWithWrapMode(textbuf.WrapWord),
 		CodeWithStreaming(true),
 		CodeWithSelectable(true),
 		CodeWithScrollX(0),
 		CodeWithScrollY(0),
 		CodeWithActiveLine(0),
-		CodeWithWidth(layout.Points(40)),
-		CodeWithHeight(layout.Points(10)),
-		CodeWithFlexGrow(1),
+		CodeWithLayout(
+			layout.WithWidth(layout.Points(40)),
+			layout.WithHeight(layout.Points(10)),
+			layout.WithFlexGrow(1),
+		),
 	)
 
 	if c.ID() != "code1" {
@@ -466,11 +471,11 @@ func TestCode_Options(t *testing.T) {
 	if c.Fg() != style.ColorGreen {
 		t.Error("expected green fg")
 	}
-	if c.Theme() != "dracula" {
-		t.Errorf("expected theme 'dracula', got %q", c.Theme())
+	if c.Theme() != theme {
+		t.Errorf("expected theme %q, got %q", theme.Name, c.Theme().Name)
 	}
-	if c.WrapModeValue() != WrapWord {
-		t.Errorf("expected WrapWord, got %d", c.WrapModeValue())
+	if c.WrapModeValue() != textbuf.WrapWord {
+		t.Errorf("expected textbuf.WrapWord, got %d", c.WrapModeValue())
 	}
 	if !c.Streaming() {
 		t.Error("expected streaming=true")
@@ -483,19 +488,19 @@ func TestCode_Options(t *testing.T) {
 	}
 }
 
-func TestCode_ScrollInfoProvider(t *testing.T) {
-	// This assignment verifies ScrollInfoProvider at compile time.
+func TestCode_Scroller(t *testing.T) {
+	// This assignment verifies Scroller at compile time.
 	c := NewCode("line1\nline2\nline3")
-	var _ ScrollInfoProvider = c
+	var _ Scroller = c
 	if c.ScrollY() != 0 {
 		t.Errorf("expected initial ScrollY=0, got %d", c.ScrollY())
 	}
 }
 
-func TestCode_LineInfoProvider(t *testing.T) {
-	// This assignment verifies LineInfoProvider at compile time.
+func TestCode_LineCounter(t *testing.T) {
+	// This assignment verifies LineCounter at compile time.
 	c := NewCode("line1\nline2\nline3")
-	var _ LineInfoProvider = c
+	var _ LineCounter = c
 	if c.LineCount() != 3 {
 		t.Errorf("expected 3 lines, got %d", c.LineCount())
 	}
@@ -716,7 +721,7 @@ func TestMarkdown_TableAlignment(t *testing.T) {
 func TestMarkdown_WordWrap(t *testing.T) {
 	// A narrow viewport wraps the long paragraph at word boundaries.
 	longText := "This is a very long paragraph that should wrap at word boundaries when the widget is narrow enough to trigger wrapping behavior."
-	m := NewMarkdown(longText, MarkdownWithWrapMode(WrapWord))
+	m := NewMarkdown(longText, MarkdownWithWrapMode(textbuf.WrapWord))
 	testutil.SetupWidget(m, 30, 20)
 
 	if m.LineCount() < 3 {
@@ -726,11 +731,11 @@ func TestMarkdown_WordWrap(t *testing.T) {
 
 func TestMarkdown_NoWrap(t *testing.T) {
 	longText := "This is a very long line that should not wrap at all"
-	m := NewMarkdown(longText, MarkdownWithWrapMode(WrapNone))
+	m := NewMarkdown(longText, MarkdownWithWrapMode(textbuf.WrapNone))
 	testutil.SetupWidget(m, 20, 5)
 
 	if m.LineCount() != 1 {
-		t.Errorf("expected 1 line with WrapNone, got %d", m.LineCount())
+		t.Errorf("expected 1 line with textbuf.WrapNone, got %d", m.LineCount())
 	}
 }
 
@@ -741,7 +746,7 @@ func TestMarkdown_MeasureFuncReportsLineCount(t *testing.T) {
 		lines = append(lines, fmt.Sprintf("Line %d", i))
 	}
 	m := NewMarkdown(strings.Join(lines, "\n\n"),
-		MarkdownWithWidth(layout.Points(40)),
+		MarkdownWithLayout(layout.WithWidth(layout.Points(40))),
 	)
 	// Automatic height must use the measured line count.
 
@@ -903,10 +908,12 @@ func TestMarkdown_Options(t *testing.T) {
 		MarkdownWithID("md1"),
 		MarkdownWithFg(style.ColorGreen),
 		MarkdownWithBg(style.ColorFromInts(30, 30, 30, 255)),
-		MarkdownWithWrapMode(WrapChar),
-		MarkdownWithWidth(layout.Points(40)),
-		MarkdownWithHeight(layout.Points(10)),
-		MarkdownWithFlexGrow(1),
+		MarkdownWithWrapMode(textbuf.WrapChar),
+		MarkdownWithLayout(
+			layout.WithWidth(layout.Points(40)),
+			layout.WithHeight(layout.Points(10)),
+			layout.WithFlexGrow(1),
+		),
 	)
 
 	if m.ID() != "md1" {
@@ -915,8 +922,8 @@ func TestMarkdown_Options(t *testing.T) {
 	if m.Fg() != style.ColorGreen {
 		t.Error("expected green fg")
 	}
-	if m.WrapModeValue() != WrapChar {
-		t.Error("expected WrapChar")
+	if m.WrapModeValue() != textbuf.WrapChar {
+		t.Error("expected textbuf.WrapChar")
 	}
 }
 
@@ -1144,7 +1151,7 @@ func TestDiff_InlineDiff_CompletelyDifferent(t *testing.T) {
 }
 
 func TestDiff_ParseHunkHeader(t *testing.T) {
-	p := ParsePatch("@@ -10,5 +20,7 @@ func main()")
+	p := parsePatch("@@ -10,5 +20,7 @@ func main()")
 	if p == nil || len(p.Hunks) == 0 {
 		t.Fatal("expected at least one hunk")
 	}
@@ -1164,7 +1171,7 @@ func TestDiff_ParseHunkHeader(t *testing.T) {
 }
 
 func TestDiff_ParseHunkHeader_SingleLine(t *testing.T) {
-	p := ParsePatch("@@ -1 +1 @@")
+	p := parsePatch("@@ -1 +1 @@")
 	if p == nil || len(p.Hunks) == 0 {
 		t.Fatal("expected at least one hunk")
 	}
@@ -1224,14 +1231,14 @@ func TestDiff_ScrollToBottom(t *testing.T) {
 	}
 }
 
-func TestDiff_ScrollInfoProvider(t *testing.T) {
+func TestDiff_Scroller(t *testing.T) {
 	d := NewDiff("@@ -1 +1 @@\n-old\n+new")
-	var _ ScrollInfoProvider = d // Verify the interface at compile time.
+	var _ Scroller = d // Verify the interface at compile time.
 }
 
-func TestDiff_LineInfoProvider(t *testing.T) {
+func TestDiff_LineCounter(t *testing.T) {
 	d := NewDiff("@@ -1 +1 @@\n-old\n+new")
-	var _ LineInfoProvider = d // Verify the interface at compile time.
+	var _ LineCounter = d // Verify the interface at compile time.
 }
 
 func TestDiff_SetViewMode(t *testing.T) {
@@ -1247,11 +1254,12 @@ func TestDiff_SetViewMode(t *testing.T) {
 }
 
 func TestDiff_Options(t *testing.T) {
+	theme := style.DarculaSolid()
 	d := NewDiff("test",
 		DiffWithID("diff1"),
 		DiffWithViewMode(DiffSplit),
 		DiffWithFiletype("go"),
-		DiffWithTheme("dracula"),
+		DiffWithTheme(theme),
 		DiffWithShowLineNumbers(true),
 		DiffWithInlineHighlight(false),
 		DiffWithShowSigns(true),
@@ -1259,9 +1267,11 @@ func TestDiff_Options(t *testing.T) {
 		DiffWithRemovedBg(style.ColorRed),
 		DiffWithContextBg(style.ColorTransparent),
 		DiffWithScrollY(0),
-		DiffWithWidth(layout.Points(40)),
-		DiffWithHeight(layout.Points(10)),
-		DiffWithFlexGrow(1),
+		DiffWithLayout(
+			layout.WithWidth(layout.Points(40)),
+			layout.WithHeight(layout.Points(10)),
+			layout.WithFlexGrow(1),
+		),
 	)
 
 	if d.ID() != "diff1" {
@@ -1273,8 +1283,8 @@ func TestDiff_Options(t *testing.T) {
 	if d.Filetype() != "go" {
 		t.Errorf("expected filetype 'go', got %q", d.Filetype())
 	}
-	if d.Theme() != "dracula" {
-		t.Errorf("expected theme 'dracula', got %q", d.Theme())
+	if d.Theme() != theme {
+		t.Errorf("expected theme %q, got %q", theme.Name, d.Theme().Name)
 	}
 }
 
@@ -1338,16 +1348,16 @@ func TestTabSelect_Render(t *testing.T) {
 
 // LineNumber behavior.
 
-// mockLineProvider supplies a fixed logical line count.
-type mockLineProvider struct {
+// mockLineCounter supplies a fixed logical line count.
+type mockLineCounter struct {
 	*render.BaseRenderable
 	lineCount int
 }
 
-func (m *mockLineProvider) LineCount() int { return m.lineCount }
+func (m *mockLineCounter) LineCount() int { return m.lineCount }
 
 func TestNewLineNumber(t *testing.T) {
-	target := &mockLineProvider{
+	target := &mockLineCounter{
 		BaseRenderable: render.NewBaseRenderable(),
 		lineCount:      10,
 	}
@@ -1358,7 +1368,7 @@ func TestNewLineNumber(t *testing.T) {
 }
 
 func TestLineNumber_Render(t *testing.T) {
-	target := &mockLineProvider{
+	target := &mockLineCounter{
 		BaseRenderable: render.NewBaseRenderable(),
 		lineCount:      5,
 	}
@@ -1369,26 +1379,26 @@ func TestLineNumber_Render(t *testing.T) {
 	ln.RenderSelf(buf, 0)
 
 	// A nonempty target must produce visible gutter text.
-	text := buf.PlainText(true)
+	text := buf.String()
 	if len(text) == 0 {
 		t.Error("expected non-empty render output")
 	}
 }
 
-// mockCursorProvider supplies line, scroll, and active-line state.
-type mockCursorProvider struct {
+// mockCursorTracker supplies line, scroll, and active-line state.
+type mockCursorTracker struct {
 	*render.BaseRenderable
 	lineCount int
 	scrollY   int
 	cursorRow int
 }
 
-func (m *mockCursorProvider) LineCount() int { return m.lineCount }
-func (m *mockCursorProvider) ScrollY() int   { return m.scrollY }
-func (m *mockCursorProvider) CursorRow() int { return m.cursorRow }
+func (m *mockCursorTracker) LineCount() int                 { return m.lineCount }
+func (m *mockCursorTracker) ScrollY() int                   { return m.scrollY }
+func (m *mockCursorTracker) CursorPosition() (row, col int) { return m.cursorRow, 0 }
 
-// mockVisualLineProvider supplies wrapped-to-logical line mappings.
-type mockVisualLineProvider struct {
+// mockLineMapper supplies wrapped-to-logical line mappings.
+type mockLineMapper struct {
 	*render.BaseRenderable
 	lineCount   int
 	scrollY     int
@@ -1397,11 +1407,11 @@ type mockVisualLineProvider struct {
 	logicalMap  []int // Maps visual line indexes to logical line indexes.
 }
 
-func (m *mockVisualLineProvider) LineCount() int       { return m.lineCount }
-func (m *mockVisualLineProvider) ScrollY() int         { return m.scrollY }
-func (m *mockVisualLineProvider) CursorRow() int       { return m.cursorRow }
-func (m *mockVisualLineProvider) VisualLineCount() int { return m.visualLines }
-func (m *mockVisualLineProvider) LogicalLineForVisualLine(v int) int {
+func (m *mockLineMapper) LineCount() int                 { return m.lineCount }
+func (m *mockLineMapper) ScrollY() int                   { return m.scrollY }
+func (m *mockLineMapper) CursorPosition() (row, col int) { return m.cursorRow, 0 }
+func (m *mockLineMapper) VisualLineCount() int           { return m.visualLines }
+func (m *mockLineMapper) LogicalLineForVisualLine(v int) int {
 	if v >= 0 && v < len(m.logicalMap) {
 		return m.logicalMap[v]
 	}
@@ -1409,7 +1419,7 @@ func (m *mockVisualLineProvider) LogicalLineForVisualLine(v int) int {
 }
 
 func TestLineNumber_ActiveLine(t *testing.T) {
-	target := &mockCursorProvider{
+	target := &mockCursorTracker{
 		BaseRenderable: render.NewBaseRenderable(),
 		lineCount:      5,
 		cursorRow:      2,
@@ -1431,7 +1441,7 @@ func TestLineNumber_ActiveLine(t *testing.T) {
 }
 
 func TestLineNumber_RelativeMode(t *testing.T) {
-	target := &mockCursorProvider{
+	target := &mockCursorTracker{
 		BaseRenderable: render.NewBaseRenderable(),
 		lineCount:      5,
 		cursorRow:      2, // Zero-based logical line two.
@@ -1443,14 +1453,14 @@ func TestLineNumber_RelativeMode(t *testing.T) {
 	ln.RenderSelf(buf, 0)
 
 	// The active row is absolute while surrounding rows show their distance.
-	text := buf.PlainText(true)
+	text := buf.String()
 	if len(text) == 0 {
 		t.Error("expected non-empty render for relative mode")
 	}
 }
 
 func TestLineNumber_ScrollSync(t *testing.T) {
-	target := &mockCursorProvider{
+	target := &mockCursorTracker{
 		BaseRenderable: render.NewBaseRenderable(),
 		lineCount:      20,
 		scrollY:        5,
@@ -1467,7 +1477,7 @@ func TestLineNumber_ScrollSync(t *testing.T) {
 
 func TestLineNumber_WrapAwareness(t *testing.T) {
 	// Map three logical lines onto five visual lines, with the last two wrapping.
-	target := &mockVisualLineProvider{
+	target := &mockLineMapper{
 		BaseRenderable: render.NewBaseRenderable(),
 		lineCount:      3,
 		visualLines:    5,
@@ -1484,11 +1494,11 @@ func TestLineNumber_WrapAwareness(t *testing.T) {
 }
 
 func TestLineNumber_ComputedWidth(t *testing.T) {
-	target := &mockLineProvider{
+	target := &mockLineCounter{
 		BaseRenderable: render.NewBaseRenderable(),
 		lineCount:      100,
 	}
-	ln := NewLineNumber(target, LineNumberWithWidth(layout.Points(10)))
+	ln := NewLineNumber(target, LineNumberWithLayout(layout.WithWidth(layout.Points(10))))
 	testutil.SetupWidget(ln, 10, 10)
 
 	cw := ln.ComputedWidth()
@@ -1507,7 +1517,7 @@ func TestLineNumber_ComputedWidth(t *testing.T) {
 }
 
 func TestLineNumber_Hidden(t *testing.T) {
-	target := &mockLineProvider{
+	target := &mockLineCounter{
 		BaseRenderable: render.NewBaseRenderable(),
 		lineCount:      5,
 	}
@@ -1524,7 +1534,7 @@ func TestLineNumber_Hidden(t *testing.T) {
 }
 
 func TestLineNumber_Separator(t *testing.T) {
-	target := &mockLineProvider{
+	target := &mockLineCounter{
 		BaseRenderable: render.NewBaseRenderable(),
 		lineCount:      3,
 	}
@@ -1538,7 +1548,7 @@ func TestLineNumber_Separator(t *testing.T) {
 }
 
 func TestLineNumber_Options(t *testing.T) {
-	target := &mockLineProvider{
+	target := &mockLineCounter{
 		BaseRenderable: render.NewBaseRenderable(),
 		lineCount:      5,
 	}
@@ -1554,8 +1564,10 @@ func TestLineNumber_Options(t *testing.T) {
 		LineNumberWithMode(LineNumberRelative),
 		LineNumberWithSeparator('│'),
 		LineNumberWithSeparatorFg(style.ColorGray),
-		LineNumberWithWidth(layout.Points(6)),
-		LineNumberWithHeight(layout.Points(10)),
+		LineNumberWithLayout(
+			layout.WithWidth(layout.Points(6)),
+			layout.WithHeight(layout.Points(10)),
+		),
 	)
 
 	if ln.ID() != "ln1" {
@@ -1575,11 +1587,11 @@ func TestLineNumber_NilTarget(t *testing.T) {
 }
 
 func TestLineNumber_SetTarget(t *testing.T) {
-	target1 := &mockLineProvider{
+	target1 := &mockLineCounter{
 		BaseRenderable: render.NewBaseRenderable(),
 		lineCount:      5,
 	}
-	target2 := &mockLineProvider{
+	target2 := &mockLineCounter{
 		BaseRenderable: render.NewBaseRenderable(),
 		lineCount:      10,
 	}

@@ -25,7 +25,7 @@ const (
 // frameAttrs are the attributes the attrs frame shows, each with its letter,
 // in the order a combination lists them.
 var frameAttrs = []struct {
-	attr   uint32
+	attr   style.Attrs
 	letter byte
 }{
 	{style.AttrBold, 'B'},
@@ -142,7 +142,7 @@ func blankFrame(frame string) bool {
 type Frames struct {
 	fg     *Symbols[style.Color]
 	bg     *Symbols[style.Color]
-	combos *Symbols[uint32]
+	combos *Symbols[style.Attrs]
 }
 
 // NewFrames returns a Frames with no symbols assigned.
@@ -150,7 +150,7 @@ func NewFrames() *Frames {
 	return &Frames{
 		fg:     NewSymbols[style.Color](FgSymbols),
 		bg:     NewSymbols[style.Color](BgSymbols),
-		combos: NewSymbols[uint32](AttrComboSymbols),
+		combos: NewSymbols[style.Attrs](AttrComboSymbols),
 	}
 }
 
@@ -217,7 +217,7 @@ func (f *Frames) Legend(names map[style.Color]string) string {
 }
 
 // attrLetters returns the letters of the frame attributes set in attrs.
-func attrLetters(attrs uint32) string {
+func attrLetters(attrs style.Attrs) string {
 	var letters []byte
 	for _, a := range frameAttrs {
 		if attrs&a.attr != 0 {

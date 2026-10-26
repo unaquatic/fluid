@@ -28,10 +28,7 @@ type pendingLine struct {
 
 func runScrollboxDemo(ctx context.Context, o DemoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
-		Fullscreen:  true,
-		ExitOnCtrlC: true,
-		UseMouse:    !o.NoMouse,
-		TargetFPS:   o.FPS,
+		UseMouse: !o.NoMouse,
 	})
 	if err != nil {
 		return fmt.Errorf("renderer: %w", err)
@@ -40,25 +37,25 @@ func runScrollboxDemo(ctx context.Context, o DemoOptions) error {
 	root := r.Root()
 
 	// Build static content before rendering starts.
-	staticContent := widget.NewBox(widget.BoxWithFlexDirection(layout.DirectionColumn))
+	staticContent := widget.NewBox(widget.BoxWithLayout(layout.WithFlexDirection(layout.DirectionColumn)))
 	for i := 1; i <= 100_000; i++ {
 		staticContent.Add(widget.NewText(
 			fmt.Sprintf("Line %3d — Lorem ipsum dolor sit amet, consectetur adipiscing elit", i),
-			widget.TextWithHeight(layout.Points(1)),
+			widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 		))
 	}
 
 	staticScroll := widget.NewScrollBox(
-		widget.ScrollBoxWithFlexGrow(1),
+		widget.ScrollBoxWithLayout(layout.WithFlexGrow(1)),
 		widget.ScrollBoxWithBorderConfig(style.BorderAll(), style.BorderSingle),
 		widget.ScrollBoxWithChildren(staticContent),
 	)
 	staticSB := widget.NewScrollBar()
 	widget.BindScrollBar(staticScroll, staticSB)
 
-	dynamicContent := widget.NewBox(widget.BoxWithFlexDirection(layout.DirectionColumn))
+	dynamicContent := widget.NewBox(widget.BoxWithLayout(layout.WithFlexDirection(layout.DirectionColumn)))
 	dynamicScroll := widget.NewScrollBox(
-		widget.ScrollBoxWithFlexGrow(1),
+		widget.ScrollBoxWithLayout(layout.WithFlexGrow(1)),
 		widget.ScrollBoxWithBorderConfig(style.BorderAll(), style.BorderSingle),
 		widget.ScrollBoxWithAutoScroll(widget.AutoScrollBottom),
 		widget.ScrollBoxWithChildren(dynamicContent),
@@ -68,46 +65,54 @@ func runScrollboxDemo(ctx context.Context, o DemoOptions) error {
 
 	statusText := widget.NewText(
 		"Auto-scroll: ON | Lines: 0",
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 	)
 	frameStatsText := widget.NewText("",
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 	)
 
 	container := widget.NewBox(
 		widget.BoxWithID("container"),
-		widget.BoxWithFlexGrow(1),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
-		widget.BoxWithPadding(layout.Points(1)),
-		widget.BoxWithGap(layout.Points(1)),
+		widget.BoxWithLayout(
+			layout.WithFlexGrow(1),
+			layout.WithFlexDirection(layout.DirectionColumn),
+			layout.WithPadding(layout.Points(1)),
+			layout.WithGap(1),
+		),
 		widget.Children(
 			widget.NewText("ScrollBox Demo",
-				widget.TextWithHeight(layout.Points(1)),
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 
 			widget.NewBox(
-				widget.BoxWithFlexDirection(layout.DirectionRow),
-				widget.BoxWithFlexGrow(1),
-				widget.BoxWithGap(layout.Points(2)),
+				widget.BoxWithLayout(
+					layout.WithFlexDirection(layout.DirectionRow),
+					layout.WithFlexGrow(1),
+					layout.WithGap(2),
+				),
 				widget.Children(
 					newFlexColumn(
 						widget.NewText("Static Content (100k lines)",
-							widget.TextWithHeight(layout.Points(1)),
+							widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 						),
 						widget.NewBox(
-							widget.BoxWithFlexGrow(1),
-							widget.BoxWithFlexDirection(layout.DirectionRow),
+							widget.BoxWithLayout(
+								layout.WithFlexGrow(1),
+								layout.WithFlexDirection(layout.DirectionRow),
+							),
 							widget.Children(staticScroll, staticSB),
 						),
 					),
 
 					newFlexColumn(
 						widget.NewText("Dynamic Content (auto-append)",
-							widget.TextWithHeight(layout.Points(1)),
+							widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 						),
 						widget.NewBox(
-							widget.BoxWithFlexGrow(1),
-							widget.BoxWithFlexDirection(layout.DirectionRow),
+							widget.BoxWithLayout(
+								layout.WithFlexGrow(1),
+								layout.WithFlexDirection(layout.DirectionRow),
+							),
 							widget.Children(dynamicScroll, dynamicSB),
 						),
 					),
@@ -116,8 +121,8 @@ func runScrollboxDemo(ctx context.Context, o DemoOptions) error {
 
 			statusText,
 			frameStatsText,
-			widget.NewText("a: add line | Mouse wheel: scroll | Esc/q: quit",
-				widget.TextWithHeight(layout.Points(1)),
+			widget.NewText("Esc/Q: Exit | Wheel: Scroll | A: Add line",
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 		),
 	)
@@ -146,7 +151,7 @@ func runScrollboxDemo(ctx context.Context, o DemoOptions) error {
 		now := time.Now().Format("15:04:05")
 		dynamicContent.Add(widget.NewText(
 			fmt.Sprintf("[%s] Event #%d — initial entry", now, n),
-			widget.TextWithHeight(layout.Points(1)),
+			widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 		))
 	}
 	statusText.SetContent(fmt.Sprintf("Auto-scroll: ON | Lines: %d", lineCount.Load()))
@@ -167,11 +172,11 @@ func runScrollboxDemo(ctx context.Context, o DemoOptions) error {
 			return
 		}
 		k := e.Key
-		if k.Name == "escape" || (k.Name == "q" && !k.Ctrl && !k.Alt) {
+		if k.Name == "escape" || (k.Name == "q" && !k.Mods.Has(input.ModCtrl) && !k.Mods.Has(input.ModAlt)) {
 			r.Destroy()
 			return
 		}
-		if k.Name == "a" && !k.Ctrl && !k.Alt {
+		if k.Name == "a" && !k.Mods.Has(input.ModCtrl) && !k.Mods.Has(input.ModAlt) {
 			queueLine()
 			return
 		}
@@ -183,10 +188,12 @@ func runScrollboxDemo(ctx context.Context, o DemoOptions) error {
 // newFlexColumn returns an equal-width column for the scrollbox demo.
 func newFlexColumn(children ...render.Renderable) *widget.Box {
 	b := widget.NewBox(
-		widget.BoxWithFlexGrow(1),
-		widget.BoxWithFlexBasis(layout.Points(0)),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
-		widget.BoxWithGap(layout.Points(1)),
+		widget.BoxWithLayout(
+			layout.WithFlexGrow(1),
+			layout.WithFlexBasis(layout.Points(0)),
+			layout.WithFlexDirection(layout.DirectionColumn),
+			layout.WithGap(1),
+		),
 		widget.Children(children...),
 	)
 	return b

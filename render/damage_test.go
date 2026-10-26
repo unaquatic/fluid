@@ -118,7 +118,7 @@ func TestClearDamage(t *testing.T) {
 
 func TestRenderClearsDamage(t *testing.T) {
 	r := NewBaseRenderable()
-	r.SetContext(&mockContext{})
+	r.SetHost(&mockHost{})
 	r.SetBounds(1, 1, 4, 2)
 	r.RequestRender()
 

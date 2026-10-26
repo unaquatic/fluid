@@ -40,28 +40,27 @@ type TextBuffer struct {
 	lines      []Line
 	defaultFg  style.Color
 	defaultBg  style.Color
-	defaultAt  uint32
+	defaultAt  style.Attrs
 	tabWidth   int
 	expandTabs bool   // Whether supported setters replace tabs with spaces.
 	epoch      uint64 // Incremented after content or tab-width changes.
 
 	// Per-line highlights.
 	highlights map[int][]Highlight
-
-	// Optional syntax-style registry.
-	syntaxStyle *style.SyntaxStyle
 }
 
 // Highlight describes a half-open display-column range on one logical line.
 type Highlight struct {
 	// Start and End are the inclusive start and exclusive end columns.
 	Start, End int
-	// Fg is the foreground color; nil leaves the text's foreground.
-	Fg *style.Color
-	// Bg is the background color; nil leaves the text's background.
-	Bg *style.Color
+	// Fg is the foreground color; a transparent one leaves the text's
+	// foreground.
+	Fg style.Color
+	// Bg is the background color; a transparent one leaves the text's
+	// background.
+	Bg style.Color
 	// Attributes is a bitmask of the style.Attr flags, such as style.AttrBold.
-	Attributes uint32
+	Attributes style.Attrs
 	// Ref is a caller-defined identifier used for removal.
 	Ref int
 }
@@ -115,7 +114,7 @@ func (tb *TextBuffer) ByteSize() int {
 }
 
 // Reset clears content and highlights and restores default colors, attributes,
-// and tab width. It preserves ExpandTabs and SyntaxStyle settings.
+// and tab width. It preserves the ExpandTabs setting.
 func (tb *TextBuffer) Reset() {
 	tb.lines = []Line{{Spans: []Span{{Text: ""}}}}
 	tb.defaultFg = style.ColorWhite
@@ -126,15 +125,16 @@ func (tb *TextBuffer) Reset() {
 	tb.epoch++
 }
 
-// LoadFile replaces buffer content with path and reports whether the read
-// succeeded.
-func (tb *TextBuffer) LoadFile(path string) bool {
+// LoadFile replaces the buffer's content with the content of the file at
+// path. If reading the file fails, it returns the error and leaves the
+// content unchanged.
+func (tb *TextBuffer) LoadFile(path string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return false
+		return err
 	}
 	tb.SetText(string(data))
-	return true
+	return nil
 }
 
 // ResetDefaults restores white foreground, transparent background, and no
@@ -280,7 +280,7 @@ func (tb *TextBuffer) DefaultFg() style.Color { return tb.defaultFg }
 func (tb *TextBuffer) DefaultBg() style.Color { return tb.defaultBg }
 
 // DefaultAttributes returns the default text attributes.
-func (tb *TextBuffer) DefaultAttributes() uint32 { return tb.defaultAt }
+func (tb *TextBuffer) DefaultAttributes() style.Attrs { return tb.defaultAt }
 
 // SetDefaultFg sets the default foreground color.
 func (tb *TextBuffer) SetDefaultFg(fg style.Color) { tb.defaultFg = fg }
@@ -289,7 +289,7 @@ func (tb *TextBuffer) SetDefaultFg(fg style.Color) { tb.defaultFg = fg }
 func (tb *TextBuffer) SetDefaultBg(bg style.Color) { tb.defaultBg = bg }
 
 // SetDefaultAttributes sets the default text attributes.
-func (tb *TextBuffer) SetDefaultAttributes(attrs uint32) { tb.defaultAt = attrs }
+func (tb *TextBuffer) SetDefaultAttributes(attrs style.Attrs) { tb.defaultAt = attrs }
 
 // TabWidth returns the tab stop width.
 func (tb *TextBuffer) TabWidth() int { return tb.tabWidth }
@@ -308,12 +308,6 @@ func (tb *TextBuffer) ExpandTabs() bool { return tb.expandTabs }
 
 // SetExpandTabs controls tab replacement in SetText, SetSpans, and SetLines.
 func (tb *TextBuffer) SetExpandTabs(v bool) { tb.expandTabs = v }
-
-// SyntaxStyle returns the attached syntax-style registry, or nil.
-func (tb *TextBuffer) SyntaxStyle() *style.SyntaxStyle { return tb.syntaxStyle }
-
-// SetSyntaxStyle attaches ss for token coloring; nil detaches it.
-func (tb *TextBuffer) SetSyntaxStyle(ss *style.SyntaxStyle) { tb.syntaxStyle = ss }
 
 // Lines returns the underlying line slice without copying it.
 func (tb *TextBuffer) Lines() []Line { return tb.lines }

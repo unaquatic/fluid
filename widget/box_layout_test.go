@@ -53,7 +53,7 @@ func TestBox_RoundedBorder(t *testing.T) {
 // TestBox_BackgroundFill verifies background color fills the interior.
 func TestBox_BackgroundFill(t *testing.T) {
 	box := widget.NewBox(
-		widget.BoxWithBackgroundColor(style.ColorRed),
+		widget.BoxWithBg(style.ColorRed),
 		widget.BoxWithBorder(style.BorderAll()),
 		widget.BoxWithBorderStyle(style.BorderSingle),
 	)
@@ -71,7 +71,7 @@ func TestBox_BackgroundFill(t *testing.T) {
 // TestBox_NoBorder_BackgroundFillsAll verifies that an unbordered fill covers every cell.
 func TestBox_NoBorder_BackgroundFillsAll(t *testing.T) {
 	box := widget.NewBox(
-		widget.BoxWithBackgroundColor(style.ColorBlue),
+		widget.BoxWithBg(style.ColorBlue),
 		widget.BoxWithShouldFill(true),
 	)
 	buf := testutil.RenderWidget(box, 4, 2)
@@ -91,13 +91,17 @@ func TestBox_NoBorder_BackgroundFillsAll(t *testing.T) {
 // TestBox_ChildTextPositioning verifies that layout places child text in its parent.
 func TestBox_ChildTextPositioning(t *testing.T) {
 	box := widget.NewBox(
-		widget.BoxWithWidth(layout.Points(20)),
-		widget.BoxWithHeight(layout.Points(3)),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
+		widget.BoxWithLayout(
+			layout.WithWidth(layout.Points(20)),
+			layout.WithHeight(layout.Points(3)),
+			layout.WithFlexDirection(layout.DirectionColumn),
+		),
 	)
 	txt := widget.NewText("Hello",
-		widget.TextWithWidth(layout.Points(20)),
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(
+			layout.WithWidth(layout.Points(20)),
+			layout.WithHeight(layout.Points(1)),
+		),
 	)
 	box.Add(txt)
 
@@ -113,22 +117,21 @@ func TestBox_ChildTextPositioning(t *testing.T) {
 // TestBox_MultipleChildrenStack verifies that a column Box stacks text children.
 func TestBox_MultipleChildrenStack(t *testing.T) {
 	box := widget.NewBox(
-		widget.BoxWithWidth(layout.Points(10)),
-		widget.BoxWithHeight(layout.Points(3)),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
+		widget.BoxWithLayout(
+			layout.WithWidth(layout.Points(10)),
+			layout.WithHeight(layout.Points(3)),
+			layout.WithFlexDirection(layout.DirectionColumn),
+		),
 	)
 
 	txt1 := widget.NewText("First",
-		widget.TextWithHeight(layout.Points(1)),
-		widget.TextWithFlexGrow(0),
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1)), layout.WithFlexGrow(0)),
 	)
 	txt2 := widget.NewText("Second",
-		widget.TextWithHeight(layout.Points(1)),
-		widget.TextWithFlexGrow(0),
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1)), layout.WithFlexGrow(0)),
 	)
 	txt3 := widget.NewText("Third",
-		widget.TextWithHeight(layout.Points(1)),
-		widget.TextWithFlexGrow(0),
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1)), layout.WithFlexGrow(0)),
 	)
 	box.Add(txt1)
 	box.Add(txt2)
@@ -150,18 +153,24 @@ func TestBox_MultipleChildrenStack(t *testing.T) {
 // TestBox_RowDirection verifies that a row Box places children side by side.
 func TestBox_RowDirection(t *testing.T) {
 	box := widget.NewBox(
-		widget.BoxWithWidth(layout.Points(10)),
-		widget.BoxWithHeight(layout.Points(1)),
-		widget.BoxWithFlexDirection(layout.DirectionRow),
+		widget.BoxWithLayout(
+			layout.WithWidth(layout.Points(10)),
+			layout.WithHeight(layout.Points(1)),
+			layout.WithFlexDirection(layout.DirectionRow),
+		),
 	)
 
 	txt1 := widget.NewText("AB",
-		widget.TextWithWidth(layout.Points(2)),
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(
+			layout.WithWidth(layout.Points(2)),
+			layout.WithHeight(layout.Points(1)),
+		),
 	)
 	txt2 := widget.NewText("CD",
-		widget.TextWithWidth(layout.Points(2)),
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(
+			layout.WithWidth(layout.Points(2)),
+			layout.WithHeight(layout.Points(1)),
+		),
 	)
 	box.Add(txt1)
 	box.Add(txt2)
@@ -182,16 +191,17 @@ func TestBox_RowDirection(t *testing.T) {
 // TestBox_BorderWithChild verifies that border padding keeps child content inside the border.
 func TestBox_BorderWithChild(t *testing.T) {
 	box := widget.NewBox(
-		widget.BoxWithWidth(layout.Points(12)),
-		widget.BoxWithHeight(layout.Points(3)),
+		widget.BoxWithLayout(
+			layout.WithWidth(layout.Points(12)),
+			layout.WithHeight(layout.Points(3)),
+			layout.WithPadding(layout.Points(1)), // offset children from border
+		),
 		widget.BoxWithBorder(style.BorderAll()),
 		widget.BoxWithBorderStyle(style.BorderSingle),
-		widget.BoxWithPadding(layout.Points(1)), // offset children from border
 	)
 
 	txt := widget.NewText("inner",
-		widget.TextWithHeight(layout.Points(1)),
-		widget.TextWithFlexGrow(1),
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1)), layout.WithFlexGrow(1)),
 	)
 	box.Add(txt)
 
@@ -216,14 +226,15 @@ func TestBox_BorderWithChild(t *testing.T) {
 // TestBox_PaddingOffsetsChild verifies that padding pushes children inward.
 func TestBox_PaddingOffsetsChild(t *testing.T) {
 	box := widget.NewBox(
-		widget.BoxWithWidth(layout.Points(20)),
-		widget.BoxWithHeight(layout.Points(5)),
-		widget.BoxWithPadding(layout.Points(1)),
+		widget.BoxWithLayout(
+			layout.WithWidth(layout.Points(20)),
+			layout.WithHeight(layout.Points(5)),
+			layout.WithPadding(layout.Points(1)),
+		),
 	)
 
 	txt := widget.NewText("padded",
-		widget.TextWithHeight(layout.Points(1)),
-		widget.TextWithFlexGrow(1),
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1)), layout.WithFlexGrow(1)),
 	)
 	box.Add(txt)
 
@@ -247,18 +258,20 @@ func TestBox_PaddingOffsetsChild(t *testing.T) {
 // TestBox_FlexGrow verifies that children with FlexGrow expand to fill space.
 func TestBox_FlexGrow(t *testing.T) {
 	box := widget.NewBox(
-		widget.BoxWithWidth(layout.Points(10)),
-		widget.BoxWithHeight(layout.Points(3)),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
+		widget.BoxWithLayout(
+			layout.WithWidth(layout.Points(10)),
+			layout.WithHeight(layout.Points(3)),
+			layout.WithFlexDirection(layout.DirectionColumn),
+		),
 	)
 
 	// The first child reserves one row.
 	fixed := widget.NewText("F",
-		widget.TextWithHeight(layout.Points(1)),
+		widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 	)
 	// The second child receives the remaining rows.
 	grow := widget.NewText("G",
-		widget.TextWithFlexGrow(1),
+		widget.TextWithLayout(layout.WithFlexGrow(1)),
 	)
 	box.Add(fixed)
 	box.Add(grow)
@@ -279,18 +292,20 @@ func TestBox_FlexGrow(t *testing.T) {
 // TestBox_NestedBoxes verifies correct rendering with nested boxes.
 func TestBox_NestedBoxes(t *testing.T) {
 	outer := widget.NewBox(
-		widget.BoxWithWidth(layout.Points(20)),
-		widget.BoxWithHeight(layout.Points(5)),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
+		widget.BoxWithLayout(
+			layout.WithWidth(layout.Points(20)),
+			layout.WithHeight(layout.Points(5)),
+			layout.WithFlexDirection(layout.DirectionColumn),
+		),
 	)
 
 	header := widget.NewBox(
-		widget.BoxWithHeight(layout.Points(1)),
-		widget.BoxWithBackgroundColor(style.ColorRed),
+		widget.BoxWithLayout(layout.WithHeight(layout.Points(1))),
+		widget.BoxWithBg(style.ColorRed),
 	)
 	body := widget.NewBox(
-		widget.BoxWithFlexGrow(1),
-		widget.BoxWithBackgroundColor(style.ColorBlue),
+		widget.BoxWithLayout(layout.WithFlexGrow(1)),
+		widget.BoxWithBg(style.ColorBlue),
 	)
 
 	outer.Add(header)

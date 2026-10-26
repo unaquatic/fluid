@@ -1,10 +1,5 @@
 package style
 
-import (
-	"fmt"
-	"strings"
-)
-
 // Style combines foreground, background, and text attributes.
 type Style struct {
 	// Fg is the foreground color.
@@ -12,7 +7,7 @@ type Style struct {
 	// Bg is the background color.
 	Bg Color
 	// Attributes is a bitmask of the Attr flags, such as AttrBold.
-	Attributes uint32
+	Attributes Attrs
 }
 
 // New returns white text on a transparent background with no attributes.
@@ -25,7 +20,7 @@ func New() Style {
 }
 
 // From returns a style with the supplied colors and attributes.
-func From(fg, bg Color, attrs uint32) Style {
+func From(fg, bg Color, attrs Attrs) Style {
 	return Style{
 		Fg:         fg,
 		Bg:         bg,
@@ -82,7 +77,7 @@ func (s Style) WithBg(bg Color) Style {
 }
 
 // WithAttrs returns a copy with new attributes.
-func (s Style) WithAttrs(attrs uint32) Style {
+func (s Style) WithAttrs(attrs Attrs) Style {
 	s.Attributes = attrs
 	return s
 }
@@ -114,46 +109,6 @@ func (s Style) Equals(other Style) bool {
 	return s.Fg.Equals(other.Fg) &&
 		s.Bg.Equals(other.Bg) &&
 		s.Attributes == other.Attributes
-}
-
-// AttrsANSI returns one ANSI SGR sequence for the decoration bits in attrs. It
-// returns an empty string when no supported decorations are set.
-func AttrsANSI(attrs uint32) string {
-	base := GetBaseAttributes(attrs)
-	if base == AttrNone {
-		return ""
-	}
-
-	var parts []string
-	if base&AttrBold != 0 {
-		parts = append(parts, "1")
-	}
-	if base&AttrDim != 0 {
-		parts = append(parts, "2")
-	}
-	if base&AttrItalic != 0 {
-		parts = append(parts, "3")
-	}
-	if base&AttrUnderline != 0 {
-		parts = append(parts, "4")
-	}
-	if base&AttrBlink != 0 {
-		parts = append(parts, "5")
-	}
-	if base&AttrInverse != 0 {
-		parts = append(parts, "7")
-	}
-	if base&AttrHidden != 0 {
-		parts = append(parts, "8")
-	}
-	if base&AttrStrikethrough != 0 {
-		parts = append(parts, "9")
-	}
-
-	if len(parts) == 0 {
-		return ""
-	}
-	return fmt.Sprintf("\x1b[%sm", strings.Join(parts, ";"))
 }
 
 // ResetANSI resets all ANSI SGR attributes.

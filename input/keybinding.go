@@ -1,28 +1,23 @@
 package input
 
-import (
-	"maps"
-	"strings"
-)
+import "maps"
 
 // KeyBinding associates a key combination with an action.
 type KeyBinding struct {
 	// Name is the canonical key name, such as "up", "a", or "return".
-	Name string
-	// Ctrl reports whether Ctrl is required.
-	Ctrl bool
-	// Shift reports whether Shift is required.
-	Shift bool
-	// Alt reports whether Alt or Option is required.
-	Alt bool
-	// Meta reports whether Meta, Super, or Command is required.
-	Meta bool
-	// Action is the action identifier, such as "move-up" or "submit".
-	Action string
+	Name KeyName
+	// Mods are the modifier keys required, exactly.
+	Mods Mods
+	// Action is the action the key combination triggers.
+	Action Action
 }
 
+// Action names what a key binding does, such as "move-up" or "submit". The
+// widget that resolves a binding defines the actions it handles.
+type Action string
+
 // KeyAliasMap maps alternative key names to canonical names.
-type KeyAliasMap map[string]string
+type KeyAliasMap map[KeyName]KeyName
 
 // DefaultAliases contains the standard key name aliases.
 var DefaultAliases = KeyAliasMap{
@@ -30,35 +25,16 @@ var DefaultAliases = KeyAliasMap{
 	"esc":   "escape",
 }
 
-// GetKeyBindingKey returns binding's lookup string. It includes only active
-// modifiers in Control, Alt, Meta, Shift order.
-func GetKeyBindingKey(binding KeyBinding) string {
-	return buildComboString(binding.Name, binding.Ctrl, binding.Shift, binding.Alt, binding.Meta)
+// Key returns binding's lookup string. It includes only active modifiers in
+// Control, Alt, Meta, Shift order.
+func (binding KeyBinding) Key() string {
+	return comboString(binding.Name, binding.Mods)
 }
 
 // KeyBindingToString returns binding in canonical modifier order, such as
 // "ctrl+shift+y".
 func KeyBindingToString(binding KeyBinding) string {
-	return buildComboString(binding.Name, binding.Ctrl, binding.Shift, binding.Alt, binding.Meta)
-}
-
-// buildComboString returns a canonical key combination string.
-func buildComboString(name string, ctrl, shift, alt, meta bool) string {
-	var parts []string
-	if ctrl {
-		parts = append(parts, "ctrl")
-	}
-	if alt {
-		parts = append(parts, "alt")
-	}
-	if meta {
-		parts = append(parts, "meta")
-	}
-	if shift {
-		parts = append(parts, "shift")
-	}
-	parts = append(parts, name)
-	return strings.Join(parts, "+")
+	return comboString(binding.Name, binding.Mods)
 }
 
 // MergeKeyBindings returns defaults followed by custom bindings. A custom key
@@ -67,13 +43,13 @@ func MergeKeyBindings(defaults, custom []KeyBinding) []KeyBinding {
 	// Index custom combinations before filtering the defaults.
 	customKeys := make(map[string]struct{}, len(custom))
 	for _, c := range custom {
-		customKeys[GetKeyBindingKey(c)] = struct{}{}
+		customKeys[c.Key()] = struct{}{}
 	}
 
 	// Preserve the order of defaults that were not replaced.
 	result := make([]KeyBinding, 0, len(defaults)+len(custom))
 	for _, d := range defaults {
-		if _, overridden := customKeys[GetKeyBindingKey(d)]; !overridden {
+		if _, overridden := customKeys[d.Key()]; !overridden {
 			result = append(result, d)
 		}
 	}
@@ -94,28 +70,28 @@ func MergeKeyAliases(defaults, custom KeyAliasMap) KeyAliasMap {
 
 // BuildKeyBindingsMap returns a map from canonical key combinations to actions.
 // Alias maps are applied in argument order, with later maps taking precedence.
-func BuildKeyBindingsMap(bindings []KeyBinding, aliases ...KeyAliasMap) map[string]string {
+func BuildKeyBindingsMap(bindings []KeyBinding, aliases ...KeyAliasMap) map[string]Action {
 	// Merge aliases once before resolving binding names.
 	aliasMap := make(KeyAliasMap)
 	for _, a := range aliases {
 		maps.Copy(aliasMap, a)
 	}
 
-	m := make(map[string]string, len(bindings))
+	m := make(map[string]Action, len(bindings))
 	for _, b := range bindings {
 		name := b.Name
 		if canonical, ok := aliasMap[name]; ok {
 			name = canonical
 		}
-		key := buildComboString(name, b.Ctrl, b.Shift, b.Alt, b.Meta)
+		key := comboString(name, b.Mods)
 		m[key] = b.Action
 	}
 	return m
 }
 
 // ResolveAction returns the action mapped to ev's canonical key combination.
-func ResolveAction(ev KeyEvent, bindingMap map[string]string) (action string, found bool) {
-	key := buildComboString(ev.Name, ev.Ctrl, ev.Shift, ev.Alt, ev.Meta)
+func ResolveAction(ev KeyEvent, bindingMap map[string]Action) (action Action, found bool) {
+	key := comboString(ev.Name, ev.Mods)
 	action, found = bindingMap[key]
 	return
 }

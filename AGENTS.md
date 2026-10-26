@@ -4,7 +4,7 @@
 
 **Do exactly what was asked. Nothing more.**
 
-- Finish **only** the requested task. Do not "improve" adjacent code, rename things, reformat unrelated files, add tests, or fix unrelated bugs you notice along the way.
+- Finish **only** the requested task. Do not "improve" adjacent code, rename things, reformat unrelated files, or fix unrelated bugs you notice along the way.
 - **A question is not an instruction to act.** "which is better?", "how does X work?", "does Y do Z?", "what changed?", "wtf is this?" — all of these mean *answer only*. Do not edit files, create files, or run mutating commands. Reply, then wait for a separate instruction.
 - If you notice something else that is wrong, **report it — do not fix it.** Mention it and wait.
 - **The moment you hit a blocker, an ambiguity, a design decision, or anything out of scope: STOP and ask a question.** Do not guess. Do not pick "the reasonable default" and keep going.
@@ -21,7 +21,7 @@ fluid/
   cmd/goldenview/   draws golden frames files as an HTML page
   input/            keyboard, mouse, paste events + keybindings + parser
   layout/           flexbox layout engine
-  render/           scene graph, base renderable, selection, render context
+  render/           scene graph, base renderable, selection, render host
   style/            color, style (fg/bg/attrs), StyledText, border types & chars
   symbol/           unicode character constants (borders, bars, blocks, scrollbars)
   terminal/         terminal renderer, diff, input loop, hit-testing, backend
@@ -80,7 +80,7 @@ This module targets **`go 1.27`** (`go.mod:3`) and the toolchain is Go 1.27.0. *
 Required:
 
 - **Generics over `interface{}`.** Type parameters, generic type aliases (1.24). `any`, never `interface{}`.
-- **Iterators (1.23).** Return `iter.Seq[T]` / `iter.Seq2[K, V]` for sequences; range over functions. Do not hand back `[]T` copies or take visitor callbacks where an iterator fits.
+- **Iterators (1.23).** Return `iter.Seq[T]` / `iter.Seq2[K, V]` for sequences that are lazy, large, or computed on demand, and range over functions instead of taking visitor callbacks. Returning a slice is fine when callers index it or the data is already a slice; say in the doc whether it is a copy or shares storage.
 - **`slices` / `maps` (1.21+).** `slices.Sort`, `slices.Contains`, `slices.Clone`, `maps.Keys`, etc. Never hand-roll these loops.
 - **Builtins**: `min`, `max`, `clear` (1.21). No manual ternary-style helpers.
 - **`for i := range n` (1.22)** instead of `for i := 0; i < n; i++`.

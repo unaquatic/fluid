@@ -20,10 +20,7 @@ var demoSelectCmd = Demo{
 
 func runSelectDemo(ctx context.Context, o DemoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
-		Fullscreen:  true,
-		ExitOnCtrlC: true,
-		UseMouse:    !o.NoMouse,
-		TargetFPS:   o.FPS,
+		UseMouse: !o.NoMouse,
 	})
 	if err != nil {
 		return fmt.Errorf("renderer: %w", err)
@@ -58,7 +55,7 @@ func runSelectDemo(ctx context.Context, o DemoOptions) error {
 	}
 	sel := widget.NewSelect(selectOptions,
 		widget.SelectWithShowDescription(true),
-		widget.SelectWithFlexGrow(1),
+		widget.SelectWithLayout(layout.WithFlexGrow(1)),
 	)
 
 	detailName := widget.NewText("Language")
@@ -66,53 +63,61 @@ func runSelectDemo(ctx context.Context, o DemoOptions) error {
 	detailTab := widget.NewText("Tab: General")
 
 	selectBox := widget.NewBox(
-		widget.BoxWithFlexGrow(1),
+		widget.BoxWithLayout(
+			layout.WithFlexGrow(1),
+			layout.WithFlexDirection(layout.DirectionColumn),
+		),
 		widget.BoxWithBorder(style.BorderAll()),
 		widget.BoxWithBorderStyle(style.BorderSingle),
 		widget.BoxWithTitle("Options"),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
 		widget.Children(sel),
 	)
 	detailBox := widget.NewBox(
-		widget.BoxWithFlexGrow(1),
+		widget.BoxWithLayout(
+			layout.WithFlexGrow(1),
+			layout.WithFlexDirection(layout.DirectionColumn),
+			layout.WithPadding(layout.Points(1)),
+			layout.WithGap(1),
+		),
 		widget.BoxWithBorder(style.BorderAll()),
 		widget.BoxWithBorderStyle(style.BorderSingle),
 		widget.BoxWithTitle("Details"),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
-		widget.BoxWithPadding(layout.Points(1)),
-		widget.BoxWithGap(layout.Points(1)),
 		widget.Children(
 			detailName,
 			detailDesc,
-			widget.NewText("", widget.TextWithHeight(layout.Points(1))),
+			widget.NewText("", widget.TextWithLayout(layout.WithHeight(layout.Points(1)))),
 			detailTab,
 		),
 	)
 
 	container := widget.NewBox(
-		widget.BoxWithFlexGrow(1),
-		widget.BoxWithFlexDirection(layout.DirectionColumn),
-		widget.BoxWithPadding(layout.Points(1)),
-		widget.BoxWithGap(layout.Points(1)),
+		widget.BoxWithLayout(
+			layout.WithFlexGrow(1),
+			layout.WithFlexDirection(layout.DirectionColumn),
+			layout.WithPadding(layout.Points(1)),
+			layout.WithGap(1),
+		),
 		widget.Children(
 			widget.NewText("Select & TabSelect Demo",
-				widget.TextWithHeight(layout.Points(1)),
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 			widget.NewBox(
 				widget.BoxWithBorder(style.BorderSides(style.SideBottom)),
 				widget.BoxWithBorderStyle(style.BorderSingle),
-				widget.BoxWithHeight(layout.Points(3)),
+				widget.BoxWithLayout(layout.WithHeight(layout.Points(3))),
 				widget.Children(tabs),
 			),
 			widget.NewBox(
-				widget.BoxWithFlexGrow(1),
-				widget.BoxWithFlexDirection(layout.DirectionRow),
-				widget.BoxWithGap(layout.Points(2)),
+				widget.BoxWithLayout(
+					layout.WithFlexGrow(1),
+					layout.WithFlexDirection(layout.DirectionRow),
+					layout.WithGap(2),
+				),
 				widget.Children(selectBox, detailBox),
 			),
 			widget.NewText(
-				"Tab: switch focus | Up/Down: navigate | Left/Right: tabs | Enter: select | Esc/q: quit",
-				widget.TextWithHeight(layout.Points(1)),
+				"Esc/Q: Exit | Tab: Switch focus | Up/Down: Navigate | Left/Right: Tabs | Enter: Select",
+				widget.TextWithLayout(layout.WithHeight(layout.Points(1))),
 			),
 		),
 	)
@@ -125,11 +130,8 @@ func runSelectDemo(ctx context.Context, o DemoOptions) error {
 	sel.OnItemSelected = func(idx int, item widget.SelectItem) {
 		detailName.SetContent(fmt.Sprintf("[Selected] %s", item.Name))
 	}
-	tabs.OnSelectionChanged = func(idx int) {
-		tabNames := []string{"General", "Appearance", "Keybindings", "Extensions", "About"}
-		if idx < len(tabNames) {
-			detailTab.SetContent(fmt.Sprintf("Tab: %s", tabNames[idx]))
-		}
+	tabs.OnSelectionChanged = func(idx int, item widget.TabSelectItem) {
+		detailTab.SetContent(fmt.Sprintf("Tab: %s", item.Name))
 	}
 
 	focusables := []render.Renderable{tabs, sel}
@@ -143,11 +145,11 @@ func runSelectDemo(ctx context.Context, o DemoOptions) error {
 		}
 		k := e.Key
 
-		if k.Name == "escape" || (k.Name == "q" && !k.Ctrl && !k.Alt) {
+		if k.Name == "escape" || (k.Name == "q" && !k.Mods.Has(input.ModCtrl) && !k.Mods.Has(input.ModAlt)) {
 			r.Destroy()
 			return
 		}
-		if k.Name == "tab" && !k.Ctrl && !k.Alt {
+		if k.Name == "tab" && !k.Mods.Has(input.ModCtrl) && !k.Mods.Has(input.ModAlt) {
 			k.PreventDefault()
 			focusIdx = (focusIdx + 1) % len(focusables)
 			r.FocusRenderable(focusables[focusIdx])

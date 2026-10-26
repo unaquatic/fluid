@@ -15,26 +15,20 @@ import (
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 
-	if cfg.TargetFPS != 30 {
-		t.Errorf("expected TargetFPS=30, got %d", cfg.TargetFPS)
-	}
-	if cfg.MaxFPS != 60 {
-		t.Errorf("expected MaxFPS=60, got %d", cfg.MaxFPS)
-	}
-	if !cfg.UseMouse {
-		t.Error("expected UseMouse=true")
+	if cfg.UseMouse {
+		t.Error("expected UseMouse=false")
 	}
 	if cfg.EnableMouseMovement {
 		t.Error("expected EnableMouseMovement=false")
 	}
-	if !cfg.Fullscreen {
-		t.Error("expected Fullscreen=true")
+	if cfg.InlineMode {
+		t.Error("expected InlineMode=false")
 	}
-	if !cfg.AutoFocus {
-		t.Error("expected AutoFocus=true")
+	if cfg.EnableAutoFocus {
+		t.Error("expected EnableAutoFocus=false")
 	}
-	if !cfg.ExitOnCtrlC {
-		t.Error("expected ExitOnCtrlC=true")
+	if cfg.HandleCtrlC {
+		t.Error("expected HandleCtrlC=false")
 	}
 	if !cfg.BackgroundColor.Equals(style.ColorBlack) {
 		t.Error("expected BackgroundColor=Black")
@@ -45,26 +39,24 @@ func TestDefaultConfig(t *testing.T) {
 }
 
 func TestMergeConfig_Defaults(t *testing.T) {
-	cfg := mergeConfig(nil)
+	cfg := mergeConfig(Config{})
 
-	if cfg.TargetFPS != 30 {
-		t.Errorf("expected default TargetFPS=30, got %d", cfg.TargetFPS)
+	if !cfg.BackgroundColor.Equals(style.ColorBlack) {
+		t.Errorf("expected default BackgroundColor=Black, got %v", cfg.BackgroundColor)
 	}
 }
 
 func TestMergeConfig_Override(t *testing.T) {
-	cfg := mergeConfig([]Config{
-		{
-			TargetFPS: 60,
-			MaxFPS:    120,
-		},
+	cfg := mergeConfig(Config{
+		BackgroundColor:    style.ColorRed,
+		KittyKeyboardFlags: input.KittyFlagDisambiguate,
 	})
 
-	if cfg.TargetFPS != 60 {
-		t.Errorf("expected TargetFPS=60, got %d", cfg.TargetFPS)
+	if !cfg.BackgroundColor.Equals(style.ColorRed) {
+		t.Errorf("expected BackgroundColor=Red, got %v", cfg.BackgroundColor)
 	}
-	if cfg.MaxFPS != 120 {
-		t.Errorf("expected MaxFPS=120, got %d", cfg.MaxFPS)
+	if cfg.KittyKeyboardFlags != input.KittyFlagDisambiguate {
+		t.Errorf("expected KittyKeyboardFlags=%d, got %d", input.KittyFlagDisambiguate, cfg.KittyKeyboardFlags)
 	}
 }
 
@@ -118,13 +110,13 @@ func TestNewRenderer_Properties(t *testing.T) {
 func TestNewRenderer_Buffers(t *testing.T) {
 	r := newInputTestRenderer()
 
-	if r.CurrentBuffer() == nil {
-		t.Fatal("expected non-nil CurrentBuffer")
+	if r.currentBuffer == nil {
+		t.Fatal("expected non-nil currentBuffer")
 	}
-	if r.NextBuffer() == nil {
-		t.Fatal("expected non-nil NextBuffer")
+	if r.nextBuffer == nil {
+		t.Fatal("expected non-nil nextBuffer")
 	}
-	if r.CurrentBuffer().Width() != 40 || r.CurrentBuffer().Height() != 20 {
+	if r.currentBuffer.Width() != 40 || r.currentBuffer.Height() != 20 {
 		t.Error("expected buffer dimensions to match terminal size")
 	}
 }
@@ -294,16 +286,16 @@ func TestRenderer_RenderFrame(t *testing.T) {
 		stopChan:      make(chan struct{}, 1),
 		done:          make(chan struct{}),
 		sel:           render.NewSelection(),
-		linkRegistry:  NewLinkRegistry(),
-		stats:         NewStats(60),
+		linkRegistry:  newLinkRegistry(),
+		stats:         newStats(60),
 		lastFrameTime: time.Now(),
 	}
 
-	root.SetContext(r)
+	root.SetHost(r)
 
 	// Render one child to exercise a complete frame.
 	child := render.NewBaseRenderable(render.WithID("test-child"))
-	child.RenderBeforeHook = func(buf *buffer.Buffer, dt float64) {
+	child.RenderBeforeHook = func(buf *buffer.Buffer, dt time.Duration) {
 		buf.SetCell(0, 0, 'T', style.ColorWhite, style.ColorBlack, 0)
 	}
 	root.Add(child)
@@ -363,8 +355,8 @@ func TestRenderer_ResetStats(t *testing.T) {
 	r.config.GatherStats = true
 
 	r.mu.Lock()
-	r.stats.record(0.016)
-	r.stats.record(0.016)
+	r.stats.record(16 * time.Millisecond)
+	r.stats.record(16 * time.Millisecond)
 	r.mu.Unlock()
 
 	r.ResetStats()
@@ -395,14 +387,14 @@ func TestRenderer_SetCursorPosition(t *testing.T) {
 func TestRenderer_SetCursorStyle(t *testing.T) {
 	r := newInputTestRenderer()
 
-	r.SetCursorStyle("underline")
+	r.SetCursorStyle(CursorUnderline)
 
 	r.mu.Lock()
 	cs := r.cursorStyle
 	r.mu.Unlock()
 
-	if cs != "underline" {
-		t.Errorf("expected cursor style 'underline', got %q", cs)
+	if cs != CursorUnderline {
+		t.Errorf("expected cursor style underline, got %v", cs)
 	}
 }
 
@@ -432,7 +424,7 @@ func TestRenderer_GetCursorState(t *testing.T) {
 	r := newInputTestRenderer()
 
 	r.SetCursorPosition(5, 10, true)
-	r.SetCursorStyle("block")
+	r.SetCursorStyle(CursorBlock)
 	r.SetCursorColor(style.ColorGreen)
 
 	state := r.CursorState()
@@ -443,8 +435,8 @@ func TestRenderer_GetCursorState(t *testing.T) {
 	if !state.Visible {
 		t.Error("expected visible=true")
 	}
-	if state.Style != "block" {
-		t.Errorf("expected style='block', got %q", state.Style)
+	if state.Style != CursorBlock {
+		t.Errorf("expected style block, got %v", state.Style)
 	}
 	if !state.Color.Equals(style.ColorGreen) {
 		t.Errorf("expected color green, got %v", state.Color)
@@ -474,7 +466,7 @@ func TestRenderer_SetCursorStyleOptions(t *testing.T) {
 	state := r.CursorState()
 
 	if state.Style != CursorLine {
-		t.Errorf("expected style='line', got %q", state.Style)
+		t.Errorf("expected style line, got %v", state.Style)
 	}
 	if !state.Blinking {
 		t.Error("expected blinking=true")
@@ -504,7 +496,7 @@ func TestRenderer_SetCursorStyleOptions_Partial(t *testing.T) {
 	r := newInputTestRenderer()
 
 	// Establish cursor state before a partial update.
-	r.SetCursorStyle("block")
+	r.SetCursorStyle(CursorBlock)
 	r.SetCursorPosition(1, 2, true)
 
 	// Update only the style field.
@@ -515,7 +507,7 @@ func TestRenderer_SetCursorStyleOptions_Partial(t *testing.T) {
 
 	state := r.CursorState()
 	if state.Style != CursorUnderline {
-		t.Errorf("expected style='underline', got %q", state.Style)
+		t.Errorf("expected style underline, got %v", state.Style)
 	}
 	// Unspecified position and visibility remain unchanged.
 	if state.X != 1 || state.Y != 2 {

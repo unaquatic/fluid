@@ -22,7 +22,7 @@ func TestSetCellDirect_PreservesWidePair(t *testing.T) {
 		}},
 		{"new pair", func(b *Buffer) {
 			c := b.Cell(4, 0)
-			b.Clear()
+			b.Clear(style.ColorTransparent)
 			b.SetCellDirect(4, 0, c)
 		}},
 		{"repair missing continuation", func(b *Buffer) {

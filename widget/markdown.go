@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 	"unicode"
 
 	"github.com/unaquatic/fluid/buffer"
@@ -23,16 +24,16 @@ type Markdown struct {
 
 	mu       sync.Mutex // Protects content and contentDirty.
 	content  string
-	wrapMode WrapMode
+	wrapMode textbuf.WrapMode
 
 	// Parsing produces width-independent blocks; wrapping converts them to lines.
-	blocks        []MdBlock
+	blocks        []mdBlock
 	renderedLines []mdLine
 	contentDirty  bool // Requires parsing and wrapping.
 	wrapDirty     bool // Requires wrapping without parsing.
 	lastWrapWidth int  // Width used to produce renderedLines.
 
-	parser MarkdownParser // Defaults to GoldmarkParser.
+	parser markdownParser // Defaults to goldmarkParser.
 
 	fg style.Color
 	bg style.Color
@@ -85,16 +86,16 @@ type Markdown struct {
 
 // Markdown parsing.
 
-// MarkdownParser converts Markdown source into width-independent blocks.
-type MarkdownParser interface {
+// markdownParser converts Markdown source into width-independent blocks.
+type markdownParser interface {
 	// Parse converts content to blocks and applies styles to inline elements.
-	Parse(content string, styles MdStyles) []MdBlock
+	Parse(content string, styles mdStyles) []mdBlock
 }
 
-// MdStyles contains the inline styles applied while parsing Markdown.
+// mdStyles contains the inline styles applied while parsing Markdown.
 //
 // Each entry carries both colors and attributes, keeping style policy outside the parser.
-type MdStyles struct {
+type mdStyles struct {
 	// Fg is the fallback foreground for chunks without an explicit style.
 	Fg style.Color
 
@@ -125,7 +126,7 @@ type MdStyles struct {
 }
 
 // Heading returns the style for levels one through six and uses level six otherwise.
-func (s MdStyles) Heading(level int) style.Entry {
+func (s mdStyles) Heading(level int) style.Entry {
 	if level < 1 || level > len(s.Headings) {
 		return s.Headings[len(s.Headings)-1]
 	}
@@ -134,27 +135,27 @@ func (s MdStyles) Heading(level int) style.Entry {
 
 // Width-independent block representation.
 
-// MdBlockKind identifies a markdown block type.
-type MdBlockKind int
+// mdBlockKind identifies a markdown block type.
+type mdBlockKind int
 
 const (
-	MdBlockParagraph MdBlockKind = iota
-	MdBlockHeading
-	MdBlockCode
-	MdBlockList        // Unordered-list container.
-	MdBlockOrderedList // Ordered-list container.
-	MdBlockListItem    // Item nested under a list container.
-	MdBlockQuote
-	MdBlockRule
-	MdBlockBlank
-	MdBlockTable
+	mdBlockParagraph mdBlockKind = iota
+	mdBlockHeading
+	mdBlockCode
+	mdBlockList        // Unordered-list container.
+	mdBlockOrderedList // Ordered-list container.
+	mdBlockListItem    // Item nested under a list container.
+	mdBlockQuote
+	mdBlockRule
+	mdBlockBlank
+	mdBlockTable
 )
 
-// MdBlock is a parsed markdown block. Blocks form a tree: container blocks
+// mdBlock is a parsed markdown block. Blocks form a tree: container blocks
 // (List, OrderedList, Quote, ListItem) hold child blocks in Children.
-type MdBlock struct {
+type mdBlock struct {
 	// Kind is the block's type, which decides the fields below it uses.
-	Kind MdBlockKind
+	Kind mdBlockKind
 	// Level is the heading level or the list indentation level.
 	Level int
 	// Prefix is the bullet, number, or quote marker.
@@ -164,13 +165,13 @@ type MdBlock struct {
 	// Body is the parsed inline content before wrapping.
 	Body []style.TextChunk
 	// Children are nested list items, quote contents, or other blocks.
-	Children []MdBlock
+	Children []mdBlock
 	// Lang is the fenced-code language, such as "go" or "python".
 	Lang string
 	// CodeLines are the raw code-block lines.
 	CodeLines []string
 	// TableCells are the table rows with inline cell formatting.
-	TableCells [][]MdTableCell
+	TableCells [][]mdTableCell
 	// TableAligns holds each column's alignment: -1 left, 0 center, or 1 right.
 	TableAligns []int
 	// Loose marks a list whose items blank lines part, which keeps a blank row
@@ -178,8 +179,8 @@ type MdBlock struct {
 	Loose bool
 }
 
-// MdTableCell holds a table cell's inline content.
-type MdTableCell struct {
+// mdTableCell holds a table cell's inline content.
+type mdTableCell struct {
 	// Chunks are the cell's styled runs of text, in order.
 	Chunks []style.TextChunk
 }
@@ -206,7 +207,7 @@ func NewMarkdown(content string, opts ...MarkdownOption) *Markdown {
 	m := &Markdown{
 		BaseRenderable: render.NewBaseRenderable(),
 		content:        content,
-		wrapMode:       WrapWord,
+		wrapMode:       textbuf.WrapWord,
 		fg:             style.ColorWhite,
 		bg:             style.ColorTransparent,
 		contentDirty:   true,
@@ -232,7 +233,7 @@ func NewMarkdown(content string, opts ...MarkdownOption) *Markdown {
 		strong:      style.Entry{Attrs: style.AttrBold},
 		emph:        style.Entry{Attrs: style.AttrItalic},
 		quote:       style.Entry{Fg: style.ColorGray, Attrs: style.AttrItalic},
-		quoteBorder: style.Entry{Fg: style.ColorBrightBlack},
+		quoteBorder: style.Entry{Fg: style.ColorGray},
 		bullet:      style.Entry{Fg: style.ColorBrightBlue},
 		listEnum:    style.Entry{Fg: style.ColorBrightBlue},
 		rule:        style.Entry{Fg: style.ColorGray},
@@ -242,12 +243,12 @@ func NewMarkdown(content string, opts ...MarkdownOption) *Markdown {
 		opt(m)
 	}
 
-	// Use Goldmark and Chroma unless options supplied replacements.
+	// Use Goldmark and a Highlighter unless options supplied replacements.
 	if m.parser == nil {
 		m.parser = sharedGoldmarkParser()
 	}
 	if m.highlighter == nil {
-		m.highlighter = NewChromaHighlighter("monokai")
+		m.highlighter = NewHighlighter(nil)
 	}
 
 	m.blocks = m.parser.Parse(m.content, m.mdStyles())
@@ -280,7 +281,7 @@ func NewMarkdown(content string, opts ...MarkdownOption) *Markdown {
 		//
 		// Empty block lists always have zero height and need no wrapping.
 		//
-		// SetBlocks marks only wrapDirty, so both dirty flags must be clear before
+		// setBlocks marks only wrapDirty, so both dirty flags must be clear before
 		// renderedLines can supply an intrinsic height.
 		if !m.contentDirty && !m.wrapDirty && (len(m.blocks) == 0 || (m.lastWrapWidth > 0 && w == m.lastWrapWidth)) {
 			h := len(m.renderedLines)
@@ -343,11 +344,11 @@ func (m *Markdown) AppendContent(text string) {
 	m.RequestRender()
 }
 
-// SetBlocks replaces parsed blocks directly and schedules wrapping without parsing.
+// setBlocks replaces parsed blocks directly and schedules wrapping without parsing.
 // StreamMarkdown uses it to distribute already parsed blocks to children.
 //
 // Equal blocks leave wrapped output and dirty state unchanged.
-func (m *Markdown) SetBlocks(blocks []MdBlock) {
+func (m *Markdown) setBlocks(blocks []mdBlock) {
 	m.mu.Lock()
 	m.contentDirty = false // The caller supplied parsed blocks.
 	m.mu.Unlock()
@@ -371,8 +372,8 @@ func (m *Markdown) LineCount() int {
 // Markdown wrapping.
 
 // mdStyles returns the parser styles configured on the widget.
-func (m *Markdown) mdStyles() MdStyles {
-	return MdStyles{
+func (m *Markdown) mdStyles() mdStyles {
+	return mdStyles{
 		Fg:       m.fg,
 		Headings: m.headings,
 		Code:     m.code,
@@ -425,7 +426,7 @@ func (m *Markdown) wrapToWidth(w int) {
 
 // RenderSelf draws wrapped lines as styled grapheme clusters.
 // An enclosing ScrollBox is responsible for clipping and scrolling.
-func (m *Markdown) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
+func (m *Markdown) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	w := m.Width()
 	if w <= 0 {
 		return
@@ -441,11 +442,11 @@ func (m *Markdown) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 		for _, chunk := range line.chunks {
 			fg := m.fg
 			bg := m.bg
-			if chunk.Fg != nil {
-				fg = *chunk.Fg
+			if !chunk.Fg.IsTransparent() {
+				fg = chunk.Fg
 			}
-			if chunk.Bg != nil {
-				bg = *chunk.Bg
+			if !chunk.Bg.IsTransparent() {
+				bg = chunk.Bg
 			}
 			attrs := chunk.Attributes
 			remaining := chunk.Text
@@ -471,14 +472,14 @@ func (m *Markdown) RenderSelf(buf *buffer.Buffer, deltaTime float64) {
 // Each line fills the block width with codeBg, or, when codeBlockFit is set,
 // the width of the widest line and codeBlockPad columns after it. codeBlockPad
 // moves source text inward by as many columns, and codeBlockRows inserts
-// blank rows above and below. Unless the wrap mode is WrapNone, a source line
+// blank rows above and below. Unless the wrap mode is textbuf.WrapNone, a source line
 // wider than the block wraps onto further rows, as prose does.
 //
 // indent, the columns a nested block's parent indents it by, lies outside
 // the background, which starts under the parent's text, or codeBlockMargin
 // columns in when that is further, so that the padding is the same on both
 // sides. In a quote, the quote's border stays beside every row.
-func (m *Markdown) renderCodeBlock(blk MdBlock, indent int, w int) {
+func (m *Markdown) renderCodeBlock(blk mdBlock, indent int, w int) {
 	gutter := max(m.codeBlockMargin, indent)
 	lead := strings.Repeat(" ", m.codeBlockPad)
 
@@ -498,8 +499,8 @@ func (m *Markdown) renderCodeBlock(blk MdBlock, indent int, w int) {
 	if !m.renderHighlighted(blk, lead, w, gutter, end) {
 		for _, line := range blk.CodeLines {
 			m.addCodeText(
-				style.TextChunk{Text: lead, Fg: &m.codeFg, Bg: &m.codeBg},
-				[]style.TextChunk{{Text: line, Fg: &m.codeFg, Bg: &m.codeBg}}, w, gutter, end,
+				style.TextChunk{Text: lead, Fg: m.codeFg, Bg: m.codeBg},
+				[]style.TextChunk{{Text: line, Fg: m.codeFg, Bg: m.codeBg}}, w, gutter, end,
 			)
 		}
 	}
@@ -520,7 +521,7 @@ func (m *Markdown) codeBlockRows() int {
 
 // renderHighlighted appends highlighted code lines, with the background from
 // column gutter to column end, and reports whether it succeeded.
-func (m *Markdown) renderHighlighted(blk MdBlock, lead string, w, gutter, end int) bool {
+func (m *Markdown) renderHighlighted(blk mdBlock, lead string, w, gutter, end int) bool {
 	if m.highlighter == nil || blk.Lang == "" {
 		return false
 	}
@@ -535,19 +536,19 @@ func (m *Markdown) renderHighlighted(blk MdBlock, lead string, w, gutter, end in
 			fg, bg := span.Fg, span.Bg
 			body = append(body, style.TextChunk{
 				Text:       span.Text,
-				Fg:         &fg,
-				Bg:         &bg,
+				Fg:         fg,
+				Bg:         bg,
 				Attributes: span.Attributes,
 			})
 		}
-		m.addCodeText(style.TextChunk{Text: lead, Bg: &m.codeBg}, body, w, gutter, end)
+		m.addCodeText(style.TextChunk{Text: lead, Bg: m.codeBg}, body, w, gutter, end)
 	}
 	return true
 }
 
 // addCodeText appends one source line of a code block, body after lead, with
 // the background from column gutter to column end. Unless the wrap mode is
-// WrapNone, a body wider than the block at width w wraps onto further rows,
+// textbuf.WrapNone, a body wider than the block at width w wraps onto further rows,
 // each of which starts with lead.
 func (m *Markdown) addCodeText(lead style.TextChunk, body []style.TextChunk, w, gutter, end int) {
 	leadW, bodyW := textbuf.StringWidth(lead.Text), 0
@@ -556,7 +557,7 @@ func (m *Markdown) addCodeText(lead style.TextChunk, body []style.TextChunk, w, 
 	}
 	// The widest block ends codeBlockMargin columns before w.
 	avail := w - m.codeBlockMargin - gutter - leadW
-	if m.wrapMode == WrapNone || avail < 1 || bodyW <= avail {
+	if m.wrapMode == textbuf.WrapNone || avail < 1 || bodyW <= avail {
 		m.addCodeLine(append([]style.TextChunk{lead}, body...), leadW+bodyW, gutter, end)
 		return
 	}
@@ -579,26 +580,26 @@ func (m *Markdown) addCodeLine(chunks []style.TextChunk, used, gutter, end int) 
 	if used < end {
 		chunks = append(chunks, style.TextChunk{
 			Text: strings.Repeat(" ", end-used),
-			Bg:   &m.codeBg,
+			Bg:   m.codeBg,
 		})
 	}
 	m.renderedLines = append(m.renderedLines, mdLine{chunks: chunks})
 }
 
 // isListKind reports whether k is a list or a list item.
-func isListKind(k MdBlockKind) bool {
-	return k == MdBlockList || k == MdBlockOrderedList || k == MdBlockListItem
+func isListKind(k mdBlockKind) bool {
+	return k == mdBlockList || k == mdBlockOrderedList || k == mdBlockListItem
 }
 
 // endsWithBlock reports whether b ends with a block of its own, such as a
 // paragraph or fenced code, rather than with a list item's text: a list
 // whose last item holds such a block ends with it.
-func endsWithBlock(b MdBlock) bool {
+func endsWithBlock(b mdBlock) bool {
 	if !isListKind(b.Kind) {
 		return true
 	}
 	for _, child := range slices.Backward(b.Children) {
-		if child.Kind != MdBlockBlank {
+		if child.Kind != mdBlockBlank {
 			return endsWithBlock(child)
 		}
 	}
@@ -610,9 +611,9 @@ func endsWithBlock(b MdBlock) bool {
 // in a tight list, a list after a list as such items are, and a block after a
 // thematic break, which uses only the row before it. A list that ends with a
 // block of its own is parted from the list after it, as the block would be.
-func needsSpace(prev, cur MdBlock) bool {
+func needsSpace(prev, cur mdBlock) bool {
 	switch {
-	case prev.Kind == MdBlockBlank, cur.Kind == MdBlockBlank, prev.Kind == MdBlockRule:
+	case prev.Kind == mdBlockBlank, cur.Kind == mdBlockBlank, prev.Kind == mdBlockRule:
 		return false
 	case isListKind(prev.Kind) && isListKind(cur.Kind):
 		return prev.Loose || cur.Loose || endsWithBlock(prev)
@@ -620,16 +621,16 @@ func needsSpace(prev, cur MdBlock) bool {
 	return true
 }
 
-// InsertBlockSpacing inserts blank blocks between adjacent blocks that
+// insertBlockSpacing inserts blank blocks between adjacent blocks that
 // needsSpace parts, at every level: among the blocks of a list item or a
 // quote too, between a list item's text and a block nested under it other
 // than a list, and between the items of a list that is loose or whose item
 // ends with a block of its own.
-func InsertBlockSpacing(blocks []MdBlock) []MdBlock {
-	spaced := make([]MdBlock, 0, len(blocks)*2)
+func insertBlockSpacing(blocks []mdBlock) []mdBlock {
+	spaced := make([]mdBlock, 0, len(blocks)*2)
 	for i, blk := range blocks {
 		if i > 0 && needsSpace(blocks[i-1], blk) {
-			spaced = append(spaced, MdBlock{Kind: MdBlockBlank})
+			spaced = append(spaced, mdBlock{Kind: mdBlockBlank})
 		}
 		spaced = append(spaced, spaceChildren(blk))
 	}
@@ -637,27 +638,27 @@ func InsertBlockSpacing(blocks []MdBlock) []MdBlock {
 }
 
 // spaceChildren returns blk with blank blocks inserted among its children,
-// as InsertBlockSpacing inserts them.
-func spaceChildren(blk MdBlock) MdBlock {
+// as insertBlockSpacing inserts them.
+func spaceChildren(blk mdBlock) mdBlock {
 	switch blk.Kind {
-	case MdBlockList, MdBlockOrderedList:
-		items := make([]MdBlock, 0, len(blk.Children)*2)
+	case mdBlockList, mdBlockOrderedList:
+		items := make([]mdBlock, 0, len(blk.Children)*2)
 		for i, item := range blk.Children {
 			if i > 0 && (blk.Loose || endsWithBlock(blk.Children[i-1])) {
-				items = append(items, MdBlock{Kind: MdBlockBlank})
+				items = append(items, mdBlock{Kind: mdBlockBlank})
 			}
 			items = append(items, spaceChildren(item))
 		}
 		blk.Children = items
-	case MdBlockListItem:
+	case mdBlockListItem:
 		// The item's text is on its marker's line, before its children.
-		children := InsertBlockSpacing(blk.Children)
+		children := insertBlockSpacing(blk.Children)
 		if len(children) > 0 && !isListKind(children[0].Kind) {
-			children = append([]MdBlock{{Kind: MdBlockBlank}}, children...)
+			children = append([]mdBlock{{Kind: mdBlockBlank}}, children...)
 		}
 		blk.Children = children
-	case MdBlockQuote:
-		blk.Children = InsertBlockSpacing(blk.Children)
+	case mdBlockQuote:
+		blk.Children = insertBlockSpacing(blk.Children)
 	}
 	return blk
 }
@@ -672,7 +673,7 @@ func (m *Markdown) wrapBlocks(w int) {
 
 // wrapBlockList recursively wraps blocks with indent columns of left
 // indentation, which starts with the borders of the quotes they lie in.
-func (m *Markdown) wrapBlockList(blocks []MdBlock, w int, indent int) {
+func (m *Markdown) wrapBlockList(blocks []mdBlock, w int, indent int) {
 	avail := max(w-indent, 4)
 	// Apply prosePad on both sides while preserving non-positive no-wrap widths.
 	proseW := w
@@ -682,11 +683,11 @@ func (m *Markdown) wrapBlockList(blocks []MdBlock, w int, indent int) {
 
 	for _, blk := range blocks {
 		switch blk.Kind {
-		case MdBlockParagraph:
+		case mdBlockParagraph:
 			m.addWrappedLine(m.leftEdge(indent), indent, proseW, blk.Body...)
-		case MdBlockHeading:
+		case mdBlockHeading:
 			m.addWrappedLine(append(m.leftEdge(indent), blk.Body...), indent, proseW)
-		case MdBlockCode:
+		case mdBlockCode:
 			// Top-level code ignores prosePad; nested code starts its background
 			// after its parent indent.
 			codeIndent := indent
@@ -694,11 +695,11 @@ func (m *Markdown) wrapBlockList(blocks []MdBlock, w int, indent int) {
 				codeIndent = 0
 			}
 			m.renderCodeBlock(blk, codeIndent, w)
-		case MdBlockList, MdBlockOrderedList:
+		case mdBlockList, mdBlockOrderedList:
 			// List containers render their child items at the current indentation.
 			m.wrapBlockList(blk.Children, w, indent)
 
-		case MdBlockListItem:
+		case mdBlockListItem:
 			// Place the item prefix and body on the first line.
 			prefix := append(m.leftEdge(indent), blk.Prefix...)
 			m.addWrappedLine(prefix, indent+blk.PrefixWidth, proseW, blk.Body...)
@@ -707,13 +708,13 @@ func (m *Markdown) wrapBlockList(blocks []MdBlock, w int, indent int) {
 				m.wrapBlockList(blk.Children, w, indent+blk.PrefixWidth)
 			}
 
-		case MdBlockQuote:
+		case mdBlockQuote:
 			// Place the quote prefix and first paragraph on the same line.
 			prefix := append(m.leftEdge(indent), blk.Prefix...)
 			// Every line nested in the quote starts with its border.
 			outer, outerW := m.quoteEdge, m.quoteEdgeW
 			m.quoteEdge, m.quoteEdgeW = slices.Clone(prefix), indent+blk.PrefixWidth
-			if len(blk.Children) > 0 && blk.Children[0].Kind == MdBlockParagraph {
+			if len(blk.Children) > 0 && blk.Children[0].Kind == mdBlockParagraph {
 				m.addWrappedLine(prefix, indent+blk.PrefixWidth, proseW, blk.Children[0].Body...)
 				if len(blk.Children) > 1 {
 					m.wrapBlockList(blk.Children[1:], w, indent+blk.PrefixWidth)
@@ -725,12 +726,12 @@ func (m *Markdown) wrapBlockList(blocks []MdBlock, w int, indent int) {
 			}
 			m.quoteEdge, m.quoteEdgeW = outer, outerW
 
-		case MdBlockRule:
-			// A thematic break emits no cells. Its preceding MdBlockBlank supplies
+		case mdBlockRule:
+			// A thematic break emits no cells. Its preceding mdBlockBlank supplies
 			// the same one-row separation as an ordinary paragraph boundary.
-		case MdBlockBlank:
+		case mdBlockBlank:
 			m.renderedLines = append(m.renderedLines, mdLine{chunks: m.leftEdge(0)})
-		case MdBlockTable:
+		case mdBlockTable:
 			m.renderTable(blk.TableCells, blk.TableAligns, avail)
 		}
 	}
@@ -748,7 +749,7 @@ func (m *Markdown) leftEdge(indent int) []style.TextChunk {
 
 // addWrappedLine appends prefix and body, wrapping body around the prefix width.
 func (m *Markdown) addWrappedLine(prefix []style.TextChunk, prefixWidth int, maxWidth int, body ...style.TextChunk) {
-	if m.wrapMode == WrapNone || maxWidth <= 0 {
+	if m.wrapMode == textbuf.WrapNone || maxWidth <= 0 {
 		// Preserve all chunks on one line when wrapping is disabled.
 		all := make([]style.TextChunk, 0, len(prefix)+len(body))
 		all = append(all, prefix...)
@@ -762,7 +763,7 @@ func (m *Markdown) addWrappedLine(prefix []style.TextChunk, prefixWidth int, max
 	// Avoid cluster conversion when the body already fits.
 	totalWidth := 0
 	for _, c := range body {
-		totalWidth += m.StringWidth(c.Text)
+		totalWidth += textbuf.StringWidth(c.Text)
 	}
 
 	if totalWidth <= availWidth {
@@ -794,20 +795,20 @@ func (m *Markdown) addWrappedLine(prefix []style.TextChunk, prefixWidth int, max
 }
 
 // wrapChunks splits body into rows, the first at most first cells wide and
-// the others at most rest cells wide. WrapWord breaks after the last
+// the others at most rest cells wide. textbuf.WrapWord breaks after the last
 // whitespace that fits when more text follows, and within a word only when a
 // row has no such whitespace; other modes break at any grapheme cluster.
 // Whitespace that would begin a row after a break is dropped, and a row holds
 // at least one cluster even when that cluster is wider than the row.
-func wrapChunks(body []style.TextChunk, mode WrapMode, first, rest int) [][]style.TextChunk {
+func wrapChunks(body []style.TextChunk, mode textbuf.WrapMode, first, rest int) [][]style.TextChunk {
 	// Flatten styled chunks into indivisible grapheme clusters for wrapping.
 	type styledCluster struct {
 		text string
 		base rune // First rune used to detect whitespace boundaries.
 		w    int
-		fg   *style.Color
-		bg   *style.Color
-		attr uint32
+		fg   style.Color
+		bg   style.Color
+		attr style.Attrs
 		link string
 	}
 
@@ -841,7 +842,7 @@ func wrapChunks(body []style.TextChunk, mode WrapMode, first, rest int) [][]styl
 
 		lineStart := clusterIdx
 
-		if mode == WrapWord {
+		if mode == textbuf.WrapWord {
 			// Track the last whitespace boundary that fits.
 			lastBreak := -1
 			for clusterIdx < len(allClusters) {
@@ -882,9 +883,9 @@ func wrapChunks(body []style.TextChunk, mode WrapMode, first, rest int) [][]styl
 
 		// Merge adjacent clusters with identical styles.
 		var sb strings.Builder
-		var curFg *style.Color
-		var curBg *style.Color
-		var curAttr uint32
+		var curFg style.Color
+		var curBg style.Color
+		var curAttr style.Attrs
 		var curLink string
 		started := false
 
@@ -932,12 +933,12 @@ func wrapChunks(body []style.TextChunk, mode WrapMode, first, rest int) [][]styl
 }
 
 // cellText returns a table cell's text without styling.
-func cellText(cell MdTableCell) string {
+func cellText(cell mdTableCell) string {
 	return chunksText(cell.Chunks)
 }
 
 // renderTable appends a bordered table to renderedLines.
-func (m *Markdown) renderTable(rows [][]MdTableCell, aligns []int, maxWidth int) {
+func (m *Markdown) renderTable(rows [][]mdTableCell, aligns []int, maxWidth int) {
 	if len(rows) == 0 {
 		return
 	}
@@ -956,7 +957,7 @@ func (m *Markdown) renderTable(rows [][]MdTableCell, aligns []int, maxWidth int)
 	colWidths := make([]int, numCols)
 	for _, row := range rows {
 		for c := 0; c < numCols && c < len(row); c++ {
-			cw := m.StringWidth(cellText(row[c]))
+			cw := textbuf.StringWidth(cellText(row[c]))
 			if cw > colWidths[c] {
 				colWidths[c] = cw
 			}
@@ -975,16 +976,16 @@ func (m *Markdown) renderTable(rows [][]MdTableCell, aligns []int, maxWidth int)
 	for rowIdx, row := range rows {
 		var chunks []style.TextChunk
 		for c := 0; c < numCols; c++ {
-			chunks = append(chunks, style.TextChunk{Text: string(bc.Vertical), Fg: &borderFg})
+			chunks = append(chunks, style.TextChunk{Text: string(bc.Vertical), Fg: borderFg})
 
-			var cell MdTableCell
+			var cell mdTableCell
 			if c < len(row) {
 				cell = row[c]
 			}
 			text := cellText(cell)
 
 			cellWidth := colWidths[c]
-			textWidth := m.StringWidth(text)
+			textWidth := textbuf.StringWidth(text)
 			padding := cellWidth - textWidth
 			if padding < 0 {
 				text = truncateStringToWidth(text, cellWidth)
@@ -1014,7 +1015,7 @@ func (m *Markdown) renderTable(rows [][]MdTableCell, aligns []int, maxWidth int)
 				fg := m.fg
 				chunks = append(chunks, style.TextChunk{
 					Text:       strings.Repeat(" ", leftPad) + text + strings.Repeat(" ", rightPad),
-					Fg:         &fg,
+					Fg:         fg,
 					Attributes: style.AttrBold,
 				})
 			} else if len(cell.Chunks) > 0 {
@@ -1031,7 +1032,7 @@ func (m *Markdown) renderTable(rows [][]MdTableCell, aligns []int, maxWidth int)
 				chunks = append(chunks, style.TextChunk{Text: strings.Repeat(" ", cellWidth)})
 			}
 		}
-		chunks = append(chunks, style.TextChunk{Text: string(bc.Vertical), Fg: &borderFg})
+		chunks = append(chunks, style.TextChunk{Text: string(bc.Vertical), Fg: borderFg})
 		m.renderedLines = append(m.renderedLines, mdLine{chunks: chunks})
 
 		if rowIdx == 0 {
@@ -1055,7 +1056,7 @@ func (m *Markdown) buildTableBorder(colWidths []int, left, mid, right, fill rune
 		}
 	}
 	sb.WriteRune(right)
-	return mdLine{chunks: []style.TextChunk{{Text: sb.String(), Fg: &fg}}}
+	return mdLine{chunks: []style.TextChunk{{Text: sb.String(), Fg: fg}}}
 }
 
 // truncateStringToWidth returns the longest prefix that fits in maxWidth columns.
@@ -1092,7 +1093,7 @@ func (m *Markdown) SetBg(c style.Color) {
 }
 
 // SetWrapMode sets the wrap mode.
-func (m *Markdown) SetWrapMode(wm WrapMode) {
+func (m *Markdown) SetWrapMode(wm textbuf.WrapMode) {
 	if m.wrapMode != wm {
 		m.wrapMode = wm
 		m.wrapDirty = true
@@ -1107,7 +1108,7 @@ func (m *Markdown) Fg() style.Color { return m.fg }
 func (m *Markdown) Bg() style.Color { return m.bg }
 
 // WrapModeValue returns the configured wrap mode.
-func (m *Markdown) WrapModeValue() WrapMode { return m.wrapMode }
+func (m *Markdown) WrapModeValue() textbuf.WrapMode { return m.wrapMode }
 
 // SetHeight sets the markdown widget height dynamically after construction.
 func (m *Markdown) SetHeight(s layout.Scalar) {
@@ -1201,7 +1202,7 @@ func MarkdownWithEmph(e style.Entry) MarkdownOption {
 }
 
 // MarkdownWithWrapMode sets the wrap mode.
-func MarkdownWithWrapMode(wm WrapMode) MarkdownOption {
+func MarkdownWithWrapMode(wm textbuf.WrapMode) MarkdownOption {
 	return func(m *Markdown) { m.wrapMode = wm }
 }
 
@@ -1210,29 +1211,24 @@ func MarkdownWithID(id string) MarkdownOption {
 	return func(m *Markdown) { m.SetID(id) }
 }
 
-// MarkdownWithWidth sets the widget width.
-func MarkdownWithWidth(s layout.Scalar) MarkdownOption {
-	return func(m *Markdown) { m.LayoutNode().Width = s }
+// MarkdownWithLayout sets layout properties of the widget, such as its size,
+// flex factors, margins, and padding, as opts set them in order.
+func MarkdownWithLayout(opts ...layout.Option) MarkdownOption {
+	return func(w *Markdown) {
+		for _, opt := range opts {
+			opt(w.LayoutNode())
+		}
+	}
 }
 
-// MarkdownWithHeight sets the widget height.
-func MarkdownWithHeight(s layout.Scalar) MarkdownOption {
-	return func(m *Markdown) { m.LayoutNode().Height = s }
-}
-
-// MarkdownWithFlexGrow sets the flex-grow factor.
-func MarkdownWithFlexGrow(v int) MarkdownOption {
-	return func(m *Markdown) { m.LayoutNode().FlexGrow = v }
-}
-
-// MarkdownWithParser sets a custom MarkdownParser implementation.
-// When nil (default), a GoldmarkParser is used.
-func MarkdownWithParser(p MarkdownParser) MarkdownOption {
+// markdownWithParser sets a custom markdownParser implementation.
+// When nil (default), a goldmarkParser is used.
+func markdownWithParser(p markdownParser) MarkdownOption {
 	return func(m *Markdown) { m.parser = p }
 }
 
 // MarkdownWithHighlighter sets a custom SyntaxHighlighter for fenced code
-// blocks. When nil, a ChromaHighlighter with the "monokai" theme is used.
+// blocks. When nil, a Highlighter of style.DefaultDark is used.
 func MarkdownWithHighlighter(h SyntaxHighlighter) MarkdownOption {
 	return func(m *Markdown) { m.highlighter = h }
 }
@@ -1240,8 +1236,8 @@ func MarkdownWithHighlighter(h SyntaxHighlighter) MarkdownOption {
 // MarkdownWithTheme applies Markdown and code roles from t.
 // Later options override individual roles. A nil theme leaves defaults unchanged.
 //
-// It also installs a Chroma style derived from t.Code. Apply MarkdownWithHighlighter
-// afterward to use a different highlighter.
+// It also installs a Highlighter of t's code palette. Apply
+// MarkdownWithHighlighter afterward to use a different highlighter.
 func MarkdownWithTheme(t *style.Theme) MarkdownOption {
 	return func(m *Markdown) {
 		if t == nil {
@@ -1265,6 +1261,6 @@ func MarkdownWithTheme(t *style.Theme) MarkdownOption {
 		m.listEnum = t.ResolveMarkdownListEnum()
 		m.rule = t.ResolveMarkdownRule()
 		// Keep fenced-code token colors consistent with the selected UI theme.
-		m.highlighter = NewChromaHighlighterWithStyle(ChromaStyleForTheme(t))
+		m.highlighter = NewHighlighter(t)
 	}
 }

@@ -31,7 +31,7 @@ func TestParser_MultipleChars(t *testing.T) {
 	if len(events) != 3 {
 		t.Fatalf("expected 3 events, got %d", len(events))
 	}
-	for i, name := range []string{"a", "b", "c"} {
+	for i, name := range []KeyName{"a", "b", "c"} {
 		if events[i].Key.Name != name {
 			t.Errorf("event %d: Name = %q, want %q", i, events[i].Key.Name, name)
 		}
@@ -130,7 +130,7 @@ func TestParser_Escape(t *testing.T) {
 func TestParser_CtrlKeys(t *testing.T) {
 	tests := []struct {
 		byte byte
-		name string
+		name KeyName
 	}{
 		{1, "a"},  // Control-A.
 		{3, "c"},  // Control-C.
@@ -145,9 +145,9 @@ func TestParser_CtrlKeys(t *testing.T) {
 			t.Fatalf("Ctrl+%s: expected 1 event, got %d", tt.name, len(events))
 		}
 		ev := events[0].Key
-		if ev.Name != tt.name || !ev.Ctrl {
+		if ev.Name != tt.name || !ev.Mods.Has(ModCtrl) {
 			t.Errorf("byte %d: Name=%q Ctrl=%v, want Name=%q Ctrl=true",
-				tt.byte, ev.Name, ev.Ctrl, tt.name)
+				tt.byte, ev.Name, ev.Mods.Has(ModCtrl), tt.name)
 		}
 	}
 }
@@ -155,7 +155,7 @@ func TestParser_CtrlKeys(t *testing.T) {
 func TestParser_ArrowKeys(t *testing.T) {
 	tests := []struct {
 		seq  string
-		name string
+		name KeyName
 	}{
 		{"\x1b[A", "up"},
 		{"\x1b[B", "down"},
@@ -177,7 +177,7 @@ func TestParser_ArrowKeys(t *testing.T) {
 func TestParser_HomeEnd(t *testing.T) {
 	tests := []struct {
 		seq  string
-		name string
+		name KeyName
 	}{
 		{"\x1b[H", "home"},
 		{"\x1b[F", "end"},
@@ -197,7 +197,7 @@ func TestParser_HomeEnd(t *testing.T) {
 func TestParser_FunctionKeys(t *testing.T) {
 	tests := []struct {
 		seq  string
-		name string
+		name KeyName
 	}{
 		{"\x1b[P", "f1"},
 		{"\x1b[Q", "f2"},
@@ -227,7 +227,7 @@ func TestParser_FunctionKeys(t *testing.T) {
 func TestParser_InsertDelete(t *testing.T) {
 	tests := []struct {
 		seq  string
-		name string
+		name KeyName
 	}{
 		{"\x1b[2~", "insert"},
 		{"\x1b[3~", "delete"},
@@ -247,7 +247,7 @@ func TestParser_InsertDelete(t *testing.T) {
 func TestParser_PageUpDown(t *testing.T) {
 	tests := []struct {
 		seq  string
-		name string
+		name KeyName
 	}{
 		{"\x1b[5~", "pageup"},
 		{"\x1b[6~", "pagedown"},
@@ -267,7 +267,7 @@ func TestParser_PageUpDown(t *testing.T) {
 func TestParser_ModifiedArrowKeys(t *testing.T) {
 	tests := []struct {
 		seq   string
-		name  string
+		name  KeyName
 		ctrl  bool
 		shift bool
 		alt   bool
@@ -285,9 +285,9 @@ func TestParser_ModifiedArrowKeys(t *testing.T) {
 			t.Fatalf("%q: expected 1 event, got %d", tt.seq, len(events))
 		}
 		ev := events[0].Key
-		if ev.Name != tt.name || ev.Ctrl != tt.ctrl || ev.Shift != tt.shift || ev.Alt != tt.alt {
+		if ev.Name != tt.name || ev.Mods.Has(ModCtrl) != tt.ctrl || ev.Mods.Has(ModShift) != tt.shift || ev.Mods.Has(ModAlt) != tt.alt {
 			t.Errorf("seq %q: got Name=%q Ctrl=%v Shift=%v Alt=%v, want Name=%q Ctrl=%v Shift=%v Alt=%v",
-				tt.seq, ev.Name, ev.Ctrl, ev.Shift, ev.Alt,
+				tt.seq, ev.Name, ev.Mods.Has(ModCtrl), ev.Mods.Has(ModShift), ev.Mods.Has(ModAlt),
 				tt.name, tt.ctrl, tt.shift, tt.alt)
 		}
 	}
@@ -301,15 +301,15 @@ func TestParser_ModifiedTildeKeys(t *testing.T) {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
 	ev := events[0].Key
-	if ev.Name != "delete" || !ev.Shift {
-		t.Errorf("got Name=%q Shift=%v, want delete Shift=true", ev.Name, ev.Shift)
+	if ev.Name != "delete" || !ev.Mods.Has(ModShift) {
+		t.Errorf("got Name=%q Shift=%v, want delete Shift=true", ev.Name, ev.Mods.Has(ModShift))
 	}
 }
 
 func TestParser_SS3_ArrowKeys(t *testing.T) {
 	tests := []struct {
 		seq  string
-		name string
+		name KeyName
 	}{
 		{"\x1bOA", "up"},
 		{"\x1bOB", "down"},
@@ -335,7 +335,7 @@ func TestParser_SS3_ArrowKeys(t *testing.T) {
 func TestParser_AltKeys(t *testing.T) {
 	tests := []struct {
 		seq  string
-		name string
+		name KeyName
 	}{
 		{"\x1ba", "a"},
 		{"\x1bz", "z"},
@@ -348,8 +348,8 @@ func TestParser_AltKeys(t *testing.T) {
 			t.Fatalf("Alt+%s: expected 1 event, got %d", tt.name, len(events))
 		}
 		ev := events[0].Key
-		if ev.Name != tt.name || !ev.Alt {
-			t.Errorf("Alt+%s: Name=%q Alt=%v, want Alt=true", tt.name, ev.Name, ev.Alt)
+		if ev.Name != tt.name || !ev.Mods.Has(ModAlt) {
+			t.Errorf("Alt+%s: Name=%q Alt=%v, want Alt=true", tt.name, ev.Name, ev.Mods.Has(ModAlt))
 		}
 	}
 }
@@ -361,8 +361,8 @@ func TestParser_AltBackspace(t *testing.T) {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
 	ev := events[0].Key
-	if ev.Name != KeyBackspace || !ev.Alt {
-		t.Errorf("got Name=%q Alt=%v, want backspace Alt=true", ev.Name, ev.Alt)
+	if ev.Name != KeyBackspace || !ev.Mods.Has(ModAlt) {
+		t.Errorf("got Name=%q Alt=%v, want backspace Alt=true", ev.Name, ev.Mods.Has(ModAlt))
 	}
 }
 
@@ -373,8 +373,8 @@ func TestParser_AltReturn(t *testing.T) {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
 	ev := events[0].Key
-	if ev.Name != KeyReturn || !ev.Alt {
-		t.Errorf("got Name=%q Alt=%v, want return Alt=true", ev.Name, ev.Alt)
+	if ev.Name != KeyReturn || !ev.Mods.Has(ModAlt) {
+		t.Errorf("got Name=%q Alt=%v, want return Alt=true", ev.Name, ev.Mods.Has(ModAlt))
 	}
 }
 
@@ -517,7 +517,7 @@ func TestParser_MouseModifiers(t *testing.T) {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
 	m := events[0].Mouse
-	if !m.Modifiers.Shift {
+	if !m.Mods.Has(ModShift) {
 		t.Error("Shift should be true")
 	}
 
@@ -528,7 +528,7 @@ func TestParser_MouseModifiers(t *testing.T) {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
 	m = events[0].Mouse
-	if !m.Modifiers.Alt {
+	if !m.Mods.Has(ModAlt) {
 		t.Error("Alt should be true")
 	}
 
@@ -539,7 +539,7 @@ func TestParser_MouseModifiers(t *testing.T) {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
 	m = events[0].Mouse
-	if !m.Modifiers.Ctrl {
+	if !m.Mods.Has(ModCtrl) {
 		t.Error("Ctrl should be true")
 	}
 }
@@ -605,8 +605,8 @@ func TestParser_Kitty_SimpleKey(t *testing.T) {
 	if ev.Name != "a" {
 		t.Errorf("Name = %q, want 'a'", ev.Name)
 	}
-	if ev.Source != "kitty" {
-		t.Errorf("Source = %q, want 'kitty'", ev.Source)
+	if ev.Source != KeySourceKitty {
+		t.Errorf("Source = %v, want kitty", ev.Source)
 	}
 }
 
@@ -620,8 +620,8 @@ func TestParser_Kitty_WithModifiers(t *testing.T) {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
 	ev := events[0].Key
-	if ev.Name != "a" || !ev.Ctrl {
-		t.Errorf("Name=%q Ctrl=%v, want 'a' Ctrl=true", ev.Name, ev.Ctrl)
+	if ev.Name != "a" || !ev.Mods.Has(ModCtrl) {
+		t.Errorf("Name=%q Ctrl=%v, want 'a' Ctrl=true", ev.Name, ev.Mods.Has(ModCtrl))
 	}
 }
 
@@ -637,9 +637,6 @@ func TestParser_Kitty_EventType(t *testing.T) {
 	ev := events[0].Key
 	if ev.Type != KeyRepeat {
 		t.Errorf("Type = %v, want KeyRepeat", ev.Type)
-	}
-	if !ev.Repeated {
-		t.Error("Repeated should be true for repeat event")
 	}
 
 	// Kitty event type 3 reports a released key.
@@ -658,7 +655,7 @@ func TestParser_Kitty_SpecialKeys(t *testing.T) {
 
 	tests := []struct {
 		seq      string
-		name     string
+		name     KeyName
 		wantText string // The expected printable text, if any.
 	}{
 		{"\x1b[13u", "return", ""},
@@ -685,7 +682,7 @@ func TestParser_Kitty_Disabled(t *testing.T) {
 	p := NewParser()
 	// CSI u must not produce a Kitty event while the protocol is disabled.
 	events := p.Parse([]byte("\x1b[97u"))
-	if len(events) == 1 && events[0].Key != nil && events[0].Key.Source == "kitty" {
+	if len(events) == 1 && events[0].Key != nil && events[0].Key.Source == KeySourceKitty {
 		t.Error("kitty parsing should be disabled by default")
 	}
 }
@@ -759,7 +756,7 @@ func TestParser_DoubleEsc_CSI_AltArrows(t *testing.T) {
 	// With the heuristic disabled, double ESC adds Alt without inferring Shift.
 	tests := []struct {
 		seq  string
-		name string
+		name KeyName
 		desc string
 	}{
 		{"\x1b\x1b[D", "left", "Option+Left"},
@@ -777,12 +774,12 @@ func TestParser_DoubleEsc_CSI_AltArrows(t *testing.T) {
 		if ev.Name != tt.name {
 			t.Errorf("%s: Name = %q, want %q", tt.desc, ev.Name, tt.name)
 		}
-		if !ev.Alt {
+		if !ev.Mods.Has(ModAlt) {
 			t.Errorf("%s: Alt = false, want true", tt.desc)
 		}
-		if ev.Shift || ev.Ctrl || ev.Meta {
+		if ev.Mods.Has(ModShift) || ev.Mods.Has(ModCtrl) || ev.Mods.Has(ModMeta) {
 			t.Errorf("%s: unexpected modifiers Shift=%v Ctrl=%v Meta=%v",
-				tt.desc, ev.Shift, ev.Ctrl, ev.Meta)
+				tt.desc, ev.Mods.Has(ModShift), ev.Mods.Has(ModCtrl), ev.Mods.Has(ModMeta))
 		}
 	}
 }
@@ -792,7 +789,7 @@ func TestParser_DoubleEsc_CSI_AltSendsEscPrefix(t *testing.T) {
 	// plain Alt+Arrow is expected to use ESC b or ESC f instead.
 	tests := []struct {
 		seq  string
-		name string
+		name KeyName
 		desc string
 	}{
 		{"\x1b\x1b[D", "left", "Shift+Option+Left"},
@@ -811,14 +808,14 @@ func TestParser_DoubleEsc_CSI_AltSendsEscPrefix(t *testing.T) {
 		if ev.Name != tt.name {
 			t.Errorf("%s: Name = %q, want %q", tt.desc, ev.Name, tt.name)
 		}
-		if !ev.Alt {
+		if !ev.Mods.Has(ModAlt) {
 			t.Errorf("%s: Alt = false, want true", tt.desc)
 		}
-		if !ev.Shift {
+		if !ev.Mods.Has(ModShift) {
 			t.Errorf("%s: Shift = false, want true (macOS heuristic)", tt.desc)
 		}
-		if ev.Ctrl || ev.Meta {
-			t.Errorf("%s: unexpected modifiers Ctrl=%v Meta=%v", tt.desc, ev.Ctrl, ev.Meta)
+		if ev.Mods.Has(ModCtrl) || ev.Mods.Has(ModMeta) {
+			t.Errorf("%s: unexpected modifiers Ctrl=%v Meta=%v", tt.desc, ev.Mods.Has(ModCtrl), ev.Mods.Has(ModMeta))
 		}
 	}
 }
@@ -828,7 +825,7 @@ func TestParser_DoubleEsc_CSI_ShiftAltArrows(t *testing.T) {
 	// ESC adds Alt.
 	tests := []struct {
 		seq   string
-		name  string
+		name  KeyName
 		shift bool
 		desc  string
 	}{
@@ -847,11 +844,11 @@ func TestParser_DoubleEsc_CSI_ShiftAltArrows(t *testing.T) {
 		if ev.Name != tt.name {
 			t.Errorf("%s: Name = %q, want %q", tt.desc, ev.Name, tt.name)
 		}
-		if !ev.Alt {
+		if !ev.Mods.Has(ModAlt) {
 			t.Errorf("%s: Alt = false, want true", tt.desc)
 		}
-		if ev.Shift != tt.shift {
-			t.Errorf("%s: Shift = %v, want %v", tt.desc, ev.Shift, tt.shift)
+		if ev.Mods.Has(ModShift) != tt.shift {
+			t.Errorf("%s: Shift = %v, want %v", tt.desc, ev.Mods.Has(ModShift), tt.shift)
 		}
 	}
 }
@@ -860,7 +857,7 @@ func TestParser_DoubleEsc_SS3(t *testing.T) {
 	// With the heuristic disabled, a nested SS3 key gains Alt but not Shift.
 	tests := []struct {
 		seq  string
-		name string
+		name KeyName
 		desc string
 	}{
 		{"\x1b\x1bOA", "up", "Alt+SS3 Up"},
@@ -877,10 +874,10 @@ func TestParser_DoubleEsc_SS3(t *testing.T) {
 		if ev.Name != tt.name {
 			t.Errorf("%s: Name = %q, want %q", tt.desc, ev.Name, tt.name)
 		}
-		if !ev.Alt {
+		if !ev.Mods.Has(ModAlt) {
 			t.Errorf("%s: Alt = false, want true", tt.desc)
 		}
-		if ev.Shift {
+		if ev.Mods.Has(ModShift) {
 			t.Errorf("%s: Shift = true, want false (heuristic off by default)", tt.desc)
 		}
 	}
@@ -895,9 +892,9 @@ func TestParser_DoubleEsc_SS3_AltSendsEscPrefix(t *testing.T) {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
 	ev := events[0].Key
-	if ev.Name != "left" || !ev.Alt || !ev.Shift {
+	if ev.Name != "left" || !ev.Mods.Has(ModAlt) || !ev.Mods.Has(ModShift) {
 		t.Errorf("got Name=%q Alt=%v Shift=%v, want left Alt=true Shift=true",
-			ev.Name, ev.Alt, ev.Shift)
+			ev.Name, ev.Mods.Has(ModAlt), ev.Mods.Has(ModShift))
 	}
 }
 
@@ -911,9 +908,9 @@ func TestParser_DoubleEsc_InStream(t *testing.T) {
 	if events[0].Key.Name != "a" {
 		t.Errorf("event 0: Name = %q, want 'a'", events[0].Key.Name)
 	}
-	if events[1].Key.Name != "left" || !events[1].Key.Alt {
+	if events[1].Key.Name != "left" || !events[1].Key.Mods.Has(ModAlt) {
 		t.Errorf("event 1: Name=%q Alt=%v, want left Alt=true",
-			events[1].Key.Name, events[1].Key.Alt)
+			events[1].Key.Name, events[1].Key.Mods.Has(ModAlt))
 	}
 	if events[2].Key.Name != "b" {
 		t.Errorf("event 2: Name = %q, want 'b'", events[2].Key.Name)
@@ -928,10 +925,10 @@ func TestParser_DoubleEsc_NonNavKey_NoShift(t *testing.T) {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
 	ev := events[0].Key
-	if ev.Name != "a" || !ev.Alt {
-		t.Errorf("got Name=%q Alt=%v, want a Alt=true", ev.Name, ev.Alt)
+	if ev.Name != "a" || !ev.Mods.Has(ModAlt) {
+		t.Errorf("got Name=%q Alt=%v, want a Alt=true", ev.Name, ev.Mods.Has(ModAlt))
 	}
-	if ev.Shift {
+	if ev.Mods.Has(ModShift) {
 		t.Error("Shift should be false for Alt+a (not a double-ESC nav key)")
 	}
 }
@@ -947,7 +944,7 @@ func TestParser_DoubleEsc_StandaloneEscEsc(t *testing.T) {
 	if events[0].Key.Name != "escape" {
 		t.Errorf("event 0: Name = %q, want 'escape'", events[0].Key.Name)
 	}
-	if !events[0].Key.Alt {
+	if !events[0].Key.Mods.Has(ModAlt) {
 		t.Errorf("event 0: Alt = false, want true")
 	}
 }

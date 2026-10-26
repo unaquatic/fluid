@@ -1,6 +1,8 @@
 package render
 
 import (
+	"time"
+
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
 	"github.com/unaquatic/fluid/layout"
@@ -110,14 +112,18 @@ type Renderable interface {
 
 	// Render draws this renderable. Scene graph traversal schedules child
 	// renderables separately.
-	Render(buf *buffer.Buffer, deltaTime float64)
+	Render(buf *buffer.Buffer, deltaTime time.Duration)
 	// RenderSelf draws the renderable's own content and is the primary widget
 	// override point.
-	RenderSelf(buf *buffer.Buffer, deltaTime float64)
-	// RenderBefore draws content that must precede RenderSelf.
-	RenderBefore(buf *buffer.Buffer, deltaTime float64)
-	// RenderAfter draws overlays or decorations after the renderable's content.
-	RenderAfter(buf *buffer.Buffer, deltaTime float64)
+	RenderSelf(buf *buffer.Buffer, deltaTime time.Duration)
+	// RenderBefore runs the renderable's RenderBeforeHook. Render runs the hook
+	// itself and never calls RenderBefore, so overriding it changes nothing
+	// Render draws.
+	RenderBefore(buf *buffer.Buffer, deltaTime time.Duration)
+	// RenderAfter runs the renderable's RenderAfterHook. Render runs the hook
+	// itself and never calls RenderAfter, so overriding it changes nothing
+	// Render draws.
+	RenderAfter(buf *buffer.Buffer, deltaTime time.Duration)
 
 	// Focus and keyboard input.
 
@@ -157,10 +163,12 @@ type Renderable interface {
 
 	// Lifecycle.
 
-	// OnUpdate runs before layout for each frame in which the widget is updated.
-	OnUpdate(deltaTime float64)
+	// OnUpdate is never called by the renderer, so overriding it has no
+	// effect. Work that must run before each layout belongs in a lifecycle
+	// pass, which the root's AddLifecyclePass adds.
+	OnUpdate(deltaTime time.Duration)
 	// OnPostLayout runs after layout and before rendering.
-	OnPostLayout(deltaTime float64)
+	OnPostLayout(deltaTime time.Duration)
 	// OnResize handles a change to the renderable's resolved dimensions.
 	OnResize(width, height int)
 	// Destroy detaches and unregisters the renderable.
@@ -168,21 +176,12 @@ type Renderable interface {
 	// DestroyRecursively destroys the renderable and every descendant.
 	DestroyRecursively()
 
-	// Context.
+	// Host.
 
-	// Context returns the attached renderer context or a no-op context.
-	Context() Context
-	// SetContext attaches a renderer context.
-	SetContext(ctx Context)
-
-	// Continuous rendering.
-
-	// Live reports whether the renderable requested continuous rendering.
-	Live() bool
-	// SetLive controls continuous rendering independent of dirty state.
-	SetLive(l bool)
-	// LiveCount returns the renderable's local live-render request count.
-	LiveCount() int
+	// Host returns the attached renderer, or a no-op host when detached.
+	Host() Host
+	// SetHost attaches a renderer.
+	SetHost(host Host)
 
 	// Layout synchronization.
 
@@ -193,4 +192,19 @@ type Renderable interface {
 	// translation offsets. It does not apply the renderable's own translation,
 	// which traversal passes to descendants separately.
 	UpdateFromLayoutWithOffset(offsetX, offsetY int)
+}
+
+// MouseTarget returns the renderable under the cursor that the renderer
+// dispatched e to, which it stores in e.Target, or nil if there is none.
+func MouseTarget(e *input.MouseEvent) Renderable {
+	r, _ := e.Target.(Renderable)
+	return r
+}
+
+// MouseSource returns the renderable that the drag e belongs to started on,
+// which the renderer stores in e.Source for MouseDrag, MouseDragEnd, and
+// MouseDrop events, or nil if there is none.
+func MouseSource(e *input.MouseEvent) Renderable {
+	r, _ := e.Source.(Renderable)
+	return r
 }

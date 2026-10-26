@@ -3,6 +3,8 @@ package style
 import (
 	"testing"
 	"unicode"
+
+	"github.com/unaquatic/fluid/symbol"
 )
 
 func TestBorderStyle_String(t *testing.T) {
@@ -36,199 +38,94 @@ func TestParseBorderStyle(t *testing.T) {
 		{"none", BorderNone},
 	}
 	for _, tt := range tests {
-		if got := ParseBorderStyle(tt.input); got != tt.want {
-			t.Errorf("ParseBorderStyle(%q) = %d, want %d", tt.input, got, tt.want)
+		if got, ok := ParseBorderStyle(tt.input); got != tt.want || !ok {
+			t.Errorf("ParseBorderStyle(%q) = %d, %v, want %d, true", tt.input, got, ok, tt.want)
 		}
 	}
 }
 
-func TestParseBorderStyle_InvalidDefault(t *testing.T) {
-	// Without an explicit fallback, unknown names use BorderSingle.
-	got := ParseBorderStyle("invalid")
-	if got != BorderSingle {
-		t.Errorf("ParseBorderStyle(\"invalid\") = %d, want BorderSingle", got)
-	}
-}
-
-func TestParseBorderStyle_CustomFallback(t *testing.T) {
-	got := ParseBorderStyle("invalid", BorderNone)
-	if got != BorderNone {
-		t.Errorf("ParseBorderStyle(\"invalid\", BorderNone) = %d, want BorderNone", got)
-	}
-}
-
-func TestIsValidBorderStyle(t *testing.T) {
-	valid := []string{"single", "double", "rounded", "heavy", "none"}
-	for _, s := range valid {
-		if !IsValidBorderStyle(s) {
-			t.Errorf("IsValidBorderStyle(%q) = false, want true", s)
-		}
-	}
-
-	invalid := []string{"", "bold", "Single", "DOUBLE", "dashed"}
-	for _, s := range invalid {
-		if IsValidBorderStyle(s) {
-			t.Errorf("IsValidBorderStyle(%q) = true, want false", s)
-		}
-	}
-}
-
-func TestAllSides(t *testing.T) {
-	s := AllSides()
-	if !s.Top || !s.Right || !s.Bottom || !s.Left {
-		t.Errorf("AllSides() = %+v, want all true", s)
-	}
-}
-
-func TestNoSides(t *testing.T) {
-	s := NoSides()
-	if s.Top || s.Right || s.Bottom || s.Left {
-		t.Errorf("NoSides() = %+v, want all false", s)
+func TestParseBorderStyle_Invalid(t *testing.T) {
+	// Unknown names return the zero BorderStyle and false.
+	got, ok := ParseBorderStyle("invalid")
+	if got != BorderSingle || ok {
+		t.Errorf("ParseBorderStyle(\"invalid\") = %d, %v, want BorderSingle, false", got, ok)
 	}
 }
 
 func TestBorderAll(t *testing.T) {
 	b := BorderAll()
-	if !b.All {
-		t.Error("BorderAll().All should be true")
+	if !b.Top || !b.Right || !b.Bottom || !b.Left {
+		t.Errorf("BorderAll() = %+v, want all true", b)
 	}
 }
 
 func TestBorderNoBorder(t *testing.T) {
-	b := BorderNoBorder()
-	if b.All || len(b.Sides) > 0 {
+	if b := BorderNoBorder(); b != (Border{}) {
 		t.Errorf("BorderNoBorder() = %+v, want empty", b)
 	}
 }
 
-func TestBorderSidesFunc(t *testing.T) {
-	b := BorderSides(SideTop, SideBottom)
-	if b.All {
-		t.Error("BorderSides should not set All")
+func TestBorderSides(t *testing.T) {
+	tests := []struct {
+		sides []BorderSide
+		want  Border
+	}{
+		{nil, Border{}},
+		{[]BorderSide{SideTop, SideBottom}, Border{Top: true, Bottom: true}},
+		{[]BorderSide{SideLeft, SideTop, SideLeft}, Border{Top: true, Left: true}},
+		{[]BorderSide{SideTop, SideRight, SideBottom, SideLeft}, BorderAll()},
 	}
-	if len(b.Sides) != 2 {
-		t.Fatalf("expected 2 sides, got %d", len(b.Sides))
-	}
-	if b.Sides[0] != SideTop || b.Sides[1] != SideBottom {
-		t.Errorf("Sides = %v, want [Top, Bottom]", b.Sides)
-	}
-}
-
-func TestGetBorderSides_All(t *testing.T) {
-	config := GetBorderSides(BorderAll())
-	if !config.Top || !config.Right || !config.Bottom || !config.Left {
-		t.Errorf("GetBorderSides(All) = %+v, want all true", config)
-	}
-}
-
-func TestGetBorderSides_None(t *testing.T) {
-	config := GetBorderSides(BorderNoBorder())
-	if config.Top || config.Right || config.Bottom || config.Left {
-		t.Errorf("GetBorderSides(None) = %+v, want all false", config)
-	}
-}
-
-func TestGetBorderSides_Specific(t *testing.T) {
-	config := GetBorderSides(BorderSides(SideTop, SideLeft))
-	if !config.Top || config.Right || config.Bottom || !config.Left {
-		t.Errorf("GetBorderSides(Top,Left) = %+v, want Top=true, Left=true", config)
-	}
-}
-
-func TestGetBorderFromSides_AllTrue(t *testing.T) {
-	b := GetBorderFromSides(AllSides())
-	if !b.All {
-		t.Error("GetBorderFromSides(AllSides) should set All=true")
-	}
-}
-
-func TestGetBorderFromSides_AllFalse(t *testing.T) {
-	b := GetBorderFromSides(NoSides())
-	if b.All || len(b.Sides) > 0 {
-		t.Errorf("GetBorderFromSides(NoSides) = %+v, want empty", b)
-	}
-}
-
-func TestGetBorderFromSides_Partial(t *testing.T) {
-	config := BorderSidesConfig{Top: true, Right: true}
-	b := GetBorderFromSides(config)
-	if b.All {
-		t.Error("partial sides should not set All")
-	}
-	if len(b.Sides) != 2 {
-		t.Fatalf("expected 2 sides, got %d", len(b.Sides))
-	}
-	// Expanding and compacting preserves the selected sides.
-	config2 := GetBorderSides(b)
-	if config2.Top != config.Top || config2.Right != config.Right ||
-		config2.Bottom != config.Bottom || config2.Left != config.Left {
-		t.Errorf("roundtrip failed: got %+v, want %+v", config2, config)
-	}
-}
-
-func TestGetBorderSides_Roundtrip(t *testing.T) {
-	// All 16 combinations of four sides round-trip.
-	bools := []bool{false, true}
-	for _, top := range bools {
-		for _, right := range bools {
-			for _, bottom := range bools {
-				for _, left := range bools {
-					config := BorderSidesConfig{Top: top, Right: right, Bottom: bottom, Left: left}
-					b := GetBorderFromSides(config)
-					config2 := GetBorderSides(b)
-					if config2 != config {
-						t.Errorf("roundtrip failed for %+v: got %+v", config, config2)
-					}
-				}
-			}
+	for _, tt := range tests {
+		if got := BorderSides(tt.sides...); got != tt.want {
+			t.Errorf("BorderSides(%v) = %+v, want %+v", tt.sides, got, tt.want)
 		}
 	}
 }
 
 func TestCharsForStyle_SingleChars(t *testing.T) {
 	chars := CharsForStyle(BorderSingle)
-	if chars != SingleChars {
-		t.Errorf("CharsForStyle(Single) != SingleChars")
+	if chars != symbol.SingleChars {
+		t.Errorf("CharsForStyle(Single) != symbol.SingleChars")
 	}
 }
 
 func TestCharsForStyle_DoubleChars(t *testing.T) {
 	chars := CharsForStyle(BorderDouble)
-	if chars != DoubleChars {
-		t.Errorf("CharsForStyle(Double) != DoubleChars")
+	if chars != symbol.DoubleChars {
+		t.Errorf("CharsForStyle(Double) != symbol.DoubleChars")
 	}
 }
 
 func TestCharsForStyle_RoundedChars(t *testing.T) {
 	chars := CharsForStyle(BorderRounded)
-	if chars != RoundedChars {
-		t.Errorf("CharsForStyle(Rounded) != RoundedChars")
+	if chars != symbol.RoundedChars {
+		t.Errorf("CharsForStyle(Rounded) != symbol.RoundedChars")
 	}
 }
 
 func TestCharsForStyle_HeavyChars(t *testing.T) {
 	chars := CharsForStyle(BorderHeavy)
-	if chars != HeavyChars {
-		t.Errorf("CharsForStyle(Heavy) != HeavyChars")
+	if chars != symbol.HeavyChars {
+		t.Errorf("CharsForStyle(Heavy) != symbol.HeavyChars")
 	}
 }
 
 func TestCharsForStyle_None(t *testing.T) {
-	// BorderNone uses SingleChars when characters are requested directly.
+	// BorderNone uses symbol.SingleChars when characters are requested directly.
 	chars := CharsForStyle(BorderNone)
-	if chars != SingleChars {
-		t.Errorf("CharsForStyle(None) should fallback to SingleChars")
+	if chars != symbol.SingleChars {
+		t.Errorf("CharsForStyle(None) should fallback to symbol.SingleChars")
 	}
 }
 
 // TestAllPresetsHaveValidRunes verifies that every preset contains printable
 // Unicode border runes.
 func TestAllPresetsHaveValidRunes(t *testing.T) {
-	presets := map[string]BorderCharacters{
-		"Single":  SingleChars,
-		"Double":  DoubleChars,
-		"Rounded": RoundedChars,
-		"Heavy":   HeavyChars,
+	presets := map[string]symbol.BorderCharacters{
+		"Single":  symbol.SingleChars,
+		"Double":  symbol.DoubleChars,
+		"Rounded": symbol.RoundedChars,
+		"Heavy":   symbol.HeavyChars,
 	}
 
 	for name, chars := range presets {
@@ -249,65 +146,65 @@ func TestAllPresetsHaveValidRunes(t *testing.T) {
 }
 
 func TestSingleChars_CorrectValues(t *testing.T) {
-	if SingleChars.TopLeft != '┌' {
-		t.Errorf("TopLeft = %q, want '┌'", SingleChars.TopLeft)
+	if symbol.SingleChars.TopLeft != '┌' {
+		t.Errorf("TopLeft = %q, want '┌'", symbol.SingleChars.TopLeft)
 	}
-	if SingleChars.TopRight != '┐' {
-		t.Errorf("TopRight = %q, want '┐'", SingleChars.TopRight)
+	if symbol.SingleChars.TopRight != '┐' {
+		t.Errorf("TopRight = %q, want '┐'", symbol.SingleChars.TopRight)
 	}
-	if SingleChars.BottomLeft != '└' {
-		t.Errorf("BottomLeft = %q, want '└'", SingleChars.BottomLeft)
+	if symbol.SingleChars.BottomLeft != '└' {
+		t.Errorf("BottomLeft = %q, want '└'", symbol.SingleChars.BottomLeft)
 	}
-	if SingleChars.BottomRight != '┘' {
-		t.Errorf("BottomRight = %q, want '┘'", SingleChars.BottomRight)
+	if symbol.SingleChars.BottomRight != '┘' {
+		t.Errorf("BottomRight = %q, want '┘'", symbol.SingleChars.BottomRight)
 	}
-	if SingleChars.Horizontal != '─' {
-		t.Errorf("Horizontal = %q, want '─'", SingleChars.Horizontal)
+	if symbol.SingleChars.Horizontal != '─' {
+		t.Errorf("Horizontal = %q, want '─'", symbol.SingleChars.Horizontal)
 	}
-	if SingleChars.Vertical != '│' {
-		t.Errorf("Vertical = %q, want '│'", SingleChars.Vertical)
+	if symbol.SingleChars.Vertical != '│' {
+		t.Errorf("Vertical = %q, want '│'", symbol.SingleChars.Vertical)
 	}
 }
 
 func TestDoubleChars_CorrectValues(t *testing.T) {
-	if DoubleChars.TopLeft != '╔' {
-		t.Errorf("TopLeft = %q, want '╔'", DoubleChars.TopLeft)
+	if symbol.DoubleChars.TopLeft != '╔' {
+		t.Errorf("TopLeft = %q, want '╔'", symbol.DoubleChars.TopLeft)
 	}
-	if DoubleChars.Horizontal != '═' {
-		t.Errorf("Horizontal = %q, want '═'", DoubleChars.Horizontal)
+	if symbol.DoubleChars.Horizontal != '═' {
+		t.Errorf("Horizontal = %q, want '═'", symbol.DoubleChars.Horizontal)
 	}
-	if DoubleChars.Vertical != '║' {
-		t.Errorf("Vertical = %q, want '║'", DoubleChars.Vertical)
+	if symbol.DoubleChars.Vertical != '║' {
+		t.Errorf("Vertical = %q, want '║'", symbol.DoubleChars.Vertical)
 	}
 }
 
 func TestRoundedChars_CorrectCorners(t *testing.T) {
-	if RoundedChars.TopLeft != '╭' {
-		t.Errorf("TopLeft = %q, want '╭'", RoundedChars.TopLeft)
+	if symbol.RoundedChars.TopLeft != '╭' {
+		t.Errorf("TopLeft = %q, want '╭'", symbol.RoundedChars.TopLeft)
 	}
-	if RoundedChars.TopRight != '╮' {
-		t.Errorf("TopRight = %q, want '╮'", RoundedChars.TopRight)
+	if symbol.RoundedChars.TopRight != '╮' {
+		t.Errorf("TopRight = %q, want '╮'", symbol.RoundedChars.TopRight)
 	}
-	if RoundedChars.BottomLeft != '╰' {
-		t.Errorf("BottomLeft = %q, want '╰'", RoundedChars.BottomLeft)
+	if symbol.RoundedChars.BottomLeft != '╰' {
+		t.Errorf("BottomLeft = %q, want '╰'", symbol.RoundedChars.BottomLeft)
 	}
-	if RoundedChars.BottomRight != '╯' {
-		t.Errorf("BottomRight = %q, want '╯'", RoundedChars.BottomRight)
+	if symbol.RoundedChars.BottomRight != '╯' {
+		t.Errorf("BottomRight = %q, want '╯'", symbol.RoundedChars.BottomRight)
 	}
 	// Rounded borders differ from single borders only at their corners.
-	if RoundedChars.Horizontal != SingleChars.Horizontal {
+	if symbol.RoundedChars.Horizontal != symbol.SingleChars.Horizontal {
 		t.Error("Rounded horizontal should match Single")
 	}
 }
 
 func TestHeavyChars_CorrectValues(t *testing.T) {
-	if HeavyChars.TopLeft != '┏' {
-		t.Errorf("TopLeft = %q, want '┏'", HeavyChars.TopLeft)
+	if symbol.HeavyChars.TopLeft != '┏' {
+		t.Errorf("TopLeft = %q, want '┏'", symbol.HeavyChars.TopLeft)
 	}
-	if HeavyChars.Horizontal != '━' {
-		t.Errorf("Horizontal = %q, want '━'", HeavyChars.Horizontal)
+	if symbol.HeavyChars.Horizontal != '━' {
+		t.Errorf("Horizontal = %q, want '━'", symbol.HeavyChars.Horizontal)
 	}
-	if HeavyChars.Vertical != '┃' {
-		t.Errorf("Vertical = %q, want '┃'", HeavyChars.Vertical)
+	if symbol.HeavyChars.Vertical != '┃' {
+		t.Errorf("Vertical = %q, want '┃'", symbol.HeavyChars.Vertical)
 	}
 }
