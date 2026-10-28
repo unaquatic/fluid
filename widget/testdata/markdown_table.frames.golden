@@ -1,0 +1,98 @@
+=== text ===
+|  ┌────────┬────────┬───────┐   |
+|  │ Left   │ Center │ Right │   |
+|  ├────────┼────────┼───────┤   |
+|  │ a      │   b    │     c │   |
+|  │ Divide │  3.5   │ 7 / 2 │   |
+|  └────────┴────────┴───────┘   |
+|                                |
+|  - item                        |
+|                                |
+|    ┌───┬───┐                   |
+|    │ x │ y │                   |
+|    ├───┼───┤                   |
+|    │ 1 │ 2 │                   |
+|    └───┴───┘                   |
+|                                |
+|  │                             |
+|  │ ┌───┐                       |
+|  │ │ q │                       |
+|  │ ├───┤                       |
+|  │ │ r │                       |
+|  │ └───┘                       |
+|                                |
+=== fg ===
+|  AAAAAAAAAAAAAAAAAAAAAAAAAAA   |
+|  A BBBB   A BBBBBB A BBBBB A   |
+|  AAAAAAAAAAAAAAAAAAAAAAAAAAA   |
+|  A B      A   B    A     B A   |
+|  A CCCCCC A  BBB   A B B B A   |
+|  AAAAAAAAAAAAAAAAAAAAAAAAAAA   |
+|                                |
+|  D BBBB                        |
+|                                |
+|    AAAAAAAAA                   |
+|    A B A B A                   |
+|    AAAAAAAAA                   |
+|    A B A B A                   |
+|    AAAAAAAAA                   |
+|                                |
+|  A                             |
+|  A AAAAA                       |
+|  A A B A                       |
+|  A AAAAA                       |
+|  A A B A                       |
+|  A AAAAA                       |
+|                                |
+=== bg ===
+|                                |
+|                                |
+|                                |
+|                                |
+|    ░░░░░░                      |
+|                                |
+|                                |
+|                                |
+|                                |
+|                                |
+|                                |
+|                                |
+|                                |
+|                                |
+|                                |
+|                                |
+|                                |
+|                                |
+|                                |
+|                                |
+|                                |
+|                                |
+=== attrs ===
+|                                |
+|   BBBBBBBB BBBBBBBB BBBBBBB    |
+|                                |
+|                                |
+|              BBB               |
+|                                |
+|                                |
+|                                |
+|                                |
+|                                |
+|     BBB BBB                    |
+|                                |
+|                                |
+|                                |
+|                                |
+|                                |
+|                                |
+|     BBB                        |
+|                                |
+|                                |
+|                                |
+|                                |
+=== legend ===
+A #808080
+B #ffffff
+C #c8c8c8
+D #5555ff
+░ #1e1e1e

@@ -990,6 +990,17 @@ func TestGolden_MarkdownCJK(t *testing.T) {
 	testutil.AssertGoldenFrames(t, "markdown_cjk", buf, nil)
 }
 
+// TestGolden_MarkdownTable checks that a table starts after the prose
+// padding, as the text around it does, also under a list item and after the
+// border of a quote, and that its cells keep a space from each border,
+// whatever their alignment.
+func TestGolden_MarkdownTable(t *testing.T) {
+	md := widget.NewMarkdown("| Left | Center | Right |\n|:-----|:------:|------:|\n| a | b | c |\n| `Divide` | **3.5** | 7 / 2 |\n\n- item\n\n  | x | y |\n  |---|--:|\n  | 1 | 2 |\n\n> | q |\n> |---|\n> | r |",
+		widget.MarkdownWithProsePadding(2))
+	buf := testutil.RenderWidget(md, 32, 22)
+	testutil.AssertGoldenFrames(t, "markdown_table", buf, nil)
+}
+
 // ScrollBox golden tests.
 
 func TestGolden_ScrollBoxWithChild(t *testing.T) {

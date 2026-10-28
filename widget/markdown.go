@@ -682,7 +682,6 @@ func (m *Markdown) wrapBlocks(w int) {
 // wrapBlockList recursively wraps blocks with indent columns of left
 // indentation, which starts with the borders of the quotes they lie in.
 func (m *Markdown) wrapBlockList(blocks []mdBlock, w int, indent int) {
-	avail := max(w-indent, 4)
 	// Apply prosePad on both sides while preserving non-positive no-wrap widths.
 	proseW := w
 	if m.prosePad > 0 {
@@ -744,7 +743,7 @@ func (m *Markdown) wrapBlockList(blocks []mdBlock, w int, indent int) {
 		case mdBlockBlank:
 			m.renderedLines = append(m.renderedLines, mdLine{chunks: m.leftEdge(0)})
 		case mdBlockTable:
-			m.renderTable(blk.TableCells, blk.TableAligns, avail)
+			m.renderTable(blk.TableCells, blk.TableAligns, indent)
 		}
 	}
 }
@@ -1002,8 +1001,11 @@ func cellText(cell mdTableCell) string {
 	return chunksText(cell.Chunks)
 }
 
-// renderTable appends a bordered table to renderedLines.
-func (m *Markdown) renderTable(rows [][]mdTableCell, aligns []int, maxWidth int) {
+// renderTable appends a bordered table to renderedLines, each of its rows
+// indented by indent columns, after the borders of the quotes it lies in, as
+// the text around it is. A column is as wide as its widest cell, with a
+// space on each side of the cell's text.
+func (m *Markdown) renderTable(rows [][]mdTableCell, aligns []int, indent int) {
 	if len(rows) == 0 {
 		return
 	}
@@ -1036,10 +1038,11 @@ func (m *Markdown) renderTable(rows [][]mdTableCell, aligns []int, maxWidth int)
 
 	borderFg := m.rule.Fg
 	bc := symbol.SingleChars
-	m.renderedLines = append(m.renderedLines, m.buildTableBorder(colWidths, bc.TopLeft, bc.TopT, bc.TopRight, bc.Horizontal, borderFg))
+	edge := m.leftEdge(indent)
+	m.renderedLines = append(m.renderedLines, m.buildTableBorder(edge, colWidths, bc.TopLeft, bc.TopT, bc.TopRight, bc.Horizontal, borderFg))
 
 	for rowIdx, row := range rows {
-		var chunks []style.TextChunk
+		chunks := slices.Clone(edge)
 		for c := 0; c < numCols; c++ {
 			chunks = append(chunks, style.TextChunk{Text: string(bc.Vertical), Fg: borderFg})
 
@@ -1062,17 +1065,20 @@ func (m *Markdown) renderTable(rows [][]mdTableCell, aligns []int, maxWidth int)
 				align = aligns[c]
 			}
 
+			// The text keeps a space from each border: a left-aligned cell
+			// has one before it, a right-aligned one one after it, and a
+			// centered one splits its spaces, the odd one after it.
 			var leftPad, rightPad int
 			switch align {
 			case 0:
 				leftPad = padding / 2
 				rightPad = padding - leftPad
 			case 1:
-				leftPad = padding
-				rightPad = 0
+				leftPad = max(padding-1, 0)
+				rightPad = padding - leftPad
 			default:
-				leftPad = 1
-				rightPad = max(padding-1, 0)
+				leftPad = min(padding, 1)
+				rightPad = padding - leftPad
 			}
 
 			if rowIdx == 0 {
@@ -1101,15 +1107,16 @@ func (m *Markdown) renderTable(rows [][]mdTableCell, aligns []int, maxWidth int)
 		m.renderedLines = append(m.renderedLines, mdLine{chunks: chunks})
 
 		if rowIdx == 0 {
-			m.renderedLines = append(m.renderedLines, m.buildTableBorder(colWidths, bc.LeftT, bc.Cross, bc.RightT, bc.Horizontal, borderFg))
+			m.renderedLines = append(m.renderedLines, m.buildTableBorder(edge, colWidths, bc.LeftT, bc.Cross, bc.RightT, bc.Horizontal, borderFg))
 		}
 	}
 
-	m.renderedLines = append(m.renderedLines, m.buildTableBorder(colWidths, bc.BottomLeft, bc.BottomT, bc.BottomRight, bc.Horizontal, borderFg))
+	m.renderedLines = append(m.renderedLines, m.buildTableBorder(edge, colWidths, bc.BottomLeft, bc.BottomT, bc.BottomRight, bc.Horizontal, borderFg))
 }
 
-// buildTableBorder builds a horizontal table border line.
-func (m *Markdown) buildTableBorder(colWidths []int, left, mid, right, fill rune, fg style.Color) mdLine {
+// buildTableBorder builds a horizontal table border line, after edge, the
+// left edge of the table's rows.
+func (m *Markdown) buildTableBorder(edge []style.TextChunk, colWidths []int, left, mid, right, fill rune, fg style.Color) mdLine {
 	var sb strings.Builder
 	sb.WriteRune(left)
 	for i, w := range colWidths {
@@ -1121,7 +1128,7 @@ func (m *Markdown) buildTableBorder(colWidths []int, left, mid, right, fill rune
 		}
 	}
 	sb.WriteRune(right)
-	return mdLine{chunks: []style.TextChunk{{Text: sb.String(), Fg: fg}}}
+	return mdLine{chunks: append(slices.Clone(edge), style.TextChunk{Text: sb.String(), Fg: fg})}
 }
 
 // truncateStringToWidth returns the longest prefix that fits in maxWidth columns.
