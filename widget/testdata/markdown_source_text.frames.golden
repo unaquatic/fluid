@@ -1,0 +1,42 @@
+=== text ===
+|one                 |
+|two                 |
+|three               |
+|                    |
+|[ ] todo            |
+|[✓] done            |
+|                    |
+|<div>               |
+|  hi                |
+|</div>              |
+|                    |
+|see www.x.org & *   |
+=== fg ===
+|AAA                 |
+|AAA                 |
+|AAAAA               |
+|                    |
+|B B AAAA            |
+|BBB AAAA            |
+|                    |
+|AAAAA               |
+|  AA                |
+|AAAAAA              |
+|                    |
+|AAA BBBBBBBBB A A   |
+=== attrs ===
+|                    |
+|                    |
+|                    |
+|                    |
+|                    |
+|                    |
+|                    |
+|                    |
+|                    |
+|                    |
+|                    |
+|    UUUUUUUUU       |
+=== legend ===
+A #ffffff
+B #5555ff

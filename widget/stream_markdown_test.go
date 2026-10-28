@@ -171,7 +171,7 @@ func TestMarkdown_SetBlocks(t *testing.T) {
 	md := NewMarkdown("", MarkdownWithFg(style.ColorWhite))
 
 	// Reuse blocks produced by the configured parser.
-	parser := newGoldmarkParser()
+	parser := gfmParser{}
 	styles := mdStyles{Fg: style.ColorWhite}
 	blocks := parser.Parse("# Hello\n\nWorld\n\n- item", styles)
 

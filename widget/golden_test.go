@@ -948,6 +948,17 @@ func TestGolden_MarkdownBlockSpacing(t *testing.T) {
 	testutil.AssertGoldenFrames(t, "markdown_block_spacing", buf, nil)
 }
 
+// TestGolden_MarkdownSourceText checks that a hard line break starts a row,
+// that task list items show a box in place of their bullet, that an HTML
+// block shows as text, a row for each of its lines, that an extended www
+// autolink shows as written, and that escapes and entities show the
+// characters they stand for.
+func TestGolden_MarkdownSourceText(t *testing.T) {
+	md := widget.NewMarkdown("one  \ntwo\\\nthree\n\n- [ ] todo\n- [x] done\n\n<div>\n  hi\n</div>\n\nsee www.x.org &amp; \\*")
+	buf := testutil.RenderWidget(md, 20, 12)
+	testutil.AssertGoldenFrames(t, "markdown_source_text", buf, nil)
+}
+
 // ScrollBox golden tests.
 
 func TestGolden_ScrollBoxWithChild(t *testing.T) {

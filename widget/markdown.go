@@ -33,7 +33,7 @@ type Markdown struct {
 	wrapDirty     bool // Requires wrapping without parsing.
 	lastWrapWidth int  // Width used to produce renderedLines.
 
-	parser markdownParser // Defaults to goldmarkParser.
+	parser markdownParser // Defaults to gfmParser.
 
 	fg style.Color
 	bg style.Color
@@ -243,9 +243,9 @@ func NewMarkdown(content string, opts ...MarkdownOption) *Markdown {
 		opt(m)
 	}
 
-	// Use Goldmark and a Highlighter unless options supplied replacements.
+	// Use gfmParser and a Highlighter unless options supplied replacements.
 	if m.parser == nil {
-		m.parser = sharedGoldmarkParser()
+		m.parser = gfmParser{}
 	}
 	if m.highlighter == nil {
 		m.highlighter = NewHighlighter(nil)
@@ -748,7 +748,17 @@ func (m *Markdown) leftEdge(indent int) []style.TextChunk {
 }
 
 // addWrappedLine appends prefix and body, wrapping body around the prefix width.
+// A hard line break in body starts a row as a wrapped continuation row does.
 func (m *Markdown) addWrappedLine(prefix []style.TextChunk, prefixWidth int, maxWidth int, body ...style.TextChunk) {
+	if i := slices.IndexFunc(body, isHardBreak); i >= 0 {
+		m.addWrappedLine(prefix, prefixWidth, maxWidth, body[:i]...)
+		var pad []style.TextChunk
+		if m.prosePad > 0 {
+			pad = []style.TextChunk{{Text: strings.Repeat(" ", m.prosePad)}}
+		}
+		m.addWrappedLine(pad, m.prosePad, maxWidth, body[i+1:]...)
+		return
+	}
 	if m.wrapMode == textbuf.WrapNone || maxWidth <= 0 {
 		// Preserve all chunks on one line when wrapping is disabled.
 		all := make([]style.TextChunk, 0, len(prefix)+len(body))
@@ -1222,7 +1232,7 @@ func MarkdownWithLayout(opts ...layout.Option) MarkdownOption {
 }
 
 // markdownWithParser sets a custom markdownParser implementation.
-// When nil (default), a goldmarkParser is used.
+// When nil (default), a gfmParser is used.
 func markdownWithParser(p markdownParser) MarkdownOption {
 	return func(m *Markdown) { m.parser = p }
 }
