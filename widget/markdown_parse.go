@@ -54,8 +54,9 @@ func convertBlocks(parent ast.Node, s mdStyles) []mdBlock {
 func convertBlock(b ast.Node, s mdStyles) (mdBlock, bool) {
 	switch b := b.(type) {
 	case *ast.Heading:
-		// A heading is one row, on which a hard line break is a space.
-		text := strings.ReplaceAll(chunksText(inlineChunks(b, style.Entry{}, s)), mdHardBreak, " ")
+		// A heading is one row, on which a hard line break is a space, after
+		// its marker if it has one.
+		text := headingMarker(b) + strings.ReplaceAll(chunksText(inlineChunks(b, style.Entry{}, s)), mdHardBreak, " ")
 		return mdBlock{
 			Kind:  mdBlockHeading,
 			Level: b.Level,
@@ -100,7 +101,7 @@ func convertBlock(b ast.Node, s mdStyles) (mdBlock, bool) {
 		var items []mdBlock
 		itemNum := b.Start
 		for item := range ast.Children(b) {
-			items = append(items, convertListItem(item.(*ast.ListItem), s, kind, itemNum))
+			items = append(items, convertListItem(item.(*ast.ListItem), s, b, itemNum))
 			if b.IsOrdered() {
 				itemNum++
 			}
@@ -168,7 +169,8 @@ func convertBlock(b ast.Node, s mdStyles) (mdBlock, bool) {
 			if !ok {
 				continue
 			}
-			p := "[" + intToStr(fn.Index) + "] "
+			// A footnote starts with its label, as its definition writes it.
+			p := "[^" + fn.Ref + "]: "
 			body, children := itemContent(fn, s)
 			notes = append(notes, mdBlock{
 				Kind:        mdBlockListItem,
@@ -184,18 +186,14 @@ func convertBlock(b ast.Node, s mdStyles) (mdBlock, bool) {
 	return mdBlock{}, false
 }
 
-// descriptionMarker marks a description of a definition list, which
-// descriptionPrefixWidth columns of its row hold, with the indent before
-// the marker and the space after it.
-const (
-	descriptionMarker      = ":"
-	descriptionPrefixWidth = 4 // "  : "
-)
+// descriptionIndent is the indent of the descriptions of a definition
+// list, under their term.
+const descriptionIndent = 2
 
 // convertDefinitionList returns a definition list as items: a term in the
-// strong style on a row of its own, and a description after a ":" in the
-// bullet style, indented, whose wrapped rows hang under its text. Blank rows
-// part the items if a description is loose.
+// strong style on a row of its own, and each of its descriptions on rows of
+// their own, indented under it. Blank rows part the items if a description
+// is loose.
 func convertDefinitionList(l *ast.DefinitionList, s mdStyles) mdBlock {
 	blk := mdBlock{Kind: mdBlockDefinitionList}
 	for c := range ast.Children(l) {
@@ -206,8 +204,8 @@ func convertDefinitionList(l *ast.DefinitionList, s mdStyles) mdBlock {
 			body, children := itemContent(c, s)
 			blk.Children = append(blk.Children, mdBlock{
 				Kind:        mdBlockListItem,
-				Prefix:      []style.TextChunk{{Text: "  "}, s.Bullet.Chunk(descriptionMarker), {Text: " "}},
-				PrefixWidth: descriptionPrefixWidth,
+				Prefix:      []style.TextChunk{{Text: strings.Repeat(" ", descriptionIndent)}},
+				PrefixWidth: descriptionIndent,
 				Body:        body,
 				Children:    children,
 				Hang:        true,
@@ -227,37 +225,41 @@ func convertCells(row ast.Node, s mdStyles) []mdTableCell {
 	return cells
 }
 
-// convertListItem returns a list item with its marker, first body, and nested blocks.
-func convertListItem(li *ast.ListItem, s mdStyles, listKind mdBlockKind, itemNum int) mdBlock {
-	// Build the task box, ordered number, or unordered bullet marker.
-	var prefix []style.TextChunk
-	var prefixWidth int
-	switch {
-	case li.Task != ast.NotTask:
-		p := "[ ] "
-		if li.Task == ast.Checked {
-			p = "[" + string(symbol.CheckMark) + "] "
-		}
-		prefix = []style.TextChunk{s.Bullet.Chunk(p)}
-		prefixWidth = textbuf.StringWidth(p)
-	case listKind == mdBlockOrderedList:
-		p := intToStr(itemNum) + ". "
-		prefix = []style.TextChunk{s.ListEnum.Chunk(p)}
-		prefixWidth = textbuf.StringWidth(p)
-	default:
-		p := string(symbol.BulletFilled) + " "
-		prefix = []style.TextChunk{s.Bullet.Chunk(p)}
-		prefixWidth = len(p)
+// convertListItem returns a list item of list l, numbered itemNum if l is
+// ordered, with its marker, first body, and nested blocks.
+func convertListItem(li *ast.ListItem, s mdStyles, l *ast.List, itemNum int) mdBlock {
+	// The marker shows as written: a bullet in the bullet style, or a number
+	// and its delimiter in the list number style, and then a task item's
+	// box.
+	p := []style.TextChunk{s.Bullet.Chunk(string(l.Marker) + " ")}
+	if l.IsOrdered() {
+		p = []style.TextChunk{s.ListEnum.Chunk(intToStr(itemNum) + string(l.Marker) + " ")}
 	}
-
+	switch li.Task {
+	case ast.Unchecked:
+		p = append(p, s.Bullet.Chunk("[ ] "))
+	case ast.Checked:
+		p = append(p, s.Bullet.Chunk("[x] "))
+	}
 	body, children := itemContent(li, s)
 	return mdBlock{
 		Kind:        mdBlockListItem,
-		Prefix:      prefix,
-		PrefixWidth: prefixWidth,
+		Prefix:      p,
+		PrefixWidth: textbuf.StringWidth(chunksText(p)),
 		Body:        body,
 		Children:    children,
 	}
+}
+
+// headingMarker returns the marker that heading h starts with, as written,
+// and the space after it: "#" for each level for an ATX heading, and
+// nothing for a setext heading, whose text starts where it does and whose
+// underline follows it.
+func headingMarker(h *ast.Heading) string {
+	if lines := h.Lines(); len(lines) > 0 && lines[0].Offset == h.SourceSpan().Start {
+		return ""
+	}
+	return strings.Repeat("#", h.Level) + " "
 }
 
 // itemContent returns the inline content of the first paragraph of n, a
@@ -354,9 +356,9 @@ func inlineChunks(parent ast.Node, in style.Entry, s mdStyles) []style.TextChunk
 			chunks = append(chunks, inlineChunks(t, in, s)...)
 
 		case *ast.FootnoteLink:
-			// A reference shows its footnote's number; the footnotes, at the
-			// end, show no links back to it.
-			chunks = append(chunks, in.Merge(s.LinkText).Chunk("["+intToStr(t.Index)+"]"))
+			// A reference shows its footnote's label, as it is written; the
+			// footnotes, at the end, show no links back to it.
+			chunks = append(chunks, in.Merge(s.LinkText).Chunk("[^"+t.Ref+"]"))
 		}
 	}
 	return chunks

@@ -20,7 +20,7 @@ func Example_footnote() {
 	// Document [0:24]
 	//   Paragraph [0:9] "Text.[^1]"
 	//     Text "Text."
-	//     FootnoteLink Index=1 RefCount=1
+	//     FootnoteLink Ref="1" Index=1 RefCount=1
 	//   FootnoteList Count=1 [24:24] ""
 	//     Footnote Ref="1" Index=1 [11:24] "[^1]: A note."
 	//       Paragraph [17:24] "A note."

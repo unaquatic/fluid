@@ -2,6 +2,7 @@ package widget
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -606,10 +607,9 @@ func TestMarkdown_Render(t *testing.T) {
 	buf := buffer.New(20, 5)
 	m.RenderSelf(buf, 0)
 
-	// The heading marker is omitted from rendered text.
-	cell := buf.Cell(0, 0)
-	if cell.Char != 'T' {
-		t.Errorf("expected 'T' at (0,0), got %c", cell.Char)
+	// The heading shows its marker, as written, before its text.
+	if got := testutil.RowText(buf, 0); !strings.HasPrefix(got, "# Test") {
+		t.Errorf("row 0 = %q, want it to start with %q", got, "# Test")
 	}
 }
 
@@ -625,9 +625,12 @@ func TestMarkdown_AllHeadings(t *testing.T) {
 	buf := buffer.New(40, 15)
 	m.RenderSelf(buf, 0)
 
-	// The first heading starts without its source marker.
-	if buf.Cell(0, 0).Char != 'H' {
-		t.Errorf("expected 'H' at row 0, got %c", buf.Cell(0, 0).Char)
+	// Each heading starts with its marker, as written.
+	for level := 1; level <= 6; level++ {
+		want := strings.Repeat("#", level) + " H" + strconv.Itoa(level)
+		if got := testutil.RowText(buf, 2*(level-1)); !strings.HasPrefix(got, want) {
+			t.Errorf("row %d = %q, want it to start with %q", 2*(level-1), got, want)
+		}
 	}
 }
 

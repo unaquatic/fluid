@@ -1,15 +1,15 @@
 === text ===
-|Hello               |
+|# Hello             |
 |                    |
 |Some text here.     |
 |                    |
 === fg ===
-|AAAAA               |
+|A AAAAA             |
 |                    |
 |BBBB BBBB BBBBB     |
 |                    |
 === attrs ===
-|BBBBB               |
+|BBBBBBB             |
 |                    |
 |                    |
 |                    |

@@ -1,42 +1,41 @@
 === text ===
 |Apple                       |
-|  : Pomaceous fruit of      |
-|    plants of the genus     |
-|    Malus.                  |
-|  : An American computer    |
-|    company.                |
+|  Pomaceous fruit of plants |
+|  of the genus Malus.       |
+|  An American computer      |
+|  company.                  |
 |Orange                      |
-|  : Citrus.                 |
+|  Citrus.                   |
 |                            |
 |│                           |
 |│ Term                      |
-|│   : quoted description    |
-|│     wraps                 |
+|│   a quoted description    |
+|│   wraps                   |
 |                            |
 |Loose                       |
 |                            |
-|  : after a blank line      |
+|  after a blank line        |
+|                            |
 === fg ===
 |AAAAA                       |
-|  B AAAAAAAAA AAAAA AA      |
-|    AAAAAA AA AAA AAAAA     |
-|    AAAAAA                  |
-|  B AA AAAAAAAA AAAAAAAA    |
-|    AAAAAAAA                |
+|  AAAAAAAAA AAAAA AA AAAAAA |
+|  AA AAA AAAAA AAAAAA       |
+|  AA AAAAAAAA AAAAAAAA      |
+|  AAAAAAAA                  |
 |AAAAAA                      |
-|  B AAAAAAA                 |
+|  AAAAAAA                   |
 |                            |
-|C                           |
-|C AAAA                      |
-|C   B AAAAAA AAAAAAAAAAA    |
-|C     AAAAA                 |
+|B                           |
+|B AAAA                      |
+|B   A AAAAAA AAAAAAAAAAA    |
+|B   AAAAA                   |
 |                            |
 |AAAAA                       |
 |                            |
-|  B AAAAA A AAAAA AAAA      |
+|  AAAAA A AAAAA AAAA        |
+|                            |
 === attrs ===
 |BBBBB                       |
-|                            |
 |                            |
 |                            |
 |                            |
@@ -52,7 +51,7 @@
 |BBBBB                       |
 |                            |
 |                            |
+|                            |
 === legend ===
 A #ffffff
-B #5555ff
-C #808080
+B #808080

@@ -3,8 +3,8 @@
 |two                 |
 |three               |
 |                    |
-|[ ] todo            |
-|[✓] done            |
+|- [ ] todo          |
+|- [x] done          |
 |                    |
 |<div>               |
 |  hi                |
@@ -16,8 +16,8 @@
 |AAA                 |
 |AAAAA               |
 |                    |
-|B B AAAA            |
-|BBB AAAA            |
+|B B B AAAA          |
+|B BBB AAAA          |
 |                    |
 |AAAAA               |
 |  AA                |

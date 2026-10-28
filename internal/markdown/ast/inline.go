@@ -150,6 +150,10 @@ func (*Strikethrough) Kind() NodeKind { return KindStrikethrough }
 type FootnoteLink struct {
 	BaseInline
 
+	// Ref is the label of the footnote, as its definition writes it, and the
+	// reference too.
+	Ref string
+
 	// Index is the number of the footnote.
 	Index int
 

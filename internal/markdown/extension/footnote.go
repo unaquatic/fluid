@@ -199,7 +199,7 @@ func (footnoteParser) Parse(parent ast.Node, s *parser.InlineState) (ast.Node, i
 	if bang > 0 {
 		parent.AppendChild(parent, ast.NewText("!"))
 	}
-	return &ast.FootnoteLink{Index: fn.Index}, bang + n
+	return &ast.FootnoteLink{Ref: fn.Ref, Index: fn.Index}, bang + n
 }
 
 // footnoteASTTransformer finishes the footnotes of documents.

@@ -109,12 +109,12 @@ func TestFootnoteTree(t *testing.T) {
 	checkTree(t, parser.NewParser(parser.WithExtensions(extension.Footnote)), src, `Document [0:59]
   Paragraph [0:11] "a[^n] b[^n]"
     Text "a"
-    FootnoteLink Index=1 RefCount=2
+    FootnoteLink Ref="n" Index=1 RefCount=2
     Text " b"
-    FootnoteLink Index=1 RefCount=2 RefIndex=1
+    FootnoteLink Ref="n" Index=1 RefCount=2 RefIndex=1
   Paragraph [33:38] "c[^e]"
     Text "c"
-    FootnoteLink Index=2 RefCount=1
+    FootnoteLink Ref="e" Index=2 RefCount=1
   FootnoteList Count=2 [59:59] ""
     Footnote Ref="n" Index=1 [13:31] "[^n]: one\n\n    two"
       Paragraph [19:22] "one"

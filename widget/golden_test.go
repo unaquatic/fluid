@@ -960,22 +960,22 @@ func TestGolden_MarkdownSourceText(t *testing.T) {
 }
 
 // TestGolden_MarkdownFootnotes checks that a reference shows its footnote's
-// number in brackets, in the link style, and that the footnotes follow the
-// content, numbered in the order of their first references, each with its
-// text after its number and its wrapped rows and later blocks under the
-// text.
+// label as it is written, in the link style, and that the footnotes follow
+// the content, in the order of their first references, each with its text
+// after its label and its wrapped rows and later blocks under the text.
 func TestGolden_MarkdownFootnotes(t *testing.T) {
 	md := widget.NewMarkdown("See the spec[^1] and notes[^n], again[^1].\n\n[^1]: CommonMark 0.31.2.\n[^n]: Kept short, and wrapped under its text.\n\n    A second paragraph.")
-	buf := testutil.RenderWidget(md, 28, 8)
+	buf := testutil.RenderWidget(md, 28, 9)
 	testutil.AssertGoldenFrames(t, "markdown_footnotes", buf, nil)
 }
 
 // TestGolden_MarkdownDefinitionList checks that a term shows in the strong
-// style on a row of its own, that each of its descriptions follows a ":"
-// indented under it, with its wrapped rows under its text, also in a quote,
-// and that a loose description is parted from its term by a blank row.
+// style on a row of its own, that each of its descriptions starts on a row
+// of its own, indented under it, with its wrapped rows under its text, also
+// in a quote, and that a loose description is parted from its term by a
+// blank row.
 func TestGolden_MarkdownDefinitionList(t *testing.T) {
-	md := widget.NewMarkdown("Apple\n:   Pomaceous fruit of plants of the genus Malus.\n:   An American computer company.\n\nOrange\n: Citrus.\n\n> Term\n> : quoted description wraps\n\nLoose\n\n: after a blank line")
+	md := widget.NewMarkdown("Apple\n:   Pomaceous fruit of plants of the genus Malus.\n:   An American computer company.\n\nOrange\n: Citrus.\n\n> Term\n> : a quoted description wraps\n\nLoose\n\n: after a blank line")
 	buf := testutil.RenderWidget(md, 28, 17)
 	testutil.AssertGoldenFrames(t, "markdown_definition_list", buf, nil)
 }
