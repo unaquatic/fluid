@@ -959,6 +959,37 @@ func TestGolden_MarkdownSourceText(t *testing.T) {
 	testutil.AssertGoldenFrames(t, "markdown_source_text", buf, nil)
 }
 
+// TestGolden_MarkdownFootnotes checks that a reference shows its footnote's
+// number in brackets, in the link style, and that the footnotes follow the
+// content, numbered in the order of their first references, each with its
+// text after its number and its wrapped rows and later blocks under the
+// text.
+func TestGolden_MarkdownFootnotes(t *testing.T) {
+	md := widget.NewMarkdown("See the spec[^1] and notes[^n], again[^1].\n\n[^1]: CommonMark 0.31.2.\n[^n]: Kept short, and wrapped under its text.\n\n    A second paragraph.")
+	buf := testutil.RenderWidget(md, 28, 8)
+	testutil.AssertGoldenFrames(t, "markdown_footnotes", buf, nil)
+}
+
+// TestGolden_MarkdownDefinitionList checks that a term shows in the strong
+// style on a row of its own, that each of its descriptions follows a ":"
+// indented under it, with its wrapped rows under its text, also in a quote,
+// and that a loose description is parted from its term by a blank row.
+func TestGolden_MarkdownDefinitionList(t *testing.T) {
+	md := widget.NewMarkdown("Apple\n:   Pomaceous fruit of plants of the genus Malus.\n:   An American computer company.\n\nOrange\n: Citrus.\n\n> Term\n> : quoted description wraps\n\nLoose\n\n: after a blank line")
+	buf := testutil.RenderWidget(md, 28, 17)
+	testutil.AssertGoldenFrames(t, "markdown_definition_list", buf, nil)
+}
+
+// TestGolden_MarkdownCJK checks that a soft line break between East Asian
+// wide characters shows as nothing, one next to other text as a space, and
+// that an escaped space lets emphasis close before text and shows as
+// nothing.
+func TestGolden_MarkdownCJK(t *testing.T) {
+	md := widget.NewMarkdown("日本語の\n文章です。\nLatin\nwords **“強調”**\\ です。")
+	buf := testutil.RenderWidget(md, 28, 2)
+	testutil.AssertGoldenFrames(t, "markdown_cjk", buf, nil)
+}
+
 // ScrollBox golden tests.
 
 func TestGolden_ScrollBoxWithChild(t *testing.T) {

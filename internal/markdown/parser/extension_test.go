@@ -1,36 +1,34 @@
 package parser_test
 
 import (
-	"fmt"
-	"slices"
 	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/unaquatic/fluid/internal/markdown"
+	"github.com/unaquatic/fluid/internal/markdown/ast"
 	"github.com/unaquatic/fluid/internal/markdown/parser"
 )
 
 // Kinds of the nodes of the extension that TestExtension parses with.
 var (
-	kindNote    = markdown.NewNodeKind("Note")
-	kindMention = markdown.NewNodeKind("Mention")
+	kindNote    = ast.NewNodeKind("Note")
+	kindMention = ast.NewNodeKind("Mention")
 )
 
 // note is a container between a "::: note" line and a ":::" line.
 type note struct {
-	markdown.BaseBlock
+	ast.BaseBlock
 }
 
-func (*note) Kind() markdown.NodeKind { return kindNote }
+func (*note) Kind() ast.NodeKind { return kindNote }
 
 // mention is "@" and a name.
 type mention struct {
-	markdown.BaseInline
+	ast.BaseInline
 	Name string
 }
 
-func (*mention) Kind() markdown.NodeKind { return kindMention }
+func (*mention) Kind() ast.NodeKind { return kindMention }
 
 // notesAndMentions adds notes and mentions to a parser.
 type notesAndMentions struct{}
@@ -46,7 +44,7 @@ type notes struct{}
 
 func (notes) Trigger() []byte { return []byte{':'} }
 
-func (notes) Open(parent markdown.Node, s *parser.BlockState) (markdown.Node, parser.State) {
+func (notes) Open(parent ast.Node, s *parser.BlockState) (ast.Node, parser.State) {
 	if s.Rest() != "::: note" {
 		return nil, parser.None
 	}
@@ -54,7 +52,7 @@ func (notes) Open(parent markdown.Node, s *parser.BlockState) (markdown.Node, pa
 	return &note{}, parser.HasChildren
 }
 
-func (notes) Continue(n markdown.Node, s *parser.BlockState) parser.State {
+func (notes) Continue(n ast.Node, s *parser.BlockState) parser.State {
 	if s.Rest() == ":::" {
 		s.Close(n, s.LineNumber())
 		return parser.Close
@@ -62,15 +60,15 @@ func (notes) Continue(n markdown.Node, s *parser.BlockState) parser.State {
 	return parser.Continue | parser.HasChildren
 }
 
-func (notes) Close(markdown.Node, *parser.BlockState) {}
-func (notes) CanInterruptParagraph() bool             { return true }
-func (notes) CanAcceptIndentedLine() bool             { return false }
+func (notes) Close(ast.Node, *parser.BlockState) {}
+func (notes) CanInterruptParagraph() bool        { return true }
+func (notes) CanAcceptIndentedLine() bool        { return false }
 
 type mentions struct{}
 
 func (mentions) Trigger() []byte { return []byte{'@'} }
 
-func (mentions) Parse(parent markdown.Node, s *parser.InlineState) (markdown.Node, int) {
+func (mentions) Parse(parent ast.Node, s *parser.InlineState) (ast.Node, int) {
 	r := s.Rest()
 	n := 1
 	for n < len(r) && 'a' <= r[n] && r[n] <= 'z' {
@@ -82,27 +80,24 @@ func (mentions) Parse(parent markdown.Node, s *parser.InlineState) (markdown.Nod
 	return &mention{Name: r[1:n]}, n
 }
 
-// tree returns the kind of each node in n, in the order they start, with
-// the source that a block's span covers or the text of inline content.
-func tree(src string, n markdown.Node) []string {
-	var out []string
-	_ = markdown.Walk(n, func(n markdown.Node, entering bool) (markdown.WalkStatus, error) {
-		if !entering {
-			return markdown.WalkContinue, nil
-		}
-		switch n := n.(type) {
-		case *markdown.Document:
-		case *markdown.Text:
-			out = append(out, fmt.Sprintf("Text %q", n.Value))
-		case *mention:
-			out = append(out, "Mention "+n.Name)
-		default:
-			s := n.SourceSpan()
-			out = append(out, fmt.Sprintf("%s %q", n.Kind(), src[s.Start:s.End]))
-		}
-		return markdown.WalkContinue, nil
-	})
-	return out
+// dump returns the tree of n, whose document's source is src, as
+// ast.Dump writes it.
+func dump(t testing.TB, n ast.Node, src string) string {
+	t.Helper()
+	var b strings.Builder
+	if err := ast.Dump(&b, n, src); err != nil {
+		t.Fatal(err)
+	}
+	return b.String()
+}
+
+// checkTree checks that src parses with p to the tree want, as dump writes
+// it.
+func checkTree(t *testing.T, p parser.Parser, src, want string) {
+	t.Helper()
+	if got := dump(t, p.Parse(src), src); got != want {
+		t.Errorf("tree of %q:\n%s\nwant:\n%s", src, got, want)
+	}
 }
 
 // TestExtension checks that an extension can add a container block that
@@ -110,19 +105,15 @@ func tree(src string, n markdown.Node) []string {
 // that the blocks open in the container end at the line before.
 func TestExtension(t *testing.T) {
 	const src = "::: note\n> hi @bob\n:::\nafter @ 1"
-	p := parser.NewParser(parser.WithExtensions(notesAndMentions{}))
-	want := []string{
-		`Note "::: note\n> hi @bob\n:::"`,
-		`Blockquote "> hi @bob"`,
-		`Paragraph "hi @bob"`,
-		`Text "hi "`,
-		`Mention bob`,
-		`Paragraph "after @ 1"`,
-		`Text "after @ 1"`,
-	}
-	if got := tree(src, p.Parse(src)); !slices.Equal(got, want) {
-		t.Errorf("tree:\ngot  %q\nwant %q", got, want)
-	}
+	checkTree(t, parser.NewParser(parser.WithExtensions(notesAndMentions{})), src, `Document [0:32]
+  Note [0:22] "::: note\n> hi @bob\n:::"
+    Blockquote [9:18] "> hi @bob"
+      Paragraph [11:18] "hi @bob"
+        Text "hi "
+        Mention Name="bob"
+  Paragraph [23:32] "after @ 1"
+    Text "after @ 1"
+`)
 }
 
 // reopener opens the first note in the tip again at a line "+++", if the
@@ -131,11 +122,11 @@ type reopener struct{}
 
 func (reopener) Trigger() []byte { return []byte{'+'} }
 
-func (reopener) Open(parent markdown.Node, s *parser.BlockState) (markdown.Node, parser.State) {
+func (reopener) Open(parent ast.Node, s *parser.BlockState) (ast.Node, parser.State) {
 	if s.Rest() != "+++" {
 		return nil, parser.None
 	}
-	for c := range markdown.Children(parent) {
+	for c := range ast.Children(parent) {
 		if n, ok := c.(*note); ok && s.Reopen(n, notes{}) {
 			s.Advance(len(s.Line()) - s.Offset())
 			return n, parser.HasChildren
@@ -144,31 +135,27 @@ func (reopener) Open(parent markdown.Node, s *parser.BlockState) (markdown.Node,
 	return nil, parser.None
 }
 
-func (reopener) Continue(markdown.Node, *parser.BlockState) parser.State { return parser.Close }
-func (reopener) Close(markdown.Node, *parser.BlockState)                 {}
-func (reopener) CanInterruptParagraph() bool                             { return true }
-func (reopener) CanAcceptIndentedLine() bool                             { return false }
+func (reopener) Continue(ast.Node, *parser.BlockState) parser.State { return parser.Close }
+func (reopener) Close(ast.Node, *parser.BlockState)                 {}
+func (reopener) CanInterruptParagraph() bool                        { return true }
+func (reopener) CanAcceptIndentedLine() bool                        { return false }
 
 // TestReopen checks that a block parser can open a block that closed again,
 // if it is the last block, and that its span then ends at its new end, and
 // cannot if a block follows it.
 func TestReopen(t *testing.T) {
 	const src = "::: note\nx\n:::\n+++\ny\n:::\n\npara\n\n+++"
-	p := parser.NewParser(parser.WithExtensions(notesAndMentions{}), parser.WithBlockParser(reopener{}, 60))
-	want := []string{
-		`Note "::: note\nx\n:::\n+++\ny\n:::"`,
-		`Paragraph "x"`,
-		`Text "x"`,
-		`Paragraph "y"`,
-		`Text "y"`,
-		`Paragraph "para"`,
-		`Text "para"`,
-		`Paragraph "+++"`,
-		`Text "+++"`,
-	}
-	if got := tree(src, p.Parse(src)); !slices.Equal(got, want) {
-		t.Errorf("tree:\ngot  %q\nwant %q", got, want)
-	}
+	checkTree(t, parser.NewParser(parser.WithExtensions(notesAndMentions{}), parser.WithBlockParser(reopener{}, 60)), src, `Document [0:35]
+  Note [0:24] "::: note\nx\n:::\n+++\ny\n:::"
+    Paragraph [9:10] "x"
+      Text "x"
+    Paragraph [19:20] "y"
+      Text "y"
+  Paragraph [26:30] "para"
+    Text "para"
+  Paragraph [32:35] "+++"
+    Text "+++"
+`)
 }
 
 // closer closes the paragraph that a line "%" and text would continue, and
@@ -177,38 +164,34 @@ type closer struct{}
 
 func (closer) Trigger() []byte { return []byte{'%'} }
 
-func (closer) Open(parent markdown.Node, s *parser.BlockState) (markdown.Node, parser.State) {
-	if p, ok := parent.(*markdown.Paragraph); ok {
+func (closer) Open(parent ast.Node, s *parser.BlockState) (ast.Node, parser.State) {
+	if p, ok := parent.(*ast.Paragraph); ok {
 		s.Close(p, s.LineNumber()-1)
 	}
 	return nil, parser.None
 }
 
-func (closer) Continue(markdown.Node, *parser.BlockState) parser.State { return parser.Close }
-func (closer) Close(markdown.Node, *parser.BlockState)                 {}
-func (closer) CanInterruptParagraph() bool                             { return true }
-func (closer) CanAcceptIndentedLine() bool                             { return false }
+func (closer) Continue(ast.Node, *parser.BlockState) parser.State { return parser.Close }
+func (closer) Close(ast.Node, *parser.BlockState)                 {}
+func (closer) CanInterruptParagraph() bool                        { return true }
+func (closer) CanAcceptIndentedLine() bool                        { return false }
 
 // TestCloseContainer checks that a line whose block parser closes the
 // paragraph that it would continue, and opens nothing, starts a paragraph
 // of its own, as the block parsers try it again in the tip.
 func TestCloseContainer(t *testing.T) {
 	const src = "> a\n> %b\n> - c"
-	p := parser.NewParser(parser.WithBlockParser(closer{}, 50))
-	want := []string{
-		`Blockquote "> a\n> %b\n> - c"`,
-		`Paragraph "a"`,
-		`Text "a"`,
-		`Paragraph "%b"`,
-		`Text "%b"`,
-		`List "- c"`,
-		`ListItem "- c"`,
-		`Paragraph "c"`,
-		`Text "c"`,
-	}
-	if got := tree(src, p.Parse(src)); !slices.Equal(got, want) {
-		t.Errorf("tree:\ngot  %q\nwant %q", got, want)
-	}
+	checkTree(t, parser.NewParser(parser.WithBlockParser(closer{}, 50)), src, `Document [0:14]
+  Blockquote [0:14] "> a\n> %b\n> - c"
+    Paragraph [2:3] "a"
+      Text "a"
+    Paragraph [6:8] "%b"
+      Text "%b"
+    List Marker='-' IsTight=true [11:14] "- c"
+      ListItem Offset=2 [11:14] "- c"
+        Paragraph [13:14] "c"
+          Text "c"
+`)
 }
 
 // bangs opens a one-line block at a line that starts with "- !".
@@ -216,18 +199,18 @@ type bangs struct{}
 
 func (bangs) Trigger() []byte { return []byte{'-'} }
 
-func (bangs) Open(parent markdown.Node, s *parser.BlockState) (markdown.Node, parser.State) {
+func (bangs) Open(parent ast.Node, s *parser.BlockState) (ast.Node, parser.State) {
 	if !strings.HasPrefix(s.Rest(), "- !") {
 		return nil, parser.None
 	}
 	s.Advance(len(s.Line()) - s.Offset())
-	return &markdown.ThematicBreak{}, parser.NoChildren
+	return &ast.ThematicBreak{}, parser.NoChildren
 }
 
-func (bangs) Continue(markdown.Node, *parser.BlockState) parser.State { return parser.Close }
-func (bangs) Close(markdown.Node, *parser.BlockState)                 {}
-func (bangs) CanInterruptParagraph() bool                             { return true }
-func (bangs) CanAcceptIndentedLine() bool                             { return false }
+func (bangs) Continue(ast.Node, *parser.BlockState) parser.State { return parser.Close }
+func (bangs) Close(ast.Node, *parser.BlockState)                 {}
+func (bangs) CanInterruptParagraph() bool                        { return true }
+func (bangs) CanAcceptIndentedLine() bool                        { return false }
 
 // TestPriority checks that a block parser's priority places it among the
 // built-in ones: before list items at 650, which come at 700, and after
@@ -235,10 +218,10 @@ func (bangs) CanAcceptIndentedLine() bool                             { return f
 func TestPriority(t *testing.T) {
 	for _, tt := range []struct {
 		priority int
-		want     markdown.NodeKind
+		want     ast.NodeKind
 	}{
-		{650, markdown.KindThematicBreak},
-		{750, markdown.KindList},
+		{650, ast.KindThematicBreak},
+		{750, ast.KindList},
 	} {
 		p := parser.NewParser(parser.WithBlockParser(bangs{}, tt.priority))
 		if got := p.Parse("- !x").FirstChild().Kind(); got != tt.want {
@@ -257,7 +240,7 @@ type (
 // names takes each paragraph "name: " and a name, which it defines.
 type names struct{}
 
-func (names) Transform(p *markdown.Paragraph, s *parser.BlockState) {
+func (names) Transform(p *ast.Paragraph, s *parser.BlockState) {
 	name, ok := strings.CutPrefix(p.Lines()[0].Text, "name: ")
 	if !ok {
 		return
@@ -277,7 +260,7 @@ type knownMentions struct{}
 
 func (knownMentions) Trigger() []byte { return []byte{'@'} }
 
-func (knownMentions) Parse(parent markdown.Node, s *parser.InlineState) (markdown.Node, int) {
+func (knownMentions) Parse(parent ast.Node, s *parser.InlineState) (ast.Node, int) {
 	m, n := mentions{}.Parse(parent, s)
 	defined, _ := s.DocumentValue(namesKey{}).(map[string]bool)
 	if m == nil || !defined[m.(*mention).Name] {
@@ -295,25 +278,28 @@ func (knownMentions) Parse(parent markdown.Node, s *parser.InlineState) (markdow
 func TestDocumentValues(t *testing.T) {
 	const src = "@ann @bob\n\n@bob\n\nname: bob"
 	p := parser.NewParser(parser.WithParagraphTransformer(names{}, 100), parser.WithInlineParser(knownMentions{}, 600))
-	want := []string{`Paragraph "@ann @bob"`, `Text "@ann "`, "Mention bob1", `Paragraph "@bob"`, "Mention bob2"}
-	if got := tree(src, p.Parse(src)); !slices.Equal(got, want) {
-		t.Errorf("tree:\ngot  %q\nwant %q", got, want)
-	}
+	checkTree(t, p, src, `Document [0:26]
+  Paragraph [0:9] "@ann @bob"
+    Text "@ann "
+    Mention Name="bob1"
+  Paragraph [11:15] "@bob"
+    Mention Name="bob2"
+`)
 }
 
 // titleMeta sets the metadata field "title" to the text of a document's
 // first heading.
 type titleMeta struct{}
 
-func (titleMeta) Transform(doc *markdown.Document) {
-	h, ok := doc.FirstChild().(*markdown.Heading)
+func (titleMeta) Transform(doc *ast.Document) {
+	h, ok := doc.FirstChild().(*ast.Heading)
 	if !ok {
 		return
 	}
 	if doc.Meta == nil {
 		doc.Meta = make(map[string]any)
 	}
-	doc.Meta["title"] = h.FirstChild().(*markdown.Text).Value
+	doc.Meta["title"] = h.FirstChild().(*ast.Text).Value
 }
 
 // TestMeta checks that the parser sets no metadata, and that a transformer
@@ -334,7 +320,8 @@ func TestMeta(t *testing.T) {
 func TestAddOptions(t *testing.T) {
 	p := parser.NewParser()
 	p.AddOptions(parser.WithInlineParser(mentions{}, 600))
-	if got := tree("@ann", p.Parse("@ann")); !slices.Equal(got, []string{`Paragraph "@ann"`, "Mention ann"}) {
-		t.Errorf("tree %q, want a mention", got)
-	}
+	checkTree(t, p, "@ann", `Document [0:4]
+  Paragraph [0:4] "@ann"
+    Mention Name="ann"
+`)
 }

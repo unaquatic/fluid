@@ -3,7 +3,7 @@ package parser
 import (
 	"strings"
 
-	"github.com/unaquatic/fluid/internal/markdown"
+	"github.com/unaquatic/fluid/internal/markdown/ast"
 )
 
 // fencedCodeBlockParser parses fenced code blocks.
@@ -18,7 +18,7 @@ func (fencedCodeBlockParser) Trigger() []byte { return []byte{'`', '~'} }
 
 // Open implements [BlockParser]. The rest of the fence line is the block's
 // info string.
-func (fencedCodeBlockParser) Open(parent markdown.Node, s *BlockState) (markdown.Node, State) {
+func (fencedCodeBlockParser) Open(parent ast.Node, s *BlockState) (ast.Node, State) {
 	rest := s.Rest()
 	if !strings.HasPrefix(rest, "```") && !strings.HasPrefix(rest, "~~~") {
 		return nil, None
@@ -29,7 +29,7 @@ func (fencedCodeBlockParser) Open(parent markdown.Node, s *BlockState) (markdown
 	if c == '`' && strings.IndexByte(rest[n:], '`') >= 0 {
 		return nil, None
 	}
-	b := &markdown.FencedCodeBlock{FenceChar: c, FenceLength: n, FenceOffset: s.indent}
+	b := &ast.FencedCodeBlock{FenceChar: c, FenceLength: n, FenceOffset: s.indent}
 	s.advanceNextNonspace()
 	s.advanceOffset(n, false)
 	return b, NoChildren
@@ -37,8 +37,8 @@ func (fencedCodeBlockParser) Open(parent markdown.Node, s *BlockState) (markdown
 
 // Continue implements [BlockParser]. A closing fence closes the block and
 // consumes the line it is on.
-func (fencedCodeBlockParser) Continue(n markdown.Node, s *BlockState) State {
-	b := n.(*markdown.FencedCodeBlock)
+func (fencedCodeBlockParser) Continue(n ast.Node, s *BlockState) State {
+	b := n.(*ast.FencedCodeBlock)
 	ln := s.line
 	if s.indent <= 3 && peek(ln, s.nextNonspace) == int(b.FenceChar) {
 		f := runLen(ln, s.nextNonspace, b.FenceChar)
@@ -58,14 +58,14 @@ func (fencedCodeBlockParser) Continue(n markdown.Node, s *BlockState) State {
 }
 
 // AddLine implements [LineAdder].
-func (fencedCodeBlockParser) AddLine(n markdown.Node, s *BlockState) {
+func (fencedCodeBlockParser) AddLine(n ast.Node, s *BlockState) {
 	n.SetLines(append(n.Lines(), s.Remaining()))
 }
 
 // Close implements [BlockParser]. The block's first line is its info
 // string; its lines are those after it.
-func (fencedCodeBlockParser) Close(n markdown.Node, s *BlockState) {
-	b := n.(*markdown.FencedCodeBlock)
+func (fencedCodeBlockParser) Close(n ast.Node, s *BlockState) {
+	b := n.(*ast.FencedCodeBlock)
 	lines := n.Lines()
 	b.Info = replaceNUL(unescape(strings.Trim(lines[0].Text, " \t")))
 	b.Literal = joinLines(lines[1:])
@@ -89,17 +89,17 @@ func NewCodeBlockParser() BlockParser { return codeBlockParser{} }
 func (codeBlockParser) Trigger() []byte { return nil }
 
 // Open implements [BlockParser]. The block starts after its indentation.
-func (codeBlockParser) Open(parent markdown.Node, s *BlockState) (markdown.Node, State) {
+func (codeBlockParser) Open(parent ast.Node, s *BlockState) (ast.Node, State) {
 	if !s.Indented() {
 		return nil, None
 	}
 	s.advanceOffset(4, true)
 	s.StartAt(s.lineOffset + s.offset)
-	return &markdown.CodeBlock{}, NoChildren
+	return &ast.CodeBlock{}, NoChildren
 }
 
 // Continue implements [BlockParser].
-func (codeBlockParser) Continue(n markdown.Node, s *BlockState) State {
+func (codeBlockParser) Continue(n ast.Node, s *BlockState) State {
 	switch {
 	case s.indent >= 4:
 		s.advanceOffset(4, true)
@@ -112,19 +112,19 @@ func (codeBlockParser) Continue(n markdown.Node, s *BlockState) State {
 }
 
 // AddLine implements [LineAdder].
-func (codeBlockParser) AddLine(n markdown.Node, s *BlockState) {
+func (codeBlockParser) AddLine(n ast.Node, s *BlockState) {
 	n.SetLines(append(n.Lines(), s.Remaining()))
 }
 
 // Close implements [BlockParser]. The block ends before its trailing blank
 // lines, so that a blank line after it parts it from the next block.
-func (codeBlockParser) Close(n markdown.Node, s *BlockState) {
+func (codeBlockParser) Close(n ast.Node, s *BlockState) {
 	lines := n.Lines()
 	end := len(lines)
 	for end > 0 && isBlank(lines[end-1].Text) {
 		end--
 	}
-	n.(*markdown.CodeBlock).Literal = joinLines(lines[:end])
+	n.(*ast.CodeBlock).Literal = joinLines(lines[:end])
 	n.SetLines(lines[:end])
 	// The block took each of its lines, so its last nonblank line is as
 	// many lines before its last as it has trailing blank lines.
@@ -143,7 +143,7 @@ func (codeBlockParser) CanInterruptParagraph() bool { return false }
 func (codeBlockParser) CanAcceptIndentedLine() bool { return true }
 
 // joinLines returns the text of lines, each followed by a newline.
-func joinLines(lines []markdown.Line) string {
+func joinLines(lines []ast.Line) string {
 	if len(lines) == 0 {
 		return ""
 	}

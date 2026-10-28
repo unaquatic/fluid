@@ -1,4 +1,4 @@
-package markdown
+package ast
 
 import (
 	"iter"
@@ -11,9 +11,9 @@ import (
 type NodeType int
 
 const (
-	TypeBlock NodeType = iota + 1
-	TypeInline
-	TypeDocument
+	TypeBlock    NodeType = iota + 1 // a block, such as a paragraph
+	TypeInline                       // inline content, such as text
+	TypeDocument                     // the root of a document's tree
 )
 
 // A NodeKind identifies the kind of a [Node], such as [KindParagraph].
@@ -55,15 +55,39 @@ type Node interface {
 	// Kind returns the kind of the node.
 	Kind() NodeKind
 
+	// Parent returns the node's parent, or nil for a root or a node that
+	// is not in a tree.
 	Parent() Node
-	SetParent(Node)
+
+	// SetParent sets the node's parent. The methods that change children
+	// set it; it does not change the children of v.
+	SetParent(v Node)
+
+	// PreviousSibling returns the child of the node's parent before it, or
+	// nil.
 	PreviousSibling() Node
-	SetPreviousSibling(Node)
+
+	// SetPreviousSibling sets the sibling before the node, as the methods
+	// that change children set it.
+	SetPreviousSibling(v Node)
+
+	// NextSibling returns the child of the node's parent after it, or nil.
 	NextSibling() Node
-	SetNextSibling(Node)
+
+	// SetNextSibling sets the sibling after the node, as the methods that
+	// change children set it.
+	SetNextSibling(v Node)
+
+	// FirstChild returns the node's first child, or nil.
 	FirstChild() Node
+
+	// LastChild returns the node's last child, or nil.
 	LastChild() Node
+
+	// HasChildren reports whether the node has children.
 	HasChildren() bool
+
+	// ChildCount returns the number of the node's children.
 	ChildCount() int
 
 	// AppendChild adds child as the last child of self, removing it from

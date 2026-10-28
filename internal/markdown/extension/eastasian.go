@@ -1,15 +1,15 @@
-package html
+package extension
 
 import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/unaquatic/fluid/internal/markdown"
+	"github.com/unaquatic/fluid/internal/markdown/ast"
 )
 
-// An EastAsianLineBreaks is how a [Renderer] renders the soft line breaks
+// An EastAsianLineBreaks is how a renderer renders the soft line breaks
 // between East Asian characters, which their scripts do not part with
-// spaces, as browsers render line breaks.
+// spaces, as browsers and terminals show line breaks.
 type EastAsianLineBreaks int
 
 const (
@@ -53,12 +53,18 @@ func (style EastAsianLineBreaks) keepsBreak(last, next rune) bool {
 	return true
 }
 
-// keepsSoftLineBreak reports whether the soft line break after text t
-// renders, as w renders East Asian line breaks: whether the last character
-// of t and the first of the content after t let it, if t and that content
-// have characters.
-func (w *Writer) keepsSoftLineBreak(t *markdown.Text) bool {
-	style := w.config.EastAsianLineBreaks
+// KeepsSoftLineBreak reports whether the soft line break after text t
+// renders in style: whether the last character of t and the first of the
+// inline content after it let it, if both have characters. The first
+// character of content such as emphasis, a link, or a code span is that of
+// its text; raw HTML and images have none. goldmark keeps the line break
+// only before text, and so leaves out those before other content, as in
+// "a\n*b*", between letters too.
+//
+// The characters are those of the text, with escapes and entities
+// resolved, and without the escaped spaces of [parser.WithEscapedSpace],
+// where goldmark sees the source.
+func (style EastAsianLineBreaks) KeepsSoftLineBreak(t *ast.Text) bool {
 	if style == EastAsianLineBreaksNone || t.Value == "" {
 		return true
 	}
@@ -72,8 +78,8 @@ func (w *Writer) keepsSoftLineBreak(t *markdown.Text) bool {
 
 // runeAfter returns the first character of the inline content after n, in
 // the inline content that holds it, if it renders as text.
-func runeAfter(n markdown.Node) (rune, bool) {
-	for ; n != nil && n.Type() == markdown.TypeInline; n = n.Parent() {
+func runeAfter(n ast.Node) (rune, bool) {
+	for ; n != nil && n.Type() == ast.TypeInline; n = n.Parent() {
 		if next := n.NextSibling(); next != nil {
 			return firstRune(next)
 		}
@@ -83,14 +89,14 @@ func runeAfter(n markdown.Node) (rune, bool) {
 
 // firstRune returns the first character of inline content n, if it renders
 // as text.
-func firstRune(n markdown.Node) (rune, bool) {
+func firstRune(n ast.Node) (rune, bool) {
 	var s string
 	switch n := n.(type) {
-	case *markdown.Text:
+	case *ast.Text:
 		s = n.Value
-	case *markdown.AutoLink:
+	case *ast.AutoLink:
 		s = n.Label
-	case *markdown.RawHTML, *markdown.Image:
+	case *ast.RawHTML, *ast.Image:
 	default:
 		if c := n.FirstChild(); c != nil {
 			return firstRune(c)

@@ -1,5 +1,5 @@
 // Package parser parses Markdown into the tree of package
-// [github.com/unaquatic/fluid/internal/markdown], as the CommonMark
+// [github.com/unaquatic/fluid/internal/markdown/ast], as the CommonMark
 // specification, version 0.31.2, defines it, with the syntax that
 // extensions add.
 //
@@ -30,14 +30,14 @@ import (
 	"cmp"
 	"slices"
 
-	"github.com/unaquatic/fluid/internal/markdown"
+	"github.com/unaquatic/fluid/internal/markdown/ast"
 )
 
 // A Parser parses Markdown.
 type Parser interface {
 	// Parse parses src as a Markdown document. It is safe for concurrent
 	// use, but not with AddOptions.
-	Parse(src string) *markdown.Document
+	Parse(src string) *ast.Document
 
 	// AddOptions adds the syntax that opts add.
 	AddOptions(opts ...Option)
@@ -63,7 +63,7 @@ func (p *parser) AddOptions(opts ...Option) {
 }
 
 // Parse implements [Parser].
-func (p *parser) Parse(src string) *markdown.Document {
+func (p *parser) Parse(src string) *ast.Document {
 	syn := p.syntax
 	s := newBlockState(syn, src)
 	for off, line := range lines(src) {
@@ -73,16 +73,16 @@ func (p *parser) Parse(src string) *markdown.Document {
 		s.Close(s.Tip(), s.lineNumber)
 	}
 	in := newInlineState(s)
-	_ = markdown.Walk(s.doc, func(n markdown.Node, entering bool) (markdown.WalkStatus, error) {
+	_ = ast.Walk(s.doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
-			return markdown.WalkContinue, nil
+			return ast.WalkContinue, nil
 		}
 		switch n.(type) {
-		case *markdown.Paragraph, *markdown.Heading, *markdown.TableCell, *markdown.DefinitionTerm:
+		case *ast.Paragraph, *ast.Heading, *ast.TableCell, *ast.DefinitionTerm:
 			in.parse(n, joinText(n.Lines(), ""))
-			return markdown.WalkSkipChildren, nil
+			return ast.WalkSkipChildren, nil
 		}
-		return markdown.WalkContinue, nil
+		return ast.WalkContinue, nil
 	})
 	for _, t := range syn.astTransformers {
 		t.Transform(s.doc)
@@ -114,18 +114,18 @@ func (f ExtensionFunc) ExtendParser(c *Config) { f(c) }
 // its inline content is parsed. It may remove the paragraph from its
 // parent, which ends the transformers that come after it.
 type ParagraphTransformer interface {
-	Transform(p *markdown.Paragraph, s *BlockState)
+	Transform(p *ast.Paragraph, s *BlockState)
 }
 
 // An ASTTransformer changes a document after a [Parser] parses it.
 type ASTTransformer interface {
-	Transform(doc *markdown.Document)
+	Transform(doc *ast.Document)
 }
 
 // A Prioritized is a parser or transformer with the priority that orders
 // it among the others of its kind: lower priorities come first, and equal
 // ones in the order in which they were added.
-type Prioritized[T any] = markdown.Prioritized[T]
+type Prioritized[T any] = ast.Prioritized[T]
 
 // A Config holds the syntax that a [Parser] recognizes, which options and
 // extensions change. A new config holds the syntax of CommonMark:
@@ -272,7 +272,9 @@ func WithIDs(newIDs func() IDs) Option { return func(c *Config) { c.NewIDs = new
 // for nothing, as in "**“日本”**\ 語", in which they let the "**" close
 // emphasis, as punctuation after it does, and do not show. A word after an
 // escaped space does not start one. The spaces at the end of a line, which
-// line breaks take, are not escaped.
+// line breaks take, are not escaped. Spaces are escaped in inline content,
+// but not in link titles and the info strings of code, where goldmark
+// escapes them too.
 func WithEscapedSpace() Option { return func(c *Config) { c.EscapedSpace = true } }
 
 // DefaultBlockParsers returns the block parsers of CommonMark, with their
@@ -322,7 +324,7 @@ func commonMark() *Config {
 
 // emphasis returns the emphasis that a span of text makes, which n
 // delimiter characters at each end make strong if there are two.
-func emphasis(n int) markdown.Node { return &markdown.Emphasis{Level: n} }
+func emphasis(n int) ast.Node { return &ast.Emphasis{Level: n} }
 
 // syntax is the syntax of a Parser, which its config sets: the parsers in
 // order, and the tables of the bytes that start blocks and inline elements.

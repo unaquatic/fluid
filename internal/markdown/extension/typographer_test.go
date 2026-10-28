@@ -1,19 +1,16 @@
 package extension_test
 
 import (
-	"slices"
 	"testing"
 
-	"github.com/unaquatic/fluid/internal/markdown"
 	"github.com/unaquatic/fluid/internal/markdown/extension"
-	"github.com/unaquatic/fluid/internal/markdown/md"
 	"github.com/unaquatic/fluid/internal/markdown/parser"
 )
 
 // TestTypographer checks the punctuation that the typographer replaces, and
 // that which it leaves as written.
 func TestTypographer(t *testing.T) {
-	m := md.New(md.WithExtensions(extension.Typographer))
+	p := parser.NewParser(parser.WithExtensions(extension.Typographer))
 	for _, tt := range []struct {
 		name, src, want string
 	}{
@@ -49,7 +46,7 @@ func TestTypographer(t *testing.T) {
 		{"quote in another block", "\"open\n\nclose\" now", "“open</p>\n<p>close&quot; now"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			if got, want := convert(t, m, tt.src), "<p>"+tt.want+"</p>\n"; got != want {
+			if got, want := convert(t, p, tt.src), "<p>"+tt.want+"</p>\n"; got != want {
 				t.Errorf("got  %q\nwant %q", got, want)
 			}
 		})
@@ -59,9 +56,9 @@ func TestTypographer(t *testing.T) {
 // TestTypographerBlocks checks that the typographer replaces punctuation in
 // headings and table cells too.
 func TestTypographerBlocks(t *testing.T) {
-	m := md.New(md.WithExtensions(extension.Table, extension.Typographer))
+	p := parser.NewParser(parser.WithExtensions(extension.Table, extension.Typographer))
 	const want = "<h1>“Title”</h1>\n<table>\n<thead>\n<tr>\n<th>‘a’ – b</th>\n</tr>\n</thead>\n</table>\n"
-	if got := convert(t, m, "# \"Title\"\n\n| 'a' -- b |\n| - |"); got != want {
+	if got := convert(t, p, "# \"Title\"\n\n| 'a' -- b |\n| - |"); got != want {
 		t.Errorf("got  %q\nwant %q", got, want)
 	}
 }
@@ -70,7 +67,7 @@ func TestTypographerBlocks(t *testing.T) {
 // defaults, that "" keeps punctuation as written, and that substitutions
 // are text, which renders escaped.
 func TestTypographicSubstitutions(t *testing.T) {
-	m := md.New(md.WithExtensions(extension.NewTypographer(
+	p := parser.NewParser(parser.WithExtensions(extension.NewTypographer(
 		extension.WithTypographicSubstitutions(extension.TypographicSubstitutions{
 			extension.LeftDoubleQuote:  "„",
 			extension.RightDoubleQuote: "“",
@@ -80,7 +77,7 @@ func TestTypographicSubstitutions(t *testing.T) {
 		extension.WithTypographicSubstitutions(extension.TypographicSubstitutions{extension.LeftAngleQuote: ""}),
 	)))
 	const want = "<p>„a“ b–-c d&lt;...&gt; &lt;&lt; e » ‘f’</p>\n"
-	if got := convert(t, m, `"a" b---c d... << e >> 'f'`); got != want {
+	if got := convert(t, p, `"a" b---c d... << e >> 'f'`); got != want {
 		t.Errorf("got  %q\nwant %q", got, want)
 	}
 }
@@ -88,15 +85,8 @@ func TestTypographicSubstitutions(t *testing.T) {
 // TestTypographerTree checks that replacements are text, which joins the
 // text around it, with the extension of a parser on its own.
 func TestTypographerTree(t *testing.T) {
-	p := parser.NewParser(parser.WithExtensions(extension.Typographer))
-	var got []string
-	_ = markdown.Walk(p.Parse(`a--b "c"`), func(n markdown.Node, entering bool) (markdown.WalkStatus, error) {
-		if t, ok := n.(*markdown.Text); ok && entering {
-			got = append(got, t.Value)
-		}
-		return markdown.WalkContinue, nil
-	})
-	if want := []string{"a–b “c”"}; !slices.Equal(got, want) {
-		t.Errorf("texts %q, want %q", got, want)
-	}
+	checkTree(t, parser.NewParser(parser.WithExtensions(extension.Typographer)), `a--b "c"`, `Document [0:8]
+  Paragraph [0:8] "a--b \"c\""
+    Text "a–b “c”"
+`)
 }

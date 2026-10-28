@@ -5,12 +5,12 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/unaquatic/fluid/internal/markdown"
+	"github.com/unaquatic/fluid/internal/markdown/ast"
 )
 
 // bracket is an entry of the stack of "[" and "![" link openers.
 type bracket struct {
-	node      *markdown.Text
+	node      *ast.Text
 	prev      *bracket
 	prevDelim *Delimiter // top of the delimiter stack at the opener
 	index     int        // offset of the "[" in the subject
@@ -23,7 +23,7 @@ type bracket struct {
 
 // addBracket pushes a link opener for node, at offset index, to the
 // bracket stack.
-func (s *InlineState) addBracket(node *markdown.Text, index int, image bool) {
+func (s *InlineState) addBracket(node *ast.Text, index int, image bool) {
 	if s.brackets != nil {
 		s.brackets.bracketAfter = true
 	}
@@ -31,30 +31,30 @@ func (s *InlineState) addBracket(node *markdown.Text, index int, image bool) {
 }
 
 // parseBang adds an image opener or "!" to b.
-func (s *InlineState) parseBang(b markdown.Node) {
+func (s *InlineState) parseBang(b ast.Node) {
 	s.pos++
 	if s.pos < len(s.src) && s.src[s.pos] == '[' {
-		t := markdown.NewText("![")
+		t := ast.NewText("![")
 		b.AppendChild(b, t)
 		s.addBracket(t, s.pos, true)
 		s.pos++
 		return
 	}
-	b.AppendChild(b, markdown.NewText("!"))
+	b.AppendChild(b, ast.NewText("!"))
 }
 
 // parseCloseBracket adds the link or image that the "]" at pos closes to
 // b, or, if it closes none, the "]" as text.
-func (s *InlineState) parseCloseBracket(b markdown.Node) {
+func (s *InlineState) parseCloseBracket(b ast.Node) {
 	s.pos++
 	start := s.pos
 	opener := s.brackets
 	if opener == nil {
-		b.AppendChild(b, markdown.NewText("]"))
+		b.AppendChild(b, ast.NewText("]"))
 		return
 	}
 	if !opener.active {
-		b.AppendChild(b, markdown.NewText("]"))
+		b.AppendChild(b, ast.NewText("]"))
 		s.brackets = opener.prev
 		return
 	}
@@ -104,13 +104,13 @@ func (s *InlineState) parseCloseBracket(b markdown.Node) {
 	if !matched {
 		s.brackets = opener.prev
 		s.pos = start
-		b.AppendChild(b, markdown.NewText("]"))
+		b.AppendChild(b, ast.NewText("]"))
 		return
 	}
 
-	var link markdown.Node = &markdown.Link{Destination: url, Title: title}
+	var link ast.Node = &ast.Link{Destination: url, Title: title}
 	if opener.image {
-		link = &markdown.Image{Destination: url, Title: title}
+		link = &ast.Image{Destination: url, Title: title}
 	}
 	for t := opener.node.NextSibling(); t != nil; {
 		next := t.NextSibling()

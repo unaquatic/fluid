@@ -1,6 +1,6 @@
 package parser
 
-import "github.com/unaquatic/fluid/internal/markdown"
+import "github.com/unaquatic/fluid/internal/markdown/ast"
 
 // listParser parses lists and list items.
 type listParser struct{}
@@ -15,16 +15,16 @@ func (listParser) Trigger() []byte { return []byte("-+*0123456789") }
 
 // Open implements [BlockParser]. It adds a list for the item unless the
 // item continues one.
-func (p listParser) Open(parent markdown.Node, s *BlockState) (markdown.Node, State) {
+func (p listParser) Open(parent ast.Node, s *BlockState) (ast.Node, State) {
 	m, ok := s.parseListMarker(parent)
 	if !ok {
 		return nil, None
 	}
 	s.CloseUnmatched()
-	if l, ok := s.Tip().(*markdown.List); !ok || l.Marker != m.marker {
-		s.Add(&markdown.List{Marker: m.marker, IsTight: true, Start: m.start}, p, HasChildren)
+	if l, ok := s.Tip().(*ast.List); !ok || l.Marker != m.marker {
+		s.Add(&ast.List{Marker: m.marker, IsTight: true, Start: m.start}, p, HasChildren)
 	}
-	return &markdown.ListItem{Offset: m.offset + m.padding}, HasChildren
+	return &ast.ListItem{Offset: m.offset + m.padding}, HasChildren
 }
 
 // listMarker is the marker of a list item.
@@ -38,14 +38,14 @@ type listMarker struct {
 // parseListMarker parses the list item marker at the current position, if
 // any, within container, and consumes it and the spaces after it that
 // belong to the item's indentation.
-func (s *BlockState) parseListMarker(container markdown.Node) (listMarker, bool) {
+func (s *BlockState) parseListMarker(container ast.Node) (listMarker, bool) {
 	if s.indent >= 4 {
 		return listMarker{}, false
 	}
 	ln := s.line
 	rest := ln[s.nextNonspace:]
 	m := listMarker{offset: s.indent}
-	_, inPara := container.(*markdown.Paragraph)
+	_, inPara := container.(*ast.Paragraph)
 	var n int // length of the marker
 	switch {
 	case rest == "":
@@ -109,8 +109,8 @@ func (s *BlockState) parseListMarker(container markdown.Node) (listMarker, bool)
 // Continue implements [BlockParser]. A list continues while its items do,
 // and a line continues an item if it is indented to the item's content, or
 // is blank after the item's first line.
-func (listParser) Continue(n markdown.Node, s *BlockState) State {
-	item, ok := n.(*markdown.ListItem)
+func (listParser) Continue(n ast.Node, s *BlockState) State {
+	item, ok := n.(*ast.ListItem)
 	if !ok {
 		return Continue | HasChildren
 	}
@@ -130,7 +130,7 @@ func (listParser) Continue(n markdown.Node, s *BlockState) State {
 
 // Close implements [BlockParser]. A list ends with its last item, and an
 // item with its last block or, if it has none, its marker.
-func (listParser) Close(n markdown.Node, s *BlockState) {
+func (listParser) Close(n ast.Node, s *BlockState) {
 	sp := n.SourceSpan()
 	switch last := n.LastChild(); {
 	case last != nil:

@@ -18,7 +18,9 @@ import (
 )
 
 // Markdown renders markdown content with headings, lists, code blocks, links,
-// tables, and word wrapping. Scrolling is handled by a parent ScrollBox.
+// tables, footnotes, definition lists, and word wrapping. A soft line break
+// shows as a space, but between East Asian wide characters, which their
+// scripts do not part. Scrolling is handled by a parent ScrollBox.
 type Markdown struct {
 	*render.BaseRenderable
 
@@ -33,7 +35,7 @@ type Markdown struct {
 	wrapDirty     bool // Requires wrapping without parsing.
 	lastWrapWidth int  // Width used to produce renderedLines.
 
-	parser markdownParser // Defaults to gfmParser.
+	parser markdownParser // Defaults to defaultParser.
 
 	fg style.Color
 	bg style.Color
@@ -149,10 +151,13 @@ const (
 	mdBlockRule
 	mdBlockBlank
 	mdBlockTable
+	mdBlockDefinitionList // Terms and descriptions, as items.
+	mdBlockFootnotes      // The footnotes at the end of the content, as items.
 )
 
 // mdBlock is a parsed markdown block. Blocks form a tree: container blocks
-// (List, OrderedList, Quote, ListItem) hold child blocks in Children.
+// (List, OrderedList, Quote, ListItem, DefinitionList, Footnotes) hold child
+// blocks in Children.
 type mdBlock struct {
 	// Kind is the block's type, which decides the fields below it uses.
 	Kind mdBlockKind
@@ -177,6 +182,9 @@ type mdBlock struct {
 	// Loose marks a list whose items blank lines part, which keeps a blank row
 	// between them.
 	Loose bool
+	// Hang starts the rows of a list item's text after its first, wrapped or
+	// after a hard line break, under the text rather than at the margin.
+	Hang bool
 }
 
 // mdTableCell holds a table cell's inline content.
@@ -243,9 +251,9 @@ func NewMarkdown(content string, opts ...MarkdownOption) *Markdown {
 		opt(m)
 	}
 
-	// Use gfmParser and a Highlighter unless options supplied replacements.
+	// Use defaultParser and a Highlighter unless options supplied replacements.
 	if m.parser == nil {
-		m.parser = gfmParser{}
+		m.parser = defaultParser{}
 	}
 	if m.highlighter == nil {
 		m.highlighter = NewHighlighter(nil)
@@ -641,7 +649,7 @@ func insertBlockSpacing(blocks []mdBlock) []mdBlock {
 // as insertBlockSpacing inserts them.
 func spaceChildren(blk mdBlock) mdBlock {
 	switch blk.Kind {
-	case mdBlockList, mdBlockOrderedList:
+	case mdBlockList, mdBlockOrderedList, mdBlockDefinitionList, mdBlockFootnotes:
 		items := make([]mdBlock, 0, len(blk.Children)*2)
 		for i, item := range blk.Children {
 			if i > 0 && (blk.Loose || endsWithBlock(blk.Children[i-1])) {
@@ -695,14 +703,18 @@ func (m *Markdown) wrapBlockList(blocks []mdBlock, w int, indent int) {
 				codeIndent = 0
 			}
 			m.renderCodeBlock(blk, codeIndent, w)
-		case mdBlockList, mdBlockOrderedList:
+		case mdBlockList, mdBlockOrderedList, mdBlockDefinitionList, mdBlockFootnotes:
 			// List containers render their child items at the current indentation.
 			m.wrapBlockList(blk.Children, w, indent)
 
 		case mdBlockListItem:
 			// Place the item prefix and body on the first line.
 			prefix := append(m.leftEdge(indent), blk.Prefix...)
-			m.addWrappedLine(prefix, indent+blk.PrefixWidth, proseW, blk.Body...)
+			if blk.Hang {
+				m.addHangingLine(prefix, indent+blk.PrefixWidth, proseW, blk.Body...)
+			} else {
+				m.addWrappedLine(prefix, indent+blk.PrefixWidth, proseW, blk.Body...)
+			}
 			// Align nested blocks after the item prefix.
 			if len(blk.Children) > 0 {
 				m.wrapBlockList(blk.Children, w, indent+blk.PrefixWidth)
@@ -801,6 +813,49 @@ func (m *Markdown) addWrappedLine(prefix []style.TextChunk, prefixWidth int, max
 		}
 		lineChunks = append(lineChunks, row...)
 		m.renderedLines = append(m.renderedLines, mdLine{chunks: lineChunks})
+	}
+}
+
+// addHangingLine appends prefix and body as addWrappedLine does, but starts
+// each row after the first, wrapped or after a hard line break, at column
+// prefixWidth, under the first row's body, after the borders of the quotes
+// it lies in.
+func (m *Markdown) addHangingLine(prefix []style.TextChunk, prefixWidth int, maxWidth int, body ...style.TextChunk) {
+	hang := m.leftEdge(prefixWidth)
+	lead := prefix
+	for {
+		row := body
+		i := slices.IndexFunc(body, isHardBreak)
+		if i >= 0 {
+			row, body = body[:i], body[i+1:]
+		}
+		m.addRows(lead, hang, prefixWidth, maxWidth, row)
+		if i < 0 {
+			return
+		}
+		lead = hang
+	}
+}
+
+// addRows appends body, wrapped to rows of at most maxWidth-prefixWidth
+// cells, the first after first and the others after rest, or one row of
+// first alone if body is empty.
+func (m *Markdown) addRows(first, rest []style.TextChunk, prefixWidth int, maxWidth int, body []style.TextChunk) {
+	if m.wrapMode == textbuf.WrapNone || maxWidth <= 0 {
+		m.renderedLines = append(m.renderedLines, mdLine{chunks: slices.Concat(first, body)})
+		return
+	}
+	avail := max(maxWidth-prefixWidth, 4)
+	rows := wrapChunks(body, m.wrapMode, avail, avail)
+	if len(rows) == 0 {
+		rows = [][]style.TextChunk{nil}
+	}
+	for i, row := range rows {
+		lead := rest
+		if i == 0 {
+			lead = first
+		}
+		m.renderedLines = append(m.renderedLines, mdLine{chunks: slices.Concat(lead, row)})
 	}
 }
 
@@ -1232,7 +1287,7 @@ func MarkdownWithLayout(opts ...layout.Option) MarkdownOption {
 }
 
 // markdownWithParser sets a custom markdownParser implementation.
-// When nil (default), a gfmParser is used.
+// When nil (default), a defaultParser is used.
 func markdownWithParser(p markdownParser) MarkdownOption {
 	return func(m *Markdown) { m.parser = p }
 }

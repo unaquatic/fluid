@@ -3,7 +3,7 @@ package parser
 import (
 	"strings"
 
-	"github.com/unaquatic/fluid/internal/markdown"
+	"github.com/unaquatic/fluid/internal/markdown/ast"
 )
 
 // htmlBlockParser parses HTML blocks.
@@ -19,14 +19,14 @@ func NewHTMLBlockParser() BlockParser { return htmlBlockParser{} }
 func (htmlBlockParser) Trigger() []byte { return []byte{'<'} }
 
 // Open implements [BlockParser].
-func (htmlBlockParser) Open(parent markdown.Node, s *BlockState) (markdown.Node, State) {
+func (htmlBlockParser) Open(parent ast.Node, s *BlockState) (ast.Node, State) {
 	rest := s.Rest()
-	_, inPara := parent.(*markdown.Paragraph)
+	_, inPara := parent.(*ast.Paragraph)
 	lazy := s.Lazy()
 	for t := 1; t <= 7; t++ {
 		if htmlBlockStarts(t, rest) && (t < 7 || !inPara && !lazy) {
 			s.StartAt(s.lineOffset + s.offset)
-			return &markdown.HTMLBlock{HTMLBlockType: t}, NoChildren
+			return &ast.HTMLBlock{HTMLBlockType: t}, NoChildren
 		}
 	}
 	return nil, None
@@ -34,8 +34,8 @@ func (htmlBlockParser) Open(parent markdown.Node, s *BlockState) (markdown.Node,
 
 // Continue implements [BlockParser]. A blank line ends blocks of types 6
 // and 7.
-func (htmlBlockParser) Continue(n markdown.Node, s *BlockState) State {
-	if t := n.(*markdown.HTMLBlock).HTMLBlockType; s.blank && (t == 6 || t == 7) {
+func (htmlBlockParser) Continue(n ast.Node, s *BlockState) State {
+	if t := n.(*ast.HTMLBlock).HTMLBlockType; s.blank && (t == 6 || t == 7) {
 		return Close
 	}
 	return Continue | NoChildren
@@ -43,23 +43,23 @@ func (htmlBlockParser) Continue(n markdown.Node, s *BlockState) State {
 
 // AddLine implements [LineAdder]. A line that meets the end condition of a
 // block of types 1 through 5 is the block's last.
-func (htmlBlockParser) AddLine(n markdown.Node, s *BlockState) {
+func (htmlBlockParser) AddLine(n ast.Node, s *BlockState) {
 	line := s.Remaining()
 	n.SetLines(append(n.Lines(), line))
-	if t := n.(*markdown.HTMLBlock).HTMLBlockType; t <= 5 && htmlBlockEnds(t, line.Text) {
+	if t := n.(*ast.HTMLBlock).HTMLBlockType; t <= 5 && htmlBlockEnds(t, line.Text) {
 		s.Close(n, s.lineNumber)
 	}
 }
 
 // Close implements [BlockParser]. The block ends before its trailing blank
 // lines.
-func (htmlBlockParser) Close(n markdown.Node, s *BlockState) {
+func (htmlBlockParser) Close(n ast.Node, s *BlockState) {
 	lines := n.Lines()
 	end := len(lines)
 	for end > 1 && strings.Trim(lines[end-1].Text, " ") == "" {
 		end--
 	}
-	n.(*markdown.HTMLBlock).Literal = replaceNUL(joinText(lines[:end], ""))
+	n.(*ast.HTMLBlock).Literal = replaceNUL(joinText(lines[:end], ""))
 	n.SetLines(lines[:end])
 }
 

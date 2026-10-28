@@ -1,7 +1,7 @@
 package extension
 
 import (
-	"github.com/unaquatic/fluid/internal/markdown"
+	"github.com/unaquatic/fluid/internal/markdown/ast"
 	"github.com/unaquatic/fluid/internal/markdown/parser"
 )
 
@@ -18,9 +18,9 @@ type taskListTransformer struct{}
 func NewTaskListTransformer() parser.ParagraphTransformer { return taskListTransformer{} }
 
 // Transform implements [parser.ParagraphTransformer].
-func (taskListTransformer) Transform(p *markdown.Paragraph, s *parser.BlockState) {
-	item, ok := p.Parent().(*markdown.ListItem)
-	if !ok || item.FirstChild() != markdown.Node(p) {
+func (taskListTransformer) Transform(p *ast.Paragraph, s *parser.BlockState) {
+	item, ok := p.Parent().(*ast.ListItem)
+	if !ok || item.FirstChild() != ast.Node(p) {
 		return
 	}
 	lines := p.Lines()
@@ -29,11 +29,11 @@ func (taskListTransformer) Transform(p *markdown.Paragraph, s *parser.BlockState
 		text += "\n"
 	}
 	task, _ := taskMarker(text)
-	if task == markdown.NotTask {
+	if task == ast.NotTask {
 		return
 	}
 	item.Task = task
-	lines[0] = markdown.Line{Text: lines[0].Text[3:], Offset: lines[0].Offset + 3}
+	lines[0] = ast.Line{Text: lines[0].Text[3:], Offset: lines[0].Offset + 3}
 	for _, l := range lines {
 		if !isBlank(l.Text) {
 			p.SetLines(lines)
@@ -52,35 +52,35 @@ type taskListCleanup struct{}
 func NewTaskListCleanup() parser.ASTTransformer { return taskListCleanup{} }
 
 // Transform implements [parser.ASTTransformer].
-func (taskListCleanup) Transform(doc *markdown.Document) {
-	_ = markdown.Walk(doc, func(n markdown.Node, entering bool) (markdown.WalkStatus, error) {
-		item, ok := n.(*markdown.ListItem)
-		if !entering || !ok || item.Task == markdown.NotTask {
-			return markdown.WalkContinue, nil
+func (taskListCleanup) Transform(doc *ast.Document) {
+	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		item, ok := n.(*ast.ListItem)
+		if !entering || !ok || item.Task == ast.NotTask {
+			return ast.WalkContinue, nil
 		}
-		if p, ok := item.FirstChild().(*markdown.Paragraph); ok && p.Lines() == nil {
+		if p, ok := item.FirstChild().(*ast.Paragraph); ok && p.Lines() == nil {
 			item.RemoveChild(item, p)
 		}
-		return markdown.WalkContinue, nil
+		return ast.WalkContinue, nil
 	})
 }
 
 // taskMarker returns the task list marker at the start of paragraph content
 // s, if any, and the rest of s after it.
-func taskMarker(s string) (markdown.Task, string) {
+func taskMarker(s string) (ast.Task, string) {
 	if len(s) < 3 || s[0] != '[' || s[2] != ']' {
-		return markdown.NotTask, s
+		return ast.NotTask, s
 	}
-	t := markdown.Checked
+	t := ast.Checked
 	switch s[1] {
 	case ' ', '\t':
-		t = markdown.Unchecked
+		t = ast.Unchecked
 	case 'x', 'X':
 	default:
-		return markdown.NotTask, s
+		return ast.NotTask, s
 	}
 	if len(s) > 3 && s[3] != ' ' && s[3] != '\t' && s[3] != '\n' {
-		return markdown.NotTask, s
+		return ast.NotTask, s
 	}
 	return t, s[3:]
 }

@@ -5,20 +5,12 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/unaquatic/fluid/internal/markdown"
-	"github.com/unaquatic/fluid/internal/markdown/html"
-	"github.com/unaquatic/fluid/internal/markdown/md"
+	"github.com/unaquatic/fluid/internal/markdown/ast"
 	"github.com/unaquatic/fluid/internal/markdown/parser"
 )
 
 // definitionList is the extension DefinitionList.
 type definitionList struct{}
-
-// Extend implements [md.Extender].
-func (e definitionList) Extend(m md.Markdown) {
-	m.Parser().AddOptions(parser.WithExtensions(e))
-	m.Renderer().AddOptions(html.WithNodeRenderer(NewDefinitionListHTMLRenderer(), 500))
-}
 
 // ExtendParser implements [parser.Extension].
 func (definitionList) ExtendParser(c *parser.Config) {
@@ -40,6 +32,11 @@ type definitionListParser struct{}
 // them if there are 8 or more, and lines after its first are indented as
 // far, or are blank. The parser that [NewDefinitionDescriptionParser]
 // returns opens the descriptions.
+//
+// A link reference definition between the paragraph or the list and the
+// ":" parts them, so that the ":" starts no description, as goldmark parts
+// a paragraph from a new list; goldmark makes such a definition a term of a
+// list before it.
 func NewDefinitionListParser() parser.BlockParser { return definitionListParser{} }
 
 // Trigger implements [parser.BlockParser].
@@ -48,16 +45,16 @@ func (definitionListParser) Trigger() []byte { return []byte{':'} }
 // Open implements [parser.BlockParser]. It opens the list, again if it is
 // the block before, with the terms, and leaves the ":" to the parser of
 // descriptions.
-func (p definitionListParser) Open(parent markdown.Node, s *parser.BlockState) (markdown.Node, parser.State) {
-	if _, ok := parent.(*markdown.DefinitionList); ok {
+func (p definitionListParser) Open(parent ast.Node, s *parser.BlockState) (ast.Node, parser.State) {
+	if _, ok := parent.(*ast.DefinitionList); ok {
 		return nil, parser.None
 	}
 	offset, ok := descriptionOffset(s)
 	if !ok {
 		return nil, parser.None
 	}
-	var list *markdown.DefinitionList
-	if para, ok := parent.(*markdown.Paragraph); ok {
+	var list *ast.DefinitionList
+	if para, ok := parent.(*ast.Paragraph); ok {
 		// The line would continue the paragraph, which closes, and goes
 		// if it held only link reference definitions.
 		s.Close(para, s.LineNumber()-1)
@@ -69,9 +66,9 @@ func (p definitionListParser) Open(parent markdown.Node, s *parser.BlockState) (
 		last := parent.LastChild()
 		var end int // where the block before ends, and others can start
 		switch last := last.(type) {
-		case *markdown.Paragraph:
+		case *ast.Paragraph:
 			end = last.SourceSpan().End
-		case *markdown.DefinitionList:
+		case *ast.DefinitionList:
 			// The line does not continue the list, which closes, if it
 			// is open. Blocks after it start at the line that closed it.
 			s.CloseUnmatched()
@@ -83,9 +80,9 @@ func (p definitionListParser) Open(parent markdown.Node, s *parser.BlockState) (
 			return nil, parser.None
 		}
 		switch last := last.(type) {
-		case *markdown.Paragraph:
+		case *ast.Paragraph:
 			list = addTerms(last, s.Source())
-		case *markdown.DefinitionList:
+		case *ast.DefinitionList:
 			list = last
 		}
 	}
@@ -127,38 +124,38 @@ func descriptionOffset(s *parser.BlockState) (int, bool) {
 // linkDefBetween reports whether a link reference definition of the
 // document of n starts between offsets start and end, where it parts the
 // block before from a description.
-func linkDefBetween(n markdown.Node, start, end int) bool {
+func linkDefBetween(n ast.Node, start, end int) bool {
 	for n.Parent() != nil {
 		n = n.Parent()
 	}
-	doc, ok := n.(*markdown.Document)
+	doc, ok := n.(*ast.Document)
 	if !ok {
 		return false
 	}
 	// The definitions are in the order in which they appear.
-	i, _ := slices.BinarySearchFunc(doc.Links, start, func(d *markdown.LinkDef, start int) int { return cmp.Compare(d.Start, start) })
+	i, _ := slices.BinarySearchFunc(doc.Links, start, func(d *ast.LinkDef, start int) int { return cmp.Compare(d.Start, start) })
 	return i < len(doc.Links) && doc.Links[i].Start < end
 }
 
 // addTerms makes the lines of paragraph p, which has closed, terms of the
 // definition list before it, or of a new one in its place, and returns the
 // list. src is the document's source.
-func addTerms(p *markdown.Paragraph, src string) *markdown.DefinitionList {
+func addTerms(p *ast.Paragraph, src string) *ast.DefinitionList {
 	parent := p.Parent()
-	list, ok := p.PreviousSibling().(*markdown.DefinitionList)
+	list, ok := p.PreviousSibling().(*ast.DefinitionList)
 	if ok {
 		parent.RemoveChild(parent, p)
 	} else {
-		list = &markdown.DefinitionList{}
+		list = &ast.DefinitionList{}
 		start := p.SourceSpan().Start
-		list.SetSourceSpan(markdown.Span{Start: start, End: start})
+		list.SetSourceSpan(ast.Span{Start: start, End: start})
 		parent.ReplaceChild(parent, p, list)
 	}
 	for _, l := range p.Lines() {
 		start, end := trimmedLine(src, l.Offset)
-		t := &markdown.DefinitionTerm{}
-		t.SetSourceSpan(markdown.Span{Start: start, End: end})
-		t.SetLines([]markdown.Line{{Text: strings.Trim(l.Text, " \t"), Offset: start}})
+		t := &ast.DefinitionTerm{}
+		t.SetSourceSpan(ast.Span{Start: start, End: end})
+		t.SetLines([]ast.Line{{Text: strings.Trim(l.Text, " \t"), Offset: start}})
 		list.AppendChild(list, t)
 	}
 	return list
@@ -189,11 +186,11 @@ type definitionListsKey struct{}
 // is parsed.
 type definitionLists struct {
 	// blank holds the number of the last blank line that each list took.
-	blank map[*markdown.DefinitionList]int
+	blank map[*ast.DefinitionList]int
 
 	// closedAt holds the offset in the source of the line at which each
 	// list that has closed closed.
-	closedAt map[*markdown.DefinitionList]int
+	closedAt map[*ast.DefinitionList]int
 }
 
 // definitionListsOf returns the state of the definition lists of the
@@ -201,7 +198,7 @@ type definitionLists struct {
 func definitionListsOf(s *parser.BlockState) *definitionLists {
 	d, _ := s.Value(definitionListsKey{}).(*definitionLists)
 	if d == nil {
-		d = &definitionLists{blank: make(map[*markdown.DefinitionList]int), closedAt: make(map[*markdown.DefinitionList]int)}
+		d = &definitionLists{blank: make(map[*ast.DefinitionList]int), closedAt: make(map[*ast.DefinitionList]int)}
 		s.SetValue(definitionListsKey{}, d)
 	}
 	return d
@@ -209,8 +206,8 @@ func definitionListsOf(s *parser.BlockState) *definitionLists {
 
 // Continue implements [parser.BlockParser]. A line continues a definition
 // list if it is blank or indented to the content of its last description.
-func (definitionListParser) Continue(n markdown.Node, s *parser.BlockState) parser.State {
-	l := n.(*markdown.DefinitionList)
+func (definitionListParser) Continue(n ast.Node, s *parser.BlockState) parser.State {
+	l := n.(*ast.DefinitionList)
 	switch {
 	case s.Blank():
 		definitionListsOf(s).blank[l] = s.LineNumber()
@@ -225,8 +222,8 @@ func (definitionListParser) Continue(n markdown.Node, s *parser.BlockState) pars
 
 // Close implements [parser.BlockParser]. A list ends with its last
 // description.
-func (definitionListParser) Close(n markdown.Node, s *parser.BlockState) {
-	definitionListsOf(s).closedAt[n.(*markdown.DefinitionList)] = s.LineOffset()
+func (definitionListParser) Close(n ast.Node, s *parser.BlockState) {
+	definitionListsOf(s).closedAt[n.(*ast.DefinitionList)] = s.LineOffset()
 	if last := n.LastChild(); last != nil {
 		sp := n.SourceSpan()
 		sp.End = last.SourceSpan().End
@@ -246,25 +243,28 @@ type definitionDescriptionParser struct{}
 // NewDefinitionDescriptionParser returns the parser of the descriptions of
 // definition lists, which the parser that [NewDefinitionListParser]
 // returns opens the lists of. A description is tight if the line before it
-// is not blank, and no blank line parts its blocks.
+// is not blank, and no blank line parts its blocks, as a list is tight in
+// CommonMark. goldmark leaves out the blank lines between blocks, and only
+// the first paragraph of a tight description renders without paragraph
+// tags.
 func NewDefinitionDescriptionParser() parser.BlockParser { return definitionDescriptionParser{} }
 
 // Trigger implements [parser.BlockParser].
 func (definitionDescriptionParser) Trigger() []byte { return []byte{':'} }
 
 // Open implements [parser.BlockParser].
-func (definitionDescriptionParser) Open(parent markdown.Node, s *parser.BlockState) (markdown.Node, parser.State) {
-	list, ok := parent.(*markdown.DefinitionList)
+func (definitionDescriptionParser) Open(parent ast.Node, s *parser.BlockState) (ast.Node, parser.State) {
+	list, ok := parent.(*ast.DefinitionList)
 	if !ok || s.Indent() != 0 || !strings.HasPrefix(s.Rest(), ":") {
 		return nil, parser.None
 	}
-	d := &markdown.DefinitionDescription{IsTight: true}
+	d := &ast.DefinitionDescription{IsTight: true}
 	switch prev := list.LastChild().(type) {
-	case *markdown.DefinitionTerm:
+	case *ast.DefinitionTerm:
 		// The paragraph of the terms ended at the line before, unless a
 		// blank line closed it.
 		d.IsTight = !blankBetween(s.Source(), prev.SourceSpan().End, s.LineOffset()+s.NextNonspace())
-	case *markdown.DefinitionDescription:
+	case *ast.DefinitionDescription:
 		// The description before may have taken the blank line, as code
 		// does.
 		d.IsTight = definitionListsOf(s).blank[list] != s.LineNumber()-1
@@ -277,15 +277,15 @@ func (definitionDescriptionParser) Open(parent markdown.Node, s *parser.BlockSta
 
 // Continue implements [parser.BlockParser]; the list decides which lines
 // continue its descriptions.
-func (definitionDescriptionParser) Continue(markdown.Node, *parser.BlockState) parser.State {
+func (definitionDescriptionParser) Continue(ast.Node, *parser.BlockState) parser.State {
 	return parser.Continue | parser.HasChildren
 }
 
 // Close implements [parser.BlockParser]. A description ends with its last
 // block, or its ":" if it has none, and is loose if a blank line parts its
 // blocks.
-func (definitionDescriptionParser) Close(n markdown.Node, s *parser.BlockState) {
-	d := n.(*markdown.DefinitionDescription)
+func (definitionDescriptionParser) Close(n ast.Node, s *parser.BlockState) {
+	d := n.(*ast.DefinitionDescription)
 	sp := d.SourceSpan()
 	sp.End = sp.Start + 1
 	if last := d.LastChild(); last != nil {
@@ -324,71 +324,4 @@ func blankBetween(src string, start, end int) bool {
 		}
 	}
 	return false
-}
-
-// Filters of the attributes of the elements of definition lists.
-var (
-	// DefinitionListAttributeFilter allows the attributes of dl elements.
-	DefinitionListAttributeFilter = html.GlobalAttributeFilter
-
-	// DefinitionTermAttributeFilter allows the attributes of dt elements.
-	DefinitionTermAttributeFilter = html.GlobalAttributeFilter
-
-	// DefinitionDescriptionAttributeFilter allows the attributes of dd
-	// elements.
-	DefinitionDescriptionAttributeFilter = html.GlobalAttributeFilter
-)
-
-// definitionListHTMLRenderer renders definition lists.
-type definitionListHTMLRenderer struct{}
-
-// NewDefinitionListHTMLRenderer returns the renderer of definition lists, as
-// dl elements, in which terms render dt elements and descriptions dd
-// elements.
-func NewDefinitionListHTMLRenderer() html.NodeRenderer { return definitionListHTMLRenderer{} }
-
-// RegisterFuncs implements [html.NodeRenderer].
-func (definitionListHTMLRenderer) RegisterFuncs(reg html.NodeRendererFuncRegisterer) {
-	reg.Register(markdown.KindDefinitionList, renderDefinitionList)
-	reg.Register(markdown.KindDefinitionTerm, renderDefinitionTerm)
-	reg.Register(markdown.KindDefinitionDescription, renderDefinitionDescription)
-}
-
-func renderDefinitionList(w *html.Writer, n markdown.Node, entering bool) (markdown.WalkStatus, error) {
-	if entering {
-		w.CR()
-		w.WriteString("<dl")
-		w.WriteAttributes(n, DefinitionListAttributeFilter)
-		w.WriteString(">\n")
-	} else {
-		w.WriteString("</dl>\n")
-	}
-	return markdown.WalkContinue, nil
-}
-
-func renderDefinitionTerm(w *html.Writer, n markdown.Node, entering bool) (markdown.WalkStatus, error) {
-	if entering {
-		w.CR()
-		w.WriteString("<dt")
-		w.WriteAttributes(n, DefinitionTermAttributeFilter)
-		w.WriteString(">")
-	} else {
-		w.WriteString("</dt>\n")
-	}
-	return markdown.WalkContinue, nil
-}
-
-func renderDefinitionDescription(w *html.Writer, n markdown.Node, entering bool) (markdown.WalkStatus, error) {
-	if !entering {
-		w.WriteString("</dd>\n")
-		return markdown.WalkContinue, nil
-	}
-	w.CR()
-	w.WriteString("<dd")
-	w.WriteAttributes(n, DefinitionDescriptionAttributeFilter)
-	w.WriteString(">")
-	if !n.(*markdown.DefinitionDescription).IsTight {
-		w.WriteString("\n")
-	}
-	return markdown.WalkContinue, nil
 }

@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/unaquatic/fluid/internal/markdown"
+	"github.com/unaquatic/fluid/internal/markdown/ast"
 )
 
 // A BlockParser parses blocks of one kind.
@@ -23,7 +23,7 @@ type BlockParser interface {
 	// [BlockState.Add] or opens one that is in it with [BlockState.Reopen].
 	// Open may close blocks, such as the paragraph that parent is; if it
 	// then opens none, the block parsers try the line again in the tip.
-	Open(parent markdown.Node, s *BlockState) (markdown.Node, State)
+	Open(parent ast.Node, s *BlockState) (ast.Node, State)
 
 	// Continue reports whether the current line of s continues block n,
 	// consuming the markers of n that the line starts with. It returns
@@ -33,12 +33,12 @@ type BlockParser interface {
 	// unless another block starts there, as a paragraph does, or [Close]. A
 	// block that the line ends, such as fenced code at its closing fence,
 	// closes itself with [BlockState.Close], which consumes the line.
-	Continue(n markdown.Node, s *BlockState) State
+	Continue(n ast.Node, s *BlockState) State
 
 	// Close finishes block n, to which no more lines can be added. It runs
 	// while n is the deepest open block, after [BlockState.Close] ends n's
 	// span at the end of its last line.
-	Close(n markdown.Node, s *BlockState)
+	Close(n ast.Node, s *BlockState)
 
 	// CanInterruptParagraph reports whether a block can start on a line
 	// that would otherwise continue a paragraph.
@@ -54,7 +54,7 @@ type BlockParser interface {
 // starts no other block.
 type LineAdder interface {
 	// AddLine adds the rest of the current line of s to block n.
-	AddLine(n markdown.Node, s *BlockState)
+	AddLine(n ast.Node, s *BlockState)
 }
 
 // A State reports what [BlockParser.Open] opened, or how a line continues a
@@ -72,7 +72,7 @@ const (
 // openBlock is a block that is open: an entry of the stack of open blocks,
 // from the document to the tip.
 type openBlock struct {
-	node      markdown.Node
+	node      ast.Node
 	parser    BlockParser // nil for the document
 	container bool        // opened with HasChildren
 	state     State       // what Continue returned for the current line
@@ -82,7 +82,7 @@ type openBlock struct {
 
 	// loosens is the list that a blank line before the block makes loose,
 	// if the block stays in the tree as it closes.
-	loosens *markdown.List
+	loosens *ast.List
 
 	closed bool // whether the block has closed
 }
@@ -93,7 +93,7 @@ type openBlock struct {
 type BlockState struct {
 	syntax *syntax
 	src    string
-	doc    *markdown.Document
+	doc    *ast.Document
 
 	open        []*openBlock // root first
 	lastMatched int          // index in open of the deepest block the line continues
@@ -126,16 +126,16 @@ type BlockState struct {
 	// block parsers started to look for one.
 	startAt, blockStart int
 
-	refs   map[string]*markdown.LinkDef // link reference definitions by normalized label
-	ids    IDs                          // made when first used
+	refs   map[string]*ast.LinkDef // link reference definitions by normalized label
+	ids    IDs                     // made when first used
 	values map[any]any
 }
 
 // newBlockState returns the state of a Parser with syntax at the start of
 // document src.
 func newBlockState(syntax *syntax, src string) *BlockState {
-	doc := &markdown.Document{}
-	doc.SetSourceSpan(markdown.Span{End: len(src)})
+	doc := &ast.Document{}
+	doc.SetSourceSpan(ast.Span{End: len(src)})
 	return &BlockState{
 		syntax:   syntax,
 		src:      src,
@@ -143,7 +143,7 @@ func newBlockState(syntax *syntax, src string) *BlockState {
 		open:     []*openBlock{{node: doc, container: true}},
 		lineEnds: make([]int, 1, strings.Count(src, "\n")+2),
 		startAt:  -1,
-		refs:     make(map[string]*markdown.LinkDef),
+		refs:     make(map[string]*ast.LinkDef),
 	}
 }
 
@@ -200,8 +200,8 @@ func (s *BlockState) Rest() string { return s.line[s.NextNonspace():] }
 
 // Remaining returns the line from Offset, with the columns of a tab that is
 // partly consumed as spaces, for a block to take.
-func (s *BlockState) Remaining() markdown.Line {
-	l := markdown.Line{Text: s.line[s.offset:], Offset: s.lineOffset + s.offset}
+func (s *BlockState) Remaining() ast.Line {
+	l := ast.Line{Text: s.line[s.offset:], Offset: s.lineOffset + s.offset}
 	if s.partiallyConsumedTab {
 		l.Text = strings.Repeat(" ", 4-s.column%4) + s.line[s.offset+1:]
 	}
@@ -222,13 +222,13 @@ func (s *BlockState) AdvanceNextNonspace() {
 }
 
 // Tip returns the deepest open block.
-func (s *BlockState) Tip() markdown.Node { return s.open[len(s.open)-1].node }
+func (s *BlockState) Tip() ast.Node { return s.open[len(s.open)-1].node }
 
 // Lazy reports whether the current line, if no block starts on it, would
 // continue the paragraph that is the tip only lazily, as a paragraph
 // continuation line that does not continue the blocks around it.
 func (s *BlockState) Lazy() bool {
-	_, para := s.Tip().(*markdown.Paragraph)
+	_, para := s.Tip().(*ast.Paragraph)
 	return !s.allClosed && !s.Blank() && para
 }
 
@@ -254,7 +254,7 @@ func (s *BlockState) CloseUnmatched() {
 // A list can hold only list items, which only lists can hold; a leaf can
 // hold no blocks. The span of n starts where the line's NextNonspace was as
 // the block parsers started to look for a block, unless StartAt sets it.
-func (s *BlockState) Add(n markdown.Node, p BlockParser, state State) {
+func (s *BlockState) Add(n ast.Node, p BlockParser, state State) {
 	s.CloseUnmatched()
 	for !s.canHold(s.open[len(s.open)-1], n) {
 		s.Close(s.Tip(), s.lineNumber-1)
@@ -263,7 +263,7 @@ func (s *BlockState) Add(n markdown.Node, p BlockParser, state State) {
 	if s.startAt >= 0 {
 		start, s.startAt = s.startAt, -1
 	}
-	n.SetSourceSpan(markdown.Span{Start: start, End: start})
+	n.SetSourceSpan(ast.Span{Start: start, End: start})
 
 	// A blank line between the blocks of a list item, or between items,
 	// makes their list loose, unless the block after it leaves its parent
@@ -284,7 +284,7 @@ func (s *BlockState) Add(n markdown.Node, p BlockParser, state State) {
 // in the place of another. It first closes the blocks that the current line
 // does not continue, and reports whether n is then the last child of the
 // tip, which it must be to open. The span of n ends again as n closes.
-func (s *BlockState) Reopen(n markdown.Node, p BlockParser) bool {
+func (s *BlockState) Reopen(n ast.Node, p BlockParser) bool {
 	s.CloseUnmatched()
 	tip := s.Tip()
 	if n.Parent() != tip || tip.LastChild() != n {
@@ -299,23 +299,23 @@ func (s *BlockState) Reopen(n markdown.Node, p BlockParser) bool {
 }
 
 // canHold reports whether open block b can hold block n.
-func (s *BlockState) canHold(b *openBlock, n markdown.Node) bool {
+func (s *BlockState) canHold(b *openBlock, n ast.Node) bool {
 	if !b.container {
 		return false
 	}
-	_, list := b.node.(*markdown.List)
-	_, item := n.(*markdown.ListItem)
+	_, list := b.node.(*ast.List)
+	_, item := n.(*ast.ListItem)
 	return list == item
 }
 
 // listOf returns the list that the open block at index i of the stack is,
 // or is an item of, or nil.
-func (s *BlockState) listOf(i int) *markdown.List {
+func (s *BlockState) listOf(i int) *ast.List {
 	switch n := s.open[i].node.(type) {
-	case *markdown.List:
+	case *ast.List:
 		return n
-	case *markdown.ListItem:
-		l, _ := s.open[i-1].node.(*markdown.List)
+	case *ast.ListItem:
+		l, _ := s.open[i-1].node.(*ast.List)
 		return l
 	}
 	return nil
@@ -326,7 +326,7 @@ func (s *BlockState) listOf(i int) *markdown.List {
 // line does not continue, at the line before it or line if that is
 // earlier. The span of each block it closes ends at the end of its last
 // line before its parser closes it.
-func (s *BlockState) Close(n markdown.Node, line int) {
+func (s *BlockState) Close(n ast.Node, line int) {
 	// n is usually the tip, so search from it.
 	i := len(s.open) - 1
 	for i >= 0 && s.open[i].node != n {
@@ -455,7 +455,7 @@ func (s *BlockState) incorporateLine(off int, ln string) {
 		la.AddLine(container.node, s)
 	} else if s.offset < len(ln) && !s.blank {
 		s.blockStart = s.lineOffset + s.nextNonspace
-		p := &markdown.Paragraph{}
+		p := &ast.Paragraph{}
 		s.Add(p, s.syntax.paragraph, NoChildren)
 		s.advanceNextNonspace()
 		s.syntax.paragraph.AddLine(p, s)
@@ -464,11 +464,11 @@ func (s *BlockState) incorporateLine(off int, ln string) {
 
 // openBlock opens the block that starts at the current position, if any,
 // within container, and returns it and its state.
-func (s *BlockState) openBlock(container *openBlock) (markdown.Node, State) {
+func (s *BlockState) openBlock(container *openBlock) (ast.Node, State) {
 	if s.blank {
 		return nil, None
 	}
-	_, inPara := s.Tip().(*markdown.Paragraph)
+	_, inPara := s.Tip().(*ast.Paragraph)
 	s.blockStart = s.lineOffset + s.nextNonspace
 	for _, bp := range s.syntax.starts[s.line[s.nextNonspace]] {
 		if s.indented && !bp.CanAcceptIndentedLine() || inPara && !bp.CanInterruptParagraph() {
@@ -583,7 +583,7 @@ func replaceNUL(s string) string {
 
 // joinText returns the text of lines, parted by newlines and followed by
 // end.
-func joinText(lines []markdown.Line, end string) string {
+func joinText(lines []ast.Line, end string) string {
 	if len(lines) == 1 && end == "" {
 		return lines[0].Text
 	}
@@ -605,7 +605,7 @@ func joinText(lines []markdown.Line, end string) string {
 
 // sourceOffset returns the offset in the source of offset k in the text of
 // lines, as joinText joins them, which holds no spaces of tabs.
-func sourceOffset(lines []markdown.Line, k int) int {
+func sourceOffset(lines []ast.Line, k int) int {
 	for _, l := range lines {
 		if k <= len(l.Text) {
 			return l.Offset + k

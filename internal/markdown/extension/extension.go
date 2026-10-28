@@ -1,22 +1,42 @@
-// Package extension adds the syntax of GitHub Flavored Markdown, as its
-// specification, version 0.29-gfm, defines it, to a
-// [github.com/unaquatic/fluid/internal/markdown/md.Markdown], or on its own
-// to a [github.com/unaquatic/fluid/internal/markdown/parser.Parser]: tables,
-// strikethrough, extended autolinks, and task list items.
+// Package extension adds syntax to a
+// [github.com/unaquatic/fluid/internal/markdown/parser.Parser]: that of
+// GitHub Flavored Markdown, as its specification, version 0.29-gfm,
+// defines it, and that of other extensions.
 //
-// [GFM] adds all of them, and [Table], [Strikethrough], [Linkify], and
-// [TaskList] each add one. [NewTable] and [NewLinkify] make them with
-// options.
+// [GFM] adds tables, strikethrough, extended autolinks, and task list items,
+// and [Table], [Strikethrough], [Linkify], and [TaskList] each add one of
+// them. [NewLinkify] makes Linkify with options.
 //
-// It also adds syntax that GFM does not have, as PHP Markdown Extra defines
-// it: [Footnote] adds footnotes, and [NewFootnote] makes it with options,
-// and [DefinitionList] adds definition lists. [Typographer] writes quotation
-// marks, dashes, and ellipses as typographers do, as text, such as “ and —,
-// and [NewTypographer] makes it with other replacements. [CJK] suits
-// Chinese, Japanese, and Korean, and [NewCJK] makes it with options.
+// [Footnote] adds footnotes, and [DefinitionList] definition lists, as PHP
+// Markdown Extra defines them. [Typographer] writes quotation marks,
+// dashes, and ellipses as typographers do, as text, such as “ and —, and
+// [NewTypographer] makes it with other replacements. [CJK] suits Chinese,
+// Japanese, and Korean, and [EastAsianLineBreaks] decides which of their
+// soft line breaks a renderer shows.
 //
-//	m := md.New(md.WithExtensions(extension.GFM))
-//	p := parser.NewParser(parser.WithExtensions(extension.GFM))
+//	p := parser.NewParser(parser.WithExtensions(extension.GFM, extension.Footnote))
+//
+// # Differences from goldmark
+//
+// The extensions parse as goldmark's do, but where goldmark's result is a
+// bug, or depends on how it splits text into nodes:
+//
+//   - A footnote definition in a footnote is none, where goldmark opens one
+//     and loses its text.
+//   - The typographer counts the quotes that each inline content opens,
+//     where goldmark, whose reset never runs, counts them across the
+//     document. A quotation mark at the start of a line, also of one in a
+//     block quote, follows a line ending, where goldmark sees the ">".
+//   - A blank line between the blocks of a description makes it loose,
+//     where goldmark leaves only its first paragraph without paragraph
+//     tags.
+//   - A link reference definition between a list and a ":" parts them, as
+//     it parts a paragraph from a ":" in goldmark, which makes it a term of
+//     the list instead.
+//   - By [EastAsianLineBreaks], a soft line break before content other than
+//     text, such as emphasis, stays between letters, where goldmark leaves
+//     it out, and the characters on each side are those of the text, with
+//     escapes and entities resolved.
 package extension
 
 import (
@@ -24,30 +44,21 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/unaquatic/fluid/internal/markdown/html"
-	"github.com/unaquatic/fluid/internal/markdown/md"
 	"github.com/unaquatic/fluid/internal/markdown/parser"
 )
-
-// An Extension extends a [md.Markdown], its parser and its renderer, or a
-// [parser.Parser] on its own.
-type Extension interface {
-	md.Extender
-	parser.Extension
-}
 
 var (
 	// GFM adds tables, strikethrough, extended autolinks, and task list
 	// items.
-	GFM Extension = gfm{}
+	GFM parser.Extension = gfm{}
 
-	// Table adds tables, as NewTable makes it with no options.
-	Table = NewTable()
+	// Table adds tables: the parser that [NewTableParser] returns, with
+	// priority 900, after the block parsers of CommonMark.
+	Table parser.Extension = table{}
 
 	// Strikethrough adds struck-through text: the delimiter rule that
-	// [NewStrikethroughDelimiterRule] returns, and the renderer that
-	// [NewStrikethroughHTMLRenderer] returns, with priority 500.
-	Strikethrough Extension = strikethrough{}
+	// [NewStrikethroughDelimiterRule] returns.
+	Strikethrough parser.Extension = strikethrough{}
 
 	// Linkify adds extended autolinks, as NewLinkify makes it with no
 	// options.
@@ -55,39 +66,35 @@ var (
 
 	// TaskList adds task list items: the transformer of paragraphs that
 	// [NewTaskListTransformer] returns and the transformer of documents
-	// that [NewTaskListCleanup] returns, both with priority 100. The
-	// renderer of CommonMark renders the items' checkboxes.
-	TaskList Extension = taskList{}
+	// that [NewTaskListCleanup] returns, both with priority 100.
+	TaskList parser.Extension = taskList{}
 
-	// Footnote adds footnotes, as NewFootnote makes it with no options.
-	Footnote = NewFootnote()
+	// Footnote adds footnotes: the parser of definitions that
+	// [NewFootnoteBlockParser] returns, with priority 999, the parser of
+	// references that [NewFootnoteParser] returns, with priority 101, and
+	// the transformer of documents that [NewFootnoteASTTransformer]
+	// returns, with priority 999.
+	Footnote parser.Extension = footnote{}
 
 	// DefinitionList adds definition lists: the parsers that
 	// [NewDefinitionListParser] and [NewDefinitionDescriptionParser]
-	// return, with priorities 101 and 102, and the renderer that
-	// [NewDefinitionListHTMLRenderer] returns, with priority 500.
-	DefinitionList Extension = definitionList{}
+	// return, with priorities 101 and 102.
+	DefinitionList parser.Extension = definitionList{}
 
 	// Typographer writes punctuation as typographers do, as NewTypographer
 	// makes it with no options.
 	Typographer = NewTypographer()
 
-	// CJK suits Chinese, Japanese, and Korean: soft line breaks between
-	// wide characters render as nothing, as [html.EastAsianLineBreaksSimple]
-	// renders them, and a backslash before a space escapes it, to stand for
-	// nothing.
-	CJK = NewCJK(WithEastAsianLineBreaks(html.EastAsianLineBreaksSimple), WithEscapedSpace())
+	// CJK suits Chinese, Japanese, and Korean: a backslash before a space
+	// escapes it, to stand for nothing, as [parser.WithEscapedSpace] lets
+	// it. A renderer leaves out the soft line breaks between wide
+	// characters, which these scripts do not part, as
+	// [EastAsianLineBreaksSimple] decides.
+	CJK parser.Extension = cjk{}
 )
 
 // gfm is the extension GFM.
 type gfm struct{}
-
-// Extend implements [md.Extender].
-func (gfm) Extend(m md.Markdown) {
-	for _, e := range []Extension{Table, Strikethrough, Linkify, TaskList} {
-		e.Extend(m)
-	}
-}
 
 // ExtendParser implements [parser.Extension].
 func (gfm) ExtendParser(c *parser.Config) {
@@ -97,12 +104,6 @@ func (gfm) ExtendParser(c *parser.Config) {
 // strikethrough is the extension Strikethrough.
 type strikethrough struct{}
 
-// Extend implements [md.Extender].
-func (e strikethrough) Extend(m md.Markdown) {
-	m.Parser().AddOptions(parser.WithExtensions(e))
-	m.Renderer().AddOptions(html.WithNodeRenderer(NewStrikethroughHTMLRenderer(), 500))
-}
-
 // ExtendParser implements [parser.Extension].
 func (strikethrough) ExtendParser(c *parser.Config) {
 	c.Apply(parser.WithDelimiterRule(NewStrikethroughDelimiterRule()))
@@ -110,9 +111,6 @@ func (strikethrough) ExtendParser(c *parser.Config) {
 
 // taskList is the extension TaskList.
 type taskList struct{}
-
-// Extend implements [md.Extender].
-func (e taskList) Extend(m md.Markdown) { m.Parser().AddOptions(parser.WithExtensions(e)) }
 
 // ExtendParser implements [parser.Extension].
 func (taskList) ExtendParser(c *parser.Config) {

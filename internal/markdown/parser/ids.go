@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/unaquatic/fluid/internal/markdown"
+	"github.com/unaquatic/fluid/internal/markdown/ast"
 )
 
 // An IDs makes the IDs of the elements of a document, such as the "id"
@@ -13,7 +13,7 @@ import (
 type IDs interface {
 	// Generate returns a new ID, which it records as used, for an element
 	// of kind, made from value, such as a heading's text.
-	Generate(value string, kind markdown.NodeKind) string
+	Generate(value string, kind ast.NodeKind) string
 
 	// Put records id, which an element has, as used.
 	Put(id string)
@@ -34,7 +34,7 @@ type idSet struct {
 }
 
 // Generate implements [IDs].
-func (s *idSet) Generate(value string, kind markdown.NodeKind) string {
+func (s *idSet) Generate(value string, kind ast.NodeKind) string {
 	value = strings.Trim(value, " \t\n\v\f\r")
 	var b strings.Builder
 	for i := range len(value) {
@@ -50,7 +50,7 @@ func (s *idSet) Generate(value string, kind markdown.NodeKind) string {
 	id := b.String()
 	if id == "" {
 		id = "id"
-		if kind == markdown.KindHeading {
+		if kind == ast.KindHeading {
 			id = "heading"
 		}
 	}

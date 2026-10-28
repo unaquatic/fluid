@@ -1,19 +1,15 @@
 package extension_test
 
 import (
-	"fmt"
-	"slices"
 	"testing"
 
-	"github.com/unaquatic/fluid/internal/markdown"
 	"github.com/unaquatic/fluid/internal/markdown/extension"
-	"github.com/unaquatic/fluid/internal/markdown/md"
 	"github.com/unaquatic/fluid/internal/markdown/parser"
 )
 
 // TestDefinitionList checks how definition lists render.
 func TestDefinitionList(t *testing.T) {
-	m := md.New(md.WithExtensions(extension.DefinitionList))
+	p := parser.NewParser(parser.WithExtensions(extension.DefinitionList))
 	for _, tt := range []struct {
 		name, src, want string
 	}{
@@ -50,7 +46,7 @@ func TestDefinitionList(t *testing.T) {
 		{"blank line in code", "T\n: ```\n  x\n\n  y\n  ```", "<dl>\n<dt>T</dt>\n<dd>\n<pre><code>x\n\ny\n</code></pre>\n</dd>\n</dl>\n"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := convert(t, m, tt.src); got != tt.want {
+			if got := convert(t, p, tt.src); got != tt.want {
 				t.Errorf("got:\n%s\nwant:\n%s", got, tt.want)
 			}
 		})
@@ -61,37 +57,24 @@ func TestDefinitionList(t *testing.T) {
 // spans, with the extension of a parser on its own.
 func TestDefinitionListTree(t *testing.T) {
 	const src = "> One  \n> Two\n> :   a\n>\n> :\tb\n>     c\n>\n> Three\n> : \n\nafter"
-	p := parser.NewParser(parser.WithExtensions(extension.DefinitionList))
-	var got []string
-	_ = markdown.Walk(p.Parse(src), func(n markdown.Node, entering bool) (markdown.WalkStatus, error) {
-		if !entering || n.Type() != markdown.TypeBlock {
-			return markdown.WalkContinue, nil
-		}
-		s := n.SourceSpan()
-		text := fmt.Sprintf("%s %q", n.Kind(), src[s.Start:s.End])
-		switch n := n.(type) {
-		case *markdown.DefinitionList:
-			text += fmt.Sprintf(" offset %d", n.Offset)
-		case *markdown.DefinitionDescription:
-			text += fmt.Sprintf(" tight %v", n.IsTight)
-		}
-		got = append(got, text)
-		return markdown.WalkContinue, nil
-	})
-	want := []string{
-		`Blockquote "> One  \n> Two\n> :   a\n>\n> :\tb\n>     c\n>\n> Three\n> : "`,
-		`DefinitionList "One  \n> Two\n> :   a\n>\n> :\tb\n>     c\n>\n> Three\n> :" offset 2`,
-		`DefinitionTerm "One"`,
-		`DefinitionTerm "Two"`,
-		`DefinitionDescription ":   a" tight true`,
-		`Paragraph "a"`,
-		`DefinitionDescription ":\tb\n>     c" tight false`,
-		`Paragraph "b\n>     c"`,
-		`DefinitionTerm "Three"`,
-		`DefinitionDescription ":" tight true`,
-		`Paragraph "after"`,
-	}
-	if !slices.Equal(got, want) {
-		t.Errorf("tree:\ngot  %q\nwant %q", got, want)
-	}
+	checkTree(t, parser.NewParser(parser.WithExtensions(extension.DefinitionList)), src, `Document [0:59]
+  Blockquote [0:52] "> One  \n> Two\n> :   a\n>\n> :\tb\n>     c\n>\n> Three\n> : "
+    DefinitionList Offset=2 [2:51] "One  \n> Two\n> :   a\n>\n> :\tb\n>     c\n>\n> Three\n> :"
+      DefinitionTerm [2:5] "One"
+        Text "One"
+      DefinitionTerm [10:13] "Two"
+        Text "Two"
+      DefinitionDescription IsTight=true [16:21] ":   a"
+        Paragraph [20:21] "a"
+          Text "a"
+      DefinitionDescription [26:37] ":\tb\n>     c"
+        Paragraph [28:37] "b\n>     c"
+          Text "b" softbreak
+          Text "c"
+      DefinitionTerm [42:47] "Three"
+        Text "Three"
+      DefinitionDescription IsTight=true [50:51] ":"
+  Paragraph [54:59] "after"
+    Text "after"
+`)
 }

@@ -5,23 +5,17 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unaquatic/fluid/internal/markdown"
-	"github.com/unaquatic/fluid/internal/markdown/html"
+	"github.com/unaquatic/fluid/internal/markdown/ast"
 	"github.com/unaquatic/fluid/internal/markdown/internal/spectest"
-	"github.com/unaquatic/fluid/internal/markdown/md"
 	"github.com/unaquatic/fluid/internal/markdown/parser"
 )
 
-// TestCommonMark checks the examples of the CommonMark specification,
-// version 0.31.2, which render raw HTML and XHTML.
+// TestCommonMark checks the trees of the examples of the CommonMark
+// specification, version 0.31.2, by their HTML, with raw HTML and XHTML.
 func TestCommonMark(t *testing.T) {
-	m := md.New(md.WithRendererOptions(html.WithXHTML(), html.WithUnsafe()))
+	p := parser.NewParser()
 	spectest.Run(t, "testdata/spec.json", func(src string) string {
-		var b strings.Builder
-		if err := m.Convert(src, &b); err != nil {
-			t.Fatal(err)
-		}
-		return b.String()
+		return spectest.HTML(p.Parse(src), spectest.Options{XHTML: true, Unsafe: true})
 	})
 }
 
@@ -30,7 +24,7 @@ func TestCommonMark(t *testing.T) {
 func TestLinks(t *testing.T) {
 	const src = "[Foo]: /a \"t\"  \n[foo]: /b\n [Bar  baz]:\n  <c d>\n\n[foo] [bar baz]\n"
 	d := parser.NewParser().Parse(src)
-	want := []*markdown.LinkDef{
+	want := []*ast.LinkDef{
 		{Span: span(src, `[Foo]: /a "t"`), Label: "Foo", URL: "/a", Title: "t"},
 		{Span: span(src, "[Bar  baz]:\n  <c d>"), Label: "Bar  baz", URL: "c d"},
 	}
@@ -43,7 +37,7 @@ func TestLinks(t *testing.T) {
 // space escapes it, unless the space ends a line, and that it lets emphasis
 // close before text that no space parts from it.
 func TestEscapedSpace(t *testing.T) {
-	m := md.New(md.WithParserOptions(parser.WithEscapedSpace()))
+	p := parser.NewParser(parser.WithEscapedSpace())
 	for _, tt := range []struct {
 		name, src, want string
 	}{
@@ -56,26 +50,21 @@ func TestEscapedSpace(t *testing.T) {
 		{"at the end", `a\ `, `a\`},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			var b strings.Builder
-			if err := m.Convert(tt.src, &b); err != nil {
-				t.Fatal(err)
-			}
-			if got, want := b.String(), "<p>"+tt.want+"</p>\n"; got != want {
+			if got, want := spectest.HTML(p.Parse(tt.src), spectest.Options{}), "<p>"+tt.want+"</p>\n"; got != want {
 				t.Errorf("got %q, want %q", got, want)
 			}
 		})
 	}
-	var b strings.Builder
-	if err := md.Convert(`a\ b`, &b); err != nil || b.String() != "<p>a\\ b</p>\n" {
-		t.Errorf("without WithEscapedSpace: %q, %v", b.String(), err)
+	if got := spectest.HTML(parser.NewParser().Parse(`a\ b`), spectest.Options{}); got != "<p>a\\ b</p>\n" {
+		t.Errorf("without WithEscapedSpace: %q", got)
 	}
 }
 
 // span returns the range of the first occurrence of sub in src.
-func span(src, sub string) markdown.Span {
+func span(src, sub string) ast.Span {
 	i := strings.Index(src, sub)
 	if i < 0 {
 		panic("no " + sub)
 	}
-	return markdown.Span{Start: i, End: i + len(sub)}
+	return ast.Span{Start: i, End: i + len(sub)}
 }

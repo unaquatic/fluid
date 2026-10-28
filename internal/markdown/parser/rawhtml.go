@@ -1,6 +1,6 @@
 package parser
 
-import "github.com/unaquatic/fluid/internal/markdown"
+import "github.com/unaquatic/fluid/internal/markdown/ast"
 
 // rawHTMLParser parses inline HTML.
 type rawHTMLParser struct{}
@@ -17,7 +17,7 @@ func (rawHTMLParser) Trigger() []byte { return []byte{'<'} }
 // comment, processing instruction, declaration, or CDATA section follows
 // before it scans for it, so that unterminated ones do not each scan to the
 // end of the text.
-func (rawHTMLParser) Parse(parent markdown.Node, s *InlineState) (markdown.Node, int) {
+func (rawHTMLParser) Parse(parent ast.Node, s *InlineState) (ast.Node, int) {
 	r := s.Rest()
 	if end := htmlTagEnd(r); end != "" && !s.HasAfter(end, s.pos+2) {
 		return nil, 0
@@ -26,5 +26,5 @@ func (rawHTMLParser) Parse(parent markdown.Node, s *InlineState) (markdown.Node,
 	if n == 0 {
 		return nil, 0
 	}
-	return &markdown.RawHTML{Value: r[:n]}, n
+	return &ast.RawHTML{Value: r[:n]}, n
 }

@@ -3,7 +3,7 @@ package parser
 import (
 	"strings"
 
-	"github.com/unaquatic/fluid/internal/markdown"
+	"github.com/unaquatic/fluid/internal/markdown/ast"
 )
 
 // atxHeadingParser parses ATX headings.
@@ -17,7 +17,7 @@ func NewATXHeadingParser() BlockParser { return atxHeadingParser{} }
 func (atxHeadingParser) Trigger() []byte { return []byte{'#'} }
 
 // Open implements [BlockParser].
-func (atxHeadingParser) Open(parent markdown.Node, s *BlockState) (markdown.Node, State) {
+func (atxHeadingParser) Open(parent ast.Node, s *BlockState) (ast.Node, State) {
 	rest := s.Rest()
 	level := runLen(rest, 0, '#')
 	if level == 0 || level > 6 || level < len(rest) && !isSpaceOrTab(rest[level]) {
@@ -29,18 +29,18 @@ func (atxHeadingParser) Open(parent markdown.Node, s *BlockState) (markdown.Node
 	}
 	s.advanceNextNonspace()
 	s.advanceOffset(n, false)
-	h := &markdown.Heading{Level: level}
+	h := &ast.Heading{Level: level}
 	text := s.headingAttributes(h, s.line[s.offset:])
-	h.SetLines([]markdown.Line{{Text: trimClosingSequence(text), Offset: s.lineOffset + s.offset}})
+	h.SetLines([]ast.Line{{Text: trimClosingSequence(text), Offset: s.lineOffset + s.offset}})
 	s.advanceOffset(len(s.line)-s.offset, false)
 	return h, NoChildren
 }
 
 // Continue implements [BlockParser]; a heading is one line.
-func (atxHeadingParser) Continue(markdown.Node, *BlockState) State { return Close }
+func (atxHeadingParser) Continue(ast.Node, *BlockState) State { return Close }
 
 // Close implements [BlockParser].
-func (atxHeadingParser) Close(n markdown.Node, s *BlockState) { s.headingID(n.(*markdown.Heading)) }
+func (atxHeadingParser) Close(n ast.Node, s *BlockState) { s.headingID(n.(*ast.Heading)) }
 
 // CanInterruptParagraph implements [BlockParser].
 func (atxHeadingParser) CanInterruptParagraph() bool { return true }
@@ -74,8 +74,8 @@ func (setextHeadingParser) Trigger() []byte { return []byte{'=', '-'} }
 
 // Open implements [BlockParser]. It puts the heading in the paragraph's
 // place, with its lines after the link reference definitions at its start.
-func (p setextHeadingParser) Open(parent markdown.Node, s *BlockState) (markdown.Node, State) {
-	para, ok := parent.(*markdown.Paragraph)
+func (p setextHeadingParser) Open(parent ast.Node, s *BlockState) (ast.Node, State) {
+	para, ok := parent.(*ast.Paragraph)
 	if !ok {
 		return nil, None
 	}
@@ -91,11 +91,11 @@ func (p setextHeadingParser) Open(parent markdown.Node, s *BlockState) (markdown
 		// no heading text.
 		return nil, None
 	}
-	h := &markdown.Heading{Level: level}
+	h := &ast.Heading{Level: level}
 	last := &lines[len(lines)-1]
 	last.Text = s.headingAttributes(h, last.Text)
 	h.SetLines(lines)
-	h.SetSourceSpan(markdown.Span{Start: start, End: start})
+	h.SetSourceSpan(ast.Span{Start: start, End: start})
 	grand := para.Parent()
 	grand.ReplaceChild(grand, para, h)
 	tip := s.open[len(s.open)-1]
@@ -106,10 +106,10 @@ func (p setextHeadingParser) Open(parent markdown.Node, s *BlockState) (markdown
 
 // Continue implements [BlockParser]; a setext heading ends at its
 // underline.
-func (setextHeadingParser) Continue(markdown.Node, *BlockState) State { return Close }
+func (setextHeadingParser) Continue(ast.Node, *BlockState) State { return Close }
 
 // Close implements [BlockParser].
-func (setextHeadingParser) Close(n markdown.Node, s *BlockState) { s.headingID(n.(*markdown.Heading)) }
+func (setextHeadingParser) Close(n ast.Node, s *BlockState) { s.headingID(n.(*ast.Heading)) }
 
 // CanInterruptParagraph implements [BlockParser].
 func (setextHeadingParser) CanInterruptParagraph() bool { return true }
@@ -120,7 +120,7 @@ func (setextHeadingParser) CanAcceptIndentedLine() bool { return false }
 // headingAttributes sets the attributes at the end of text, a line of the
 // content of heading h, on h, if the parser lets headings end with them, and
 // returns text without them.
-func (s *BlockState) headingAttributes(h *markdown.Heading, text string) string {
+func (s *BlockState) headingAttributes(h *ast.Heading, text string) string {
 	if !s.syntax.attribute {
 		return text
 	}
@@ -134,7 +134,7 @@ func (s *BlockState) headingAttributes(h *markdown.Heading, text string) string 
 // headingID gives heading h an ID, if the parser gives headings them,
 // unless it has an attribute "id", which the document's IDs record as used.
 // The IDs generate it from the source of the heading's last line.
-func (s *BlockState) headingID(h *markdown.Heading) {
+func (s *BlockState) headingID(h *ast.Heading) {
 	if !s.syntax.autoHeadingID {
 		return
 	}
@@ -148,7 +148,7 @@ func (s *BlockState) headingID(h *markdown.Heading) {
 	if lines := h.Lines(); len(lines) > 0 {
 		text = lines[len(lines)-1].Text
 	}
-	h.SetAttribute("id", s.IDs().Generate(text, markdown.KindHeading))
+	h.SetAttribute("id", s.IDs().Generate(text, ast.KindHeading))
 }
 
 // setextLevel returns the level of the setext heading that line s, from its

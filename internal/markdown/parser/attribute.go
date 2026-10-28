@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/unaquatic/fluid/internal/markdown"
+	"github.com/unaquatic/fluid/internal/markdown/ast"
 )
 
 // ParseAttributes parses the list of attributes in braces at the start of
@@ -19,9 +19,11 @@ import (
 // the escapes of JSON; a number, as a float64; true, false, or null, as a
 // bool or nil; a word of ASCII letters, digits, "_", ":", ".", and "-", as
 // a string; values in brackets, as a []any; or attributes in braces, as a
-// []markdown.Attribute. The value of "class" must be a string. Commas may
-// part attributes and values. Brackets and braces nest at most 32 deep.
-func ParseAttributes(s string) ([]markdown.Attribute, int) {
+// []ast.Attribute. The value of "class" must be a string. Commas may
+// part attributes and values. Brackets and braces nest at most 32 deep, a
+// limit that goldmark does not have, so that a list that does not close
+// takes time in proportion to its length.
+func ParseAttributes(s string) ([]ast.Attribute, int) {
 	p := &attrScanner{s: s}
 	attrs, ok := p.attributes()
 	if !ok {
@@ -63,7 +65,7 @@ func (p *attrScanner) skipSpaces() {
 }
 
 // attributes scans a list of attributes in braces, after spaces.
-func (p *attrScanner) attributes() ([]markdown.Attribute, bool) {
+func (p *attrScanner) attributes() ([]ast.Attribute, bool) {
 	p.skipSpaces()
 	if p.peek() != '{' {
 		return nil, false
@@ -73,7 +75,7 @@ func (p *attrScanner) attributes() ([]markdown.Attribute, bool) {
 		return nil, false
 	}
 	p.i++
-	attrs := []markdown.Attribute{}
+	attrs := []ast.Attribute{}
 	for {
 		if p.peek() == '}' {
 			p.i++
@@ -83,7 +85,7 @@ func (p *attrScanner) attributes() ([]markdown.Attribute, bool) {
 		if !ok {
 			return nil, false
 		}
-		i := slices.IndexFunc(attrs, func(b markdown.Attribute) bool { return b.Name == "class" })
+		i := slices.IndexFunc(attrs, func(b ast.Attribute) bool { return b.Name == "class" })
 		if a.Name == "class" && i >= 0 {
 			attrs[i].Value = attrs[i].Value.(string) + " " + a.Value.(string)
 		} else {
@@ -98,7 +100,7 @@ func (p *attrScanner) attributes() ([]markdown.Attribute, bool) {
 }
 
 // attribute scans an attribute, after spaces.
-func (p *attrScanner) attribute() (markdown.Attribute, bool) {
+func (p *attrScanner) attribute() (ast.Attribute, bool) {
 	p.skipSpaces()
 	if c := p.peek(); c == '#' || c == '.' {
 		p.i++
@@ -110,25 +112,25 @@ func (p *attrScanner) attribute() (markdown.Attribute, bool) {
 		if c == '#' {
 			name = "id"
 		}
-		return markdown.Attribute{Name: name, Value: replaceNUL(p.s[start:p.i])}, true
+		return ast.Attribute{Name: name, Value: replaceNUL(p.s[start:p.i])}, true
 	}
 	name, ok := p.word()
 	if !ok {
-		return markdown.Attribute{}, false
+		return ast.Attribute{}, false
 	}
 	p.skipSpaces()
 	if p.peek() != '=' {
-		return markdown.Attribute{}, false
+		return ast.Attribute{}, false
 	}
 	p.i++
 	v, ok := p.value()
 	if !ok {
-		return markdown.Attribute{}, false
+		return ast.Attribute{}, false
 	}
 	if _, isString := v.(string); name == "class" && !isString {
-		return markdown.Attribute{}, false
+		return ast.Attribute{}, false
 	}
-	return markdown.Attribute{Name: name, Value: v}, true
+	return ast.Attribute{Name: name, Value: v}, true
 }
 
 // value scans the value of an attribute, after spaces.
@@ -273,7 +275,7 @@ func isSpaceByte(c byte) bool {
 // the content of a heading, after spaces, and text before them, without
 // the spaces before them. A brace that a backslash escapes starts none. If
 // none ends text, it returns nil and text.
-func trailingAttributes(text string) ([]markdown.Attribute, string) {
+func trailingAttributes(text string) ([]ast.Attribute, string) {
 	for i := 0; i < len(text); i++ {
 		switch text[i] {
 		case '\\':

@@ -3,7 +3,7 @@ package parser
 import (
 	"strings"
 
-	"github.com/unaquatic/fluid/internal/markdown"
+	"github.com/unaquatic/fluid/internal/markdown/ast"
 )
 
 // An InlineParser parses one kind of inline element.
@@ -13,15 +13,15 @@ type InlineParser interface {
 
 	// Parse parses the element at the current position of s, in block
 	// parent, if one starts there, and returns it and its length, or nil
-	// and 0. A [*markdown.Text] that it returns joins the text around it.
-	Parse(parent markdown.Node, s *InlineState) (markdown.Node, int)
+	// and 0. A [*ast.Text] that it returns joins the text around it.
+	Parse(parent ast.Node, s *InlineState) (ast.Node, int)
 }
 
 // An InlineState is the state of a [Parser] as it parses the inline content
 // of a block: the content, and the position that it is parsed to.
 type InlineState struct {
 	syn   *syntax
-	refs  map[string]*markdown.LinkDef
+	refs  map[string]*ast.LinkDef
 	block *BlockState // the state of the document's blocks, which holds its values
 
 	src        string
@@ -63,7 +63,7 @@ func (s *InlineState) InLinkText() bool { return s.brackets != nil }
 
 // LinkDef returns the document's link reference definition for label,
 // which is matched as CommonMark matches labels.
-func (s *InlineState) LinkDef(label string) (*markdown.LinkDef, bool) {
+func (s *InlineState) LinkDef(label string) (*ast.LinkDef, bool) {
 	d, ok := s.refs[normalizeLabel(label)]
 	return d, ok
 }
@@ -108,7 +108,7 @@ func (s *InlineState) SetDocumentValue(key, value any) { s.block.SetValue(key, v
 
 // parse parses src as the inline content of block b, whose children it
 // becomes.
-func (s *InlineState) parse(b markdown.Node, src string) {
+func (s *InlineState) parse(b ast.Node, src string) {
 	s.src = replaceNUL(strings.Trim(src, " \t\n"))
 	s.pos = 0
 	s.delimStack, s.brackets = nil, nil
@@ -122,7 +122,7 @@ func (s *InlineState) parse(b markdown.Node, src string) {
 }
 
 // parseInline parses the inline element at pos and adds it to b.
-func (s *InlineState) parseInline(b markdown.Node) {
+func (s *InlineState) parseInline(b ast.Node) {
 	c := s.src[s.pos]
 	for _, ip := range s.syn.triggers[c] {
 		if n, l := ip.Parse(b, s); l > 0 {
@@ -135,7 +135,7 @@ func (s *InlineState) parseInline(b markdown.Node) {
 	case c == '\n':
 		s.parseNewline(b)
 	case c == '[':
-		t := markdown.NewText("[")
+		t := ast.NewText("[")
 		b.AppendChild(b, t)
 		s.addBracket(t, s.pos, false)
 		s.pos++
@@ -146,7 +146,7 @@ func (s *InlineState) parseInline(b markdown.Node) {
 	case s.syn.delimIdx[c] > 0:
 		s.handleDelim(c, b)
 	case s.syn.special[c]:
-		b.AppendChild(b, markdown.NewText(s.src[s.pos:s.pos+1]))
+		b.AppendChild(b, ast.NewText(s.src[s.pos:s.pos+1]))
 		s.pos++
 	default:
 		s.parseString(b)
@@ -156,7 +156,7 @@ func (s *InlineState) parseInline(b markdown.Node) {
 // parseString adds the text from pos to the next special byte to b, or the
 // text before the first element that a word parser parses in it, and the
 // element.
-func (s *InlineState) parseString(b markdown.Node) {
+func (s *InlineState) parseString(b ast.Node) {
 	start := s.pos
 	i := start
 	for {
@@ -165,7 +165,7 @@ func (s *InlineState) parseString(b markdown.Node) {
 			for _, w := range s.syn.words {
 				if n, l := w.Parse(b, s); l > 0 {
 					if i > start {
-						b.AppendChild(b, markdown.NewText(s.src[start:i]))
+						b.AppendChild(b, ast.NewText(s.src[start:i]))
 					}
 					b.AppendChild(b, n)
 					s.pos = i + l
@@ -177,7 +177,7 @@ func (s *InlineState) parseString(b markdown.Node) {
 			break
 		}
 	}
-	b.AppendChild(b, markdown.NewText(s.src[start:i]))
+	b.AppendChild(b, ast.NewText(s.src[start:i]))
 	s.pos = i
 }
 
@@ -198,10 +198,10 @@ func (s *InlineState) afterEscapedSpace(i int) bool {
 // parseNewline adds a soft or hard line break to b for the line ending at
 // pos, removing the spaces around it. The break is an empty text, which
 // joins the text before it.
-func (s *InlineState) parseNewline(b markdown.Node) {
+func (s *InlineState) parseNewline(b ast.Node) {
 	s.pos++
-	br := markdown.NewText("")
-	if last, ok := b.LastChild().(*markdown.Text); ok && strings.HasSuffix(last.Value, " ") {
+	br := ast.NewText("")
+	if last, ok := b.LastChild().(*ast.Text); ok && strings.HasSuffix(last.Value, " ") {
 		br.SetHardLineBreak(strings.HasSuffix(last.Value, "  "))
 		last.Value = strings.TrimRight(last.Value, " ")
 	}
@@ -215,17 +215,17 @@ func (s *InlineState) parseNewline(b markdown.Node) {
 // joinTexts joins the adjacent texts among the descendants of n, of which
 // only the last can have a line break after it, and removes empty texts
 // with none.
-func joinTexts(n markdown.Node) {
+func joinTexts(n ast.Node) {
 	var b strings.Builder
 	for c := n.FirstChild(); c != nil; {
-		t, ok := c.(*markdown.Text)
+		t, ok := c.(*ast.Text)
 		if !ok {
 			joinTexts(c)
 			c = c.NextSibling()
 			continue
 		}
 		next := c.NextSibling()
-		if nt, ok := next.(*markdown.Text); ok && !hasBreak(t) {
+		if nt, ok := next.(*ast.Text); ok && !hasBreak(t) {
 			b.WriteString(t.Value)
 			for ok && !hasBreak(t) {
 				b.WriteString(nt.Value)
@@ -233,7 +233,7 @@ func joinTexts(n markdown.Node) {
 				t.SetHardLineBreak(nt.HardLineBreak())
 				next = nt.NextSibling()
 				n.RemoveChild(n, nt)
-				nt, ok = next.(*markdown.Text)
+				nt, ok = next.(*ast.Text)
 			}
 			t.Value = b.String()
 			b.Reset()
@@ -246,4 +246,4 @@ func joinTexts(n markdown.Node) {
 }
 
 // hasBreak reports whether a line break follows t.
-func hasBreak(t *markdown.Text) bool { return t.SoftLineBreak() || t.HardLineBreak() }
+func hasBreak(t *ast.Text) bool { return t.SoftLineBreak() || t.HardLineBreak() }

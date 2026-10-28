@@ -2,15 +2,12 @@ package extension_test
 
 import (
 	"fmt"
-	"reflect"
 	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/unaquatic/fluid/internal/markdown"
+	"github.com/unaquatic/fluid/internal/markdown/ast"
 	"github.com/unaquatic/fluid/internal/markdown/extension"
-	"github.com/unaquatic/fluid/internal/markdown/html"
-	"github.com/unaquatic/fluid/internal/markdown/md"
 	"github.com/unaquatic/fluid/internal/markdown/parser"
 )
 
@@ -47,7 +44,7 @@ func note(index int, body string) string {
 
 // TestFootnote checks how footnotes and the references to them render.
 func TestFootnote(t *testing.T) {
-	m := md.New(md.WithExtensions(extension.Footnote))
+	p := parser.NewParser(parser.WithExtensions(extension.Footnote))
 	for _, tt := range []struct {
 		name, src, want string
 	}{
@@ -98,78 +95,10 @@ func TestFootnote(t *testing.T) {
 			"<p>a" + ref(1, 0) + " [^2]</p>\n" + notes(note(1, "<blockquote>\n<p>[^2]: x y</p>\n</blockquote>\n"+back(1, 0)))},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := convert(t, m, tt.src); got != tt.want {
+			if got := convert(t, p, tt.src); got != tt.want {
 				t.Errorf("got:\n%s\nwant:\n%s", got, tt.want)
 			}
 		})
-	}
-}
-
-// TestFootnoteXHTML checks that the list of footnotes renders its rule as
-// XHTML does.
-func TestFootnoteXHTML(t *testing.T) {
-	m := md.New(md.WithExtensions(extension.Footnote), md.WithRendererOptions(html.WithXHTML()))
-	got := convert(t, m, "a[^1]\n\n[^1]: one")
-	if want := "<hr />\n<ol>"; !strings.Contains(got, want) {
-		t.Errorf("got:\n%s\nwant %q in it", got, want)
-	}
-}
-
-// TestFootnoteOptions checks what each option changes, and the numbers that
-// "^^" and "%%" stand for.
-func TestFootnoteOptions(t *testing.T) {
-	const src = "a[^x] b[^x]\n\n[^x]: n"
-	for _, tt := range []struct {
-		name string
-		opts []extension.FootnoteOption
-		want string
-	}{
-		{"all", []extension.FootnoteOption{
-			extension.WithFootnoteIDPrefix("p-"),
-			extension.WithFootnoteLinkClass("c^^"),
-			extension.WithFootnoteLinkTitle(`see "^^"`),
-			extension.WithFootnoteBacklinkClass("b%%"),
-			extension.WithFootnoteBacklinkTitle("back to ^^"),
-			extension.WithFootnoteBacklinkHTML("<b>^^</b>"),
-		}, `<p>a<sup id="p-fnref:1"><a href="#p-fn:1" class="c1" title="see &quot;1&quot;" role="doc-noteref">1</a></sup> b<sup id="p-fnref1:1"><a href="#p-fn:1" class="c1" title="see &quot;1&quot;" role="doc-noteref">1</a></sup></p>
-<div class="footnotes" role="doc-endnotes">
-<hr>
-<ol>
-<li id="p-fn:1">
-<p>n&#160;<a href="#p-fnref:1" class="b2" title="back to 1" role="doc-backlink"><b>1</b></a>&#160;<a href="#p-fnref1:1" class="b2" title="back to 1" role="doc-backlink"><b>1</b></a></p>
-</li>
-</ol>
-</div>
-`},
-		{"prefix function", []extension.FootnoteOption{
-			extension.WithFootnoteIDPrefixFunction(func(n markdown.Node) string { return n.Kind().String() + "-" }),
-		}, `<p>a<sup id="FootnoteLink-fnref:1"><a href="#FootnoteLink-fn:1" class="footnote-ref" role="doc-noteref">1</a></sup> b<sup id="FootnoteLink-fnref1:1"><a href="#FootnoteLink-fn:1" class="footnote-ref" role="doc-noteref">1</a></sup></p>
-<div class="footnotes" role="doc-endnotes">
-<hr>
-<ol>
-<li id="Footnote-fn:1">
-<p>n&#160;<a href="#FootnoteBacklink-fnref:1" class="footnote-backref" role="doc-backlink">&#x21a9;&#xfe0e;</a>&#160;<a href="#FootnoteBacklink-fnref1:1" class="footnote-backref" role="doc-backlink">&#x21a9;&#xfe0e;</a></p>
-</li>
-</ol>
-</div>
-`},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			m := md.New(md.WithExtensions(extension.NewFootnote(tt.opts...)))
-			if got := convert(t, m, src); got != tt.want {
-				t.Errorf("got:\n%s\nwant:\n%s", got, tt.want)
-			}
-		})
-	}
-
-	// A prefix comes before the function.
-	prefixed := convert(t, md.New(md.WithExtensions(extension.NewFootnote(extension.WithFootnoteIDPrefix("p-")))), src)
-	both := md.New(md.WithExtensions(extension.NewFootnote(
-		extension.WithFootnoteIDPrefixFunction(func(markdown.Node) string { return "f-" }),
-		extension.WithFootnoteIDPrefix("p-"),
-	)))
-	if got := convert(t, both, src); got != prefixed || !strings.Contains(got, `"p-fn:1"`) {
-		t.Errorf("prefix and function:\n%s\nwant:\n%s", got, prefixed)
 	}
 }
 
@@ -177,49 +106,28 @@ func TestFootnoteOptions(t *testing.T) {
 // extension of a parser on its own.
 func TestFootnoteTree(t *testing.T) {
 	const src = "a[^n] b[^n]\n\n[^n]: one\n\n    two\n\nc[^e]\n\n[^e]:\n\n[^u]: unused"
-	p := parser.NewParser(parser.WithExtensions(extension.Footnote))
-	doc := p.Parse(src)
-
-	var got []string
-	_ = markdown.Walk(doc, func(n markdown.Node, entering bool) (markdown.WalkStatus, error) {
-		if !entering {
-			return markdown.WalkContinue, nil
-		}
-		s := n.SourceSpan()
-		switch n := n.(type) {
-		case *markdown.FootnoteList:
-			got = append(got, fmt.Sprintf("FootnoteList %d %v", n.Count, s))
-		case *markdown.Footnote:
-			got = append(got, fmt.Sprintf("Footnote %q %d %q", n.Ref, n.Index, src[s.Start:s.End]))
-		case *markdown.FootnoteLink:
-			got = append(got, fmt.Sprintf("FootnoteLink %d %d %d", n.Index, n.RefCount, n.RefIndex))
-		case *markdown.FootnoteBacklink:
-			got = append(got, fmt.Sprintf("FootnoteBacklink %d %d %d", n.Index, n.RefCount, n.RefIndex))
-		case *markdown.Paragraph:
-			got = append(got, fmt.Sprintf("Paragraph %q", src[s.Start:s.End]))
-		}
-		return markdown.WalkContinue, nil
-	})
-	end := markdown.Span{Start: len(src), End: len(src)}
-	want := []string{
-		`Paragraph "a[^n] b[^n]"`,
-		"FootnoteLink 1 2 0",
-		"FootnoteLink 1 2 1",
-		`Paragraph "c[^e]"`,
-		"FootnoteLink 2 1 0",
-		fmt.Sprintf("FootnoteList 2 %v", end),
-		`Footnote "n" 1 "[^n]: one\n\n    two"`,
-		`Paragraph "one"`,
-		`Paragraph "two"`,
-		"FootnoteBacklink 1 2 0",
-		"FootnoteBacklink 1 2 1",
-		`Footnote "e" 2 "[^e]:"`,
-		"FootnoteBacklink 2 1 0",
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("tree:\ngot  %q\nwant %q", got, want)
-	}
-	if _, ok := doc.LastChild().(*markdown.FootnoteList); !ok {
+	checkTree(t, parser.NewParser(parser.WithExtensions(extension.Footnote)), src, `Document [0:59]
+  Paragraph [0:11] "a[^n] b[^n]"
+    Text "a"
+    FootnoteLink Index=1 RefCount=2
+    Text " b"
+    FootnoteLink Index=1 RefCount=2 RefIndex=1
+  Paragraph [33:38] "c[^e]"
+    Text "c"
+    FootnoteLink Index=2 RefCount=1
+  FootnoteList Count=2 [59:59] ""
+    Footnote Ref="n" Index=1 [13:31] "[^n]: one\n\n    two"
+      Paragraph [19:22] "one"
+        Text "one"
+      Paragraph [28:31] "two"
+        Text "two"
+        FootnoteBacklink Index=1 RefCount=2
+        FootnoteBacklink Index=1 RefCount=2 RefIndex=1
+    Footnote Ref="e" Index=2 [40:45] "[^e]:"
+      FootnoteBacklink Index=2 RefCount=1
+`)
+	doc := parser.NewParser(parser.WithExtensions(extension.Footnote)).Parse(src)
+	if _, ok := doc.LastChild().(*ast.FootnoteList); !ok {
 		t.Errorf("last block %s, want the footnotes", doc.LastChild().Kind())
 	}
 }

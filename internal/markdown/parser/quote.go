@@ -1,6 +1,6 @@
 package parser
 
-import "github.com/unaquatic/fluid/internal/markdown"
+import "github.com/unaquatic/fluid/internal/markdown/ast"
 
 // blockquoteParser parses block quotes.
 type blockquoteParser struct{}
@@ -13,14 +13,14 @@ func NewBlockquoteParser() BlockParser { return blockquoteParser{} }
 func (blockquoteParser) Trigger() []byte { return []byte{'>'} }
 
 // Open implements [BlockParser].
-func (blockquoteParser) Open(parent markdown.Node, s *BlockState) (markdown.Node, State) {
+func (blockquoteParser) Open(parent ast.Node, s *BlockState) (ast.Node, State) {
 	s.consumeQuoteMarker()
-	return &markdown.Blockquote{}, HasChildren
+	return &ast.Blockquote{}, HasChildren
 }
 
 // Continue implements [BlockParser]; a line continues a block quote if it
 // starts with its marker.
-func (blockquoteParser) Continue(n markdown.Node, s *BlockState) State {
+func (blockquoteParser) Continue(n ast.Node, s *BlockState) State {
 	if s.Indented() || peek(s.line, s.NextNonspace()) != '>' {
 		return Close
 	}
@@ -29,7 +29,7 @@ func (blockquoteParser) Continue(n markdown.Node, s *BlockState) State {
 }
 
 // Close implements [BlockParser].
-func (blockquoteParser) Close(markdown.Node, *BlockState) {}
+func (blockquoteParser) Close(ast.Node, *BlockState) {}
 
 // CanInterruptParagraph implements [BlockParser].
 func (blockquoteParser) CanInterruptParagraph() bool { return true }

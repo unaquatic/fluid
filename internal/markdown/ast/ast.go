@@ -1,5 +1,6 @@
-// Package markdown defines the tree of a parsed Markdown document, which
-// package [github.com/unaquatic/fluid/internal/markdown/parser] builds.
+// Package ast defines the tree of a parsed Markdown document, its abstract
+// syntax tree, which package
+// [github.com/unaquatic/fluid/internal/markdown/parser] builds.
 //
 // The tree is made of [Node] values: blocks, such as [*Paragraph] and
 // [*List], which hold blocks or inline content, and inline content, such as
@@ -12,9 +13,13 @@
 //
 // Every block records, in a [Span], the range of the source it comes from,
 // in bytes; a [LineIndex] finds the lines and columns of those offsets.
-package markdown
+// [Dump] writes a tree as text, for debugging and tests.
+package ast
 
-import "slices"
+import (
+	"slices"
+	"strconv"
+)
 
 // A Span is the range of a document's source that a node comes from: the
 // bytes src[Start:End].
@@ -86,6 +91,19 @@ const (
 	Checked               // the marker "[x]" or "[X]"
 )
 
+// String returns the name of t: "none", "unchecked", or "checked".
+func (t Task) String() string {
+	switch t {
+	case NotTask:
+		return "none"
+	case Unchecked:
+		return "unchecked"
+	case Checked:
+		return "checked"
+	}
+	return "Task(" + strconv.Itoa(int(t)) + ")"
+}
+
 // An Alignment is the alignment of a [Table] column.
 type Alignment uint8
 
@@ -96,9 +114,24 @@ const (
 	AlignRight                   // a colon after the hyphens, as in "--:"
 )
 
+// String returns the name of a: "none", "left", "center", or "right".
+func (a Alignment) String() string {
+	switch a {
+	case AlignNone:
+		return "none"
+	case AlignLeft:
+		return "left"
+	case AlignCenter:
+		return "center"
+	case AlignRight:
+		return "right"
+	}
+	return "Alignment(" + strconv.Itoa(int(a)) + ")"
+}
+
 // A Prioritized is a value with the priority that orders it among the
-// others of its kind, such as a parser or a renderer: lower priorities come
-// first, and equal ones in the order in which they were added.
+// others of its kind, such as a parser or a transformer: lower priorities
+// come first, and equal ones in the order in which they were added.
 type Prioritized[T any] struct {
 	Value    T
 	Priority int

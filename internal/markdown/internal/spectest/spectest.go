@@ -1,7 +1,7 @@
-// Package spectest checks converters of Markdown against the examples of the
-// CommonMark and GitHub Flavored Markdown specifications, which give each
-// example's HTML in the form that their reference implementations render
-// it.
+// Package spectest checks the parser against the examples of the CommonMark
+// and GitHub Flavored Markdown specifications, which give each example's
+// HTML in the form that their reference implementations render it. [HTML]
+// renders trees so, for tests only.
 package spectest
 
 import (

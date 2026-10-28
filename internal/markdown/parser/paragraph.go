@@ -3,7 +3,7 @@ package parser
 import (
 	"strings"
 
-	"github.com/unaquatic/fluid/internal/markdown"
+	"github.com/unaquatic/fluid/internal/markdown/ast"
 )
 
 // paragraphParser parses paragraphs, which [NewParagraphParser] returns.
@@ -20,11 +20,11 @@ func NewParagraphParser() BlockParser { return paragraphParser{} }
 func (paragraphParser) Trigger() []byte { return nil }
 
 // Open implements [BlockParser]; it opens nothing.
-func (paragraphParser) Open(markdown.Node, *BlockState) (markdown.Node, State) { return nil, None }
+func (paragraphParser) Open(ast.Node, *BlockState) (ast.Node, State) { return nil, None }
 
 // Continue implements [BlockParser]; a blank line ends a paragraph, and any
 // other line continues it unless another block starts on it.
-func (paragraphParser) Continue(n markdown.Node, s *BlockState) State {
+func (paragraphParser) Continue(n ast.Node, s *BlockState) State {
 	if s.Blank() {
 		return Close
 	}
@@ -32,12 +32,12 @@ func (paragraphParser) Continue(n markdown.Node, s *BlockState) State {
 }
 
 // AddLine implements [LineAdder].
-func (paragraphParser) AddLine(n markdown.Node, s *BlockState) {
+func (paragraphParser) AddLine(n ast.Node, s *BlockState) {
 	n.SetLines(append(n.Lines(), s.Remaining()))
 }
 
 // Close implements [BlockParser].
-func (paragraphParser) Close(n markdown.Node, s *BlockState) {
+func (paragraphParser) Close(n ast.Node, s *BlockState) {
 	lines, start := s.takeRefs(n.Lines())
 	n.SetLines(lines)
 	parent := n.Parent()
@@ -48,7 +48,7 @@ func (paragraphParser) Close(n markdown.Node, s *BlockState) {
 	sp := n.SourceSpan()
 	sp.Start = start
 	n.SetSourceSpan(sp)
-	p := n.(*markdown.Paragraph)
+	p := n.(*ast.Paragraph)
 	for _, t := range s.syntax.paragraphTransformers {
 		if t.Transform(p, s); p.Parent() == nil {
 			return
@@ -65,7 +65,7 @@ func (paragraphParser) CanAcceptIndentedLine() bool { return false }
 // takeRefs adds the link reference definitions at the start of lines, the
 // lines of a paragraph, to the document, and returns the lines after them
 // and the offset in the source at which those start.
-func (s *BlockState) takeRefs(lines []markdown.Line) ([]markdown.Line, int) {
+func (s *BlockState) takeRefs(lines []ast.Line) ([]ast.Line, int) {
 	if len(lines) == 0 || !strings.HasPrefix(lines[0].Text, "[") {
 		return lines, sourceOffset(lines, 0)
 	}
@@ -131,8 +131,8 @@ func (s *BlockState) parseReference(src string, at func(int) int) int {
 		return 0
 	}
 	if _, dup := s.refs[key]; !dup {
-		d := &markdown.LinkDef{
-			Span:  markdown.Span{Start: at(0), End: at(i)},
+		d := &ast.LinkDef{
+			Span:  ast.Span{Start: at(0), End: at(i)},
 			Label: replaceNUL(label),
 			URL:   replaceNUL(url),
 			Title: replaceNUL(title),

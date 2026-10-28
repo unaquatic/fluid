@@ -142,11 +142,11 @@ func setChunks(dst *[]style.TextChunk, t style.StyledText) bool {
 
 // withLeader returns blocks with leader before their first inline text,
 // parted from it by a space: at the start of the first paragraph, heading,
-// or list item, also of one in a list or a quote. Blocks that start with a
-// code block, table, or rule take leader as a paragraph of its own before
-// them, parted as insertBlockSpacing parts blocks, and no blocks take it
-// alone. withLeader leaves blocks as they are, copying the blocks it
-// changes.
+// or list item, also of one in a list, a quote, a definition list, or the
+// footnotes. Blocks that start with a code block, table, or rule take
+// leader as a paragraph of its own before them, parted as
+// insertBlockSpacing parts blocks, and no blocks take it alone. withLeader
+// leaves blocks as they are, copying the blocks it changes.
 func withLeader(blocks []mdBlock, leader []style.TextChunk) []mdBlock {
 	if len(leader) == 0 {
 		return blocks
@@ -176,7 +176,7 @@ func prependLeader(blocks []mdBlock, leader []style.TextChunk) ([]mdBlock, bool)
 			// A list item's text is on its marker's line, before its nested
 			// blocks.
 			b.Body = leadBody(leader, b.Body)
-		case mdBlockList, mdBlockOrderedList, mdBlockQuote:
+		case mdBlockList, mdBlockOrderedList, mdBlockQuote, mdBlockDefinitionList, mdBlockFootnotes:
 			children, ok := prependLeader(b.Children, leader)
 			if !ok {
 				return blocks, false
@@ -203,9 +203,10 @@ func leadBody(leader, body []style.TextChunk) []style.TextChunk {
 
 // withTrailer returns blocks with trailer after their last inline text,
 // parted from it by a space: at the end of the last paragraph, heading, or
-// list item, also of one in a list or a quote. Blocks that end with a code
-// block, table, or rule take trailer as a paragraph of its own after them,
-// parted as insertBlockSpacing parts blocks, and no blocks take it alone.
+// list item, also of one in a list, a quote, a definition list, or the
+// footnotes. Blocks that end with a code block, table, or rule take trailer
+// as a paragraph of its own after them, parted as insertBlockSpacing parts
+// blocks, and no blocks take it alone.
 // withTrailer leaves blocks as they are, copying the blocks it changes.
 func withTrailer(blocks []mdBlock, trailer []style.TextChunk) []mdBlock {
 	if len(trailer) == 0 {
@@ -245,7 +246,7 @@ func appendTrailer(blocks []mdBlock, trailer []style.TextChunk) ([]mdBlock, bool
 			default:
 				b.Body = trailBody(b.Body, trailer)
 			}
-		case mdBlockList, mdBlockOrderedList, mdBlockQuote:
+		case mdBlockList, mdBlockOrderedList, mdBlockQuote, mdBlockDefinitionList, mdBlockFootnotes:
 			children, ok := appendTrailer(b.Children, trailer)
 			if !ok {
 				return blocks, false

@@ -1,4 +1,6 @@
-package markdown
+package ast
+
+import "strconv"
 
 // Kinds of the inline content of CommonMark, GitHub Flavored Markdown, and
 // the other extensions of the parser.
@@ -102,6 +104,17 @@ const (
 	AutoLinkURL   AutoLinkType = iota // a URL
 	AutoLinkEmail                     // an email address
 )
+
+// String returns the name of t: "url" or "email".
+func (t AutoLinkType) String() string {
+	switch t {
+	case AutoLinkURL:
+		return "url"
+	case AutoLinkEmail:
+		return "email"
+	}
+	return "AutoLinkType(" + strconv.Itoa(int(t)) + ")"
+}
 
 // An AutoLink is an autolink: a URI or email address in angle brackets, or,
 // with GFM, an extended autolink, which needs none.

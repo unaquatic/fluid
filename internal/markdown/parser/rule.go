@@ -1,6 +1,6 @@
 package parser
 
-import "github.com/unaquatic/fluid/internal/markdown"
+import "github.com/unaquatic/fluid/internal/markdown/ast"
 
 // thematicBreakParser parses thematic breaks.
 type thematicBreakParser struct{}
@@ -13,7 +13,7 @@ func NewThematicBreakParser() BlockParser { return thematicBreakParser{} }
 func (thematicBreakParser) Trigger() []byte { return []byte{'*', '-', '_'} }
 
 // Open implements [BlockParser].
-func (thematicBreakParser) Open(parent markdown.Node, s *BlockState) (markdown.Node, State) {
+func (thematicBreakParser) Open(parent ast.Node, s *BlockState) (ast.Node, State) {
 	if s.nextNonspace < s.ruleFail {
 		return nil, None
 	}
@@ -25,14 +25,14 @@ func (thematicBreakParser) Open(parent markdown.Node, s *BlockState) (markdown.N
 		return nil, None
 	}
 	s.advanceOffset(len(s.line)-s.offset, false)
-	return &markdown.ThematicBreak{}, NoChildren
+	return &ast.ThematicBreak{}, NoChildren
 }
 
 // Continue implements [BlockParser]; a thematic break is one line.
-func (thematicBreakParser) Continue(markdown.Node, *BlockState) State { return Close }
+func (thematicBreakParser) Continue(ast.Node, *BlockState) State { return Close }
 
 // Close implements [BlockParser].
-func (thematicBreakParser) Close(markdown.Node, *BlockState) {}
+func (thematicBreakParser) Close(ast.Node, *BlockState) {}
 
 // CanInterruptParagraph implements [BlockParser].
 func (thematicBreakParser) CanInterruptParagraph() bool { return true }

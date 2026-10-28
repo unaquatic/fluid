@@ -3,7 +3,7 @@ package parser
 import (
 	"strings"
 
-	"github.com/unaquatic/fluid/internal/markdown"
+	"github.com/unaquatic/fluid/internal/markdown/ast"
 )
 
 // codeSpanParser parses code spans.
@@ -23,7 +23,7 @@ func (codeSpanParser) Trigger() []byte { return []byte{'`'} }
 type noTicksKey struct{}
 
 // Parse implements [InlineParser].
-func (codeSpanParser) Parse(parent markdown.Node, s *InlineState) (markdown.Node, int) {
+func (codeSpanParser) Parse(parent ast.Node, s *InlineState) (ast.Node, int) {
 	src, start := s.Source(), s.Pos()
 	n := runLen(src, start, '`')
 	after := start + n
@@ -44,8 +44,8 @@ func (codeSpanParser) Parse(parent markdown.Node, s *InlineState) (markdown.Node
 				if code != "" && code[0] == ' ' && code[len(code)-1] == ' ' && strings.Trim(code, " ") != "" {
 					code = code[1 : len(code)-1]
 				}
-				cs := &markdown.CodeSpan{}
-				cs.AppendChild(cs, markdown.NewText(code))
+				cs := &ast.CodeSpan{}
+				cs.AppendChild(cs, ast.NewText(code))
 				return cs, j + k - start
 			}
 			i = j + k
@@ -56,5 +56,5 @@ func (codeSpanParser) Parse(parent markdown.Node, s *InlineState) (markdown.Node
 		}
 		noTicks[n] = true
 	}
-	return markdown.NewText(src[start:after]), n
+	return ast.NewText(src[start:after]), n
 }

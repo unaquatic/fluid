@@ -3,7 +3,7 @@ package parser
 import (
 	"strings"
 
-	"github.com/unaquatic/fluid/internal/markdown"
+	"github.com/unaquatic/fluid/internal/markdown/ast"
 )
 
 // autoLinkParser parses autolinks.
@@ -17,15 +17,15 @@ func NewAutoLinkParser() InlineParser { return autoLinkParser{} }
 func (autoLinkParser) Trigger() []byte { return []byte{'<'} }
 
 // Parse implements [InlineParser].
-func (autoLinkParser) Parse(parent markdown.Node, s *InlineState) (markdown.Node, int) {
+func (autoLinkParser) Parse(parent ast.Node, s *InlineState) (ast.Node, int) {
 	r := s.Rest()
 	if n := emailAutolink(r); n > 0 {
 		addr := r[1 : n-1]
-		return &markdown.AutoLink{AutoLinkType: markdown.AutoLinkEmail, URL: "mailto:" + addr, Label: addr}, n
+		return &ast.AutoLink{AutoLinkType: ast.AutoLinkEmail, URL: "mailto:" + addr, Label: addr}, n
 	}
 	if n := uriAutolink(r); n > 0 {
 		uri := r[1 : n-1]
-		return &markdown.AutoLink{AutoLinkType: markdown.AutoLinkURL, URL: uri, Label: uri}, n
+		return &ast.AutoLink{AutoLinkType: ast.AutoLinkURL, URL: uri, Label: uri}, n
 	}
 	return nil, 0
 }

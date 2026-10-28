@@ -1,0 +1,58 @@
+=== text ===
+|Apple                       |
+|  : Pomaceous fruit of      |
+|    plants of the genus     |
+|    Malus.                  |
+|  : An American computer    |
+|    company.                |
+|Orange                      |
+|  : Citrus.                 |
+|                            |
+|│                           |
+|│ Term                      |
+|│   : quoted description    |
+|│     wraps                 |
+|                            |
+|Loose                       |
+|                            |
+|  : after a blank line      |
+=== fg ===
+|AAAAA                       |
+|  B AAAAAAAAA AAAAA AA      |
+|    AAAAAA AA AAA AAAAA     |
+|    AAAAAA                  |
+|  B AA AAAAAAAA AAAAAAAA    |
+|    AAAAAAAA                |
+|AAAAAA                      |
+|  B AAAAAAA                 |
+|                            |
+|C                           |
+|C AAAA                      |
+|C   B AAAAAA AAAAAAAAAAA    |
+|C     AAAAA                 |
+|                            |
+|AAAAA                       |
+|                            |
+|  B AAAAA A AAAAA AAAA      |
+=== attrs ===
+|BBBBB                       |
+|                            |
+|                            |
+|                            |
+|                            |
+|                            |
+|BBBBBB                      |
+|                            |
+|                            |
+|                            |
+|  BBBB                      |
+|                            |
+|                            |
+|                            |
+|BBBBB                       |
+|                            |
+|                            |
+=== legend ===
+A #ffffff
+B #5555ff
+C #808080

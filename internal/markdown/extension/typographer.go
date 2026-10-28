@@ -5,8 +5,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/unaquatic/fluid/internal/markdown"
-	"github.com/unaquatic/fluid/internal/markdown/md"
+	"github.com/unaquatic/fluid/internal/markdown/ast"
 	"github.com/unaquatic/fluid/internal/markdown/parser"
 )
 
@@ -52,8 +51,8 @@ func defaultSubstitutions() TypographicSubstitutions {
 }
 
 // A TypographerConfig holds the text that replaces each kind of
-// punctuation, as text that renders escaped. A kind that it replaces with
-// "" stays as written.
+// punctuation, which is text, not markup. A kind that it replaces with ""
+// stays as written.
 type TypographerConfig struct {
 	Substitutions TypographicSubstitutions
 }
@@ -81,10 +80,9 @@ type typographer struct {
 // typographers do, configured by opts: the parser that
 // [NewTypographerParser] returns, with priority 9999, after the other
 // inline parsers.
-func NewTypographer(opts ...TypographerOption) Extension { return &typographer{options: opts} }
-
-// Extend implements [md.Extender].
-func (e *typographer) Extend(m md.Markdown) { m.Parser().AddOptions(parser.WithExtensions(e)) }
+func NewTypographer(opts ...TypographerOption) parser.Extension {
+	return &typographer{options: opts}
+}
 
 // ExtendParser implements [parser.Extension].
 func (e *typographer) ExtendParser(c *parser.Config) {
@@ -103,6 +101,12 @@ type typographerParser struct {
 // and "'90s". A double quotation mark after a digit and before another is
 // an inch mark, as in "Monitor 21"", which stays as written. The text of
 // the punctuation that the parser replaces is the replacement's.
+//
+// Each inline content, such as a paragraph, a heading, or a table cell,
+// counts the quotes that it opens and has not closed, which a quotation
+// mark that could open or close a quote closes. goldmark means to count
+// them so too, but never resets its counts, and so counts them across the
+// document.
 func NewTypographerParser(opts ...TypographerOption) parser.InlineParser {
 	c := TypographerConfig{Substitutions: defaultSubstitutions()}
 	for _, opt := range opts {
@@ -170,7 +174,7 @@ func (st *typographerState) runLen(s *parser.InlineState, line string) int {
 }
 
 // Parse implements [parser.InlineParser].
-func (p *typographerParser) Parse(parent markdown.Node, s *parser.InlineState) (markdown.Node, int) {
+func (p *typographerParser) Parse(parent ast.Node, s *parser.InlineState) (ast.Node, int) {
 	st := typographerStateOf(s)
 	line := st.line(s)
 	c := line[0]
@@ -221,7 +225,7 @@ func (p *typographerParser) Parse(parent markdown.Node, s *parser.InlineState) (
 
 // single parses the single quotation mark at the start of line, after
 // before, which the flanking of its run lets open or close quotes.
-func (p *typographerParser) single(line string, before rune, canOpen, canClose bool, st *typographerState) (markdown.Node, int) {
+func (p *typographerParser) single(line string, before rune, canOpen, canClose bool, st *typographerState) (ast.Node, int) {
 	if p.has(Apostrophe) {
 		// A decade, such as '90s.
 		if canOpen && !canClose && len(line) > 3 && isDigit(line[1]) && isDigit(line[2]) && line[3] == 's' {
@@ -270,11 +274,11 @@ func (p *typographerParser) has(k TypographicPunctuation) bool { return p.subs[k
 
 // replace returns the text that replaces n bytes of punctuation of kind k,
 // or nil if p keeps it.
-func (p *typographerParser) replace(k TypographicPunctuation, n int) (markdown.Node, int) {
+func (p *typographerParser) replace(k TypographicPunctuation, n int) (ast.Node, int) {
 	if !p.has(k) {
 		return nil, 0
 	}
-	return markdown.NewText(p.subs[k]), n
+	return ast.NewText(p.subs[k]), n
 }
 
 // closesQuote reports whether the quotation mark at the start of line

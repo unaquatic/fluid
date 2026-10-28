@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/unaquatic/fluid/internal/markdown"
+	"github.com/unaquatic/fluid/internal/markdown/ast"
 )
 
 // escapeParser parses backslash escapes.
@@ -21,19 +21,19 @@ func NewEscapeParser() InlineParser { return escapeParser{} }
 func (escapeParser) Trigger() []byte { return []byte{'\\'} }
 
 // Parse implements [InlineParser].
-func (escapeParser) Parse(parent markdown.Node, s *InlineState) (markdown.Node, int) {
+func (escapeParser) Parse(parent ast.Node, s *InlineState) (ast.Node, int) {
 	r := s.Rest()
 	switch {
 	case len(r) > 1 && r[1] == '\n':
-		br := markdown.NewText("")
+		br := ast.NewText("")
 		br.SetHardLineBreak(true)
 		return br, 2
 	case len(r) > 1 && isASCIIPunct(r[1]):
-		return markdown.NewText(r[1:2]), 2
+		return ast.NewText(r[1:2]), 2
 	case len(r) > 1 && r[1] == ' ' && s.syn.escapedSpace && !endsLine(r[2:]):
-		return markdown.NewText(""), 2
+		return ast.NewText(""), 2
 	}
-	return markdown.NewText(`\`), 1
+	return ast.NewText(`\`), 1
 }
 
 // endsLine reports whether only spaces and tabs come before the end of the
@@ -55,12 +55,12 @@ func NewEntityParser() InlineParser { return entityParser{} }
 func (entityParser) Trigger() []byte { return []byte{'&'} }
 
 // Parse implements [InlineParser].
-func (entityParser) Parse(parent markdown.Node, s *InlineState) (markdown.Node, int) {
+func (entityParser) Parse(parent ast.Node, s *InlineState) (ast.Node, int) {
 	text, n := entity(s.Rest())
 	if n == 0 {
 		return nil, 0
 	}
-	return markdown.NewText(text), n
+	return ast.NewText(text), n
 }
 
 // unescape resolves the backslash escapes and entities in s.

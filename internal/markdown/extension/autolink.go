@@ -5,8 +5,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/unaquatic/fluid/internal/markdown"
-	"github.com/unaquatic/fluid/internal/markdown/md"
+	"github.com/unaquatic/fluid/internal/markdown/ast"
 	"github.com/unaquatic/fluid/internal/markdown/parser"
 )
 
@@ -17,11 +16,8 @@ type linkify struct {
 
 // NewLinkify returns an extension that adds extended autolinks, configured
 // by opts: the parser that [NewLinkifyParser] returns, with priority 100,
-// at the start of each word. The renderer of CommonMark renders them.
-func NewLinkify(opts ...LinkifyOption) Extension { return &linkify{options: opts} }
-
-// Extend implements [md.Extender].
-func (e *linkify) Extend(m md.Markdown) { m.Parser().AddOptions(parser.WithExtensions(e)) }
+// at the start of each word.
+func NewLinkify(opts ...LinkifyOption) parser.Extension { return &linkify{options: opts} }
 
 // ExtendParser implements [parser.Extension].
 func (e *linkify) ExtendParser(c *parser.Config) {
@@ -95,19 +91,19 @@ func (*linkifyParser) Trigger() []byte { return alnums }
 var alnums = []byte("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
 
 // Parse implements [parser.InlineParser].
-func (p *linkifyParser) Parse(parent markdown.Node, s *parser.InlineState) (markdown.Node, int) {
+func (p *linkifyParser) Parse(parent ast.Node, s *parser.InlineState) (ast.Node, int) {
 	src, i := s.Source(), s.Pos()
 	if s.InLinkText() || !autolinkBoundary(src, i) {
 		return nil, 0
 	}
 	if text, url, n := p.extendedAutolink(src[i:]); n > 0 {
-		return &markdown.AutoLink{AutoLinkType: markdown.AutoLinkURL, URL: url, Label: text}, n
+		return &ast.AutoLink{AutoLinkType: ast.AutoLinkURL, URL: url, Label: text}, n
 	}
 	if !p.config.Email {
 		return nil, 0
 	}
 	if n := emailAutolink(s, i); n > 0 {
-		return &markdown.AutoLink{AutoLinkType: markdown.AutoLinkEmail, URL: "mailto:" + src[i:i+n], Label: src[i : i+n]}, n
+		return &ast.AutoLink{AutoLinkType: ast.AutoLinkEmail, URL: "mailto:" + src[i:i+n], Label: src[i : i+n]}, n
 	}
 	return nil, 0
 }

@@ -4,7 +4,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/unaquatic/fluid/internal/markdown"
+	"github.com/unaquatic/fluid/internal/markdown/ast"
 )
 
 // A DelimiterProcessor processes the runs of delimiter characters, such as
@@ -22,7 +22,7 @@ type DelimiterProcessor interface {
 
 	// OnMatch returns the node of a span between runs that consume
 	// characters at each end, whose children the parser adds.
-	OnMatch(consumes int) markdown.Node
+	OnMatch(consumes int) ast.Node
 }
 
 // A Delimiter is a run of delimiter characters, as a [DelimiterProcessor]
@@ -35,8 +35,8 @@ type Delimiter struct {
 	CanClose       bool
 	Processor      DelimiterProcessor
 
-	node       *markdown.Text // the run's text
-	class      int            // index of the run's class in the syntax
+	node       *ast.Text // the run's text
+	class      int       // index of the run's class in the syntax
 	prev, next *Delimiter
 }
 
@@ -55,7 +55,7 @@ type DelimiterRule struct {
 
 	// New returns the node of a span between runs that consume 1 or 2
 	// characters at each end.
-	New func(consumes int) markdown.Node
+	New func(consumes int) ast.Node
 }
 
 // IsDelimiter implements [DelimiterProcessor].
@@ -68,15 +68,15 @@ func (r DelimiterRule) CanOpenCloser(opener, closer *Delimiter) bool {
 }
 
 // OnMatch implements [DelimiterProcessor].
-func (r DelimiterRule) OnMatch(consumes int) markdown.Node { return r.New(consumes) }
+func (r DelimiterRule) OnMatch(consumes int) ast.Node { return r.New(consumes) }
 
 // handleDelim adds the run of delimiter c at pos to b as text and, if it
 // can open or close a span, to the delimiter stack.
-func (s *InlineState) handleDelim(c byte, b markdown.Node) {
+func (s *InlineState) handleDelim(c byte, b ast.Node) {
 	class := s.syn.delimIdx[c] - 1
 	dc := s.syn.delims[class]
 	n, canOpen, canClose := s.scanDelims(c, dc.intraword)
-	node := markdown.NewText(s.src[s.pos : s.pos+n])
+	node := ast.NewText(s.src[s.pos : s.pos+n])
 	b.AppendChild(b, node)
 	s.pos += n
 	if dc.maxRun > 0 && n > dc.maxRun || !canOpen && !canClose {
@@ -187,7 +187,7 @@ func (s *InlineState) processEmphasis(bottom *Delimiter) {
 		cn.Value = cn.Value[:len(cn.Value)-use]
 
 		span := opener.Processor.OnMatch(use)
-		for t := on.NextSibling(); t != nil && t != markdown.Node(cn); {
+		for t := on.NextSibling(); t != nil && t != ast.Node(cn); {
 			next := t.NextSibling()
 			span.AppendChild(span, t)
 			t = next

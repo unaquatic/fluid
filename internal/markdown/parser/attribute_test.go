@@ -6,12 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unaquatic/fluid/internal/markdown"
-	"github.com/unaquatic/fluid/internal/markdown/md"
+	"github.com/unaquatic/fluid/internal/markdown/ast"
 	"github.com/unaquatic/fluid/internal/markdown/parser"
 )
 
-type attrs = []markdown.Attribute
+type attrs = []ast.Attribute
 
 // TestParseAttributes checks the attributes that each list parses to, and
 // the length that it takes, or that it is no list.
@@ -75,81 +74,137 @@ func TestParseAttributesDepth(t *testing.T) {
 	}
 }
 
-// convert returns the HTML that m converts src to.
-func convert(t *testing.T, m md.Markdown, src string) string {
-	t.Helper()
-	var b strings.Builder
-	if err := m.Convert(src, &b); err != nil {
-		t.Fatal(err)
-	}
-	return b.String()
-}
-
 // TestHeadingAttributes checks which attributes headings get, and what they
 // leave of the heading's text, with WithAttribute and without it.
 func TestHeadingAttributes(t *testing.T) {
-	m := md.New(md.WithParserOptions(parser.WithAttribute()))
+	p := parser.NewParser(parser.WithAttribute())
 	for _, tt := range []struct {
 		name, src, want string
 	}{
-		{"ATX", "# Title {#top .big}", `<h1 id="top" class="big">Title</h1>`},
-		{"closing sequence", "## Title ## {#t}", `<h2 id="t">Title</h2>`},
-		{"closing sequence after", "## Title {#t} ##", `<h2>Title {#t}</h2>`},
-		{"only attributes", "# {#x}", `<h1 id="x"></h1>`},
-		{"setext", "Some\nTitle {.x}\n===", "<h1 class=\"x\">Some\nTitle</h1>"},
-		{"not at the end", "# A {#a} b", `<h1>A {#a} b</h1>`},
-		{"escaped brace", `# A \{#a}`, `<h1>A {#a}</h1>`},
-		{"invalid", "# T {class=1}", `<h1>T {class=1}</h1>`},
-		{"last list", "# T {#a} {#b}", `<h1 id="b">T {#a}</h1>`},
-		{"filtered", "# T {data-n=1 onclick=x lang=en}", `<h1 data-n="1" lang="en">T</h1>`},
-		{"in code span", "# `x {#a}`", "<h1><code>x {#a}</code></h1>"},
-		{"paragraph", "text {#a}", "<p>text {#a}</p>"},
+		{"ATX", "# Title {#top .big}", `Document [0:19]
+  Heading Level=1 {id="top" class="big"} [0:19] "# Title {#top .big}"
+    Text "Title"
+`},
+		{"closing sequence", "## Title ## {#t}", `Document [0:16]
+  Heading Level=2 {id="t"} [0:16] "## Title ## {#t}"
+    Text "Title"
+`},
+		{"closing sequence after", "## Title {#t} ##", `Document [0:16]
+  Heading Level=2 [0:16] "## Title {#t} ##"
+    Text "Title {#t}"
+`},
+		{"only attributes", "# {#x}", `Document [0:6]
+  Heading Level=1 {id="x"} [0:6] "# {#x}"
+`},
+		{"setext", "Some\nTitle {.x}\n===", `Document [0:19]
+  Heading Level=1 {class="x"} [0:19] "Some\nTitle {.x}\n==="
+    Text "Some" softbreak
+    Text "Title"
+`},
+		{"not at the end", "# A {#a} b", `Document [0:10]
+  Heading Level=1 [0:10] "# A {#a} b"
+    Text "A {#a} b"
+`},
+		{"escaped brace", `# A \{#a}`, `Document [0:9]
+  Heading Level=1 [0:9] "# A \\{#a}"
+    Text "A {#a}"
+`},
+		{"invalid", "# T {class=1}", `Document [0:13]
+  Heading Level=1 [0:13] "# T {class=1}"
+    Text "T {class=1}"
+`},
+		{"last list", "# T {#a} {#b}", `Document [0:13]
+  Heading Level=1 {id="b"} [0:13] "# T {#a} {#b}"
+    Text "T {#a}"
+`},
+		{"any names", "# T {data-n=1 onclick=x lang=en}", `Document [0:32]
+  Heading Level=1 {data-n=1 onclick="x" lang="en"} [0:32] "# T {data-n=1 onclick=x lang=en}"
+    Text "T"
+`},
+		{"in code span", "# `x {#a}`", `Document [0:10]
+  Heading Level=1 [0:10] "# ` + "`x {#a}`" + `"
+    CodeSpan
+      Text "x {#a}"
+`},
+		{"paragraph", "text {#a}", `Document [0:9]
+  Paragraph [0:9] "text {#a}"
+    Text "text {#a}"
+`},
 	} {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := convert(t, m, tt.src); got != tt.want+"\n" {
-				t.Errorf("got %q, want %q", got, tt.want+"\n")
-			}
-		})
+		t.Run(tt.name, func(t *testing.T) { checkTree(t, p, tt.src, tt.want) })
 	}
-	if got := convert(t, md.New(), "# T {#x}"); got != "<h1>T {#x}</h1>\n" {
-		t.Errorf("without WithAttribute: %q", got)
-	}
+	checkTree(t, parser.NewParser(), "# T {#x}", `Document [0:8]
+  Heading Level=1 [0:8] "# T {#x}"
+    Text "T {#x}"
+`)
 }
 
 // TestAutoHeadingID checks the IDs that headings get, from their source,
 // unique in their document, after the IDs of their attributes.
 func TestAutoHeadingID(t *testing.T) {
-	m := md.New(md.WithParserOptions(parser.WithAutoHeadingID(), parser.WithAttribute()))
+	p := parser.NewParser(parser.WithAutoHeadingID(), parser.WithAttribute())
 	for _, tt := range []struct {
 		name, src, want string
 	}{
-		{"words", "# Hello, World!", `<h1 id="hello-world">Hello, World!</h1>`},
-		{"source", "## *Em* `code` &amp; x_y-z", `<h2 id="em-code-amp-x-y-z"><em>Em</em> <code>code</code> &amp; x_y-z</h2>`},
-		{"non-ASCII", "# héllo wörld", `<h1 id="hllo-wrld">héllo wörld</h1>`},
-		{"empty", "#", `<h1 id="heading"></h1>`},
-		{"repeated", "# A\n# A\n# a-1", "<h1 id=\"a\">A</h1>\n<h1 id=\"a-1\">A</h1>\n<h1 id=\"a-1-1\">a-1</h1>"},
-		{"attribute first", "# B {#a}\n# A", "<h1 id=\"a\">B</h1>\n<h1 id=\"a-1\">A</h1>"},
-		{"after other attributes", "# A {data-x=1}", `<h1 data-x="1" id="a">A</h1>`},
-		{"setext last line", "One\nTwo\n---", "<h2 id=\"two\">One\nTwo</h2>"},
+		{"words", "# Hello, World!", `Document [0:15]
+  Heading Level=1 {id="hello-world"} [0:15] "# Hello, World!"
+    Text "Hello, World!"
+`},
+		{"source", "## *Em* `code` &amp; x_y-z", `Document [0:26]
+  Heading Level=2 {id="em-code-amp-x-y-z"} [0:26] "## *Em* ` + "`code`" + ` &amp; x_y-z"
+    Emphasis Level=1
+      Text "Em"
+    Text " "
+    CodeSpan
+      Text "code"
+    Text " & x_y-z"
+`},
+		{"non-ASCII", "# héllo wörld", `Document [0:15]
+  Heading Level=1 {id="hllo-wrld"} [0:15] "# héllo wörld"
+    Text "héllo wörld"
+`},
+		{"empty", "#", `Document [0:1]
+  Heading Level=1 {id="heading"} [0:1] "#"
+`},
+		{"repeated", "# A\n# A\n# a-1", `Document [0:13]
+  Heading Level=1 {id="a"} [0:3] "# A"
+    Text "A"
+  Heading Level=1 {id="a-1"} [4:7] "# A"
+    Text "A"
+  Heading Level=1 {id="a-1-1"} [8:13] "# a-1"
+    Text "a-1"
+`},
+		{"attribute first", "# B {#a}\n# A", `Document [0:12]
+  Heading Level=1 {id="a"} [0:8] "# B {#a}"
+    Text "B"
+  Heading Level=1 {id="a-1"} [9:12] "# A"
+    Text "A"
+`},
+		{"after other attributes", "# A {data-x=1}", `Document [0:14]
+  Heading Level=1 {data-x=1 id="a"} [0:14] "# A {data-x=1}"
+    Text "A"
+`},
+		{"setext last line", "One\nTwo\n---", `Document [0:11]
+  Heading Level=2 {id="two"} [0:11] "One\nTwo\n---"
+    Text "One" softbreak
+    Text "Two"
+`},
 	} {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := convert(t, m, tt.src); got != tt.want+"\n" {
-				t.Errorf("got %q, want %q", got, tt.want+"\n")
-			}
-		})
+		t.Run(tt.name, func(t *testing.T) { checkTree(t, p, tt.src, tt.want) })
 	}
 	// Each document has IDs of its own.
 	for range 2 {
-		if got := convert(t, m, "# A"); got != "<h1 id=\"a\">A</h1>\n" {
-			t.Errorf("again: %q", got)
-		}
+		checkTree(t, p, "# A", `Document [0:3]
+  Heading Level=1 {id="a"} [0:3] "# A"
+    Text "A"
+`)
 	}
 }
 
 // numbered generates the IDs "h1", "h2", and so on.
 type numbered struct{ n int }
 
-func (s *numbered) Generate(value string, kind markdown.NodeKind) string {
+func (s *numbered) Generate(value string, kind ast.NodeKind) string {
 	s.n++
 	return "h" + strconv.Itoa(s.n)
 }
@@ -166,7 +221,7 @@ func TestWithIDs(t *testing.T) {
 	}))
 	for range 2 {
 		var got []any
-		for h := range markdown.Children(p.Parse("# a\n# b")) {
+		for h := range ast.Children(p.Parse("# a\n# b")) {
 			id, _ := h.Attribute("id")
 			got = append(got, id)
 		}
