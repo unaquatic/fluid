@@ -77,7 +77,7 @@ func RunDemo(ctx context.Context, args []string) error {
 // WriteUsage writes the usage of the command to w: its synopsis, the demos
 // and the flags every demo accepts.
 func WriteUsage(w io.Writer) {
-	fmt.Fprint(w, "Usage:\n  fluid demo name [flags]\n\nDemos:\n")
+	fmt.Fprint(w, "Usage:\n  fluid demo name [flags]\n"+DesignSynopsis+"\nDemos:\n")
 	width := 0
 	for _, d := range Demos {
 		width = max(width, len(d.Name))
@@ -85,7 +85,7 @@ func WriteUsage(w io.Writer) {
 	for _, d := range Demos {
 		fmt.Fprintf(w, "  %-*s  %s\n", width, d.Name, d.Short)
 	}
-	fmt.Fprint(w, "\nFlags:\n")
+	fmt.Fprint(w, "\nDemo flags:\n")
 	fs := flag.NewFlagSet("fluid demo", flag.ContinueOnError)
 	demoFlags(fs, new(DemoOptions))
 	fs.SetOutput(w)

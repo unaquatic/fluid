@@ -209,13 +209,13 @@ func TestPageCallsEveryEndpoint(t *testing.T) {
 // handlerDoc returns the source of Server.Handler's doc comment.
 func handlerDoc(t *testing.T) string {
 	t.Helper()
-	src, err := os.ReadFile("server.go")
+	src, err := os.ReadFile("design_server.go")
 	if err != nil {
 		t.Fatal(err)
 	}
 	doc, _, ok := strings.Cut(string(src), "func (s *Server) Handler()")
 	if !ok {
-		t.Fatal("server.go has no Server.Handler")
+		t.Fatal("design_server.go has no Server.Handler")
 	}
 	return doc[strings.LastIndex(doc, "// Handler returns"):]
 }

@@ -16,9 +16,8 @@
 ```
 fluid/
   buffer/           cell buffer (2D grid of styled characters), border drawing
-  cmd/design/       serves an editor that paints golden frames files cell by cell
-  cmd/fluid/        runs interactive demos of the widgets, layout and rendering modes
-  cmd/goldenview/   draws golden frames files as an HTML page
+  cmd/fluid/        `fluid demo`: interactive demos of the widgets, layout and rendering modes;
+                    `fluid design` (design_*.go): paints golden frames files cell by cell, prints them as ANSI or HTML
   input/            keyboard, mouse, paste events + keybindings + parser
   layout/           flexbox layout engine
   render/           scene graph, base renderable, selection, render host
@@ -39,7 +38,7 @@ go test ./widget/ -v           # widget tests
 go test ./render/ -run Inline  # inline render tests
 go test ./layout/              # layout engine tests
 go test ./widget/ -update      # regenerate golden files
-go run ./cmd/goldenview -o /tmp/goldens.html .   # draw every golden file in color
+go run ./cmd/fluid design html -o /tmp/goldens.html .  # draw every golden file in color
 ```
 
 - Golden tests use `testutil.AssertGoldenFrames`, or `GoldenSequence.AddFrames` for state transitions, which record text, foreground, background, and attribute frames. Review the `testdata/` diff after `-update` before committing it.
