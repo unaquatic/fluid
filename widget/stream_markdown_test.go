@@ -171,7 +171,7 @@ func TestMarkdown_SetBlocks(t *testing.T) {
 	md := NewMarkdown("", MarkdownWithFg(style.ColorWhite))
 
 	// Reuse blocks produced by the configured parser.
-	parser := newGoldmarkParser()
+	parser := defaultParser{}
 	styles := mdStyles{Fg: style.ColorWhite}
 	blocks := parser.Parse("# Hello\n\nWorld\n\n- item", styles)
 
@@ -183,5 +183,23 @@ func TestMarkdown_SetBlocks(t *testing.T) {
 	md.setBlocks(blocks)
 	if len(md.blocks) != len(blocks) {
 		t.Errorf("expected %d blocks, got %d", len(blocks), len(md.blocks))
+	}
+}
+
+// TestLeaderTrailerInNewBlocks checks that a leader leads the first term of
+// a definition list, and that a trailer follows the text of the last
+// footnote.
+func TestLeaderTrailerInNewBlocks(t *testing.T) {
+	blocks := defaultParser{}.Parse("Term\n: desc\n\nx[^1]\n\n[^1]: note", mdStyles{})
+	out := withTrailer(withLeader(blocks, []style.TextChunk{{Text: ">"}}), []style.TextChunk{{Text: "<"}})
+	if got := chunksText(out[0].Children[0].Body); got != "> Term" {
+		t.Errorf("first term %q, want %q", got, "> Term")
+	}
+	notes := out[len(out)-1]
+	if notes.Kind != mdBlockFootnotes {
+		t.Fatalf("last block of kind %d, want the footnotes", notes.Kind)
+	}
+	if got := chunksText(notes.Children[0].Body); got != "note <" {
+		t.Errorf("last footnote %q, want %q", got, "note <")
 	}
 }

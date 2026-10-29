@@ -221,8 +221,8 @@ const entry = (fg, opts = {}) => ({
 });
 
 // Roles still unread by any renderer. Images have no renderer at all —
-// goldmark's ast.Image falls through to the default branch and renders
-// bare alt text — so these two stay dark until one exists.
+// the Markdown widget renders a markdown.Image as its bare alt text — so
+// these two stay dark until one exists.
 const DEAD = new Set(["MarkdownImage", "MarkdownImageText"]);
 
 const GROUPS = [
