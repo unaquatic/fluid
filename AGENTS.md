@@ -16,9 +16,9 @@
 ```
 fluid/
   buffer/           cell buffer (2D grid of styled characters), border drawing
-  cmd/design/       serves an editor that paints golden frames files cell by cell
-  cmd/fluid/        runs interactive demos of the widgets, layout and rendering modes
-  cmd/goldenview/   draws golden frames files as an HTML page
+  cmd/fluid/        `fluid demo`: interactive demos of the widgets, layout and rendering modes;
+                    `fluid design` (design_*.go): paints golden frames files cell by cell, prints them as ANSI or HTML
+  examples/chat/    inline chat that streams a reply, structured as state → service → ui (see Program Structure)
   input/            keyboard, mouse, paste events + keybindings + parser
   layout/           flexbox layout engine
   render/           scene graph, base renderable, selection, render host
@@ -39,7 +39,7 @@ go test ./widget/ -v           # widget tests
 go test ./render/ -run Inline  # inline render tests
 go test ./layout/              # layout engine tests
 go test ./widget/ -update      # regenerate golden files
-go run ./cmd/goldenview -o /tmp/goldens.html .   # draw every golden file in color
+go run ./cmd/fluid design html -o /tmp/goldens.html .  # draw every golden file in color
 ```
 
 - Golden tests use `testutil.AssertGoldenFrames`, or `GoldenSequence.AddFrames` for state transitions, which record text, foreground, background, and attribute frames. Review the `testdata/` diff after `-update` before committing it.
@@ -72,6 +72,15 @@ When using inline mode (`InlineMode: true` in `terminal.Config`):
 - Do **not** use `FlexGrow(1)` on content containers — it expands to fill the 10000-row layout ceiling. Use auto-sized `Box` instead of `ScrollBox`.
 - Widget backgrounds require non-transparent `BackgroundColor` to be visible, since `isInlineClearCell` trims cells with transparent bg.
 - Input areas should not have fixed heights — let them auto-size so content can expand. The `Textarea` widget has a `MeasureFunc` that reports `LineCount` as intrinsic height.
+
+### Program Structure
+
+`examples/chat` shows how a program built on fluid is organized, after flow's terminal UI. New examples follow it:
+
+- **state** (`state.go`) is plain data. It holds no widgets.
+- **service** (`service.go`) changes the state and returns `uiEvent` values (`events.go`) that say what the screen must show. It never touches a widget, so its tests need no terminal.
+- **ui** (`ui.go`) owns the widgets and applies the events in `apply`.
+- Widgets change only on the event loop. The input keeps its default keys and calls the service from its `OnSubmit` (Enter). Other keys reach `ui.handleKey` through `Renderer.EventBus()`, which calls `PreventDefault` on the keys it uses so the focused input never sees them. Goroutines hand their results over with `Renderer.Enqueue`, which runs one goroutine's functions in the order it enqueued them.
 
 ### Go 1.27+ style — IMPORTANT
 

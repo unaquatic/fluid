@@ -15,15 +15,15 @@ import (
 	"github.com/unaquatic/fluid/widget"
 )
 
-var demoDashboardCmd = Demo{
-	Name:  "dashboard",
-	Short: "Multi-panel dashboard demo",
-	Run:   runDashboardDemo,
+var demoDashboardCmd = demo{
+	name:  "dashboard",
+	short: "Multi-panel dashboard demo",
+	run:   runDashboardDemo,
 }
 
-func runDashboardDemo(ctx context.Context, o DemoOptions) error {
+func runDashboardDemo(ctx context.Context, o demoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
-		UseMouse: !o.NoMouse,
+		UseMouse: !o.noMouse,
 	})
 	if err != nil {
 		return fmt.Errorf("renderer: %w", err)

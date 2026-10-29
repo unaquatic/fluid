@@ -12,15 +12,15 @@ import (
 	"github.com/unaquatic/fluid/widget"
 )
 
-var demoMeasureCmd = Demo{
-	Name:  "measure",
-	Short: "Textarea intrinsic sizing with MeasureFunc",
-	Run:   runMeasureDemo,
+var demoMeasureCmd = demo{
+	name:  "measure",
+	short: "Textarea intrinsic sizing with MeasureFunc",
+	run:   runMeasureDemo,
 }
 
-func runMeasureDemo(ctx context.Context, o DemoOptions) error {
+func runMeasureDemo(ctx context.Context, o demoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
-		UseMouse: !o.NoMouse,
+		UseMouse: !o.noMouse,
 	})
 	if err != nil {
 		return fmt.Errorf("renderer: %w", err)

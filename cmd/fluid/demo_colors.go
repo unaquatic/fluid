@@ -12,15 +12,15 @@ import (
 	"github.com/unaquatic/fluid/widget"
 )
 
-var demoColorsCmd = Demo{
-	Name:  "colors",
-	Short: "16-color, 256-color and named color palettes",
-	Run:   runColorsDemo,
+var demoColorsCmd = demo{
+	name:  "colors",
+	short: "16-color, 256-color and named color palettes",
+	run:   runColorsDemo,
 }
 
-// NamedColors are style's predefined colors, in the order style declares
+// namedColors are style's predefined colors, in the order style declares
 // them. ColorTransparent is left out, as it is no color.
-var NamedColors = []struct {
+var namedColors = []struct {
 	Name  string
 	Color style.Color
 }{
@@ -48,113 +48,113 @@ var NamedColors = []struct {
 	{"ColorBrightCyan", style.ColorBrightCyan},
 }
 
-// Palette builds styled text a line at a time.
-type Palette struct {
-	Chunks []style.TextChunk
+// palette builds styled text a line at a time.
+type palette struct {
+	chunks []style.TextChunk
 }
 
-// Text appends s in the surrounding colors.
-func (p *Palette) Text(s string) {
-	p.Chunks = append(p.Chunks, style.TextChunk{Text: s})
+// text appends s in the surrounding colors.
+func (p *palette) text(s string) {
+	p.chunks = append(p.chunks, style.TextChunk{Text: s})
 }
 
-// Swatch appends label on c, in black or white, whichever reads better.
-func (p *Palette) Swatch(label string, c style.Color) {
+// swatch appends label on c, in black or white, whichever reads better.
+func (p *palette) swatch(label string, c style.Color) {
 	fg := style.ColorWhite
 	if c.Luminance() > 0.5 {
 		fg = style.ColorBlack
 	}
-	p.Chunks = append(p.Chunks, style.TextChunk{Text: label, Fg: fg, Bg: c})
+	p.chunks = append(p.chunks, style.TextChunk{Text: label, Fg: fg, Bg: c})
 }
 
-// Entry appends a swatch of palette entry a, labeled with its number.
-func (p *Palette) Entry(a style.ANSI) {
-	p.Swatch(fmt.Sprintf(" %3d", a), a.Color())
+// entry appends a swatch of palette entry a, labeled with its number.
+func (p *palette) entry(a style.ANSI) {
+	p.swatch(fmt.Sprintf(" %3d", a), a.Color())
 }
 
-// Line ends the current line.
-func (p *Palette) Line() {
-	p.Text("\n")
+// line ends the current line.
+func (p *palette) line() {
+	p.text("\n")
 }
 
-// ColorPalettes returns the demo's text: the 16 ANSI colors, the 256-color
+// colorPalettes returns the demo's text: the 16 ANSI colors, the 256-color
 // xterm palette, and the named colors with the entries they draw in under
 // 256 and 16 colors.
-func ColorPalettes() style.StyledText {
-	var p Palette
+func colorPalettes() style.StyledText {
+	var p palette
 
-	p.Text("16 colors: fluid's guess at the terminal theme")
-	p.Line()
+	p.text("16 colors: fluid's guess at the terminal theme")
+	p.line()
 	for row, label := range []string{"standard", "bright"} {
-		p.Text("  ")
+		p.text("  ")
 		for col := range 8 {
-			p.Entry(style.ANSI(row*8 + col))
+			p.entry(style.ANSI(row*8 + col))
 		}
-		p.Text("  " + label)
-		p.Line()
+		p.text("  " + label)
+		p.line()
 	}
-	p.Line()
+	p.line()
 
-	p.Text("256 colors: the xterm palette")
-	p.Line()
-	p.Text("  ANSI 0-15")
-	p.Line()
-	p.Text("  ")
+	p.text("256 colors: the xterm palette")
+	p.line()
+	p.text("  ANSI 0-15")
+	p.line()
+	p.text("  ")
 	for a := range 16 {
-		p.Entry(style.ANSI(a))
+		p.entry(style.ANSI(a))
 	}
-	p.Line()
-	p.Line()
+	p.line()
+	p.line()
 	// The color cube, entry 16 + 36r + 6g + b, as six blocks of red with
 	// green down and blue across, two blocks to a row.
-	p.Text("  Cube 16-231")
-	p.Line()
+	p.text("  Cube 16-231")
+	p.line()
 	for blocks := range 3 {
 		for g := range 6 {
-			p.Text("  ")
+			p.text("  ")
 			for r := blocks * 2; r < blocks*2+2; r++ {
 				if r > blocks*2 {
-					p.Text("  ")
+					p.text("  ")
 				}
 				for b := range 6 {
-					p.Entry(style.ANSI(16 + 36*r + 6*g + b))
+					p.entry(style.ANSI(16 + 36*r + 6*g + b))
 				}
 			}
-			p.Line()
+			p.line()
 		}
 	}
-	p.Line()
-	p.Text("  Grays 232-255")
-	p.Line()
+	p.line()
+	p.text("  Grays 232-255")
+	p.line()
 	for row := range 2 {
-		p.Text("  ")
+		p.text("  ")
 		for col := range 12 {
-			p.Entry(style.ANSI(232 + row*12 + col))
+			p.entry(style.ANSI(232 + row*12 + col))
 		}
-		p.Line()
+		p.line()
 	}
-	p.Line()
+	p.line()
 
-	p.Text("Named colors")
-	p.Line()
-	p.Text(fmt.Sprintf("  %-20s%-10s%-11s%-7s%s", "name", "hex", "truecolor", "256", "16"))
-	p.Line()
-	for _, nc := range NamedColors {
+	p.text("Named colors")
+	p.line()
+	p.text(fmt.Sprintf("  %-20s%-10s%-11s%-7s%s", "name", "hex", "truecolor", "256", "16"))
+	p.line()
+	for _, nc := range namedColors {
 		e256, e16 := style.Nearest256.Index(nc.Color), style.Nearest16.Index(nc.Color)
-		p.Text(fmt.Sprintf("  %-20s%-10s", nc.Name, nc.Color.ToHex()))
-		p.Swatch("         ", nc.Color)
-		p.Text("  ")
-		p.Swatch(fmt.Sprintf(" %3d ", e256), e256.Color())
-		p.Text("  ")
-		p.Swatch(fmt.Sprintf(" %3d ", e16), e16.Color())
-		p.Line()
+		p.text(fmt.Sprintf("  %-20s%-10s", nc.Name, nc.Color.ToHex()))
+		p.swatch("         ", nc.Color)
+		p.text("  ")
+		p.swatch(fmt.Sprintf(" %3d ", e256), e256.Color())
+		p.text("  ")
+		p.swatch(fmt.Sprintf(" %3d ", e16), e16.Color())
+		p.line()
 	}
 
-	return style.StyledText{Chunks: p.Chunks}
+	return style.StyledText{Chunks: p.chunks}
 }
 
-// ColorModeName returns the FLUID_COLOR value that selects m.
-func ColorModeName(m style.ColorMode) string {
+// colorModeName returns the FLUID_COLOR value that selects m.
+func colorModeName(m style.ColorMode) string {
 	switch m {
 	case style.Color256:
 		return "256"
@@ -164,15 +164,15 @@ func ColorModeName(m style.ColorMode) string {
 	return "truecolor"
 }
 
-func runColorsDemo(ctx context.Context, o DemoOptions) error {
+func runColorsDemo(ctx context.Context, o demoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
-		UseMouse: !o.NoMouse,
+		UseMouse: !o.noMouse,
 	})
 	if err != nil {
 		return fmt.Errorf("renderer: %w", err)
 	}
 
-	palettes := widget.NewStyledText(ColorPalettes(),
+	palettes := widget.NewStyledText(colorPalettes(),
 		widget.TextWithWrapMode(textbuf.WrapNone),
 	)
 	scrollBox := widget.NewScrollBox(
@@ -184,7 +184,7 @@ func runColorsDemo(ctx context.Context, o DemoOptions) error {
 	widget.BindScrollBar(scrollBox, scrollBar)
 
 	header := fmt.Sprintf("Colors demo | mode: %s (set with FLUID_COLOR=truecolor, 256 or 16)",
-		ColorModeName(r.ColorMode()))
+		colorModeName(r.ColorMode()))
 	container := widget.NewBox(
 		widget.BoxWithLayout(
 			layout.WithFlexGrow(1),

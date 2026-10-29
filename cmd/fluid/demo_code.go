@@ -12,10 +12,10 @@ import (
 	"github.com/unaquatic/fluid/widget"
 )
 
-var demoCodeCmd = Demo{
-	Name:  "code",
-	Short: "Syntax-highlighted code viewer demo",
-	Run:   runCodeDemo,
+var demoCodeCmd = demo{
+	name:  "code",
+	short: "Syntax-highlighted code viewer demo",
+	run:   runCodeDemo,
 }
 
 const sampleGoCode = `package main
@@ -118,9 +118,9 @@ func main() {
 }
 `
 
-func runCodeDemo(ctx context.Context, o DemoOptions) error {
+func runCodeDemo(ctx context.Context, o demoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
-		UseMouse: !o.NoMouse,
+		UseMouse: !o.noMouse,
 	})
 	if err != nil {
 		return fmt.Errorf("renderer: %w", err)

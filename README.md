@@ -60,6 +60,18 @@ func main() {
 }
 ```
 
+## Examples
+
+```sh
+go run github.com/unaquatic/fluid/examples/chat   # an inline chat that streams a reply; enter sends, esc stops or exits
+```
+
+[`examples/chat`](examples/chat) changes its widgets only on the renderer's event loop, in three layers:
+
+- `state.go` holds plain data, such as the transcript and whether a reply is streaming.
+- `service.go` turns keys and the words of a reply into events that say what the screen must show. It touches no widget, so `service_test.go` needs no terminal.
+- `ui.go` owns the widgets and applies those events. Enter reaches it through the input's `OnSubmit`, Esc through the event bus before the focused input, and the reply's goroutine through `Renderer.Enqueue`.
+
 ## Colors
 
 The renderer picks 24-bit, 256, or 16 colors from the environment, and maps every color to the nearest one the terminal can show:
@@ -75,14 +87,14 @@ Set `FLUID_COLOR` to `truecolor`, `24bit`, `256`, or `16` to choose one yourself
 ## Commands
 
 ```sh
-go run github.com/unaquatic/fluid/cmd/fluid demo markdown          # run a demo; fluid -h lists all 13
-go run github.com/unaquatic/fluid/cmd/design -root .               # paint golden frames files in the browser
-go run github.com/unaquatic/fluid/cmd/goldenview -o goldens.html . # draw every golden frames file in color
+go run github.com/unaquatic/fluid/cmd/fluid demo markdown                  # run a demo; fluid -h lists all 13
+go run github.com/unaquatic/fluid/cmd/fluid design -root .                 # paint golden frames files in the browser
+go run github.com/unaquatic/fluid/cmd/fluid design html -o goldens.html .  # draw every golden frames file in color
 ```
 
 - `fluid demo <name>` runs an interactive demo of the widgets, the layout engine, or the inline and fullscreen modes, with `-no-mouse`.
-- `design` serves an editor on port 4098 that paints the golden frames and sequence files under `-root` cell by cell and saves them as `testutil` writes them; `design ansi file...` prints them with ANSI escape sequences.
-- `goldenview` writes an HTML page that draws the golden frames files under the given directories in their colors.
+- `fluid design` serves an editor on port 4098 that paints the golden frames and sequence files under `-root` cell by cell and saves them as `testutil` writes them; `fluid design ansi file...` prints them with ANSI escape sequences.
+- `fluid design html [dir...]` writes one HTML page that draws the golden frames and sequence files under the given directories in their colors, with each snapshot's legend and raw file.
 
 ## Testing
 

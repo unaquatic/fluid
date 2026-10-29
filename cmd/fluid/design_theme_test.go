@@ -9,12 +9,12 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// TestLoadTheme checks that LoadTheme gives style.DarculaSolid for no file,
+// TestLoadTheme checks that loadTheme gives style.DarculaSolid for no file,
 // reads a theme written as JSON, and fails on a file that holds none.
 func TestLoadTheme(t *testing.T) {
-	th, err := LoadTheme("")
+	th, err := loadTheme("")
 	if err != nil || *th != *style.DarculaSolid() {
-		t.Errorf("LoadTheme(\"\") = %v, %v; want style.DarculaSolid", th, err)
+		t.Errorf("loadTheme(\"\") = %v, %v; want style.DarculaSolid", th, err)
 	}
 
 	dir := t.TempDir()
@@ -27,15 +27,15 @@ func TestLoadTheme(t *testing.T) {
 	if err := os.WriteFile(p, data, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if th, err := LoadTheme(p); err != nil || *th != *want {
-		t.Errorf("LoadTheme(%s) = %v, %v; want the theme written there", p, th, err)
+	if th, err := loadTheme(p); err != nil || *th != *want {
+		t.Errorf("loadTheme(%s) = %v, %v; want the theme written there", p, th, err)
 	}
 
 	bad := filepath.Join(dir, "bad.json")
 	if err := os.WriteFile(bad, []byte("not json"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := LoadTheme(bad); err == nil {
-		t.Errorf("LoadTheme(%s) = nil error, want one", bad)
+	if _, err := loadTheme(bad); err == nil {
+		t.Errorf("loadTheme(%s) = nil error, want one", bad)
 	}
 }

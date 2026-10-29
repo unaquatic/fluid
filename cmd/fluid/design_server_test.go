@@ -42,7 +42,7 @@ func newServer(t *testing.T) (*httptest.Server, string) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { root.Close() })
-	srv := httptest.NewServer((&Server{Library: Library{Root: root}, Theme: style.DarculaSolid()}).Handler())
+	srv := httptest.NewServer((&server{library: library{root: root}, theme: style.DarculaSolid()}).handler())
 	t.Cleanup(srv.Close)
 	return srv, dir
 }
@@ -72,11 +72,11 @@ func call(t *testing.T, method, url, contentType, body string) (int, string) {
 // sampleJSON returns the design of sample as JSON.
 func sampleJSON(t *testing.T) string {
 	t.Helper()
-	snaps, err := ParseDoc(sample)
+	snaps, err := parseDoc(sample)
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := json.Marshal(NewDesign(snaps[0].Buf, snaps[0].Names))
+	data, err := json.Marshal(newDesign(snaps[0].Buf, snaps[0].Names))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +85,7 @@ func sampleJSON(t *testing.T) string {
 
 func TestHandler(t *testing.T) {
 	srv, _ := newServer(t)
-	design := sampleJSON(t)
+	designJSON := sampleJSON(t)
 	tests := []struct {
 		name, method, path, body string
 		status                   int
@@ -102,10 +102,10 @@ func TestHandler(t *testing.T) {
 		{"open other", "GET", "/api/open?path=go.mod", "", 400, "not a golden file"},
 		{"parse", "POST", "/api/parse", sample, 200, `{"ch":"h","fg":"#ffffff","bg":"#242424"}`},
 		{"parse junk", "POST", "/api/parse", "hello", 422, "comes before the first section"},
-		{"frames", "POST", "/api/frames", design, 200, sample},
+		{"frames", "POST", "/api/frames", designJSON, 200, sample},
 		{"frames bad", "POST", "/api/frames", `{"width":1,"height":1,"cells":[[{"ch":"ab"}]]}`, 422, "not one code point"},
 		{"frames junk", "POST", "/api/frames", `{`, 400, "design: unexpected EOF"},
-		{"ansi", "POST", "/api/ansi", design, 200, "\x1b[0;38;2;255;255;255;48;2;36;36;36mhi"},
+		{"ansi", "POST", "/api/ansi", designJSON, 200, "\x1b[0;38;2;255;255;255;48;2;36;36;36mhi"},
 		{"missing", "GET", "/missing", "", 404, "not found"},
 	}
 	for _, tt := range tests {
@@ -124,9 +124,9 @@ func TestHandler(t *testing.T) {
 
 func TestSave(t *testing.T) {
 	srv, dir := newServer(t)
-	design := sampleJSON(t)
+	designJSON := sampleJSON(t)
 	save := func(path string) (int, string) {
-		return call(t, "POST", srv.URL+"/api/save?"+path, "application/json", design)
+		return call(t, "POST", srv.URL+"/api/save?"+path, "application/json", designJSON)
 	}
 	if status, body := save("path=designs/new.frames.golden"); status != 200 || !strings.Contains(body, `"path":"designs/new.frames.golden"`) {
 		t.Fatalf("save = %d %s, want 200", status, body)
@@ -206,16 +206,16 @@ func TestPageCallsEveryEndpoint(t *testing.T) {
 	}
 }
 
-// handlerDoc returns the source of Server.Handler's doc comment.
+// handlerDoc returns the source of server.handler's doc comment.
 func handlerDoc(t *testing.T) string {
 	t.Helper()
-	src, err := os.ReadFile("server.go")
+	src, err := os.ReadFile("design_server.go")
 	if err != nil {
 		t.Fatal(err)
 	}
-	doc, _, ok := strings.Cut(string(src), "func (s *Server) Handler()")
+	doc, _, ok := strings.Cut(string(src), "func (s *server) handler()")
 	if !ok {
-		t.Fatal("server.go has no Server.Handler")
+		t.Fatal("design_server.go has no server.handler")
 	}
-	return doc[strings.LastIndex(doc, "// Handler returns"):]
+	return doc[strings.LastIndex(doc, "// handler returns"):]
 }

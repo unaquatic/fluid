@@ -14,10 +14,10 @@ import (
 	"github.com/unaquatic/fluid/widget"
 )
 
-var demoScrollboxCmd = Demo{
-	Name:  "scrollbox",
-	Short: "Scrollable container demo",
-	Run:   runScrollboxDemo,
+var demoScrollboxCmd = demo{
+	name:  "scrollbox",
+	short: "Scrollable container demo",
+	run:   runScrollboxDemo,
 }
 
 // pendingLine contains content queued for the render thread.
@@ -26,9 +26,9 @@ type pendingLine struct {
 	color style.Color
 }
 
-func runScrollboxDemo(ctx context.Context, o DemoOptions) error {
+func runScrollboxDemo(ctx context.Context, o demoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
-		UseMouse: !o.NoMouse,
+		UseMouse: !o.noMouse,
 	})
 	if err != nil {
 		return fmt.Errorf("renderer: %w", err)

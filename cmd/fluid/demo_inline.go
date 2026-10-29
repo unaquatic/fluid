@@ -12,13 +12,13 @@ import (
 	"github.com/unaquatic/fluid/widget"
 )
 
-var demoInlineCmd = Demo{
-	Name:  "inline",
-	Short: "Inline (scrollable) rendering mode demo",
-	Run:   runInlineDemo,
+var demoInlineCmd = demo{
+	name:  "inline",
+	short: "Inline (scrollable) rendering mode demo",
+	run:   runInlineDemo,
 }
 
-func runInlineDemo(ctx context.Context, o DemoOptions) error {
+func runInlineDemo(ctx context.Context, o demoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
 		InlineMode: true,
 		UseMouse:   false,

@@ -22,86 +22,86 @@ import (
 //go:embed design.html
 var page []byte
 
-// MaxBody is the size of the largest request body the server reads.
-const MaxBody = 16 << 20
+// maxBody is the size of the largest request body the server reads.
+const maxBody = 16 << 20
 
-// Server serves the editor page and the API it calls.
-type Server struct {
-	Library Library
-	// Theme is the theme whose roles the palette offers.
-	Theme *style.Theme
+// server serves the editor page and the API it calls.
+type server struct {
+	library library
+	// theme is the theme whose roles the palette offers.
+	theme *style.Theme
 }
 
-// ThemeInfo is the theme as GET /api/theme returns it.
-type ThemeInfo struct {
+// themeInfo is the theme as GET /api/theme returns it.
+type themeInfo struct {
 	// Name is the theme's name.
 	Name string `json:"name"`
 	// Fg colors text by default, and Bg shows behind transparent cells.
 	Fg string `json:"fg"`
 	Bg string `json:"bg"`
 	// Groups holds the theme's colors by role.
-	Groups []SwatchGroup `json:"groups"`
+	Groups []swatchGroup `json:"groups"`
 }
 
-// LibraryInfo is the library as GET /api/library returns it.
-type LibraryInfo struct {
-	Files  []FileEntry `json:"files"`
-	Colors []UsedColor `json:"colors"`
+// libraryInfo is the library as GET /api/library returns it.
+type libraryInfo struct {
+	Files  []fileEntry `json:"files"`
+	Colors []usedColor `json:"colors"`
 }
 
-// Handler returns the handler of the editor and its API:
+// handler returns the handler of the editor and its API:
 //
 //	GET  /                  the editor page; ?open=p opens golden file p in it
-//	GET  /api/theme         ThemeInfo
-//	GET  /api/library       LibraryInfo
-//	GET  /api/open?path=p   the Design of golden file p; step=n picks a sequence step
-//	POST /api/parse         the Design of the golden document in the body; step=n as above
-//	POST /api/frames        the golden frames document of the Design in the body
-//	POST /api/ansi          the Design in the body as text with escape sequences
-//	POST /api/save?path=p   writes the Design in the body to p; overwrite=1 replaces it
+//	GET  /api/theme         themeInfo
+//	GET  /api/library       libraryInfo
+//	GET  /api/open?path=p   the design of golden file p; step=n picks a sequence step
+//	POST /api/parse         the design of the golden document in the body; step=n as above
+//	POST /api/frames        the golden frames document of the design in the body
+//	POST /api/ansi          the design in the body as text with escape sequences
+//	POST /api/save?path=p   writes the design in the body to p; overwrite=1 replaces it
 //
 // It serves only requests to a loopback host from the same origin.
-func (s *Server) Handler() http.Handler {
+func (s *server) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(page)
 	})
-	mux.HandleFunc("GET /api/theme", s.ServeTheme)
-	mux.HandleFunc("GET /api/library", s.ServeLibrary)
-	mux.HandleFunc("GET /api/open", s.ServeOpen)
-	mux.HandleFunc("POST /api/parse", s.ServeParse)
-	mux.HandleFunc("POST /api/frames", s.ServeFrames)
-	mux.HandleFunc("POST /api/ansi", s.ServeANSI)
-	mux.HandleFunc("POST /api/save", s.ServeSave)
-	return LocalOnly(http.NewCrossOriginProtection().Handler(mux))
+	mux.HandleFunc("GET /api/theme", s.serveTheme)
+	mux.HandleFunc("GET /api/library", s.serveLibrary)
+	mux.HandleFunc("GET /api/open", s.serveOpen)
+	mux.HandleFunc("POST /api/parse", s.serveParse)
+	mux.HandleFunc("POST /api/frames", s.serveFrames)
+	mux.HandleFunc("POST /api/ansi", s.serveANSI)
+	mux.HandleFunc("POST /api/save", s.serveSave)
+	return localOnly(http.NewCrossOriginProtection().Handler(mux))
 }
 
-// ServeTheme writes the ThemeInfo of s.Theme.
-func (s *Server) ServeTheme(w http.ResponseWriter, _ *http.Request) {
-	th := s.Theme
-	writeJSON(w, ThemeInfo{
+// serveTheme writes the themeInfo of s.theme.
+func (s *server) serveTheme(w http.ResponseWriter, _ *http.Request) {
+	th := s.theme
+	writeJSON(w, themeInfo{
 		Name:   th.Name,
-		Fg:     Hex(th.ResolveTextBase()),
-		Bg:     Hex(th.Bg),
-		Groups: ThemePalette(th),
+		Fg:     formatHex(th.ResolveTextBase()),
+		Bg:     formatHex(th.Bg),
+		Groups: themePalette(th),
 	})
 }
 
-// ServeLibrary writes the LibraryInfo of the golden files in the library.
-func (s *Server) ServeLibrary(w http.ResponseWriter, _ *http.Request) {
-	files, colors, err := s.Library.Catalog()
+// serveLibrary writes the libraryInfo of the golden files in the library.
+func (s *server) serveLibrary(w http.ResponseWriter, _ *http.Request) {
+	files, colors, err := s.library.catalog()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, LibraryInfo{Files: files, Colors: colors})
+	writeJSON(w, libraryInfo{Files: files, Colors: colors})
 }
 
-// ServeOpen writes the Design of the golden file that the path parameter
+// serveOpen writes the design of the golden file that the path parameter
 // names, or of its step numbered by the step parameter.
-func (s *Server) ServeOpen(w http.ResponseWriter, r *http.Request) {
-	snaps, err := s.Library.Load(r.FormValue("path"))
+func (s *server) serveOpen(w http.ResponseWriter, r *http.Request) {
+	snaps, err := s.library.load(r.FormValue("path"))
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -113,15 +113,15 @@ func (s *Server) ServeOpen(w http.ResponseWriter, r *http.Request) {
 	writeStep(w, r, snaps)
 }
 
-// ServeParse writes the Design of the golden frames or sequence document in
+// serveParse writes the design of the golden frames or sequence document in
 // the request body, or of its step numbered by the step parameter.
-func (s *Server) ServeParse(w http.ResponseWriter, r *http.Request) {
-	doc, err := io.ReadAll(http.MaxBytesReader(w, r.Body, MaxBody))
+func (s *server) serveParse(w http.ResponseWriter, r *http.Request) {
+	doc, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBody))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	snaps, err := ParseDoc(string(doc))
+	snaps, err := parseDoc(string(doc))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 		return
@@ -129,14 +129,14 @@ func (s *Server) ServeParse(w http.ResponseWriter, r *http.Request) {
 	writeStep(w, r, snaps)
 }
 
-// ServeFrames writes the golden frames document of the Design in the
+// serveFrames writes the golden frames document of the design in the
 // request body.
-func (s *Server) ServeFrames(w http.ResponseWriter, r *http.Request) {
+func (s *server) serveFrames(w http.ResponseWriter, r *http.Request) {
 	d, ok := readDesign(w, r)
 	if !ok {
 		return
 	}
-	doc, err := d.Frames()
+	doc, err := d.frames()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 		return
@@ -144,13 +144,13 @@ func (s *Server) ServeFrames(w http.ResponseWriter, r *http.Request) {
 	writeText(w, doc)
 }
 
-// ServeANSI writes the Design in the request body as Design.ANSI does.
-func (s *Server) ServeANSI(w http.ResponseWriter, r *http.Request) {
+// serveANSI writes the design in the request body as design.ansi does.
+func (s *server) serveANSI(w http.ResponseWriter, r *http.Request) {
 	d, ok := readDesign(w, r)
 	if !ok {
 		return
 	}
-	text, err := d.ANSI()
+	text, err := d.ansi()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 		return
@@ -158,53 +158,53 @@ func (s *Server) ServeANSI(w http.ResponseWriter, r *http.Request) {
 	writeText(w, text)
 }
 
-// SaveResult is what POST /api/save returns.
-type SaveResult struct {
+// saveResult is what POST /api/save returns.
+type saveResult struct {
 	// Path is the file written, relative to the library's root.
 	Path string `json:"path"`
 	// Frames is the document written.
 	Frames string `json:"frames"`
 }
 
-// ServeSave writes the golden frames document of the Design in the request
+// serveSave writes the golden frames document of the design in the request
 // body to the library file that the path parameter names. It fails with 409
 // Conflict when the file exists, unless the overwrite parameter is 1.
-func (s *Server) ServeSave(w http.ResponseWriter, r *http.Request) {
+func (s *server) serveSave(w http.ResponseWriter, r *http.Request) {
 	d, ok := readDesign(w, r)
 	if !ok {
 		return
 	}
-	doc, err := d.Frames()
+	doc, err := d.frames()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 		return
 	}
 	p := r.FormValue("path")
-	err = s.Library.Save(p, doc, r.FormValue("overwrite") == "1")
+	err = s.library.save(p, doc, r.FormValue("overwrite") == "1")
 	switch {
 	case errors.Is(err, fs.ErrExist):
 		http.Error(w, p+" exists", http.StatusConflict)
-	case errors.Is(err, ErrBadPath):
+	case errors.Is(err, errBadPath):
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	case err != nil:
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	default:
-		writeJSON(w, SaveResult{Path: p, Frames: doc})
+		writeJSON(w, saveResult{Path: p, Frames: doc})
 	}
 }
 
-// readDesign decodes the Design in the request body. On failure it writes
+// readDesign decodes the design in the request body. On failure it writes
 // the error and returns false.
-func readDesign(w http.ResponseWriter, r *http.Request) (Design, bool) {
-	var d Design
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, MaxBody)).Decode(&d); err != nil {
+func readDesign(w http.ResponseWriter, r *http.Request) (design, bool) {
+	var d design
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBody)).Decode(&d); err != nil {
 		http.Error(w, "design: "+err.Error(), http.StatusBadRequest)
 		return d, false
 	}
 	return d, true
 }
 
-// writeStep writes the Design of the snapshot that the step parameter
+// writeStep writes the design of the snapshot that the step parameter
 // numbers, the first by default.
 func writeStep(w http.ResponseWriter, r *http.Request, snaps []testutil.Snapshot) {
 	step := 0
@@ -216,7 +216,7 @@ func writeStep(w http.ResponseWriter, r *http.Request, snaps []testutil.Snapshot
 		}
 		step = n
 	}
-	writeJSON(w, NewDesign(snaps[step].Buf, snaps[step].Names))
+	writeJSON(w, newDesign(snaps[step].Buf, snaps[step].Names))
 }
 
 // writeJSON writes v as a JSON response.
@@ -233,10 +233,10 @@ func writeText(w http.ResponseWriter, text string) {
 	io.WriteString(w, text)
 }
 
-// LocalOnly serves requests through h only when their Host names a loopback
+// localOnly serves requests through h only when their Host names a loopback
 // address, so that a page which points its own domain at this machine
 // cannot reach the server through the browser.
-func LocalOnly(h http.Handler) http.Handler {
+func localOnly(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		host, _, err := net.SplitHostPort(r.Host)
 		if err != nil {
@@ -250,11 +250,11 @@ func LocalOnly(h http.Handler) http.Handler {
 	})
 }
 
-// ListenAndServe serves s on port of localhost until ctx is done.
-func ListenAndServe(ctx context.Context, s *Server, port int) error {
+// listenAndServe serves s on port of localhost until ctx is done.
+func listenAndServe(ctx context.Context, s *server, port int) error {
 	srv := &http.Server{
 		Addr:              net.JoinHostPort("127.0.0.1", strconv.Itoa(port)),
-		Handler:           s.Handler(),
+		Handler:           s.handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	ln, err := net.Listen("tcp", srv.Addr)
@@ -267,7 +267,7 @@ func ListenAndServe(ctx context.Context, s *Server, port int) error {
 		defer cancel()
 		srv.Shutdown(shutdownCtx)
 	}()
-	fmt.Printf("design editor on http://localhost:%d, files under %s (Ctrl-C stops it)\n", port, s.Library.Root.Name())
+	fmt.Printf("design editor on http://localhost:%d, files under %s (Ctrl-C stops it)\n", port, s.library.root.Name())
 	if err := srv.Serve(ln); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
