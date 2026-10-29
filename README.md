@@ -60,6 +60,18 @@ func main() {
 }
 ```
 
+## Examples
+
+```sh
+go run github.com/unaquatic/fluid/examples/chat   # an inline chat that streams a reply; enter sends, esc stops or exits
+```
+
+[`examples/chat`](examples/chat) changes its widgets only on the renderer's event loop, in three layers:
+
+- `state.go` holds plain data, such as the transcript and whether a reply is streaming.
+- `service.go` turns keys and the words of a reply into events that say what the screen must show. It touches no widget, so `service_test.go` needs no terminal.
+- `ui.go` owns the widgets and applies those events. Enter reaches it through the input's `OnSubmit`, Esc through the event bus before the focused input, and the reply's goroutine through `Renderer.Enqueue`.
+
 ## Colors
 
 The renderer picks 24-bit, 256, or 16 colors from the environment, and maps every color to the nearest one the terminal can show:

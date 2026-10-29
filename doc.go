@@ -48,6 +48,30 @@
 //
 //	go run github.com/unaquatic/fluid/cmd/fluid demo
 //
+// # Structuring a program
+//
+// Widgets are not safe for concurrent use, so a program changes them only on
+// the renderer's event loop. A program of more than a few widgets can keep to
+// that, and keep its logic testable, in three layers:
+//
+//   - The state is plain data, such as a transcript and whether a reply is
+//     streaming. It holds no widgets.
+//   - A service handles what happens, such as a submitted prompt or the next
+//     word of a reply. It changes the state and returns events that say what
+//     the screen must show, but never touches a widget, so its tests need no
+//     terminal.
+//   - A ui owns the widgets and applies the service's events to them.
+//
+// Everything reaches the service on the event loop. Keys arrive through a
+// handler on the renderer's event bus, which calls PreventDefault on the keys
+// it uses so that the focused widget never sees them, and widget callbacks
+// already run there. A goroutine, such as one that streams a reply, hands its
+// results to the event loop with Renderer.Enqueue, which runs the functions a
+// goroutine enqueues in the order it enqueued them. The chat example is built
+// this way:
+//
+//	go run github.com/unaquatic/fluid/examples/chat
+//
 // # Packages
 //
 // Most programs import four packages:

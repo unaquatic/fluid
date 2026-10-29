@@ -65,4 +65,8 @@
 // [Renderer.Run] draws a frame whenever the tree requests one. Adding or
 // removing a renderable requests one, as do widget setters, and requests made
 // between two frames coalesce, so a burst of changes is drawn once.
+//
+// The chat example, in the examples/chat directory of this module, structures
+// a program around the event loop: a service turns keys and the results of
+// goroutines into events, and a ui applies them to the widgets.
 package terminal
