@@ -12,15 +12,15 @@ import (
 	"github.com/unaquatic/fluid/widget"
 )
 
-var demoSelectCmd = Demo{
-	Name:  "select",
-	Short: "Select and TabSelect widget demo",
-	Run:   runSelectDemo,
+var demoSelectCmd = demo{
+	name:  "select",
+	short: "Select and TabSelect widget demo",
+	run:   runSelectDemo,
 }
 
-func runSelectDemo(ctx context.Context, o DemoOptions) error {
+func runSelectDemo(ctx context.Context, o demoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
-		UseMouse: !o.NoMouse,
+		UseMouse: !o.noMouse,
 	})
 	if err != nil {
 		return fmt.Errorf("renderer: %w", err)

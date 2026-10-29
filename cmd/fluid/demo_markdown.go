@@ -12,10 +12,10 @@ import (
 	"github.com/unaquatic/fluid/widget"
 )
 
-var demoMarkdownCmd = Demo{
-	Name:  "markdown",
-	Short: "Markdown renderer demo",
-	Run:   runMarkdownDemo,
+var demoMarkdownCmd = demo{
+	name:  "markdown",
+	short: "Markdown renderer demo",
+	run:   runMarkdownDemo,
 }
 
 const sampleMarkdown = `# Fluid Markdown Renderer
@@ -124,9 +124,9 @@ go build -o fluid ./cmd/fluid
 *Built with Fluid — a terminal UI framework for Go*
 `
 
-func runMarkdownDemo(ctx context.Context, o DemoOptions) error {
+func runMarkdownDemo(ctx context.Context, o demoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
-		UseMouse: !o.NoMouse,
+		UseMouse: !o.noMouse,
 	})
 	if err != nil {
 		return fmt.Errorf("renderer: %w", err)

@@ -53,7 +53,7 @@ func TestRunHTML(t *testing.T) {
 		"a/testdata/broken.frames.golden.orig": "neither",
 	})
 	out := filepath.Join(t.ArtifactDir(), "goldens.html")
-	if err := RunHTML([]string{"-o", out, "-bg", "#101010", filepath.Join(dir, "a"), filepath.Join(dir, "b"), filepath.Join(dir, ".hidden")}); err != nil {
+	if err := runHTML([]string{"-o", out, "-bg", "#101010", filepath.Join(dir, "a"), filepath.Join(dir, "b"), filepath.Join(dir, ".hidden")}); err != nil {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(out)
@@ -107,9 +107,9 @@ func TestRunHTMLErrors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := RunHTML(tt.args)
+			err := runHTML(tt.args)
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
-				t.Fatalf("RunHTML(%q) = %v, want an error containing %q", tt.args, err, tt.want)
+				t.Fatalf("runHTML(%q) = %v, want an error containing %q", tt.args, err, tt.want)
 			}
 		})
 	}

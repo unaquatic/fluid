@@ -12,17 +12,17 @@ import (
 	"github.com/unaquatic/fluid/widget"
 )
 
-var demoTabCmd = Demo{
-	Name:  "tab",
-	Short: "Tab handling demo",
-	Run:   runTabDemo,
+var demoTabCmd = demo{
+	name:  "tab",
+	short: "Tab handling demo",
+	run:   runTabDemo,
 }
 
 const sampleTabCode = "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfor i := 0; i < 10; i++ {\n\t\tif i%2 == 0 {\n\t\t\tfmt.Println(\"even:\", i)\n\t\t} else {\n\t\t\tfmt.Println(\"odd:\", i)\n\t\t}\n\t}\n\n\t// Mixed tabs and spaces\n\tfmt.Println(\n\t\t\"hello\",\n\t\t\"world\",\n\t)\n}\n"
 
-func runTabDemo(ctx context.Context, o DemoOptions) error {
+func runTabDemo(ctx context.Context, o demoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
-		UseMouse: !o.NoMouse,
+		UseMouse: !o.noMouse,
 	})
 	if err != nil {
 		return fmt.Errorf("renderer: %w", err)

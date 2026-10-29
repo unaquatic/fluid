@@ -18,9 +18,9 @@ func TestDesignRoundTripsGoldens(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer root.Close()
-	lib := Library{Root: root}
+	lib := library{root: root}
 	n := 0
-	for p, err := range lib.Paths() {
+	for p, err := range lib.paths() {
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -29,7 +29,7 @@ func TestDesignRoundTripsGoldens(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			snaps, err := lib.Load(p)
+			snaps, err := lib.load(p)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -38,7 +38,7 @@ func TestDesignRoundTripsGoldens(t *testing.T) {
 				if s.Name != "" {
 					got.WriteString("=== step: " + s.Name + " ===\n")
 				}
-				doc, err := viaJSON(t, NewDesign(s.Buf, s.Names)).Frames()
+				doc, err := viaJSON(t, newDesign(s.Buf, s.Names)).frames()
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -56,13 +56,13 @@ func TestDesignRoundTripsGoldens(t *testing.T) {
 }
 
 // viaJSON returns d after encoding it as JSON and decoding it again.
-func viaJSON(t *testing.T, d Design) Design {
+func viaJSON(t *testing.T, d design) design {
 	t.Helper()
 	data, err := json.Marshal(d)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var out Design
+	var out design
 	if err := json.Unmarshal(data, &out); err != nil {
 		t.Fatal(err)
 	}
@@ -70,22 +70,22 @@ func viaJSON(t *testing.T, d Design) Design {
 }
 
 // row returns a one-row design of cells.
-func row(cells ...Cell) Design {
-	return Design{Width: len(cells), Height: 1, Cells: [][]Cell{cells}}
+func row(cells ...cell) design {
+	return design{Width: len(cells), Height: 1, Cells: [][]cell{cells}}
 }
 
 func TestDesignFrames(t *testing.T) {
 	d := row(
-		Cell{Ch: "o", Fg: "#ff0000", Bg: "#101010", Attrs: "B"},
-		Cell{Ch: "k", Fg: "#00ff00", Bg: "#101010", Attrs: "BU"},
-		Cell{Ch: " ", Fg: "#0000ff"},
-		Cell{Ch: "中", Fg: "#ff0000"},
-		Cell{Ch: ""},
+		cell{Ch: "o", Fg: "#ff0000", Bg: "#101010", Attrs: "B"},
+		cell{Ch: "k", Fg: "#00ff00", Bg: "#101010", Attrs: "BU"},
+		cell{Ch: " ", Fg: "#0000ff"},
+		cell{Ch: "中", Fg: "#ff0000"},
+		cell{Ch: ""},
 		// A right half with no wide character to its left reads as a space.
-		Cell{Ch: "", Bg: "#202020"},
+		cell{Ch: "", Bg: "#202020"},
 	)
 	d.Names = map[string]string{"#101010": "Surface", "#00ff00": "Accent", "#999999": "Unused"}
-	got, err := d.Frames()
+	got, err := d.frames()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +112,7 @@ B #00ff00 Accent
 	if err != nil {
 		t.Fatal(err)
 	}
-	back := NewDesign(s.Buf, s.Names)
+	back := newDesign(s.Buf, s.Names)
 	if c := back.Cells[0][3]; c.Ch != "中" || back.Cells[0][4].Ch != "" || back.Cells[0][5].Ch != " " {
 		t.Errorf("read back cells 3–5 as %+v, %+v, %+v; want the wide character, its right half, and a space",
 			c, back.Cells[0][4], back.Cells[0][5])
@@ -123,41 +123,41 @@ B #00ff00 Accent
 }
 
 func TestDesignErrors(t *testing.T) {
-	bgs := make([]Cell, 5)
+	bgs := make([]cell, 5)
 	for i := range bgs {
-		bgs[i] = Cell{Ch: " ", Bg: "#00000" + string(rune('1'+i))}
+		bgs[i] = cell{Ch: " ", Bg: "#00000" + string(rune('1'+i))}
 	}
 	tests := []struct {
 		name string
-		d    Design
+		d    design
 		want string
 	}{
-		{"empty", Design{}, "size 0×0"},
-		{"too big", Design{Width: MaxSide + 1, Height: 1}, "size"},
-		{"short rows", Design{Width: 2, Height: 1, Cells: [][]Cell{{{Ch: "a"}}}}, "row 0 is 1 cells wide, not 2"},
-		{"missing rows", Design{Width: 1, Height: 2, Cells: [][]Cell{{{Ch: "a"}}}}, "1 rows, not 2"},
-		{"bad color", row(Cell{Ch: "a", Fg: "red"}), `color "red" is not #rrggbb`},
-		{"short color", row(Cell{Ch: "a", Bg: "#fff"}), `color "#fff" is not #rrggbb`},
-		{"two runes", row(Cell{Ch: "ab", Fg: "#ffffff"}), "not one code point"},
-		{"newline", row(Cell{Ch: "\n", Fg: "#ffffff"}), "takes up no column"},
-		{"combining mark", row(Cell{Ch: "\u0301", Fg: "#ffffff"}), "takes up no column"},
-		{"attribute", row(Cell{Ch: "a", Fg: "#ffffff", Attrs: "X"}), `unknown attribute 'X'`},
-		{"name color", Design{Width: 1, Height: 1, Cells: [][]Cell{{{Ch: " "}}}, Names: map[string]string{"x": "X"}}, "is not #rrggbb"},
-		{"name newline", Design{Width: 1, Height: 1, Cells: [][]Cell{{{Ch: " "}}}, Names: map[string]string{"#ffffff": "a\nb"}}, "control character"},
+		{"empty", design{}, "size 0×0"},
+		{"too big", design{Width: maxSide + 1, Height: 1}, "size"},
+		{"short rows", design{Width: 2, Height: 1, Cells: [][]cell{{{Ch: "a"}}}}, "row 0 is 1 cells wide, not 2"},
+		{"missing rows", design{Width: 1, Height: 2, Cells: [][]cell{{{Ch: "a"}}}}, "1 rows, not 2"},
+		{"bad color", row(cell{Ch: "a", Fg: "red"}), `color "red" is not #rrggbb`},
+		{"short color", row(cell{Ch: "a", Bg: "#fff"}), `color "#fff" is not #rrggbb`},
+		{"two runes", row(cell{Ch: "ab", Fg: "#ffffff"}), "not one code point"},
+		{"newline", row(cell{Ch: "\n", Fg: "#ffffff"}), "takes up no column"},
+		{"combining mark", row(cell{Ch: "\u0301", Fg: "#ffffff"}), "takes up no column"},
+		{"attribute", row(cell{Ch: "a", Fg: "#ffffff", Attrs: "X"}), `unknown attribute 'X'`},
+		{"name color", design{Width: 1, Height: 1, Cells: [][]cell{{{Ch: " "}}}, Names: map[string]string{"x": "X"}}, "is not #rrggbb"},
+		{"name newline", design{Width: 1, Height: 1, Cells: [][]cell{{{Ch: " "}}}, Names: map[string]string{"#ffffff": "a\nb"}}, "control character"},
 		{"five backgrounds", row(bgs...), "more than 4 distinct values"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := tt.d.Frames()
+			_, err := tt.d.frames()
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
-				t.Errorf("Frames() error = %v, want one holding %q", err, tt.want)
+				t.Errorf("frames() error = %v, want one holding %q", err, tt.want)
 			}
 		})
 	}
 }
 
 func TestDesignANSI(t *testing.T) {
-	d := Design{Width: 6, Height: 2, Cells: [][]Cell{
+	d := design{Width: 6, Height: 2, Cells: [][]cell{
 		{
 			{Ch: "a", Fg: "#ff0000"},
 			{Ch: " "},
@@ -168,12 +168,12 @@ func TestDesignANSI(t *testing.T) {
 		},
 		{{Ch: " "}, {Ch: " "}, {Ch: " "}, {Ch: " "}, {Ch: " "}, {Ch: " "}},
 	}}
-	got, err := d.ANSI()
+	got, err := d.ansi()
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := "\x1b[0;38;2;255;0;0ma \x1b[0;1;38;2;255;0;0mb\x1b[0;38;2;255;0;0;48;2;0;0;128m \x1b[0m\n\n"
 	if got != want {
-		t.Errorf("ANSI() = %q\nwant      %q", got, want)
+		t.Errorf("ansi() = %q\nwant      %q", got, want)
 	}
 }

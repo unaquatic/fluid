@@ -11,15 +11,15 @@ import (
 	"github.com/unaquatic/fluid/widget"
 )
 
-var demoLayoutCmd = Demo{
-	Name:  "layout",
-	Short: "Flexbox layout engine demo",
-	Run:   runLayoutDemo,
+var demoLayoutCmd = demo{
+	name:  "layout",
+	short: "Flexbox layout engine demo",
+	run:   runLayoutDemo,
 }
 
-func runLayoutDemo(ctx context.Context, o DemoOptions) error {
+func runLayoutDemo(ctx context.Context, o demoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
-		UseMouse: !o.NoMouse,
+		UseMouse: !o.noMouse,
 	})
 	if err != nil {
 		return fmt.Errorf("renderer: %w", err)

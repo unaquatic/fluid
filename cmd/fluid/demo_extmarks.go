@@ -14,10 +14,10 @@ import (
 	"github.com/unaquatic/fluid/widget"
 )
 
-var demoExtmarksCmd = Demo{
-	Name:  "extmarks",
-	Short: "Virtual text ranges that the cursor skips over",
-	Run:   runExtmarksDemo,
+var demoExtmarksCmd = demo{
+	name:  "extmarks",
+	short: "Virtual text ranges that the cursor skips over",
+	run:   runExtmarksDemo,
 }
 
 const extmarksInitialContent = `Welcome to the Extmarks Demo!
@@ -33,9 +33,9 @@ Example: [LINK:https://example.com] and [TAG:important] are virtual.
 
 Regular text can be edited normally.`
 
-func runExtmarksDemo(ctx context.Context, o DemoOptions) error {
+func runExtmarksDemo(ctx context.Context, o demoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
-		UseMouse:          !o.NoMouse,
+		UseMouse:          !o.noMouse,
 		AltSendsEscPrefix: true,
 	})
 	if err != nil {

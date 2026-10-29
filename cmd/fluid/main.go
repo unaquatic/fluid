@@ -42,7 +42,7 @@ import (
 )
 
 func main() {
-	if err := Run(context.Background(), os.Args[1:]); err != nil {
+	if err := run(context.Background(), os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, "fluid:", err)
 		os.Exit(1)
 	}

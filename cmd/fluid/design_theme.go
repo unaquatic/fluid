@@ -8,9 +8,9 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// LoadTheme returns the theme in the file at path, a style.Theme as JSON, or
+// loadTheme returns the theme in the file at path, a style.Theme as JSON, or
 // style.DarculaSolid when path is empty.
-func LoadTheme(path string) (*style.Theme, error) {
+func loadTheme(path string) (*style.Theme, error) {
 	if path == "" {
 		return style.DarculaSolid(), nil
 	}

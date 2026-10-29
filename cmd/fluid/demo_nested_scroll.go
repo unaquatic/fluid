@@ -13,15 +13,15 @@ import (
 	"github.com/unaquatic/fluid/widget"
 )
 
-var demoNestedScrollCmd = Demo{
-	Name:  "nested-scroll",
-	Short: "Nested scrollable containers demo",
-	Run:   runNestedScrollDemo,
+var demoNestedScrollCmd = demo{
+	name:  "nested-scroll",
+	short: "Nested scrollable containers demo",
+	run:   runNestedScrollDemo,
 }
 
-func runNestedScrollDemo(ctx context.Context, o DemoOptions) error {
+func runNestedScrollDemo(ctx context.Context, o demoOptions) error {
 	r, err := terminal.NewRenderer(terminal.Config{
-		UseMouse: !o.NoMouse,
+		UseMouse: !o.noMouse,
 	})
 	if err != nil {
 		return fmt.Errorf("renderer: %w", err)
