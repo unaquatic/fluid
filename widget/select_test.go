@@ -294,3 +294,21 @@ func TestSelect_SelectedBackground(t *testing.T) {
 		t.Error("second row should not have selected background")
 	}
 }
+
+func TestSelect_ScrollOffset(t *testing.T) {
+	s := NewSelect(makeSelectItems(), SelectWithShowDescription(false))
+	testutil.SetupWidget(s, 30, 2)
+	if got := s.ScrollOffset(); got != 0 {
+		t.Errorf("ScrollOffset() = %d, want 0 before any move", got)
+	}
+
+	s.SetSelectedIndex(2)
+	if got := s.ScrollOffset(); got != 1 {
+		t.Errorf("ScrollOffset() = %d after selecting the last of 3 items in 2 rows, want 1", got)
+	}
+
+	s.SetScrollOffset(0)
+	if got := s.ScrollOffset(); got != 0 {
+		t.Errorf("ScrollOffset() = %d after SetScrollOffset(0), want 0", got)
+	}
+}
