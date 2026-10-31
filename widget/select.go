@@ -122,6 +122,9 @@ func (s *Select) SetSelectedIndex(idx int) {
 	}
 }
 
+// ScrollOffset returns the index of the first item considered for rendering.
+func (s *Select) ScrollOffset() int { return s.scrollOffset }
+
 // SetScrollOffset sets the first item considered for rendering.
 func (s *Select) SetScrollOffset(offset int) {
 	s.scrollOffset = offset
