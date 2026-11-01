@@ -1,6 +1,7 @@
 package render
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -223,6 +224,43 @@ func TestBaseRenderable_InsertBefore_NilAnchor(t *testing.T) {
 
 	if parent.ChildrenCount() != 1 {
 		t.Errorf("expected 1 child, got %d", parent.ChildrenCount())
+	}
+}
+
+func TestBaseRenderable_InsertAfter(t *testing.T) {
+	ids := func(r *BaseRenderable) []string {
+		var out []string
+		for _, c := range r.ChildrenRaw() {
+			out = append(out, c.ID())
+		}
+		return out
+	}
+	tests := []struct {
+		name   string
+		anchor string
+		want   []string
+	}{
+		{name: "between two children", anchor: "a", want: []string{"a", "x", "c"}},
+		{name: "after the last child", anchor: "c", want: []string{"a", "c", "x"}},
+		{name: "after a child it does not have", anchor: "other", want: []string{"a", "c", "x"}},
+		{name: "after no child", want: []string{"a", "c", "x"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			parent := NewBaseRenderable(WithID("parent"))
+			parent.Add(NewBaseRenderable(WithID("a")))
+			parent.Add(NewBaseRenderable(WithID("c")))
+			var anchor Renderable
+			if tt.anchor != "" {
+				anchor = NewBaseRenderable(WithID(tt.anchor))
+			}
+
+			parent.InsertAfter(NewBaseRenderable(WithID("x")), anchor)
+
+			if got := ids(parent); !slices.Equal(got, tt.want) {
+				t.Errorf("children are %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
