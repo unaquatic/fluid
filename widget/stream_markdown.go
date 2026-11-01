@@ -3,7 +3,9 @@ package widget
 import (
 	"reflect"
 	"slices"
+	"strings"
 	"time"
+	"unicode"
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/layout"
@@ -30,6 +32,12 @@ type StreamMarkdown struct {
 	// allBlocks is reparsed whenever fullContent changes.
 	allBlocks []mdBlock
 
+	// bareLine reports that the last line of fullContent holds no text yet,
+	// as bareLineStart finds it, and bareBlocks are then the blocks of
+	// fullContent without that line, which show while streaming.
+	bareLine   bool
+	bareBlocks []mdBlock
+
 	// leader leads the content, as SetLeader sets it, and trailer follows
 	// it, as SetTrailer sets it.
 	leader, trailer []style.TextChunk
@@ -39,6 +47,14 @@ type StreamMarkdown struct {
 
 	// mdOpts is applied to every child created after construction.
 	mdOpts []MarkdownOption
+
+	// streaming reports that more content is still to come, as SetStreaming
+	// sets it.
+	streaming bool
+
+	// pending is the row that stands for the block held back while
+	// streaming, as StreamMarkdownWithPending sets it.
+	pending []style.TextChunk
 }
 
 // StreamMarkdownOption configures a StreamMarkdown widget.
@@ -75,12 +91,77 @@ func (sm *StreamMarkdown) SetContent(content string) {
 	}
 	sm.fullContent = content
 	sm.allBlocks = sm.parser.Parse(content, sm.styles)
+	sm.bareBlocks = nil
+	start, bare := bareLineStart(content)
+	if sm.bareLine = bare; bare {
+		sm.bareBlocks = sm.parser.Parse(content[:start], sm.styles)
+	}
 	sm.distributeBlocks()
 }
+
+// bareLineStart returns the start of the last line of content, and reports
+// whether that line holds something, but no letter or digit yet, such as
+// the pipe that starts a table row or the dash of a list item.
+func bareLineStart(content string) (int, bool) {
+	start := strings.LastIndexByte(content, '\n') + 1
+	return start, start < len(content) && !strings.ContainsFunc(content[start:], isText)
+}
+
+// isText reports whether r is a letter or a digit.
+func isText(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) }
 
 // Content returns the full content string.
 func (sm *StreamMarkdown) Content() string {
 	return sm.fullContent
+}
+
+// SetStreaming reports whether more content is still to come. While it is,
+// the last block is held back, whatever it is, since what is still to come
+// may change it: it shows whole once a block after it starts, or once
+// streaming ends, and the row StreamMarkdownWithPending sets stands for it
+// meanwhile, or nothing does without one. A last line that holds no letter
+// or digit yet, such as the pipe that starts a table row, is left out too:
+// which block it starts or continues is not known until its text arrives.
+//
+// Inline output needs this: the rows that scroll into the terminal's
+// scrollback cannot be rewritten, so the rows shown so far must not change
+// as content arrives.
+func (sm *StreamMarkdown) SetStreaming(streaming bool) {
+	if streaming == sm.streaming {
+		return
+	}
+	sm.streaming = streaming
+	sm.distributeBlocks()
+}
+
+// Streaming reports whether more content is still to come, as SetStreaming
+// sets it.
+func (sm *StreamMarkdown) Streaming() bool { return sm.streaming }
+
+// shownBlocks returns the parsed blocks, but while streaming those of the
+// content without a last line that holds no text yet, with the last one
+// held back, as SetStreaming describes. It leaves allBlocks as it is.
+func (sm *StreamMarkdown) shownBlocks() []mdBlock {
+	if !sm.streaming {
+		return sm.allBlocks
+	}
+	blocks := sm.allBlocks
+	if sm.bareLine {
+		blocks = sm.bareBlocks
+	}
+	if len(blocks) == 0 {
+		return blocks
+	}
+	shown := slices.Clip(blocks[:len(blocks)-1])
+	if len(sm.pending) == 0 {
+		// Nothing stands for the block, so nor does the blank row that would
+		// part it from the block before.
+		if n := len(shown); n > 0 && shown[n-1].Kind == mdBlockBlank {
+			shown = shown[:n-1]
+		}
+		return shown
+	}
+	return append(shown, mdBlock{Kind: mdBlockParagraph, Body: slices.Clone(sm.pending)})
 }
 
 // Bg returns the color that fills the widget behind its content.
@@ -280,9 +361,10 @@ func (sm *StreamMarkdown) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration
 
 // distributeBlocks assigns one block to each child, creating children as needed,
 // with the leader before the first of them and the trailer after the last.
+// While streaming, the last block may be held back, as shownBlocks says.
 // Children are retained when content shrinks so future updates can reuse them.
 func (sm *StreamMarkdown) distributeBlocks() {
-	allBlocks := withTrailer(withLeader(sm.allBlocks, sm.leader), sm.trailer)
+	allBlocks := withTrailer(withLeader(sm.shownBlocks(), sm.leader), sm.trailer)
 
 	numChildren := len(allBlocks)
 	if numChildren == 0 {
@@ -295,11 +377,11 @@ func (sm *StreamMarkdown) distributeBlocks() {
 	}
 
 	// Clear retained children that have no corresponding block in this update.
-	for i := 0; i < numChildren; i++ {
+	for i, child := range sm.children {
 		if i < len(allBlocks) {
-			sm.children[i].setBlocks(allBlocks[i : i+1])
+			child.setBlocks(allBlocks[i : i+1])
 		} else {
-			sm.children[i].setBlocks(nil)
+			child.setBlocks(nil)
 		}
 	}
 }
@@ -411,6 +493,13 @@ func StreamMarkdownWithProsePadding(n int) StreamMarkdownOption {
 	return func(sm *StreamMarkdown) {
 		sm.mdOpts = append(sm.mdOpts, MarkdownWithProsePadding(n))
 	}
+}
+
+// StreamMarkdownWithPending sets row, the row that stands for the block held
+// back while streaming, as SetStreaming describes. It shows as a paragraph
+// does. Without it, nothing stands for the block.
+func StreamMarkdownWithPending(row style.StyledText) StreamMarkdownOption {
+	return func(sm *StreamMarkdown) { sm.pending = slices.Clone(row.Chunks) }
 }
 
 // StreamMarkdownWithTheme applies t to children created by NewStreamMarkdown.
