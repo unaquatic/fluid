@@ -279,9 +279,9 @@ func (s *BlockState) Add(n ast.Node, p BlockParser, state State) {
 
 // Reopen opens block n, which p parses and which is in the tree already,
 // as the tip, with [HasChildren], so that blocks can start in it on the
-// current line and on those after it: a block that closed, such as a
-// definition list that a definition after it continues, or one that p put
-// in the place of another. It first closes the blocks that the current line
+// current line and on those after it: a block that closed, which a line
+// after it continues, or one that p put in the place of another. It first
+// closes the blocks that the current line
 // does not continue, and reports whether n is then the last child of the
 // tip, which it must be to open. The span of n ends again as n closes.
 func (s *BlockState) Reopen(n ast.Node, p BlockParser) bool {
@@ -351,9 +351,8 @@ func (s *BlockState) Close(n ast.Node, line int) {
 		if b.parser != nil {
 			b.parser.Close(b.node, s)
 		}
-		// A block that moves elsewhere, such as a footnote definition to
-		// the list of footnotes, still ends where the next block of its
-		// parent may follow it.
+		// A block that an extension moves elsewhere as it closes still ends
+		// where the next block of its parent may follow it.
 		if b.node.Parent() != nil && len(s.open) > 0 {
 			parent := s.open[len(s.open)-1]
 			parent.childEnd = s.lineOf(b.node.SourceSpan().End)

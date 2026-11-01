@@ -78,7 +78,7 @@ func (p *parser) Parse(src string) *ast.Document {
 			return ast.WalkContinue, nil
 		}
 		switch n.(type) {
-		case *ast.Paragraph, *ast.Heading, *ast.TableCell, *ast.DefinitionTerm:
+		case *ast.Paragraph, *ast.Heading, *ast.TableCell:
 			in.parse(n, joinText(n.Lines(), ""))
 			return ast.WalkSkipChildren, nil
 		}
@@ -182,6 +182,11 @@ type Config struct {
 	// spaces needs, to delimit emphasis with punctuation that does not
 	// show.
 	EscapedSpace bool
+
+	// NoLinkReferences reports whether link reference definitions, such as
+	// "[a]: /url", are left as the text of the paragraphs they start, so
+	// that no reference link, such as "[a]", finds one.
+	NoLinkReferences bool
 }
 
 // Apply applies opts to c, in order.
@@ -277,6 +282,12 @@ func WithIDs(newIDs func() IDs) Option { return func(c *Config) { c.NewIDs = new
 // escapes them too.
 func WithEscapedSpace() Option { return func(c *Config) { c.EscapedSpace = true } }
 
+// WithoutLinkReferences leaves link reference definitions, such as
+// "[a]: /url", as the text of the paragraphs they start, so that no
+// reference link, such as "[a]", finds one. A definition then cannot change
+// how the text before it shows, as one written after its links does.
+func WithoutLinkReferences() Option { return func(c *Config) { c.NoLinkReferences = true } }
+
 // DefaultBlockParsers returns the block parsers of CommonMark, with their
 // priorities: [NewBlockquoteParser] 100, [NewATXHeadingParser] 200,
 // [NewFencedCodeBlockParser] 300, [NewHTMLBlockParser] 400,
@@ -339,6 +350,7 @@ type syntax struct {
 	autoHeadingID bool       // headings get IDs
 	newIDs        func() IDs // the IDs of a document
 	escapedSpace  bool       // a backslash escapes a space
+	noLinkRefs    bool       // link reference definitions are text
 
 	triggers  [256][]InlineParser // inline parsers by trigger
 	wordStart [256]bool           // bytes that trigger words
@@ -371,6 +383,7 @@ func newSyntax(c *Config) *syntax {
 		autoHeadingID:         c.AutoHeadingID,
 		newIDs:                c.NewIDs,
 		escapedSpace:          c.EscapedSpace,
+		noLinkRefs:            c.NoLinkReferences,
 	}
 	if s.newIDs == nil {
 		s.newIDs = NewIDs

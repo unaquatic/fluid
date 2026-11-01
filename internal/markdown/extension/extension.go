@@ -7,32 +7,23 @@
 // and [Table], [Strikethrough], [Linkify], and [TaskList] each add one of
 // them. [NewLinkify] makes Linkify with options.
 //
-// [Footnote] adds footnotes, and [DefinitionList] definition lists, as PHP
-// Markdown Extra defines them. [Typographer] writes quotation marks,
-// dashes, and ellipses as typographers do, as text, such as “ and —, and
-// [NewTypographer] makes it with other replacements. [CJK] suits Chinese,
-// Japanese, and Korean, and [EastAsianLineBreaks] decides which of their
-// soft line breaks a renderer shows.
+// [Typographer] writes quotation marks, dashes, and ellipses as
+// typographers do, as text, such as “ and —, and [NewTypographer] makes it
+// with other replacements. [CJK] suits Chinese, Japanese, and Korean, and
+// [EastAsianLineBreaks] decides which of their soft line breaks a renderer
+// shows.
 //
-//	p := parser.NewParser(parser.WithExtensions(extension.GFM, extension.Footnote))
+//	p := parser.NewParser(parser.WithExtensions(extension.GFM, extension.CJK))
 //
 // # Differences from goldmark
 //
 // The extensions parse as goldmark's do, but where goldmark's result is a
 // bug, or depends on how it splits text into nodes:
 //
-//   - A footnote definition in a footnote is none, where goldmark opens one
-//     and loses its text.
 //   - The typographer counts the quotes that each inline content opens,
 //     where goldmark, whose reset never runs, counts them across the
 //     document. A quotation mark at the start of a line, also of one in a
 //     block quote, follows a line ending, where goldmark sees the ">".
-//   - A blank line between the blocks of a description makes it loose,
-//     where goldmark leaves only its first paragraph without paragraph
-//     tags.
-//   - A link reference definition between a list and a ":" parts them, as
-//     it parts a paragraph from a ":" in goldmark, which makes it a term of
-//     the list instead.
 //   - By [EastAsianLineBreaks], a soft line break before content other than
 //     text, such as emphasis, stays between letters, where goldmark leaves
 //     it out, and the characters on each side are those of the text, with
@@ -68,18 +59,6 @@ var (
 	// [NewTaskListTransformer] returns and the transformer of documents
 	// that [NewTaskListCleanup] returns, both with priority 100.
 	TaskList parser.Extension = taskList{}
-
-	// Footnote adds footnotes: the parser of definitions that
-	// [NewFootnoteBlockParser] returns, with priority 999, the parser of
-	// references that [NewFootnoteParser] returns, with priority 101, and
-	// the transformer of documents that [NewFootnoteASTTransformer]
-	// returns, with priority 999.
-	Footnote parser.Extension = footnote{}
-
-	// DefinitionList adds definition lists: the parsers that
-	// [NewDefinitionListParser] and [NewDefinitionDescriptionParser]
-	// return, with priorities 101 and 102.
-	DefinitionList parser.Extension = definitionList{}
 
 	// Typographer writes punctuation as typographers do, as NewTypographer
 	// makes it with no options.

@@ -64,9 +64,10 @@ func (paragraphParser) CanAcceptIndentedLine() bool { return false }
 
 // takeRefs adds the link reference definitions at the start of lines, the
 // lines of a paragraph, to the document, and returns the lines after them
-// and the offset in the source at which those start.
+// and the offset in the source at which those start. Without link
+// references, as WithoutLinkReferences sets, it takes none.
 func (s *BlockState) takeRefs(lines []ast.Line) ([]ast.Line, int) {
-	if len(lines) == 0 || !strings.HasPrefix(lines[0].Text, "[") {
+	if s.syntax.noLinkRefs || len(lines) == 0 || !strings.HasPrefix(lines[0].Text, "[") {
 		return lines, sourceOffset(lines, 0)
 	}
 	text := joinText(lines, "")

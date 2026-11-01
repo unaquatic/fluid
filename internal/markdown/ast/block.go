@@ -19,12 +19,6 @@ var (
 	KindTableHeader     = NewNodeKind("TableHeader")
 	KindTableRow        = NewNodeKind("TableRow")
 	KindTableCell       = NewNodeKind("TableCell")
-	KindFootnoteList    = NewNodeKind("FootnoteList")
-	KindFootnote        = NewNodeKind("Footnote")
-
-	KindDefinitionList        = NewNodeKind("DefinitionList")
-	KindDefinitionTerm        = NewNodeKind("DefinitionTerm")
-	KindDefinitionDescription = NewNodeKind("DefinitionDescription")
 )
 
 // A Document is the root of a document's tree.
@@ -214,76 +208,3 @@ type TableCell struct {
 
 // Kind implements [Node].
 func (*TableCell) Kind() NodeKind { return KindTableCell }
-
-// A FootnoteList holds the footnotes of a document, as its last block, in
-// the order of their numbers: a [*Footnote] for each definition that the
-// document refers to. Its span is empty, at the end of the document, as
-// the footnotes keep the spans of their definitions.
-type FootnoteList struct {
-	BaseBlock
-
-	// Count is the number of footnotes that the document refers to.
-	Count int
-}
-
-// Kind implements [Node].
-func (*FootnoteList) Kind() NodeKind { return KindFootnoteList }
-
-// A Footnote is the definition of a footnote, such as "[^1]: text", whose
-// children are its blocks. Its span runs from its label through the end of
-// its last block, or the end of the label if it has none.
-type Footnote struct {
-	BaseBlock
-
-	// Ref is the footnote's label, without its brackets and caret, which
-	// the references to it match exactly.
-	Ref string
-
-	// Index is the footnote's number, from 1, in the order in which the
-	// document first refers to its footnotes, or 0 if it refers to none.
-	Index int
-}
-
-// Kind implements [Node].
-func (*Footnote) Kind() NodeKind { return KindFootnote }
-
-// A DefinitionList is a list of terms and their descriptions, as PHP
-// Markdown Extra defines it, whose children are [*DefinitionTerm] and
-// [*DefinitionDescription] nodes: terms, then the descriptions of them, and
-// so on. Its span runs from its first term through the end of its last
-// description.
-type DefinitionList struct {
-	BaseBlock
-
-	// Offset is the column, from the list's, at which the content of the
-	// list's last description starts, to which lines after the first of the
-	// description are indented.
-	Offset int
-}
-
-// Kind implements [Node].
-func (*DefinitionList) Kind() NodeKind { return KindDefinitionList }
-
-// A DefinitionTerm is a term of a [DefinitionList], whose children are its
-// inline content.
-type DefinitionTerm struct {
-	BaseBlock
-}
-
-// Kind implements [Node].
-func (*DefinitionTerm) Kind() NodeKind { return KindDefinitionTerm }
-
-// A DefinitionDescription is a description of the terms before it in a
-// [DefinitionList], whose children are its blocks. Its span runs from its
-// ":" through the end of its last block.
-type DefinitionDescription struct {
-	BaseBlock
-
-	// IsTight reports whether no blank line comes before the description,
-	// or between its blocks; the paragraphs of a tight description are not
-	// wrapped in paragraph tags.
-	IsTight bool
-}
-
-// Kind implements [Node].
-func (*DefinitionDescription) Kind() NodeKind { return KindDefinitionDescription }

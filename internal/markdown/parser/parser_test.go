@@ -60,6 +60,29 @@ func TestEscapedSpace(t *testing.T) {
 	}
 }
 
+// TestWithoutLinkReferences checks that, with WithoutLinkReferences, a link
+// reference definition stays the text of its paragraph, also under a setext
+// heading's underline, and that no reference link finds it.
+func TestWithoutLinkReferences(t *testing.T) {
+	p := parser.NewParser(parser.WithoutLinkReferences())
+	for _, tt := range []struct {
+		name, src, want string
+	}{
+		{"definition", "[a]: /url\n\n[a]", "<p>[a]: /url</p>\n<p>[a]</p>\n"},
+		{"under a heading", "[a]: /url\n===", "<h1>[a]: /url</h1>\n"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			d := p.Parse(tt.src)
+			if got := spectest.HTML(d, spectest.Options{}); got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+			if len(d.Links) > 0 {
+				t.Errorf("Links = %+v, want none", d.Links)
+			}
+		})
+	}
+}
+
 // span returns the range of the first occurrence of sub in src.
 func span(src, sub string) ast.Span {
 	i := strings.Index(src, sub)

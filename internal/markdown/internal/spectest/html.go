@@ -28,10 +28,9 @@ type Options struct {
 }
 
 // HTML returns the HTML of n, usually a document, as the reference
-// implementations of CommonMark and GFM render it, and goldmark renders
-// footnotes and definition lists, for tests to compare. It is no renderer
-// of fluid's: tests use it to check the trees that the parser builds
-// against the HTML that the specifications give.
+// implementations of CommonMark and GFM render it, for tests to compare. It
+// is no renderer of fluid's: tests use it to check the trees that the
+// parser builds against the HTML that the specifications give.
 func HTML(n ast.Node, o Options) string {
 	w := &writer{o: o}
 	_ = ast.Walk(n, w.render)
@@ -221,33 +220,6 @@ func (w *writer) render(n ast.Node, entering bool) (ast.WalkStatus, error) {
 			}
 		}
 		w.write(">")
-	case *ast.FootnoteList:
-		if entering {
-			w.cr()
-		}
-		open(`<div class="footnotes" role="doc-endnotes">`+"\n<hr"+w.end()+"\n<ol>\n", "</ol>\n</div>\n")
-	case *ast.Footnote:
-		open(`<li id="fn:`+strconv.Itoa(n.Index)+`">`+"\n", "</li>\n")
-	case *ast.DefinitionList:
-		if entering {
-			w.cr()
-		}
-		open("<dl>\n", "</dl>\n")
-	case *ast.DefinitionTerm:
-		if entering {
-			w.cr()
-		}
-		open("<dt>", "</dt>\n")
-	case *ast.DefinitionDescription:
-		if !entering {
-			w.write("</dd>\n")
-			break
-		}
-		w.cr()
-		w.write("<dd>")
-		if !n.IsTight {
-			w.write("\n")
-		}
 
 	case *ast.Text:
 		if !entering {
@@ -326,41 +298,18 @@ func (w *writer) render(n ast.Node, entering bool) (ast.WalkStatus, error) {
 			w.write(omitted)
 		}
 		return ast.WalkSkipChildren, nil
-	case *ast.FootnoteLink:
-		if entering {
-			index := strconv.Itoa(n.Index)
-			w.write(`<sup id="fnref` + refNumber(n.RefIndex) + ":" + index + `"><a href="#fn:` + index +
-				`" class="footnote-ref" role="doc-noteref">` + index + "</a></sup>")
-		}
-	case *ast.FootnoteBacklink:
-		if entering {
-			w.write(`&#160;<a href="#fnref` + refNumber(n.RefIndex) + ":" + strconv.Itoa(n.Index) +
-				`" class="footnote-backref" role="doc-backlink">&#x21a9;&#xfe0e;</a>`)
-		}
 	}
 	return ast.WalkContinue, nil
 }
 
-// isTight reports whether n is a block of an item of a tight list, or of a
-// tight description, which write no paragraph tags.
+// isTight reports whether n is a block of an item of a tight list, which
+// writes no paragraph tags.
 func isTight(n ast.Node) bool {
-	switch p := n.Parent().(type) {
-	case *ast.ListItem:
+	if p, ok := n.Parent().(*ast.ListItem); ok {
 		l, ok := p.Parent().(*ast.List)
 		return ok && l.IsTight
-	case *ast.DefinitionDescription:
-		return p.IsTight
 	}
 	return false
-}
-
-// refNumber returns the number of reference refIndex in the ID of a
-// footnote reference: none for the first.
-func refNumber(refIndex int) string {
-	if refIndex == 0 {
-		return ""
-	}
-	return strconv.Itoa(refIndex)
 }
 
 // plainText returns the text of the inline content of n without markup, as
