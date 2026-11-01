@@ -585,11 +585,20 @@ func parseMouseComplete(raw []byte) (TerminalEvent, int) {
 	if isWheel {
 		me.Type = MouseScroll
 		me.Button = ButtonNone
-		deltaY := 1
-		if btnBits == 0 {
-			deltaY = -1 // Wheel up uses button value zero.
+		// Button values zero and one are the wheel up and down, and two and
+		// three are left and right, which a trackpad sends as a swipe drifts
+		// sideways. Read as vertical, that drift scrolls down during a swipe
+		// up, and the view shakes.
+		switch btnBits {
+		case 0:
+			me.Scroll = &ScrollInfo{DeltaY: -1}
+		case 1:
+			me.Scroll = &ScrollInfo{DeltaY: 1}
+		case 2:
+			me.Scroll = &ScrollInfo{DeltaX: -1}
+		case 3:
+			me.Scroll = &ScrollInfo{DeltaX: 1}
 		}
-		me.Scroll = &ScrollInfo{DeltaY: deltaY}
 	} else if isMotion {
 		me.Type = MouseDrag
 		me.IsDragging = true

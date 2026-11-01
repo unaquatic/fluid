@@ -474,6 +474,36 @@ func TestParser_MouseScroll_Down(t *testing.T) {
 	}
 }
 
+// TestParser_MouseScroll_Horizontal checks that button masks 66 and 67,
+// which terminals such as Ghostty send for the sideways drift of a trackpad
+// swipe, scroll horizontally and never vertically, so that a swipe up does
+// not also scroll down.
+func TestParser_MouseScroll_Horizontal(t *testing.T) {
+	tests := []struct {
+		name  string
+		seq   string
+		wantX int
+	}{
+		{name: "left", seq: "\x1b[<66;1;1M", wantX: -1},
+		{name: "right", seq: "\x1b[<67;1;1M", wantX: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			events := NewParser().Parse([]byte(tt.seq))
+			if len(events) != 1 {
+				t.Fatalf("expected 1 event, got %d", len(events))
+			}
+			m := events[0].Mouse
+			if m.Type != MouseScroll {
+				t.Errorf("Type = %v, want MouseScroll", m.Type)
+			}
+			if m.Scroll == nil || *m.Scroll != (ScrollInfo{DeltaX: tt.wantX}) {
+				t.Errorf("Scroll = %+v, want {DeltaX:%d DeltaY:0}", m.Scroll, tt.wantX)
+			}
+		})
+	}
+}
+
 func TestParser_MouseDrag(t *testing.T) {
 	// Button mask 32 reports motion while the left button is held.
 	p := NewParser()
