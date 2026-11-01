@@ -1,6 +1,7 @@
 package buffer
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/unaquatic/fluid/layout"
@@ -759,6 +760,41 @@ func TestCopyRowsFromClampsToBothBuffers(t *testing.T) {
 	}
 	if got := dst.Cell(0, 3).Char; got == 'x' {
 		t.Error("row 3 was copied from beyond the source")
+	}
+}
+
+// TestCopyRowsFromOffset copies rows of a source to other rows of the
+// destination, clamped to the rows both buffers hold.
+func TestCopyRowsFromOffset(t *testing.T) {
+	src := New(4, 5)
+	for y := range 5 {
+		src.SetCell(0, y, rune('a'+y), style.ColorWhite, style.ColorBlack, 0)
+	}
+	rows := func(b *Buffer) string {
+		var sb strings.Builder
+		for y := range b.Height() {
+			sb.WriteRune(max(b.Cell(0, y).Char, '.'))
+		}
+		return sb.String()
+	}
+	for _, tt := range []struct {
+		name            string
+		srcY, y, height int
+		want            string
+	}{
+		{name: "up", srcY: 3, y: 1, height: 2, want: ".de."},
+		{name: "down", srcY: 0, y: 2, height: 2, want: "..ab"},
+		{name: "past the destination's end", srcY: 0, y: 2, height: 5, want: "..ab"},
+		{name: "past the source's end", srcY: 4, y: 0, height: 3, want: "e..."},
+		{name: "before both starts", srcY: -1, y: -2, height: 4, want: "bc.."},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			dst := New(4, 4)
+			dst.CopyRowsFromOffset(src, tt.srcY, tt.y, tt.height)
+			if got := rows(dst); got != tt.want {
+				t.Errorf("rows %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 

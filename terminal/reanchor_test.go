@@ -12,7 +12,7 @@ import (
 
 // disagreeingTerm models a terminal whose grapheme widths differ from the
 // buffer's widths. It also models deferred wrapping, inline cursor controls,
-// the scrollback, and the alternate screen.
+// scroll regions, the scrollback, and the alternate screen.
 type disagreeingTerm struct {
 	w, h       int
 	grid       [][]rune
@@ -23,6 +23,9 @@ type disagreeingTerm struct {
 	scrollback []string
 	normal     *savedScreen // The normal screen while the alternate one is shown.
 	adv        func(rune) int
+	// mTop and mBottom are the first and last rows of the scroll region,
+	// the whole screen unless DECSTBM sets one.
+	mTop, mBottom int
 }
 
 // savedScreen is the normal screen and cursor that entering the alternate
@@ -36,20 +39,37 @@ func (s *disagreeingTerm) blankRow() []rune {
 	return []rune(strings.Repeat(".", s.w))
 }
 
+// lineFeed moves the cursor down a row, or scrolls the scroll region when the
+// cursor is on its last row. A row scrolled off the top of the screen, as a
+// region that starts there scrolls it, goes to the scrollback.
 func (s *disagreeingTerm) lineFeed() {
 	s.pending = false
-	s.cy++
-	if s.cy < s.h {
+	if s.cy != s.mBottom {
+		s.cy = min(s.cy+1, s.h-1)
 		return
 	}
 	// Only the normal screen feeds the scrollback.
-	if s.normal == nil {
+	if s.normal == nil && s.mTop == 0 {
 		s.scrollback = append(s.scrollback, string(s.grid[0]))
 	}
-	copy(s.grid, s.grid[1:])
-	s.grid[s.h-1] = s.blankRow()
-	s.cy = s.h - 1
+	copy(s.grid[s.mTop:s.mBottom+1], s.grid[s.mTop+1:s.mBottom+1])
+	s.grid[s.mBottom] = s.blankRow()
 	s.scrolled++
+}
+
+// setRegion applies DECSTBM: params "top;bottom", one-based, set the scroll
+// region, and none reset it to the screen. A region less than two rows tall
+// is ignored. Either moves the cursor home.
+func (s *disagreeingTerm) setRegion(params string) {
+	top, bottom := 1, s.h
+	if params != "" {
+		top, bottom = cupParams(params)
+	}
+	if top < 1 || bottom > s.h || top >= bottom {
+		return
+	}
+	s.mTop, s.mBottom = top-1, bottom-1
+	s.cx, s.cy, s.pending = 0, 0, false
 }
 
 // eraseDisplay applies ED: 0 erases from the cursor to the end of the screen,
@@ -132,9 +152,20 @@ func (s *disagreeingTerm) csi(params string, command byte) {
 	case 'G':
 		s.cx, s.pending = max(atoiParam(params), 1)-1, false
 	case 'A':
-		s.cy, s.pending = max(s.cy-max(atoiParam(params), 1), 0), false
+		// Cursor movement stops at the margin of the region the cursor is in.
+		stop := 0
+		if s.cy >= s.mTop {
+			stop = s.mTop
+		}
+		s.cy, s.pending = max(s.cy-max(atoiParam(params), 1), stop), false
 	case 'B':
-		s.cy, s.pending = min(s.cy+max(atoiParam(params), 1), s.h-1), false
+		stop := s.h - 1
+		if s.cy <= s.mBottom {
+			stop = s.mBottom
+		}
+		s.cy, s.pending = min(s.cy+max(atoiParam(params), 1), stop), false
+	case 'r':
+		s.setRegion(params)
 	case 'K':
 		if params == "2" {
 			s.grid[s.cy] = s.blankRow()
@@ -159,7 +190,7 @@ func newDisagreeingTerm(w, h int, adv func(rune) int) *disagreeingTerm {
 			g[i][j] = '.'
 		}
 	}
-	return &disagreeingTerm{w: w, h: h, grid: g, autowrap: true, adv: adv}
+	return &disagreeingTerm{w: w, h: h, grid: g, autowrap: true, adv: adv, mBottom: h - 1}
 }
 
 func (s *disagreeingTerm) feed(data string) {
