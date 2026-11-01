@@ -161,15 +161,16 @@ func (r *Renderer) inlineFrameUnchanged() bool {
 // before the renderer runs.
 func (r *Renderer) SetInlineLiveTop(fn func() int) { r.inlineLiveTop = fn }
 
-// inlineDamage returns the region of the frame to repaint.
+// inlineDamage returns the region of the frame to repaint: the scene's damage,
+// or the whole frame when its width changed or no previous content survives.
 //
-// A change at or below the viewport is repainted in place, and the region never
-// extends above the viewport, because the terminal cannot address rows it has
-// scrolled into the scrollback.
-//
-// A frame is damaged in full when its width changed, when no previous content
-// survives, or when the scene changed above the viewport. The last case cannot
-// be repainted in place, so the flush erases the scrollback and rewrites it.
+// Damage that reaches above the viewport is repainted as it is, not widened to
+// the whole frame. A container that grows reports its whole rectangle, so a
+// reply taller than the screen damages rows in the scrollback on every frame
+// it grows, though only its rows on screen change. The flush compares the
+// repainted rows, and only a row in the scrollback that did change makes it
+// erase the scrollback and rewrite it. Repainting the whole frame instead
+// costs as much as the transcript is tall.
 func (r *Renderer) inlineDamage(width, height int, widthChanged bool) buffer.Rect {
 	full := buffer.Rect{Width: width, Height: height}
 	if widthChanged || r.inlineCurrentBuf == nil {
@@ -180,20 +181,7 @@ func (r *Renderer) inlineDamage(width, height int, widthChanged bool) buffer.Rec
 	// The cell the cursor inverted last frame has to be repainted before the
 	// inversion moves. Where it moves to is not known until widgets paint, so
 	// the frame widens its damage again once they have.
-	damage := r.root.TakeDamage().Union(r.inlineCursorCell)
-	if damage.IsEmpty() {
-		return buffer.Rect{}
-	}
-	if damage.Y < r.inlineViewportTop {
-		return full
-	}
-
-	viewport := buffer.Rect{
-		Y:      r.inlineViewportTop,
-		Width:  width,
-		Height: height - r.inlineViewportTop,
-	}
-	return damage.Intersect(viewport)
+	return r.root.TakeDamage().Union(r.inlineCursorCell).Intersect(full)
 }
 
 // drawInlineCursor inverts the cell under the cursor. Inline mode keeps the

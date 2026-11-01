@@ -404,6 +404,48 @@ func TestInlineDamage_ScrollbackChangeRewritesTheScreen(t *testing.T) {
 	}
 }
 
+// TestInlineDamage_GrowthIntoTheScrollbackRepaintsOnlyTheContainer covers a
+// streaming reply taller than the screen. Its container reports its whole
+// rectangle when it grows, which starts in the scrollback, but repainting the
+// rows above it as well would cost as much as the transcript is tall on every
+// frame it grows. Its rows in the scrollback do not change, so neither does
+// the scrollback.
+func TestInlineDamage_GrowthIntoTheScrollbackRepaintsOnlyTheContainer(t *testing.T) {
+	reply := widget.NewBox(widget.BoxWithID("reply"),
+		widget.BoxWithLayout(layout.WithFlexDirection(layout.DirectionColumn)))
+	parts := make([]*glyphRow, 0, 9)
+	for i := range 9 {
+		part := newGlyphRow(string(rune('f'+i)), rune('f'+i), 39, 2)
+		parts = append(parts, part)
+		reply.Add(part)
+	}
+
+	r, out := newInlineTestRenderer()
+	for i := range 5 {
+		r.root.Add(newGlyphRow(string(rune('a'+i)), rune('a'+i), 39, 2))
+	}
+	r.root.Add(reply)
+	r.root.Add(newGlyphRow("prompt", 'p', 39, 3))
+	r.renderInlineFrame()
+	if top := r.inlineViewportTop; top <= reply.Y() {
+		t.Fatalf("viewport top is %d, want the reply to start above it at row %d", top, reply.Y())
+	}
+	out.Reset()
+
+	parts[len(parts)-1].resize(3)
+	r.renderInlineFrame()
+
+	if got := r.inlineDamaged.Y; got != reply.Y() {
+		t.Errorf("damage starts at row %d, want the reply's first row %d", got, reply.Y())
+	}
+	if strings.Contains(out.String(), inlineEraseAll) {
+		t.Error("growth on screen erased the scrollback")
+	}
+	if got, want := frameText(r.nextBuffer), "aabbccddeeffgghhiijjkkllmmnnnppp"; got != want {
+		t.Errorf("frame is %q, want %q", got, want)
+	}
+}
+
 // strayRow paints one row above its own rectangle, the way a background drawn
 // wider or taller than its layout box does.
 type strayRow struct {
