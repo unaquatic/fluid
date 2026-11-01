@@ -758,24 +758,6 @@ func (b *Buffer) CopyRowsFrom(src *Buffer, y, height int) {
 	copy(b.cells[top*b.width:bottom*b.width], src.cells[top*b.width:bottom*b.width])
 }
 
-// CopyRowsFromOffset replaces rows [y, y+height) of b with rows [srcY,
-// srcY+height) of src, copying only the rows both buffers hold. Buffers of
-// differing width copy nothing, as with CopyRowsFrom.
-func (b *Buffer) CopyRowsFromOffset(src *Buffer, srcY, y, height int) {
-	if b.width != src.width {
-		return
-	}
-	// Rows outside either buffer are skipped, from both ends.
-	if skip := max(-y, -srcY, 0); skip > 0 {
-		y, srcY, height = y+skip, srcY+skip, height-skip
-	}
-	height = min(height, b.height-y, src.height-srcY)
-	if height <= 0 {
-		return
-	}
-	copy(b.cells[y*b.width:(y+height)*b.width], src.cells[srcY*b.width:(srcY+height)*b.width])
-}
-
 // SetHeight changes b's height, keeping the rows both sizes hold and clearing
 // the rows the change adds. Existing cells are reused when they have room, so
 // growing by a row costs a row rather than a copy of the whole buffer.

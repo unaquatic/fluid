@@ -108,12 +108,16 @@ func (r *Renderer) renderInlineFrame() {
 	// Widgets publish the cursor while they paint, so the cell it inverted is
 	// only known now. The flush has to compare and store that row even when the
 	// scene damage does not reach it.
-	out, damaged := r.inlineOutput(r.nextBuffer, damage.Union(r.inlineCursorCell))
-	r.inlineDamaged = damaged
+	r.inlineDamaged = damage.Union(r.inlineCursorCell)
+
+	r.inlineLiveRow = contentHeight
+	if r.inlineLiveTop != nil {
+		r.inlineLiveRow = min(max(r.inlineLiveTop(), 0), contentHeight)
+	}
 
 	tFlush0 := time.Now()
-	if !r.inlineFrameUnchanged(out) {
-		r.inlineFlush(out)
+	if !r.inlineFrameUnchanged() {
+		r.inlineFlush(r.nextBuffer)
 	}
 	flushDur := time.Since(tFlush0)
 	r.root.LastFrameStats.Flush = flushDur
@@ -128,105 +132,34 @@ func (r *Renderer) renderInlineFrame() {
 	}
 }
 
-// inlineFrameUnchanged reports whether out, the output of the frame, already
-// matches what the terminal shows.
+// inlineFrameUnchanged reports whether the frame already matches the one the
+// terminal shows.
 //
 // An undamaged frame of unchanged height was never painted, so no cell in it
 // can differ. Establishing that by comparison instead reads every cell of the
 // transcript, which is the most an idle frame can cost.
-func (r *Renderer) inlineFrameUnchanged(out *buffer.Buffer) bool {
+func (r *Renderer) inlineFrameUnchanged() bool {
 	return r.inlineDamaged.IsEmpty() &&
 		r.inlineCurrentBuf != nil &&
-		r.inlineCurrentBuf.Height() == out.Height()
+		r.inlineCurrentBuf.Height() == r.nextBuffer.Height()
 }
 
 // SetInlineLiveTop sets fn, the function that returns the first row of the
 // live area of inline output: the rows from it down, which may still change,
-// such as a reply that streams and the input under it. The live area never
-// scrolls into the terminal's scrollback, where its rows could no longer be
-// rewritten. Without it, the rows above it scroll into the scrollback as the
-// content grows, as every row does without a live area.
+// such as a reply that streams and the input under it. Rows the content
+// gains right above the live area then scroll into the scrollback through
+// the rows of the screen above it, which leaves the live area in place,
+// rather than move every row of it down, which rewrites them all.
 //
-// While the live area fills the screen, leaving no row free, the output
-// holds still above it: the rows at its top that do not fit, and the rows
-// above it that the content gains meanwhile, are left out. Each of those
-// would push the whole screen down a row, rewriting every row of it. They
-// show once a row of the screen is free again.
+// The live area has to stay on screen, with a row free above it, for that:
+// the program keeps it shorter than the screen.
 //
-// fn runs once a frame is laid out, on the event loop. A row already in the
-// scrollback cannot be live, so the live area starts at the first row on
-// screen at the earliest. A nil fn, the default, makes no row live.
+// fn runs once a frame is laid out, on the event loop. A nil fn, the
+// default, makes no row live.
 //
 // Call it from the event-loop goroutine, for example through Enqueue, or
 // before the renderer runs.
 func (r *Renderer) SetInlineLiveTop(fn func() int) { r.inlineLiveTop = fn }
-
-// inlineOutput returns the rows of frame that inline output shows, and
-// damage, the region repainted into frame, in those rows.
-//
-// The output is frame itself, unless the live area that SetInlineLiveTop
-// sets fills the screen. The output then holds the rows above the live area
-// that it held when the live area filled the screen, and under them the last
-// rows of frame, which fill the screen: the rows between are left out. Those
-// move the rows under them as they change, so while the live area fills the
-// screen, and once it stops, every row from the first row left out down
-// counts as repainted.
-func (r *Renderer) inlineOutput(frame *buffer.Buffer, damage buffer.Rect) (*buffer.Buffer, buffer.Rect) {
-	height, width := frame.Height(), frame.Width()
-	rows := r.inlineTermRows(height)
-	top := height
-	if r.inlineLiveTop != nil {
-		top = min(max(r.inlineLiveTop(), r.inlineViewportTop, 0), height)
-	}
-	wasFull, from := r.inlineLiveFull, r.inlineLiveFrom
-	r.inlineLiveFull = height-top >= rows
-
-	if !r.inlineLiveFull {
-		r.inlineLiveBuf = nil
-		r.inlineOutLive = top
-		if !wasFull {
-			return frame, damage
-		}
-		// The rows left out show again.
-		return frame, damage.Union(buffer.Rect{Y: from, Width: width, Height: height - from})
-	}
-
-	// The output holds still above the row where the live area began to fill
-	// the screen, and the last rows of frame fill the screen under it.
-	if !wasFull {
-		from = top
-	}
-	r.inlineLiveFrom = from
-	r.inlineOutLive = from
-	end := height - rows
-	cut := end - from
-
-	if cell := r.inlineCursorCell; cut > 0 && cell.Y >= from {
-		r.inlineOutCell.Y = cell.Y - cut
-		if cell.Y < end {
-			r.inlineOutCell = buffer.Rect{} // The cursor is in a row left out.
-		}
-	}
-
-	above := damage.Intersect(buffer.Rect{Width: width, Height: from})
-	moved := buffer.Rect{Y: from, Width: width, Height: rows}
-	if cut == 0 {
-		r.inlineLiveBuf = nil
-		return frame, above.Union(moved)
-	}
-	out := r.inlineLiveBuf
-	if out == nil || out.Width() != width {
-		// The rows above the live area are those of frame.
-		out = buffer.New(width, from+rows)
-		out.CopyRowsFrom(frame, 0, from)
-	} else {
-		out.SetHeight(from + rows)
-		out.CopyRowsFrom(frame, above.Y, above.Height)
-	}
-	out.CopyRowsFromOffset(frame, end, from, rows)
-	r.inlineLiveBuf = out
-	return out, above.Union(moved)
-}
 
 // inlineDamage returns the region of the frame to repaint.
 //
@@ -267,15 +200,13 @@ func (r *Renderer) inlineDamage(width, height int, widthChanged bool) buffer.Rec
 // hardware cursor hidden because it cannot be placed in the scrollback.
 //
 // Widgets publish their cursor position while painting, so this reads the
-// position after the scene is drawn and records the cell it inverted, which
-// is the cell in the output too until inlineOutput leaves rows out.
+// position after the scene is drawn and records the cell it inverted.
 func (r *Renderer) drawInlineCursor(buf *buffer.Buffer) {
 	r.mu.Lock()
 	x, y, visible := r.cursorX, r.cursorY, r.cursorVisible
 	r.mu.Unlock()
 
 	r.inlineCursorCell = buffer.Rect{}
-	r.inlineOutCell = buffer.Rect{}
 	if !visible || x < 0 || x >= buf.Width() || y < 0 || y >= buf.Height() {
 		return
 	}
@@ -287,7 +218,6 @@ func (r *Renderer) drawInlineCursor(buf *buffer.Buffer) {
 	}
 	buf.SetCellDirect(x, y, cell)
 	r.inlineCursorCell = buffer.Rect{X: x, Y: y, Width: 1, Height: 1}
-	r.inlineOutCell = r.inlineCursorCell
 }
 
 // inlineFlush updates inline output to match buf.
@@ -343,7 +273,7 @@ func (r *Renderer) inlineFlush(buf *buffer.Buffer) {
 // area's first row, which the region cleared, and those of its rows that
 // changed are then rewritten.
 func (r *Renderer) inlineInsertAbove(buf, prev *buffer.Buffer, first, termHeight int) bool {
-	was, top := r.inlineLiveWas, r.inlineOutLive
+	was, top := r.inlineLiveWas, r.inlineLiveRow
 	added, live := top-was, buf.Height()-top
 	viewTop := r.inlineViewportTop
 	free := was - viewTop
@@ -357,7 +287,7 @@ func (r *Renderer) inlineInsertAbove(buf, prev *buffer.Buffer, first, termHeight
 	colorMode, indexers := r.backend.ColorMode(), r.backend.Indexers()
 	width := buf.Width()
 
-	// The screen is full, so its rows are the output's from viewTop down, and
+	// The screen is full, so its rows are the frame's from viewTop down, and
 	// the region's last row is the live area's first.
 	fmt.Fprintf(&out, "\x1b[1;%dr\x1b[%d;1H", free+1, free+1)
 	for y := was; y < top; y++ {
@@ -572,7 +502,7 @@ func (r *Renderer) storeInline(buf *buffer.Buffer, termHeight, viewportTop, curs
 	r.inlineViewportTop = max(viewportTop, 0)
 	r.inlineCursorRow = cursorRow
 	r.inlineEraseNext = false
-	r.inlineLiveWas = r.inlineOutLive
+	r.inlineLiveWas = r.inlineLiveRow
 }
 
 // writeInline sends out to the terminal and records flush statistics.
@@ -712,7 +642,7 @@ func (r *Renderer) inlineEdgeBg(buf *buffer.Buffer, y int) style.Color {
 		return style.Color{}
 	}
 	cell := buf.Cell(x, y)
-	if r.inlineOutCell.Contains(x, y) {
+	if r.inlineCursorCell.Contains(x, y) {
 		return cell.Fg
 	}
 	return cell.Bg

@@ -42,8 +42,7 @@ func (r *Renderer) SetInlineMode(inline bool) {
 		r.inlineViewportTop = 0
 		r.inlineCursorRow = 0
 		r.inlineTermHeight = 0
-		r.inlineLiveBuf, r.inlineLiveFull, r.inlineLiveFrom = nil, false, 0
-		r.inlineOutLive, r.inlineLiveWas = 0, 0
+		r.inlineLiveRow, r.inlineLiveWas = 0, 0
 		return
 	}
 

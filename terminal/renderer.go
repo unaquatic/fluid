@@ -95,17 +95,10 @@ type Renderer struct {
 	inlineDamaged         buffer.Rect    // The region repainted into the frame being flushed.
 	inlineCursorCell      buffer.Rect    // The cell the inline cursor inverted, which must be restored.
 
-	// The live area of inline output, as SetInlineLiveTop describes it. While
-	// rows are left out, inline output flushes inlineLiveBuf, the frame
-	// without them, so the rows the flush and inlineCurrentBuf count are those
-	// of the output, not of the frame.
-	inlineLiveTop  func() int     // The first row of the live area, as SetInlineLiveTop sets it.
-	inlineLiveFull bool           // Whether the live area filled the screen in the output last flushed.
-	inlineLiveFrom int            // The first row that output left out while inlineLiveFull.
-	inlineLiveBuf  *buffer.Buffer // The output while rows are left out.
-	inlineOutCell  buffer.Rect    // inlineCursorCell in the rows of the output being flushed.
-	inlineOutLive  int            // The live area's first row in the output being flushed.
-	inlineLiveWas  int            // The live area's first row in the output last flushed.
+	// The live area of inline output, as SetInlineLiveTop describes it.
+	inlineLiveTop func() int // The first row of the live area, as SetInlineLiveTop sets it.
+	inlineLiveRow int        // The live area's first row in the frame being flushed.
+	inlineLiveWas int        // The live area's first row in the frame last flushed.
 
 	// Optional diagnostic log.
 	dbg     *slog.Logger
