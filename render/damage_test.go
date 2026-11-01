@@ -104,6 +104,21 @@ func TestClearDamage(t *testing.T) {
 		}
 	})
 
+	t.Run("hidden is clean once its region is reported", func(t *testing.T) {
+		r := paintedAt(2, 3, 10, 4)
+		r.SetGone(true)
+
+		r.ClearDamage()
+
+		if r.IsDirty() {
+			t.Error("a hidden renderable, which never paints, stayed dirty")
+		}
+		r.SetGone(false)
+		if !r.IsDirty() {
+			t.Error("showing a renderable again left it clean")
+		}
+	})
+
 	t.Run("visible keeps its region", func(t *testing.T) {
 		r := paintedAt(2, 3, 10, 4)
 		r.dirty = true
