@@ -100,6 +100,12 @@ type Renderer struct {
 	inlineLiveRow int        // The live area's first row in the frame being flushed.
 	inlineLiveWas int        // The live area's first row in the frame last flushed.
 
+	// Rows handed over to the terminal, as CommitInline describes them.
+	inlineCommitted  bool   // Whether rows were committed since the output was last written in full.
+	inlineReprint    func() // The function that puts committed rows back, as SetInlineReprint sets it.
+	inlineReprintDue bool   // Whether the next frame puts committed rows back and writes every row.
+	inlineRebased    bool   // Whether rows were committed since the frame was last laid out, which moves them.
+
 	// Optional diagnostic log.
 	dbg     *slog.Logger
 	dbgFile *os.File

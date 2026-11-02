@@ -1,6 +1,7 @@
 package buffer
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/unaquatic/fluid/layout"
@@ -1322,5 +1323,46 @@ func TestDetachWide_UnclippedStillRepairs(t *testing.T) {
 
 	if b.Cell(5, 0).IsContinuation() {
 		t.Error("continuation should have been blanked when nothing clips it")
+	}
+}
+
+func TestDropRows(t *testing.T) {
+	rows := func(b *Buffer) string {
+		var sb strings.Builder
+		for y := range b.Height() {
+			sb.WriteRune(b.Cell(0, y).Char)
+		}
+		return sb.String()
+	}
+	for _, tt := range []struct {
+		name string
+		n    int
+		want string
+	}{
+		{name: "none", n: 0, want: "abcde"},
+		{name: "some", n: 2, want: "cde"},
+		{name: "all", n: 5, want: ""},
+		{name: "more than all", n: 9, want: ""},
+		{name: "negative", n: -1, want: "abcde"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			b := New(3, 5)
+			for y, ch := range "abcde" {
+				for x := range 3 {
+					b.SetCell(x, y, ch, style.ColorWhite, style.ColorBlack, 0)
+				}
+			}
+			b.DropRows(tt.n)
+			if got := rows(b); got != tt.want {
+				t.Errorf("rows are %q, want %q", got, tt.want)
+			}
+			if b.Height() != len(tt.want) {
+				t.Errorf("height is %d, want %d", b.Height(), len(tt.want))
+			}
+			// The rows that remain keep every column.
+			if b.Height() > 0 && b.Cell(2, 0).Char != rune(tt.want[0]) {
+				t.Errorf("the first row's last cell is %q, want %q", b.Cell(2, 0).Char, tt.want[0])
+			}
+		})
 	}
 }

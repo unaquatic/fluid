@@ -104,11 +104,15 @@ func TestSetInlineMode_KeepsTrackedTerminalState(t *testing.T) {
 func TestSetInlineMode_BeforeSetupDiscardsTrackedTerminalState(t *testing.T) {
 	r, _ := newInlineTestRenderer()
 	r.inlineFlush(rowsBuffer(10, strings.Repeat("A", testTermHeight+5), 5))
+	r.inlineCommitted, r.inlineReprintDue = true, true
 
 	r.SetInlineMode(false)
 
 	if r.inlineCurrentBuf != nil {
 		t.Error("expected inlineCurrentBuf=nil")
+	}
+	if r.inlineCommitted || r.inlineReprintDue {
+		t.Errorf("expected no committed rows to put back, got committed=%v due=%v", r.inlineCommitted, r.inlineReprintDue)
 	}
 	if r.inlineViewportTop != 0 || r.inlineCursorRow != 0 || r.inlineTermHeight != 0 {
 		t.Errorf("expected the inline anchor to be cleared, got top=%d cursor=%d height=%d",

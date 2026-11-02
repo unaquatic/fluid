@@ -783,6 +783,15 @@ func (b *Buffer) SetHeight(height int) {
 	b.scissor.Clear()
 }
 
+// DropRows removes the first n rows of b, moving the rest up to take their
+// place, so b is n rows shorter. It removes every row when n is b's height or
+// more, and resets the clipping stack, as SetHeight does.
+func (b *Buffer) DropRows(n int) {
+	n = min(max(n, 0), b.height)
+	copy(b.cells, b.cells[n*b.width:])
+	b.SetHeight(b.height - n)
+}
+
 // Resize changes the dimensions of b, clears its cells, and resets its
 // clipping stack.
 func (b *Buffer) Resize(width, height int) {

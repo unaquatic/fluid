@@ -55,6 +55,11 @@ func (r *Renderer) renderInlineFrame() {
 
 	layoutWidth := inlineLayoutWidth(termWidth)
 
+	// Rows put back join the scene before its lifecycle passes and layout run.
+	if r.inlineReprintDue {
+		r.reprintInline()
+	}
+
 	// Resize the root only when width changes; content mutations already dirty
 	// the layout tree.
 	if r.lastInlineLayoutWidth != layoutWidth {
@@ -64,6 +69,7 @@ func (r *Renderer) renderInlineFrame() {
 
 	prepStats := r.root.PrepareLayout(deltaTime)
 	syncStats := r.root.SyncPositions(deltaTime)
+	r.inlineRebased = false // The scene is where the frame puts it.
 
 	contentHeight := max(r.computeContentHeight(), 1)
 
@@ -216,8 +222,8 @@ func (r *Renderer) drawInlineCursor(buf *buffer.Buffer) {
 // the scrollback.
 //
 // A first frame writes every row. A width change, a height change, or a change
-// to a row already in the scrollback clears the screen and rewrites every row.
-// Every other frame writes only the rows that differ.
+// to a row already in the scrollback clears the screen and rewrites every row,
+// as inlineRewrite does. Every other frame writes only the rows that differ.
 func (r *Renderer) inlineFlush(buf *buffer.Buffer) {
 	termHeight := r.inlineTermRows(buf.Height())
 	prev := r.inlineCurrentBuf
@@ -227,7 +233,7 @@ func (r *Renderer) inlineFlush(buf *buffer.Buffer) {
 		r.inlineFullFlush(buf, termHeight, r.inlineEraseNext)
 		return
 	case prev.Width() != buf.Width(), r.inlineTermHeight != termHeight:
-		r.inlineFullFlush(buf, termHeight, true)
+		r.inlineRewrite(buf, termHeight)
 		return
 	}
 
@@ -239,7 +245,7 @@ func (r *Renderer) inlineFlush(buf *buffer.Buffer) {
 	case first < 0:
 		r.storeInline(buf, termHeight, r.inlineViewportTop, r.inlineCursorRow)
 	case first < r.inlineViewportTop:
-		r.inlineFullFlush(buf, termHeight, true)
+		r.inlineRewrite(buf, termHeight)
 	case r.inlineInsertAbove(buf, prev, first, termHeight):
 	default:
 		r.inlineDiffFlush(buf, prev, first, last, termHeight)
@@ -322,6 +328,20 @@ func inlineRowsAt(a *buffer.Buffer, ay int, b *buffer.Buffer, by, width int) boo
 	return true
 }
 
+// inlineRewrite erases the screen and the scrollback and writes every row of
+// buf. That would erase the rows committed to the terminal as well, so while
+// any are, and SetInlineReprint set a function that puts them back, it writes
+// nothing and has the next frame put them back and write every row.
+func (r *Renderer) inlineRewrite(buf *buffer.Buffer, termHeight int) {
+	if r.inlineCommitted && r.inlineReprint != nil {
+		r.inlineReprintDue = true
+		r.RequestRender()
+		return
+	}
+	r.inlineCommitted = false
+	r.inlineFullFlush(buf, termHeight, true)
+}
+
 // inlineFullFlush writes every row of buf. Erasing the screen and scrollback
 // first is required whenever previously written rows can no longer be located.
 func (r *Renderer) inlineFullFlush(buf *buffer.Buffer, termHeight int, erase bool) {
@@ -349,7 +369,9 @@ func (r *Renderer) inlineFullFlush(buf *buffer.Buffer, termHeight int, erase boo
 	r.writeInline(&out, "full")
 
 	// Writing past the last terminal row scrolled the rows above out of reach.
-	r.storeInline(buf, termHeight, height-termHeight, max(height-1, 0))
+	// A shorter frame is taken to start on the first row, as it does once the
+	// screen is erased.
+	r.storeInline(buf, termHeight, max(height-termHeight, 0), max(height-1, 0))
 }
 
 // inlineDiffFlush rewrites rows first through last. It scrolls the terminal
@@ -448,7 +470,8 @@ func inlineEraseDropped(out *bytes.Buffer, newHeight, prevHeight int) int {
 // eraseInlineOutput writes to out the sequences that erase the tracked inline
 // output from the normal screen, leaving the cursor where that output began.
 //
-// Rows on screen are erased in place, which keeps the scrollback above them.
+// Rows on screen are erased in place, which keeps the scrollback above them,
+// and the rows committed to the terminal, which are no longer inline output.
 // Rows in the scrollback cannot be addressed, and a resize may have moved the
 // rows on screen, so otherwise the screen and scrollback are erased.
 func (r *Renderer) eraseInlineOutput(out *bytes.Buffer) {
@@ -457,7 +480,7 @@ func (r *Renderer) eraseInlineOutput(out *bytes.Buffer) {
 	r.mu.Unlock()
 
 	out.WriteString(inlineResetSGR)
-	if r.inlineViewportTop == 0 && r.inlineTermHeight == h &&
+	if r.inlineViewportTop <= 0 && r.inlineTermHeight == h &&
 		r.inlineCurrentBuf.Width() == inlineLayoutWidth(w) {
 		inlineMoveRows(out, -r.inlineCursorRow)
 		out.WriteString("\r" + inlineEraseBelow)
@@ -487,7 +510,7 @@ func (r *Renderer) storeInline(buf *buffer.Buffer, termHeight, viewportTop, curs
 	r.inlineCurrentBuf = current
 
 	r.inlineTermHeight = termHeight
-	r.inlineViewportTop = max(viewportTop, 0)
+	r.inlineViewportTop = viewportTop // Negative while committed rows are on screen above the frame.
 	r.inlineCursorRow = cursorRow
 	r.inlineEraseNext = false
 	r.inlineLiveWas = r.inlineLiveRow
