@@ -369,9 +369,7 @@ func (r *Renderer) inlineFullFlush(buf *buffer.Buffer, termHeight int, erase boo
 	r.writeInline(&out, "full")
 
 	// Writing past the last terminal row scrolled the rows above out of reach.
-	// A shorter frame is taken to start on the first row, as it does once the
-	// screen is erased.
-	r.storeInline(buf, termHeight, max(height-termHeight, 0), max(height-1, 0))
+	r.storeInline(buf, termHeight, height-termHeight, max(height-1, 0))
 }
 
 // inlineDiffFlush rewrites rows first through last. It scrolls the terminal
@@ -471,16 +469,16 @@ func inlineEraseDropped(out *bytes.Buffer, newHeight, prevHeight int) int {
 // output from the normal screen, leaving the cursor where that output began.
 //
 // Rows on screen are erased in place, which keeps the scrollback above them,
-// and the rows committed to the terminal, which are no longer inline output.
-// Rows in the scrollback cannot be addressed, and a resize may have moved the
-// rows on screen, so otherwise the screen and scrollback are erased.
+// the rows committed to the terminal among them. Rows in the scrollback cannot
+// be addressed, and a resize may have moved the rows on screen, so otherwise
+// the screen and scrollback are erased.
 func (r *Renderer) eraseInlineOutput(out *bytes.Buffer) {
 	r.mu.Lock()
 	w, h := r.width, r.height
 	r.mu.Unlock()
 
 	out.WriteString(inlineResetSGR)
-	if r.inlineViewportTop <= 0 && r.inlineTermHeight == h &&
+	if r.inlineViewportTop == 0 && r.inlineTermHeight == h &&
 		r.inlineCurrentBuf.Width() == inlineLayoutWidth(w) {
 		inlineMoveRows(out, -r.inlineCursorRow)
 		out.WriteString("\r" + inlineEraseBelow)
@@ -510,7 +508,7 @@ func (r *Renderer) storeInline(buf *buffer.Buffer, termHeight, viewportTop, curs
 	r.inlineCurrentBuf = current
 
 	r.inlineTermHeight = termHeight
-	r.inlineViewportTop = viewportTop // Negative while committed rows are on screen above the frame.
+	r.inlineViewportTop = max(viewportTop, 0)
 	r.inlineCursorRow = cursorRow
 	r.inlineEraseNext = false
 	r.inlineLiveWas = r.inlineLiveRow

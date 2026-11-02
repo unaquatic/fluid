@@ -30,59 +30,58 @@ func drawAndFeed(r *Renderer, out *bytes.Buffer, term *disagreeingTerm) string {
 	return written
 }
 
-// TestCommitInline_TerminalKeepsTheRows commits the leading rows of a frame
-// on screen and of one taller than the screen, and checks that the frame
-// then holds only the rest, that committing writes nothing, as the terminal
+// TestCommitInline_TerminalKeepsTheRows commits the rows of a frame taller
+// than the screen, and checks that only those that scrolled into the
+// scrollback leave it, that committing writes nothing, as the terminal
 // already shows every row, and that the frames after it change and add rows
 // below the committed ones, which stay as they were.
 func TestCommitInline_TerminalKeepsTheRows(t *testing.T) {
-	for _, tt := range []struct {
-		name   string
-		glyphs string
-		commit int
-	}{
-		{name: "on screen", glyphs: "abcdef", commit: 4},
-		{name: "in the scrollback", glyphs: tallGlyphs, commit: 20},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			r, out, term, rows := drawInline(t, tt.glyphs)
+	r, out, term, rows := drawInline(t, tallGlyphs)
+	scrolled := len(tallGlyphs) - testTermHeight
 
-			if got := r.CommitInline(renderables(rows[:tt.commit])...); got != tt.commit {
-				t.Fatalf("committed %d rows, want %d", got, tt.commit)
-			}
-			if written := drawAndFeed(r, out, term); written != "" {
-				t.Errorf("the frame after the commit wrote %q, want nothing", written)
-			}
-			if got, want := frameText(r.nextBuffer), tt.glyphs[tt.commit:]; got != want {
-				t.Errorf("the frame holds %q, want the rows that stay, %q", got, want)
-			}
-			if got, want := r.root.ChildrenCount(), len(rows)-tt.commit; got != want {
-				t.Errorf("the root holds %d rows, want %d", got, want)
-			}
+	if got := r.CommitInline(renderables(rows)...); got != scrolled {
+		t.Fatalf("committed %d rows, want the %d in the scrollback", got, scrolled)
+	}
+	if written := drawAndFeed(r, out, term); written != "" {
+		t.Errorf("the frame after the commit wrote %q, want nothing", written)
+	}
+	if got, want := frameText(r.nextBuffer), tallGlyphs[scrolled:]; got != want {
+		t.Errorf("the frame holds %q, want the rows on screen, %q", got, want)
+	}
+	if got, want := r.root.ChildrenCount(), len(rows)-scrolled; got != want {
+		t.Errorf("the root holds %d rows, want %d", got, want)
+	}
 
-			// A committed row has left the scene.
-			rows[0].setGlyph('X')
-			if written := drawAndFeed(r, out, term); written != "" {
-				t.Errorf("a change to a committed row wrote %q, want nothing", written)
-			}
+	// A committed row has left the scene.
+	rows[0].setGlyph('X')
+	if written := drawAndFeed(r, out, term); written != "" {
+		t.Errorf("a change to a committed row wrote %q, want nothing", written)
+	}
 
-			rows[tt.commit].setGlyph('A')
-			for i := range 3 {
-				r.root.Add(newGlyphRow("z"+strconv.Itoa(i), 'z', glyphRowWidth, 1))
-			}
-			drawAndFeed(r, out, term)
+	rows[scrolled].setGlyph('A')
+	for i := range 3 {
+		r.root.Add(newGlyphRow("z"+strconv.Itoa(i), 'z', glyphRowWidth, 1))
+	}
+	drawAndFeed(r, out, term)
 
-			want := "$" + tt.glyphs[:tt.commit] + "A" + tt.glyphs[tt.commit+1:] + "zzz"
-			if got := firstColumn(term.lines()); got != want {
-				t.Errorf("terminal rows begin %q, want %q", got, want)
-			}
-		})
+	want := "$" + tallGlyphs[:scrolled] + "A" + tallGlyphs[scrolled+1:] + "zzz"
+	if got := firstColumn(term.lines()); got != want {
+		t.Errorf("terminal rows begin %q, want %q", got, want)
 	}
 }
 
-// TestCommitInline_StopsAtARowItCannotCommit checks which leading rows
-// CommitInline commits: unchanged ones, in the root's order, past gone ones,
-// up to the last row, which holds the cursor.
+// TestCommitInline_KeepsTheRowsOnScreen checks that a frame the screen holds
+// whole commits none of its rows, which the terminal can still redraw.
+func TestCommitInline_KeepsTheRowsOnScreen(t *testing.T) {
+	r, _, _, rows := drawInline(t, shortGlyphs)
+	if got := r.CommitInline(renderables(rows)...); got != 0 {
+		t.Errorf("committed %d rows on screen, want none", got)
+	}
+}
+
+// TestCommitInline_StopsAtARowItCannotCommit checks which leading rows of a
+// frame taller than the screen CommitInline commits: unchanged ones in the
+// scrollback, in the root's order, past gone ones.
 func TestCommitInline_StopsAtARowItCannotCommit(t *testing.T) {
 	for _, tt := range []struct {
 		name   string
@@ -96,9 +95,9 @@ func TestCommitInline_StopsAtARowItCannotCommit(t *testing.T) {
 			want:   3,
 		},
 		{
-			name:   "the last row",
+			name:   "the rows on screen",
 			commit: func(rows []*glyphRow) []*glyphRow { return rows },
-			want:   5,
+			want:   len(tallGlyphs) - testTermHeight,
 		},
 		{
 			name:   "a changed row",
@@ -136,15 +135,6 @@ func TestCommitInline_StopsAtARowItCannotCommit(t *testing.T) {
 			want:   1,
 		},
 		{
-			name: "the cursor's row",
-			before: func(r *Renderer, _ []*glyphRow) {
-				r.SetCursorPosition(0, 1, true)
-				r.renderInlineFrame()
-			},
-			commit: func(rows []*glyphRow) []*glyphRow { return rows[:3] },
-			want:   1,
-		},
-		{
 			name: "a row whose ID a gone one has",
 			before: func(r *Renderer, rows []*glyphRow) {
 				rows[0].SetGone(true)
@@ -175,7 +165,7 @@ func TestCommitInline_StopsAtARowItCannotCommit(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			r, _, _, rows := drawInline(t, "abcdef")
+			r, _, _, rows := drawInline(t, tallGlyphs)
 			if tt.before != nil {
 				tt.before(r, rows)
 			}
@@ -232,8 +222,10 @@ func TestCommitInline_CommitsNothing(t *testing.T) {
 			if tt.root != nil {
 				tt.root(r.root.LayoutNode())
 			}
+			// The frame is taller than the screen, so its first rows are in the
+			// scrollback.
 			var rows []*glyphRow
-			for i, ch := range "abc" {
+			for i, ch := range tallGlyphs {
 				row := newGlyphRow(strconv.Itoa(i), ch, glyphRowWidth, 1)
 				rows = append(rows, row)
 				r.root.Add(row)
@@ -367,21 +359,17 @@ func TestReprintInline_NothingCommitted(t *testing.T) {
 	}
 }
 
-// TestCommitInline_RowsAddedAboveTheLiveArea commits every row above a live
-// area, which leaves the committed rows on screen above the frame, and then
-// adds rows above the live area, from the frame of the commit on, which
-// scroll into the scrollback through the rows of the screen the committed
-// rows hold.
+// TestCommitInline_RowsAddedAboveTheLiveArea commits the rows above a live
+// area that scrolled into the scrollback, and then adds rows above the live
+// area, from the frame of the commit on, which scroll into the scrollback
+// through the rows of the screen above the live area.
 func TestCommitInline_RowsAddedAboveTheLiveArea(t *testing.T) {
 	const history = 30
 	r, out, term, foot := insertRenderer(t, history, testTermHeight-3)
 	// Committing removes rows from the slice the root holds.
-	committed := slices.Clone(r.root.ChildrenRaw()[:history])
-	if got := r.CommitInline(committed...); got != history {
-		t.Fatalf("committed %d rows, want %d", got, history)
-	}
-	if r.inlineViewportTop >= 0 {
-		t.Fatalf("viewport top is %d, want the committed rows on screen above the frame", r.inlineViewportTop)
+	committed := r.CommitInline(slices.Clone(r.root.ChildrenRaw()[:history])...)
+	if want := history + testTermHeight - 3 - testTermHeight; committed != want {
+		t.Fatalf("committed %d rows, want the %d in the scrollback", committed, want)
 	}
 
 	var glyphs strings.Builder
@@ -397,7 +385,7 @@ func TestCommitInline_RowsAddedAboveTheLiveArea(t *testing.T) {
 		if !strings.Contains(written, "\x1b[1;") {
 			t.Errorf("frame %d set no scroll region", frame)
 		}
-		if got, want := firstColumn(term.lines()), "$"+glyphs.String()+frameText(r.nextBuffer); got != want {
+		if got, want := firstColumn(term.lines()), "$"+glyphs.String()[:committed]+frameText(r.nextBuffer); got != want {
 			t.Fatalf("frame %d: terminal holds %q, want %q", frame, got, want)
 		}
 	}
@@ -414,7 +402,7 @@ func TestCommitInline_OncePerFrame(t *testing.T) {
 	gone.SetGone(true)
 	r.root.Add(gone)
 	var rows []*glyphRow
-	for i, ch := range "bcdef" {
+	for i, ch := range tallGlyphs {
 		row := newGlyphRow(strconv.Itoa(i), ch, glyphRowWidth, 1)
 		rows = append(rows, row)
 		r.root.Add(row)
@@ -431,10 +419,10 @@ func TestCommitInline_OncePerFrame(t *testing.T) {
 	if got := r.CommitInline(rows[1]); got != 1 {
 		t.Errorf("committed %d rows after the frame, want 1", got)
 	}
-	rows[len(rows)-1].setGlyph('F')
+	rows[len(rows)-1].setGlyph('Y')
 	drawAndFeed(r, out, term)
 
-	if got, want := firstColumn(term.lines()), "$bcdeF"; got != want {
+	if got, want := firstColumn(term.lines()), "$"+tallGlyphs[:len(tallGlyphs)-1]+"Y"; got != want {
 		t.Errorf("terminal rows begin %q, want %q", got, want)
 	}
 }
@@ -447,7 +435,9 @@ func TestCommitInline_StopsAtARowWhoseChildChanged(t *testing.T) {
 	row.Add(child)
 	r, _ := startedTestRenderer()
 	r.root.Add(row)
-	r.root.Add(newGlyphRow("last", 'l', glyphRowWidth, 1))
+	for i := range testTermHeight {
+		r.root.Add(newGlyphRow(strconv.Itoa(i), 'r', glyphRowWidth, 1))
+	}
 	r.renderInlineFrame()
 
 	child.setGlyph('C')
@@ -460,17 +450,15 @@ func TestCommitInline_StopsAtARowWhoseChildChanged(t *testing.T) {
 // on exit leaves the rows committed to the terminal, which are no longer part
 // of it.
 func TestDestroy_ClearOnExitKeepsCommittedRows(t *testing.T) {
-	r, out, term, rows := drawInline(t, shortGlyphs)
+	r, out, term, rows := drawInline(t, tallGlyphs)
 	r.config.ClearOnExit = true
-	if got := r.CommitInline(rows[0]); got != 1 {
-		t.Fatalf("committed %d rows, want 1", got)
-	}
+	scrolled := r.CommitInline(renderables(rows)...)
 	drawAndFeed(r, out, term)
 
 	r.Destroy()
 	term.feed(out.String())
 
-	if got, want := firstColumn(term.lines()), "$"+shortGlyphs[:1]; got != want {
+	if got, want := firstColumn(term.lines()), "$"+tallGlyphs[:scrolled]; scrolled == 0 || got != want {
 		t.Errorf("terminal rows begin %q, want %q", got, want)
 	}
 	if strings.Contains(out.String(), inlineEraseAll) {

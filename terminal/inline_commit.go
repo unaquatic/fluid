@@ -8,18 +8,18 @@ import (
 )
 
 // CommitInline hands rows, the leading children of the root, over to the
-// terminal, which keeps them as it shows them now: in the scrollback, or on
-// screen above the rest of inline output. They leave the scene, and the frame
-// starts below them, so the rows that stay are all a frame lays out, draws
-// and holds, however much output was committed above them.
+// terminal, which keeps them in its scrollback as it shows them now. They
+// leave the scene, and the frame starts below them, so the rows that stay are
+// all a frame lays out, draws and holds, however much output scrolled away
+// above them.
 //
 // It commits rows in order, stops at the first it cannot commit, and returns
-// how many it committed. A row can be committed once the terminal shows it as
-// it is: it is unchanged since the last frame was written, and it lies above
-// the inline cursor and the last row of the frame. The children of the root
-// before it have to be committed with it, or be gone, which takes no rows.
-// CommitInline removes a committed row from the root without destroying it,
-// and the row's later changes no longer reach the terminal.
+// how many it committed. A row can be committed once it scrolled wholly into
+// the scrollback, above the screen, as the terminal shows it: unchanged since
+// the last frame was written. The children of the root before it have to be
+// committed with it, or be gone, which takes no rows. CommitInline removes a
+// committed row from the root without destroying it, and the row's later
+// changes no longer reach the terminal.
 //
 // Writing the whole output again, as a resize, a change to a row in the
 // scrollback, a return from the alternate screen and ReprintInline make the
@@ -107,6 +107,9 @@ func (r *Renderer) inlineCommitReady() bool {
 // inlineCommittable reports whether CommitInline can commit row, a child of
 // the root, and returns the frame row the rows after it begin on, below it
 // and its bottom margin. A gone row takes no rows and returns zero.
+//
+// Only a row wholly above the screen can be committed: the terminal can no
+// longer redraw it but by writing every row again.
 func (r *Renderer) inlineCommittable(row render.Renderable) (bottom int, ok bool) {
 	if gone(row) {
 		return 0, true
@@ -124,13 +127,8 @@ func (r *Renderer) inlineCommittable(row render.Renderable) (bottom int, ok bool
 		return 0, false // The rows after it overlap it.
 	}
 	bottom = row.Y() + row.Height() + margin
-
-	// The cursor parks on the frame's last row, which has to stay in the
-	// frame for the next one to start from, and its inverted cell would stay
-	// in the scrollback.
-	cursor := r.inlineCursorCell
-	if bottom > r.inlineCursorRow || (!cursor.IsEmpty() && cursor.Y < bottom) {
-		return 0, false
+	if bottom > r.inlineViewportTop {
+		return 0, false // Some of it is still on screen.
 	}
 	return bottom, true
 }
@@ -141,10 +139,8 @@ func gone(row render.Renderable) bool {
 }
 
 // dropInlineRows removes the first n rows from the frame the terminal shows,
-// and moves the rows the next frame starts from up by n. The terminal still
-// shows the rows, so the frame's first row is now n rows lower on screen, and
-// the viewport top, the frame row on the terminal's first row, goes negative
-// once the committed rows reach the screen.
+// and moves the rows the next frame starts from up by n. The rows are in the
+// scrollback, so the frame's first row is now n rows nearer the screen.
 //
 // The frame being drawn, and the rows it tracks while it is, need no moving:
 // removing rows from the root damages all of the next one.
