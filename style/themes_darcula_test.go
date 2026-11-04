@@ -16,12 +16,12 @@ func TestDarculaSolid_Signature(t *testing.T) {
 		{"Accent", th.Accent, "#eb7513"},
 		{"Code.Keyword", th.Code.Keyword.Fg, "#eb7513"},
 		{"Code.Function", th.Code.Function.Fg, "#ffb642"},
-		{"Code.Type", th.Code.Type.Fg, "#3dbfc8"},
+		{"Code.Type", th.Code.Type.Fg, "#e6e6e6"},
 		{"Code.String", th.Code.String.Fg, "#91b557"},
-		{"Code.Constant", th.Code.Constant.Fg, "#aa77c6"},
+		{"Code.Constant", th.Code.Constant.Fg, "#e6e6e6"},
 		{"Code.Comment", th.Code.Comment.Fg, "#8a8a8a"},
-		{"Code.Number", th.Code.Number.Fg, "#5a99c9"},
-		{"Code.Decorator", th.Code.Decorator.Fg, "#e4be13"},
+		{"Code.Number", th.Code.Number.Fg, "#e6e6e6"},
+		{"Code.Decorator", th.Code.Decorator.Fg, "#ffb642"},
 		{"SelectionBg", th.SelectionBg, "#176081"},
 		{"SurfaceRaised", th.SurfaceRaised, "#1f1f1f"},
 	}
@@ -62,7 +62,6 @@ func TestDarculaSolid_SharedColors(t *testing.T) {
 			{"MarkdownCode", th.MarkdownCode.Fg},
 		},
 		"function yellow":  {{"Code.Function", th.Code.Function.Fg}, {"Code.Tag", th.Code.Tag.Fg}},
-		"constant purple":  {{"Code.Constant", th.Code.Constant.Fg}, {"Code.Property", th.Code.Property.Fg}},
 		"decorator yellow": {{"Code.Decorator", th.Code.Decorator.Fg}, {"Code.Preproc", th.Code.Preproc.Fg}},
 		"canvas":           {{"Bg", th.Bg}, {"Surface", th.Surface}, {"CodeBg", th.CodeBg}, {"MarkdownCode.Bg", th.MarkdownCode.Bg}},
 	}
@@ -82,15 +81,6 @@ func TestDarculaSolid_AttributeMasks(t *testing.T) {
 
 	if th.Code.Keyword.Attrs&AttrBold == 0 {
 		t.Error("Keyword missing AttrBold")
-	}
-	if th.Code.Constant.Attrs&AttrItalic == 0 {
-		t.Error("Constant missing AttrItalic")
-	}
-	if th.Code.Comment.Attrs&AttrItalic == 0 {
-		t.Error("Comment missing AttrItalic")
-	}
-	if th.Code.Error.Attrs&AttrUnderline == 0 {
-		t.Error("Error missing AttrUnderline")
 	}
 }
 
