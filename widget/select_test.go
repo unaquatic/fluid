@@ -312,3 +312,24 @@ func TestSelect_ScrollOffset(t *testing.T) {
 		t.Errorf("ScrollOffset() = %d after SetScrollOffset(0), want 0", got)
 	}
 }
+
+// TestSelect_SetBgs checks that SetBg, SetSelectedBg, and SetFocusedBg change
+// the colors the list draws after it was made, and that their getters report
+// them.
+func TestSelect_SetBgs(t *testing.T) {
+	bg, selected, focused := style.ColorFromHex("#101010"), style.ColorFromHex("#202020"), style.ColorFromHex("#303030")
+	s := NewSelect(makeSelectItems(), SelectWithShowDescription(false), SelectWithBg(style.ColorFromHex("#ffffff")))
+	s.SetBg(bg)
+	s.SetSelectedBg(selected)
+	s.SetFocusedBg(focused)
+	if s.Bg() != bg || s.SelectedBg() != selected || s.FocusedBg() != focused {
+		t.Fatalf("getters = %v %v %v, want %v %v %v", s.Bg(), s.SelectedBg(), s.FocusedBg(), bg, selected, focused)
+	}
+	buf := testutil.RenderWidget(s, 30, 2)
+	if got := buf.Cell(1, 0).Bg; got != selected {
+		t.Errorf("selected row bg = %v, want %v", got, selected)
+	}
+	if got := buf.Cell(1, 1).Bg; got != bg {
+		t.Errorf("row bg = %v, want %v", got, bg)
+	}
+}
