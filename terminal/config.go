@@ -174,6 +174,15 @@ type Config struct {
 	// inline output it covered either way.
 	ClearOnExit bool
 
+	// InlineTrimBlanks leaves the blanks at the end of each inline row out of
+	// the output when they show only the background the row is erased in, so
+	// the terminal holds erased cells there rather than spaces, and text copied
+	// from it has no trailing spaces. Blanks in another background, or with
+	// attributes, are written either way.
+	//
+	// The default is false, which writes those blanks as spaces.
+	InlineTrimBlanks bool
+
 	// BackgroundColor fills the frame before widgets render. The default is
 	// style.ColorBlack.
 	BackgroundColor style.Color
@@ -249,6 +258,7 @@ func mergeConfig(user Config) Config {
 	cfg.InlineMode = user.InlineMode
 	cfg.ClearScreenOnStart = user.ClearScreenOnStart
 	cfg.ClearOnExit = user.ClearOnExit
+	cfg.InlineTrimBlanks = user.InlineTrimBlanks
 	cfg.UseKittyKeyboard = user.UseKittyKeyboard
 	cfg.AltSendsEscPrefix = user.AltSendsEscPrefix
 	cfg.GatherStats = user.GatherStats

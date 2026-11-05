@@ -598,3 +598,79 @@ func TestProcessResize_HeightKeepsTheLayoutWidth(t *testing.T) {
 		t.Errorf("the row still reports damage %+v once the frame painted it", edge.Damage())
 	}
 }
+
+// TestWriteInlineRow_TrimBlanks checks that, with Config.InlineTrimBlanks
+// set, blanks at the end of a row in the background the row is erased in are
+// not written as spaces, while blanks that show something are, and that
+// without it every blank is written.
+func TestWriteInlineRow_TrimBlanks(t *testing.T) {
+	bg, other := style.ColorBlack, style.ColorRed
+	tests := []struct {
+		name string
+		trim bool
+		row  func(*buffer.Buffer)
+		want string
+	}{
+		{
+			name: "background blanks untrimmed",
+			row:  func(*buffer.Buffer) {},
+			want: "AB        ",
+		},
+		{
+			name: "background blanks",
+			trim: true,
+			row:  func(*buffer.Buffer) {},
+			want: "AB",
+		},
+		{
+			name: "blank in another background",
+			trim: true,
+			row: func(b *buffer.Buffer) {
+				b.SetCell(4, 0, ' ', style.ColorWhite, other, 0)
+			},
+			want: "AB   ",
+		},
+		{
+			name: "underlined blank",
+			trim: true,
+			row: func(b *buffer.Buffer) {
+				b.SetCell(4, 0, ' ', style.ColorWhite, bg, style.AttrUnderline)
+			},
+			want: "AB   ",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r, _ := newInlineTestRenderer()
+			r.config.InlineTrimBlanks = tt.trim
+			buf := buffer.New(10, 1)
+			buf.FillRect(0, 0, 10, 1, bg)
+			buf.SetCell(0, 0, 'A', style.ColorWhite, bg, 0)
+			buf.SetCell(1, 0, 'B', style.ColorWhite, bg, 0)
+			tt.row(buf)
+
+			var out bytes.Buffer
+			r.writeInlineRow(&out, buf, 0, buf.Width(), style.ColorTrueColor, style.Indexers{})
+			if got := stripSGR(out.String()); got != tt.want {
+				t.Errorf("row wrote %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// stripSGR removes the SGR sequences from s.
+func stripSGR(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\x1b' && i+1 < len(s) && s[i+1] == '[' {
+			j := i + 2
+			for j < len(s) && s[j] != 'm' {
+				j++
+			}
+			i = j
+			continue
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
+}

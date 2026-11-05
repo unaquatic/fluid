@@ -576,8 +576,12 @@ func inlineMoveRows(out *bytes.Buffer, delta int) {
 
 // writeInlineRow writes through the final non-clear cell in row y. Each call
 // starts with independent style state because diffing can skip arbitrary rows.
+//
+// The caller erased the row in its edge background first, as eraseInlineRow
+// does, so with Config.InlineTrimBlanks set, trailing blanks in that
+// background are left to the erase rather than written as spaces.
 func (r *Renderer) writeInlineRow(out *bytes.Buffer, buf *buffer.Buffer, y, width int, colorMode style.ColorMode, indexers style.Indexers) {
-	lastCol := inlineRowLastCol(buf, y, width)
+	lastCol := inlineRowLastCol(buf, y, width, r.inlineEdgeBg(buf, y), r.config.InlineTrimBlanks)
 	if lastCol < 0 {
 		return // The row is entirely clear.
 	}
@@ -668,14 +672,24 @@ func inlineRowsEqual(a, b *buffer.Buffer, y, width int) bool {
 }
 
 // inlineRowLastCol returns the last non-clear column in row y, or -1 when the
-// row can be omitted entirely.
-func inlineRowLastCol(buf *buffer.Buffer, y, width int) int {
+// row can be omitted entirely. With trim set, a blank in the background edge,
+// the color the row was erased in, counts as clear too.
+func inlineRowLastCol(buf *buffer.Buffer, y, width int, edge style.Color, trim bool) int {
 	for x := width - 1; x >= 0; x-- {
-		if !isInlineClearCell(buf.Cell(x, y)) {
+		c := buf.Cell(x, y)
+		if !isInlineClearCell(c) && !(trim && isInlineErasedCell(c, edge)) {
 			return x
 		}
 	}
 	return -1
+}
+
+// isInlineErasedCell reports whether c shows as a cell erased in background
+// edge: a blank with no attributes, outside a wide cluster, whose foreground
+// cannot show.
+func isInlineErasedCell(c buffer.Cell, edge style.Color) bool {
+	return (c.Char == ' ' || c.Char == 0) && c.Combining() == "" && c.Attributes == 0 &&
+		!c.IsWide() && !c.IsContinuation() && c.Bg.Equals(edge)
 }
 
 func isInlineClearCell(c buffer.Cell) bool {
