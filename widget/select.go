@@ -122,6 +122,38 @@ func (s *Select) SetSelectedIndex(idx int) {
 	}
 }
 
+// Bg returns the background of the list.
+func (s *Select) Bg() style.Color { return s.backgroundColor }
+
+// SetBg sets the background of the list. A transparent color keeps the
+// background under the widget.
+func (s *Select) SetBg(c style.Color) {
+	s.backgroundColor = c
+	s.RequestRender()
+}
+
+// FocusedBg returns the background of the selected row while the list has
+// the focus.
+func (s *Select) FocusedBg() style.Color { return s.focusedBackgroundColor }
+
+// SetFocusedBg sets the background of the selected row while the list has
+// the focus.
+func (s *Select) SetFocusedBg(c style.Color) {
+	s.focusedBackgroundColor = c
+	s.RequestRender()
+}
+
+// SelectedBg returns the background of the selected row while the list does
+// not have the focus.
+func (s *Select) SelectedBg() style.Color { return s.selectedBackgroundColor }
+
+// SetSelectedBg sets the background of the selected row while the list does
+// not have the focus.
+func (s *Select) SetSelectedBg(c style.Color) {
+	s.selectedBackgroundColor = c
+	s.RequestRender()
+}
+
 // ScrollOffset returns the index of the first item considered for rendering.
 func (s *Select) ScrollOffset() int { return s.scrollOffset }
 

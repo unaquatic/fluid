@@ -60,6 +60,19 @@ func NewCharCell(char rune, fg, bg style.Color) *CharFill {
 	)
 }
 
+// Bg returns the background of every cell.
+func (c *CharFill) Bg() style.Color { return c.bg }
+
+// SetBg sets the background of every cell. A transparent color keeps the
+// background under the widget.
+func (c *CharFill) SetBg(bg style.Color) {
+	if bg == c.bg {
+		return
+	}
+	c.bg = bg
+	c.RequestRender()
+}
+
 // RenderSelf fills the widget's layout area with its configured character and colors.
 func (c *CharFill) RenderSelf(buf *buffer.Buffer, deltaTime time.Duration) {
 	x := c.X()
