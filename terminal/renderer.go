@@ -95,6 +95,11 @@ type Renderer struct {
 	inlineDamaged         buffer.Rect    // The region repainted into the frame being flushed.
 	inlineCursorCell      buffer.Rect    // The cell the inline cursor inverted, which must be restored.
 
+	// The live area of inline output, as SetInlineLiveTop describes it.
+	inlineLiveTop func() int // The first row of the live area, as SetInlineLiveTop sets it.
+	inlineLiveRow int        // The live area's first row in the frame being flushed.
+	inlineLiveWas int        // The live area's first row in the frame last flushed.
+
 	// Optional diagnostic log.
 	dbg     *slog.Logger
 	dbgFile *os.File

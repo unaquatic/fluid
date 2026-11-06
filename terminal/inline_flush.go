@@ -110,6 +110,11 @@ func (r *Renderer) renderInlineFrame() {
 	// scene damage does not reach it.
 	r.inlineDamaged = damage.Union(r.inlineCursorCell)
 
+	r.inlineLiveRow = contentHeight
+	if r.inlineLiveTop != nil {
+		r.inlineLiveRow = min(max(r.inlineLiveTop(), 0), contentHeight)
+	}
+
 	tFlush0 := time.Now()
 	if !r.inlineFrameUnchanged() {
 		r.inlineFlush(r.nextBuffer)
@@ -138,6 +143,23 @@ func (r *Renderer) inlineFrameUnchanged() bool {
 		r.inlineCurrentBuf != nil &&
 		r.inlineCurrentBuf.Height() == r.nextBuffer.Height()
 }
+
+// SetInlineLiveTop sets fn, the function that returns the first row of the
+// live area of inline output: the rows from it down, which may still change,
+// such as a reply that streams and the input under it. Rows the content
+// gains right above the live area then scroll into the scrollback through
+// the rows of the screen above it, which leaves the live area in place,
+// rather than move every row of it down, which rewrites them all.
+//
+// The live area has to stay on screen, with a row free above it, for that:
+// the program keeps it shorter than the screen.
+//
+// fn runs once a frame is laid out, on the event loop. A nil fn, the
+// default, makes no row live.
+//
+// Call it from the event-loop goroutine, for example through Enqueue, or
+// before the renderer runs.
+func (r *Renderer) SetInlineLiveTop(fn func() int) { r.inlineLiveTop = fn }
 
 // inlineDamage returns the region of the frame to repaint.
 //
@@ -230,9 +252,86 @@ func (r *Renderer) inlineFlush(buf *buffer.Buffer) {
 		r.storeInline(buf, termHeight, r.inlineViewportTop, r.inlineCursorRow)
 	case first < r.inlineViewportTop:
 		r.inlineFullFlush(buf, termHeight, true)
+	case r.inlineInsertAbove(buf, prev, first, termHeight):
 	default:
 		r.inlineDiffFlush(buf, prev, first, last, termHeight)
 	}
+}
+
+// inlineInsertAbove writes the rows buf gained right above the live area,
+// as SetInlineLiveTop sets it, without rewriting the live area, and reports
+// whether buf allowed it: the rows above the live area are unchanged, and
+// it has moved down by the rows added above it, keeping its height, on a
+// full screen with a row free above it.
+//
+// Rows added above the live area move every row of it down, which the diff
+// flush would rewrite, row by row, the whole live area for each row added.
+// Instead, a scroll region over the free rows of the screen above the live
+// area, and the live area's first row, as terminals need a region two rows
+// tall at least, scrolls each added row up through the free rows into the
+// scrollback, while the live area keeps its place on screen. Only the live
+// area's first row, which the region cleared, and those of its rows that
+// changed are then rewritten.
+func (r *Renderer) inlineInsertAbove(buf, prev *buffer.Buffer, first, termHeight int) bool {
+	was, top := r.inlineLiveWas, r.inlineLiveRow
+	added, live := top-was, buf.Height()-top
+	viewTop := r.inlineViewportTop
+	free := was - viewTop
+	if r.inlineLiveTop == nil || added <= 0 || live <= 0 || prev.Height()-was != live ||
+		first < was || prev.Height()-viewTop != termHeight || free < 1 {
+		return false
+	}
+
+	var out bytes.Buffer
+	out.WriteString(inlineBeginSync + inlineNoWrap)
+	colorMode, indexers := r.backend.ColorMode(), r.backend.Indexers()
+	width := buf.Width()
+
+	// The screen is full, so its rows are the frame's from viewTop down, and
+	// the region's last row is the live area's first.
+	fmt.Fprintf(&out, "\x1b[1;%dr\x1b[%d;1H", free+1, free+1)
+	for y := was; y < top; y++ {
+		// The line feed scrolls the region, its first row into the
+		// scrollback, and the row added fills the last free row.
+		out.WriteString("\n\x1b[A\r")
+		r.eraseInlineRow(&out, buf, y, colorMode, indexers)
+		r.writeInlineRow(&out, buf, y, width, colorMode, indexers)
+		out.WriteString("\x1b[B")
+	}
+	viewTop += added
+	out.WriteString(inlineResetSGR + "\x1b[r\x1b[1;1H")
+
+	cursor := viewTop
+	for y := top; y < buf.Height(); y++ {
+		if y > top && inlineRowsAt(prev, y-added, buf, y, width) {
+			continue
+		}
+		inlineMoveRows(&out, y-cursor)
+		cursor = y
+		out.WriteString("\r")
+		r.eraseInlineRow(&out, buf, y, colorMode, indexers)
+		r.writeInlineRow(&out, buf, y, width, colorMode, indexers)
+	}
+	bottom := buf.Height() - 1
+	inlineMoveRows(&out, bottom-cursor)
+	out.WriteString("\r" + inlineResetSGR + inlineWrap + inlineEndSync)
+	r.writeInline(&out, "insert")
+
+	// Every row from the live area's old first row down moved or changed.
+	r.inlineDamaged = buffer.Rect{Y: was, Width: width, Height: buf.Height() - was}
+	r.storeInline(buf, termHeight, viewTop, bottom)
+	return true
+}
+
+// inlineRowsAt reports whether row ay of a and row by of b hold the same
+// cells.
+func inlineRowsAt(a *buffer.Buffer, ay int, b *buffer.Buffer, by, width int) bool {
+	for x := range width {
+		if !a.Cell(x, ay).Equals(b.Cell(x, by)) {
+			return false
+		}
+	}
+	return true
 }
 
 // inlineFullFlush writes every row of buf. Erasing the screen and scrollback
@@ -403,6 +502,7 @@ func (r *Renderer) storeInline(buf *buffer.Buffer, termHeight, viewportTop, curs
 	r.inlineViewportTop = max(viewportTop, 0)
 	r.inlineCursorRow = cursorRow
 	r.inlineEraseNext = false
+	r.inlineLiveWas = r.inlineLiveRow
 }
 
 // writeInline sends out to the terminal and records flush statistics.
