@@ -12,14 +12,23 @@ import (
 )
 
 // defaultParser implements markdownParser with the markdown parser's
-// CommonMark syntax, the GitHub Flavored Markdown extensions, footnotes,
-// definition lists, and escaped spaces for Chinese, Japanese, and Korean.
+// CommonMark syntax, the GitHub Flavored Markdown extensions, and escaped
+// spaces for Chinese, Japanese, and Korean.
+//
+// It leaves out footnotes, definition lists, and link reference
+// definitions, which show as the text they are written in. Text written
+// after any of them changes the blocks before it: a footnote's or a link
+// reference's definition makes the references before it links, and a term
+// with a description joins the definition list above it. A StreamMarkdown
+// would then change blocks it has already shown, which inline output cannot
+// rewrite once they have scrolled into the terminal's scrollback.
 type defaultParser struct{}
 
 // defaultMarkdown parses the syntax of defaultParser.
-var defaultMarkdown = parser.NewParser(parser.WithExtensions(
-	extension.GFM, extension.Footnote, extension.DefinitionList, extension.CJK,
-))
+var defaultMarkdown = parser.NewParser(
+	parser.WithExtensions(extension.GFM, extension.CJK),
+	parser.WithoutLinkReferences(),
+)
 
 // Parse converts Markdown source into spaced mdBlock trees.
 func (defaultParser) Parse(content string, styles mdStyles) []mdBlock {
@@ -158,62 +167,8 @@ func convertBlock(b ast.Node, s mdStyles) (mdBlock, bool) {
 			TableCells:  rows,
 			TableAligns: aligns,
 		}, true
-
-	case *ast.DefinitionList:
-		return convertDefinitionList(b, s), true
-
-	case *ast.FootnoteList:
-		var notes []mdBlock
-		for fn := range ast.Children(b) {
-			fn, ok := fn.(*ast.Footnote)
-			if !ok {
-				continue
-			}
-			// A footnote starts with its label, as its definition writes it.
-			p := "[^" + fn.Ref + "]: "
-			body, children := itemContent(fn, s)
-			notes = append(notes, mdBlock{
-				Kind:        mdBlockListItem,
-				Prefix:      []style.TextChunk{s.ListEnum.Chunk(p)},
-				PrefixWidth: textbuf.StringWidth(p),
-				Body:        body,
-				Children:    children,
-				Hang:        true,
-			})
-		}
-		return mdBlock{Kind: mdBlockFootnotes, Children: notes}, true
 	}
 	return mdBlock{}, false
-}
-
-// descriptionIndent is the indent of the descriptions of a definition
-// list, under their term.
-const descriptionIndent = 2
-
-// convertDefinitionList returns a definition list as items: a term in the
-// strong style on a row of its own, and each of its descriptions on rows of
-// their own, indented under it. Blank rows part the items if a description
-// is loose.
-func convertDefinitionList(l *ast.DefinitionList, s mdStyles) mdBlock {
-	blk := mdBlock{Kind: mdBlockDefinitionList}
-	for c := range ast.Children(l) {
-		switch c := c.(type) {
-		case *ast.DefinitionTerm:
-			blk.Children = append(blk.Children, mdBlock{Kind: mdBlockListItem, Body: inlineChunks(c, s.Strong, s)})
-		case *ast.DefinitionDescription:
-			body, children := itemContent(c, s)
-			blk.Children = append(blk.Children, mdBlock{
-				Kind:        mdBlockListItem,
-				Prefix:      []style.TextChunk{{Text: strings.Repeat(" ", descriptionIndent)}},
-				PrefixWidth: descriptionIndent,
-				Body:        body,
-				Children:    children,
-				Hang:        true,
-			})
-			blk.Loose = blk.Loose || !c.IsTight
-		}
-	}
-	return blk
 }
 
 // convertCells converts the cells of a table row.
@@ -263,8 +218,7 @@ func headingMarker(h *ast.Heading) string {
 }
 
 // itemContent returns the inline content of the first paragraph of n, a
-// list item or another block with a marker, which shows beside the marker,
-// and n's other blocks.
+// list item, which shows beside its marker, and n's other blocks.
 func itemContent(n ast.Node, s mdStyles) ([]style.TextChunk, []mdBlock) {
 	var body []style.TextChunk
 	var children []mdBlock
@@ -354,11 +308,6 @@ func inlineChunks(parent ast.Node, in style.Entry, s mdStyles) []style.TextChunk
 		case *ast.Image:
 			// An image shows its description.
 			chunks = append(chunks, inlineChunks(t, in, s)...)
-
-		case *ast.FootnoteLink:
-			// A reference shows its footnote's label, as it is written; the
-			// footnotes, at the end, show no links back to it.
-			chunks = append(chunks, in.Merge(s.LinkText).Chunk("[^"+t.Ref+"]"))
 		}
 	}
 	return chunks

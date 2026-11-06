@@ -315,20 +315,35 @@ func TestStreamMarkdown_StreamingKeepsShownLines(t *testing.T) {
 	}
 }
 
-// TestLeaderTrailerInNewBlocks checks that a leader leads the first term of
-// a definition list, and that a trailer follows the text of the last
-// footnote.
-func TestLeaderTrailerInNewBlocks(t *testing.T) {
-	blocks := defaultParser{}.Parse("Term\n: desc\n\nx[^1]\n\n[^1]: note", mdStyles{})
-	out := withTrailer(withLeader(blocks, []style.TextChunk{{Text: ">"}}), []style.TextChunk{{Text: "<"}})
-	if got := chunksText(out[0].Children[0].Body); got != "> Term" {
-		t.Errorf("first term %q, want %q", got, "> Term")
+// TestStreamMarkdown_DefinitionsAndFootnotesAreText checks that definition
+// lists and footnotes show as the paragraphs they are written in, and that
+// streaming them a word at a time changes no line shown but the last: a
+// later term no longer joins the list above it, and a footnote's definition
+// no longer changes the references before it.
+func TestStreamMarkdown_DefinitionsAndFootnotesAreText(t *testing.T) {
+	const src = "Divide\n: Returns the quotient.\n\nZero divisor\n: Reported as an error.[^1]\n\n[^1]: Go reports an error value."
+	sm := NewStreamMarkdown(StreamMarkdownWithPending(heldRow))
+	sm.SetContent(src)
+	if got, want := shownKinds(sm), []string{
+		"p:Divide : Returns the quotient.", "blank",
+		"p:Zero divisor : Reported as an error.[^1]", "blank",
+		"p:[^1]: Go reports an error value.",
+	}; !slices.Equal(got, want) {
+		t.Errorf("shows %q, want %q", got, want)
 	}
-	notes := out[len(out)-1]
-	if notes.Kind != mdBlockFootnotes {
-		t.Fatalf("last block of kind %d, want the footnotes", notes.Kind)
-	}
-	if got := chunksText(notes.Children[0].Body); got != "note <" {
-		t.Errorf("last footnote %q, want %q", got, "note <")
+
+	sm = NewStreamMarkdown(StreamMarkdownWithPending(heldRow))
+	sm.SetStreaming(true)
+	var content string
+	var prev []mdLine
+	for _, word := range strings.SplitAfter(src, " ") {
+		content += word
+		sm.SetContent(content)
+		lines := streamLines(sm, 60)
+		kept := max(len(prev)-1, 0)
+		if len(lines) < kept || !slices.EqualFunc(lines[:kept], prev[:kept], func(a, b mdLine) bool { return reflect.DeepEqual(a, b) }) {
+			t.Fatalf("after %q, a line above the last changed", content)
+		}
+		prev = lines
 	}
 }

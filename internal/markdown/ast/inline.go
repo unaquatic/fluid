@@ -5,16 +5,14 @@ import "strconv"
 // Kinds of the inline content of CommonMark, GitHub Flavored Markdown, and
 // the other extensions of the parser.
 var (
-	KindText             = NewNodeKind("Text")
-	KindCodeSpan         = NewNodeKind("CodeSpan")
-	KindEmphasis         = NewNodeKind("Emphasis")
-	KindLink             = NewNodeKind("Link")
-	KindImage            = NewNodeKind("Image")
-	KindAutoLink         = NewNodeKind("AutoLink")
-	KindRawHTML          = NewNodeKind("RawHTML")
-	KindStrikethrough    = NewNodeKind("Strikethrough")
-	KindFootnoteLink     = NewNodeKind("FootnoteLink")
-	KindFootnoteBacklink = NewNodeKind("FootnoteBacklink")
+	KindText          = NewNodeKind("Text")
+	KindCodeSpan      = NewNodeKind("CodeSpan")
+	KindEmphasis      = NewNodeKind("Emphasis")
+	KindLink          = NewNodeKind("Link")
+	KindImage         = NewNodeKind("Image")
+	KindAutoLink      = NewNodeKind("AutoLink")
+	KindRawHTML       = NewNodeKind("RawHTML")
+	KindStrikethrough = NewNodeKind("Strikethrough")
 )
 
 // A Text is literal text, with escapes and entities resolved, and the line
@@ -145,38 +143,3 @@ type Strikethrough struct {
 
 // Kind implements [Node].
 func (*Strikethrough) Kind() NodeKind { return KindStrikethrough }
-
-// A FootnoteLink is a reference to a [*Footnote], such as "[^1]".
-type FootnoteLink struct {
-	BaseInline
-
-	// Ref is the label of the footnote, as its definition writes it, and the
-	// reference too.
-	Ref string
-
-	// Index is the number of the footnote.
-	Index int
-
-	// RefCount is the number of references to the footnote, and RefIndex
-	// the number of those before this one.
-	RefCount, RefIndex int
-}
-
-// Kind implements [Node].
-func (*FootnoteLink) Kind() NodeKind { return KindFootnoteLink }
-
-// A FootnoteBacklink links a [*Footnote] back to one of the references to
-// it, at the end of the footnote's last paragraph, or of the footnote.
-type FootnoteBacklink struct {
-	BaseInline
-
-	// Index is the number of the footnote.
-	Index int
-
-	// RefCount is the number of references to the footnote, and RefIndex
-	// the number of those before the one that the backlink links to.
-	RefCount, RefIndex int
-}
-
-// Kind implements [Node].
-func (*FootnoteBacklink) Kind() NodeKind { return KindFootnoteBacklink }

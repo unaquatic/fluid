@@ -87,10 +87,10 @@ func TestLinkifyOptions(t *testing.T) {
 }
 
 // FuzzParse checks that parsing any input, with GFM or without, with
-// heading attributes and IDs, and with footnotes, definition lists, the
-// typographer, and the extension for CJK, completes without panicking, as
-// dumping the tree and deciding its soft line breaks do, and that the spans
-// of blocks nest and follow each other in order.
+// heading attributes and IDs, and with the typographer and the extension
+// for CJK, completes without panicking, as dumping the tree and deciding its
+// soft line breaks do, and that the spans of blocks nest and follow each
+// other in order.
 func FuzzParse(f *testing.F) {
 	for _, file := range []string{"../parser/testdata/spec.json", "testdata/gfm.json"} {
 		for _, ex := range spectest.Examples(f, file) {
@@ -98,17 +98,13 @@ func FuzzParse(f *testing.F) {
 		}
 	}
 	f.Add("# a {#x .y z=[1, \"2\", {w=null}]}\nb {.c}\n===\n# a")
-	f.Add("a[^1] ![^x]\n\n> [^x]: q[^1]\n- [^1]: one\n\n      two\n  [^2]:\n\n[^1]: dup")
 	f.Add("'a' \"b\" c's '90s -- --- ... << >> \"21\"\" *\"e\"*")
 	f.Add("日本\n語 한\n국 a\u200b\nb **“日本”**\\ 語 [日\n](/u)本 ![日\n本](/i) a\\ \nb")
-	f.Add("T\nU\n:   a\nlazy\n\n    b\n:\tc\n\n[x]: /u\nV\n: ```\n  d\n\n> W\n> :         e\n: f")
 	ps := []parser.Parser{
 		parser.NewParser(),
 		parser.NewParser(parser.WithExtensions(extension.GFM)),
 		parser.NewParser(parser.WithAttribute(), parser.WithAutoHeadingID()),
-		parser.NewParser(parser.WithExtensions(extension.GFM, extension.Footnote)),
-		parser.NewParser(parser.WithExtensions(extension.DefinitionList)),
-		parser.NewParser(parser.WithExtensions(extension.GFM, extension.Footnote, extension.DefinitionList, extension.Typographer, extension.CJK)),
+		parser.NewParser(parser.WithExtensions(extension.GFM, extension.Typographer, extension.CJK)),
 	}
 	f.Fuzz(func(t *testing.T, src string) {
 		for _, p := range ps {
@@ -134,27 +130,18 @@ func FuzzParse(f *testing.F) {
 }
 
 // checkSpans checks that the spans of the blocks in parent lie within
-// parent's and follow each other in order. The footnotes of a list of
-// footnotes keep the spans of their definitions, which lie anywhere in the
-// document, in any order, and start with "[^".
+// parent's and follow each other in order.
 func checkSpans(t *testing.T, src string, parent ast.Node) {
 	t.Helper()
 	outer := parent.SourceSpan()
-	_, footnotes := parent.(*ast.FootnoteList)
-	if footnotes {
-		outer = ast.Span{End: len(src)}
-	}
 	prev := outer.Start
 	for c := range ast.Children(parent) {
 		if c.Type() != ast.TypeBlock {
 			continue
 		}
 		s := c.SourceSpan()
-		if !within(s, outer) || s.Start < prev && !footnotes {
+		if !within(s, outer) || s.Start < prev {
 			t.Fatalf("%q: %s %v not after %d within %v", src, c.Kind(), s, prev, outer)
-		}
-		if footnotes && !strings.HasPrefix(src[s.Start:], "[^") {
-			t.Fatalf("%q: footnote %v does not start with [^", src, s)
 		}
 		prev = s.End
 		checkSpans(t, src, c)
