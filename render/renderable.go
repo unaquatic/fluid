@@ -70,6 +70,9 @@ type Renderable interface {
 	Damage() buffer.Rect
 	// ClearDamage forgets a vacated region once it has been repainted.
 	ClearDamage()
+	// ForgetPaint forgets the regions the renderable and its descendants last
+	// painted. Call it once something else repaints that region.
+	ForgetPaint()
 	// Rect returns the renderable's resolved geometry, which bounds everywhere
 	// the renderable and its descendants paint.
 	Rect() buffer.Rect

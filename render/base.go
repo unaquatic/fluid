@@ -371,9 +371,12 @@ func (b *BaseRenderable) Add(child Renderable, index ...int) int {
 		b.children = append(b.children, child)
 	}
 
-	// The new child reports its own region, so b has nothing to add and stays
+	// The child reports its own region, so b has nothing to add and stays
 	// clean. Only the record reaches the ancestors, so traversal descends here.
-	b.MarkChildDirty()
+	// A child added before, and so painted, is marked too: traversal skips the
+	// clean children of a container that stays in place, and it would never
+	// take its place here or paint.
+	child.MarkDirty()
 	b.host.RequestRender()
 	return idx
 }
@@ -395,7 +398,9 @@ func (b *BaseRenderable) Remove(id string) {
 			child.SetStickyOffsetY(0)
 
 			// The child painted inside b, so b already carries the region it
-			// vacated and repaints it as a dirty renderable.
+			// vacated and repaints it as a dirty renderable. The child, if
+			// added again, damages only where it is then.
+			child.ForgetPaint()
 			b.RequestRender()
 			return
 		}
@@ -508,10 +513,28 @@ func (b *BaseRenderable) Damage() buffer.Rect {
 
 // ClearDamage forgets the region b vacated, once that region has been
 // repainted. Painting clears the damage of a visible renderable, but a hidden
-// one is never painted again.
+// one is never painted again, so it is clean from then on: otherwise it would
+// stay dirty for as long as it is hidden, and scene traversal, which skips
+// only the clean children before the first changed one, would visit every
+// sibling after it on every frame. Showing it again marks it dirty.
 func (b *BaseRenderable) ClearDamage() {
 	if b.destroyed || !b.Visible() {
-		b.paintRect = buffer.Rect{}
+		b.ForgetPaint()
+		b.dirty = false
+	}
+}
+
+// ForgetPaint forgets the regions b and its descendants last painted. Call it
+// once something else repaints that region, as when b is hidden or removed,
+// so that a descendant shown again damages only where it is then, not also
+// where it painted before, such as rows of a transcript far above it.
+func (b *BaseRenderable) ForgetPaint() {
+	if b.paintRect == (buffer.Rect{}) {
+		return // Nothing under b has painted since it last forgot.
+	}
+	b.paintRect = buffer.Rect{}
+	for _, c := range b.children {
+		c.ForgetPaint()
 	}
 }
 

@@ -535,8 +535,9 @@ func TestProcessResize_InlineMode(t *testing.T) {
 	if r.width != 100 {
 		t.Errorf("expected width=100, got %d", r.width)
 	}
-	if r.root.LayoutNode().Width.Value != 100 {
-		t.Errorf("expected layout width=100, got %v", r.root.LayoutNode().Width.Value)
+	// Inline frames leave the last column free, as they are laid out.
+	if r.root.LayoutNode().Width.Value != 99 {
+		t.Errorf("expected layout width=99, got %v", r.root.LayoutNode().Width.Value)
 	}
 	// The flush detects the height change and repaints; resize leaves the
 	// tracked terminal state alone.
@@ -572,5 +573,28 @@ func TestDestroy_InlineMode(t *testing.T) {
 	// Restoring terminal modes follows, so the newline leads the output.
 	if !strings.HasPrefix(outBuf.String(), "\r\n") {
 		t.Errorf("expected a trailing newline below inline output, got %q", outBuf.String())
+	}
+}
+
+// TestProcessResize_HeightKeepsTheLayoutWidth covers a resize that changes
+// only the terminal's height. The frame stays as wide as before, so the
+// layout must too: laid out a column wider, a renderable at the right edge
+// would lie outside the frame, never paint, and so damage the rows from
+// where it last painted to where it is on every frame.
+func TestProcessResize_HeightKeepsTheLayoutWidth(t *testing.T) {
+	r, _ := newInlineTestRenderer()
+	edge := newGlyphRow("edge", 'e', 0, 1)
+	edge.LayoutNode().Width = layout.Percent(100)
+	r.root.Add(edge)
+	r.renderInlineFrame()
+
+	r.processResize(testTermWidth, testTermHeight+5)
+	r.renderInlineFrame()
+
+	if got, want := edge.Width(), testTermWidth-1; got != want {
+		t.Errorf("a full-width row is %d columns wide, want the frame's %d", got, want)
+	}
+	if !edge.Damage().IsEmpty() {
+		t.Errorf("the row still reports damage %+v once the frame painted it", edge.Damage())
 	}
 }

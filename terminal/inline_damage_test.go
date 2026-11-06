@@ -404,6 +404,48 @@ func TestInlineDamage_ScrollbackChangeRewritesTheScreen(t *testing.T) {
 	}
 }
 
+// TestInlineDamage_GrowthIntoTheScrollbackRepaintsOnlyTheContainer covers a
+// streaming reply taller than the screen. Its container reports its whole
+// rectangle when it grows, which starts in the scrollback, but repainting the
+// rows above it as well would cost as much as the transcript is tall on every
+// frame it grows. Its rows in the scrollback do not change, so neither does
+// the scrollback.
+func TestInlineDamage_GrowthIntoTheScrollbackRepaintsOnlyTheContainer(t *testing.T) {
+	reply := widget.NewBox(widget.BoxWithID("reply"),
+		widget.BoxWithLayout(layout.WithFlexDirection(layout.DirectionColumn)))
+	parts := make([]*glyphRow, 0, 9)
+	for i := range 9 {
+		part := newGlyphRow(string(rune('f'+i)), rune('f'+i), 39, 2)
+		parts = append(parts, part)
+		reply.Add(part)
+	}
+
+	r, out := newInlineTestRenderer()
+	for i := range 5 {
+		r.root.Add(newGlyphRow(string(rune('a'+i)), rune('a'+i), 39, 2))
+	}
+	r.root.Add(reply)
+	r.root.Add(newGlyphRow("prompt", 'p', 39, 3))
+	r.renderInlineFrame()
+	if top := r.inlineViewportTop; top <= reply.Y() {
+		t.Fatalf("viewport top is %d, want the reply to start above it at row %d", top, reply.Y())
+	}
+	out.Reset()
+
+	parts[len(parts)-1].resize(3)
+	r.renderInlineFrame()
+
+	if got := r.inlineDamaged.Y; got != reply.Y() {
+		t.Errorf("damage starts at row %d, want the reply's first row %d", got, reply.Y())
+	}
+	if strings.Contains(out.String(), inlineEraseAll) {
+		t.Error("growth on screen erased the scrollback")
+	}
+	if got, want := frameText(r.nextBuffer), "aabbccddeeffgghhiijjkkllmmnnnppp"; got != want {
+		t.Errorf("frame is %q, want %q", got, want)
+	}
+}
+
 // strayRow paints one row above its own rectangle, the way a background drawn
 // wider or taller than its layout box does.
 type strayRow struct {
@@ -793,5 +835,88 @@ func TestInlineDamage_CentredContainerIsNotPruned(t *testing.T) {
 	}
 	if got := a.Rect(); got.Y != a.Y() {
 		t.Errorf("row a kept stale geometry %+v", got)
+	}
+}
+
+// TestInlineDamage_HiddenRowLeavesItsSiblingsUnvisited covers a hidden row
+// above the rest, as the fullscreen transcript is above the inline one.
+// It never paints again, so it must not stay dirty: scene traversal skips
+// only the clean rows before the first changed one, and would otherwise visit
+// every row after it on every frame.
+func TestInlineDamage_HiddenRowLeavesItsSiblingsUnvisited(t *testing.T) {
+	hidden := newGlyphRow("hidden", 'h', 39, 2)
+	r, _ := newInlineTestRenderer()
+	r.root.Add(hidden)
+	rows := make([]*glyphRow, 0, 20)
+	for i := range 20 {
+		row := newGlyphRow(strconv.Itoa(i), 'r', 39, 1)
+		rows = append(rows, row)
+		r.root.Add(row)
+	}
+	r.renderInlineFrame()
+	hidden.SetGone(true)
+	r.renderInlineFrame()
+
+	rows[len(rows)-1].setGlyph('z')
+	r.renderInlineFrame()
+
+	// The root and the row that changed.
+	if got := r.root.LastFrameStats.NodeCount; got != 2 {
+		t.Errorf("the frame visited %d renderables, want 2", got)
+	}
+}
+
+// TestInlineDamage_ShownAgainDamagesOnlyWhereItIs covers a panel hidden
+// while rows are added above it, as a menu under a transcript is. The region
+// the panel vacated is reported when it hides, and its children's with it,
+// so once it shows again its children damage only where they are now, not
+// also where they last painted, rows above that the transcript now fills.
+func TestInlineDamage_ShownAgainDamagesOnlyWhereItIs(t *testing.T) {
+	child := newGlyphRow("child", 'c', 39, 1)
+	panel := widget.NewBox(widget.BoxWithID("panel"), widget.Children(child))
+	r, _ := newInlineTestRenderer()
+	r.root.Add(panel)
+	r.renderInlineFrame()
+	panel.SetGone(true)
+	r.renderInlineFrame()
+	for i := range 30 {
+		r.root.InsertBefore(newGlyphRow(strconv.Itoa(i), 'r', 39, 1), panel)
+	}
+	r.renderInlineFrame()
+
+	panel.SetGone(false)
+	r.renderInlineFrame()
+
+	if got := r.inlineDamaged.Y; got != panel.Y() {
+		t.Errorf("damage starts at row %d, want the panel's row %d", got, panel.Y())
+	}
+}
+
+// TestInlineDamage_AddedAgainDamagesOnlyWhereItIs covers a panel removed
+// while rows are added above it and added again, as the slash menu is each
+// time it closes and opens: it damages only where it is now.
+func TestInlineDamage_AddedAgainDamagesOnlyWhereItIs(t *testing.T) {
+	child := newGlyphRow("child", 'c', 39, 1)
+	panel := widget.NewBox(widget.BoxWithID("panel"), widget.Children(child))
+	r, _ := newInlineTestRenderer()
+	r.root.Add(panel)
+	r.renderInlineFrame()
+	r.root.Remove(panel.ID())
+	for i := range 30 {
+		r.root.Add(newGlyphRow(strconv.Itoa(i), 'r', 39, 1))
+	}
+	r.renderInlineFrame()
+
+	r.root.Add(panel)
+	r.renderInlineFrame()
+
+	if got := panel.Y(); got != 30 {
+		t.Fatalf("the panel added again is at row %d, want 30, under the rows added meanwhile", got)
+	}
+	if got := r.nextBuffer.Cell(0, 30).Char; got != 'c' {
+		t.Errorf("row 30 shows %q, want the panel's child", got)
+	}
+	if got := r.inlineDamaged.Y; got != panel.Y() {
+		t.Errorf("damage starts at row %d, want the panel's row %d", got, panel.Y())
 	}
 }

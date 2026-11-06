@@ -642,7 +642,7 @@ func (r *Renderer) processResize(w, h int) {
 		// change is detected by the flush, which then rewrites every row.
 		r.invalidated = true
 		r.hitGrid.Resize(w, h)
-		r.root.LayoutNode().Width = layout.Points(w)
+		r.root.LayoutNode().Width = layout.Points(inlineLayoutWidth(w))
 		r.root.LayoutNode().MarkDirty()
 	} else {
 		// Fullscreen resize invalidates both frame buffers for a complete repaint.
