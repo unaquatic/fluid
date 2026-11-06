@@ -2,6 +2,8 @@ package widget
 
 import (
 	"fmt"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -183,6 +185,133 @@ func TestMarkdown_SetBlocks(t *testing.T) {
 	md.setBlocks(blocks)
 	if len(md.blocks) != len(blocks) {
 		t.Errorf("expected %d blocks, got %d", len(blocks), len(md.blocks))
+	}
+}
+
+// heldRow is the row that stands for the held block in the tests.
+var heldRow = style.NewStyledText(style.Plain("…"))
+
+// shownKinds returns the kind of each block sm's children show, and the text
+// of a paragraph, in order, skipping children that show none.
+func shownKinds(sm *StreamMarkdown) []string {
+	var out []string
+	for _, child := range sm.children {
+		for _, b := range child.blocks {
+			switch b.Kind {
+			case mdBlockParagraph:
+				out = append(out, "p:"+chunksText(b.Body))
+			case mdBlockBlank:
+				out = append(out, "blank")
+			case mdBlockTable:
+				out = append(out, "table")
+			case mdBlockCode:
+				out = append(out, "code")
+			default:
+				out = append(out, fmt.Sprint(b.Kind))
+			}
+		}
+	}
+	return out
+}
+
+// TestStreamMarkdown_StreamingHoldsLastBlock checks that a streaming
+// StreamMarkdown holds back its last block, whatever it is, and a last line
+// that holds no text yet, and what stands for the block.
+func TestStreamMarkdown_StreamingHoldsLastBlock(t *testing.T) {
+	const table = "| a | b |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |"
+	tests := []struct {
+		name    string
+		content string
+		noRow   bool // no StreamMarkdownWithPending
+		want    []string
+	}{
+		{name: "prose", content: "Intro\n\nMore", want: []string{"p:Intro", "blank", "p:…"}},
+		{name: "one block", content: "Intro", want: []string{"p:…"}},
+		{name: "table", content: "Intro\n\n" + table, want: []string{"p:Intro", "blank", "p:…"}},
+		{name: "code", content: "Intro\n\n```go\nx := 1\n", want: []string{"p:Intro", "blank", "p:…"}},
+		{name: "table before prose", content: table + "\n\nAfter", want: []string{"table", "blank", "p:…"}},
+		// The pipe that starts the next row does not end the table.
+		{name: "the pipe of a table's next row", content: "Intro\n\n" + table + "\n| ", want: []string{"p:Intro", "blank", "p:…"}},
+		// The dash that starts a list does not start a block yet.
+		{name: "the dash of a list item", content: "Intro\n\n- ", want: []string{"p:…"}},
+		{name: "no row stands for it", content: "Intro\n\nMore", noRow: true, want: []string{"p:Intro"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var opts []StreamMarkdownOption
+			if !tt.noRow {
+				opts = append(opts, StreamMarkdownWithPending(heldRow))
+			}
+			sm := NewStreamMarkdown(opts...)
+			sm.SetStreaming(true)
+			sm.SetContent(tt.content)
+			if got := shownKinds(sm); !slices.Equal(got, tt.want) {
+				t.Errorf("streaming shows %q, want %q", got, tt.want)
+			}
+
+			// Once streaming ends, every block shows.
+			sm.SetStreaming(false)
+			whole := NewStreamMarkdown(opts...)
+			whole.SetContent(tt.content)
+			if got, want := shownKinds(sm), shownKinds(whole); !slices.Equal(got, want) {
+				t.Errorf("after streaming shows %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+// streamLines returns the lines sm shows at width w, its children's in
+// order.
+func streamLines(sm *StreamMarkdown, w int) []mdLine {
+	var lines []mdLine
+	for _, child := range sm.children {
+		child.wrapToWidth(w)
+		lines = append(lines, child.renderedLines...)
+	}
+	return lines
+}
+
+// TestStreamMarkdown_ShrinkClearsChildren checks that content parsed into
+// fewer blocks than before leaves the children past them showing nothing.
+func TestStreamMarkdown_ShrinkClearsChildren(t *testing.T) {
+	sm := NewStreamMarkdown()
+	sm.SetContent("a\n\nb\n\nc")
+	sm.SetContent("a\n\nb")
+	if got, want := shownKinds(sm), []string{"p:a", "blank", "p:b"}; !slices.Equal(got, want) {
+		t.Errorf("shows %q, want %q", got, want)
+	}
+}
+
+// TestStreamMarkdown_StreamingKeepsShownLines streams a table and a fitted
+// code block a word at a time, as a model streams them, each with a line
+// wider than those before it, and checks that while streaming each update
+// changes no line but the last one shown, and adds lines after it. Without
+// streaming, the wider lines change the lines of the table and the code
+// above them.
+func TestStreamMarkdown_StreamingKeepsShownLines(t *testing.T) {
+	src := "Counts:\n\n| file | n |\n|---|---|\n| a | 1 |\n| a_much_longer_name | 12345 |\n| b | 2 |\n\n" +
+		"Code:\n\n```go\nx := 1\nresult := computeSomething(withArguments)\n```\n\nDone."
+	for _, streaming := range []bool{true, false} {
+		t.Run(fmt.Sprintf("streaming=%v", streaming), func(t *testing.T) {
+			sm := NewStreamMarkdown(StreamMarkdownWithCodeBlockFit(true), StreamMarkdownWithPending(heldRow))
+			sm.SetStreaming(streaming)
+			var content string
+			var prev []mdLine
+			rewrote := false
+			for _, word := range strings.SplitAfter(src, " ") {
+				content += word
+				sm.SetContent(content)
+				lines := streamLines(sm, 60)
+				kept := max(len(prev)-1, 0)
+				if len(lines) < kept || !slices.EqualFunc(lines[:kept], prev[:kept], func(a, b mdLine) bool { return reflect.DeepEqual(a, b) }) {
+					rewrote = true
+				}
+				prev = lines
+			}
+			if rewrote == streaming {
+				t.Errorf("an update rewrote a line above the last = %v, want %v", rewrote, !streaming)
+			}
+		})
 	}
 }
 
