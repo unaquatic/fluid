@@ -2,7 +2,10 @@ package widget
 
 import (
 	"fmt"
+	"slices"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/unaquatic/fluid/buffer"
 	"github.com/unaquatic/fluid/input"
@@ -1255,5 +1258,154 @@ func TestScrollBox_StickyGap_ZeroNoGap(t *testing.T) {
 	// Child 0's section limit remains 30.
 	if child0.StickyOffsetY() != 30 {
 		t.Errorf("expected child[0] stickyOffsetY=30 (gap=0), got %d", child0.StickyOffsetY())
+	}
+}
+
+// Wheel acceleration.
+
+// Gaps between wheel events, inside and outside newTestScrollAccel's window.
+const (
+	fastWheel = 10 * time.Millisecond
+	slowWheel = 100 * time.Millisecond
+)
+
+// newTestScrollAccel returns a ScrollAccel with a 50ms window, a multiplier
+// that grows by 0.5 per event, and a cap of 8.
+func newTestScrollAccel() *ScrollAccel {
+	return &ScrollAccel{Window: 50 * time.Millisecond, Step: 0.5, Max: 8}
+}
+
+// TestScrollAccel_Scale checks the rows each wheel event of a sequence
+// moves, with newTestScrollAccel unless the case sets another accelerator.
+func TestScrollAccel_Scale(t *testing.T) {
+	type wheel struct {
+		gap   time.Duration // since the previous event
+		delta int
+		want  int
+	}
+	tests := []struct {
+		name   string
+		accel  *ScrollAccel
+		events []wheel
+	}{
+		{
+			name:   "slow events move one row each",
+			events: []wheel{{0, 1, 1}, {slowWheel, 1, 1}, {slowWheel, 1, 1}},
+		},
+		{
+			// The multipliers are 1, 1.5, 2, 2.5, and 3, and the half rows
+			// carry over to the next event.
+			name:   "fast events accelerate",
+			events: []wheel{{0, 1, 1}, {fastWheel, 1, 1}, {fastWheel, 1, 2}, {fastWheel, 1, 3}, {fastWheel, 1, 3}},
+		},
+		{
+			name:   "fast upward events accelerate",
+			events: []wheel{{0, -1, -1}, {fastWheel, -1, -1}, {fastWheel, -1, -2}, {fastWheel, -1, -3}},
+		},
+		{
+			name:   "a gap of exactly the window continues the streak",
+			events: []wheel{{0, 1, 1}, {50 * time.Millisecond, 1, 1}, {50 * time.Millisecond, 1, 2}},
+		},
+		{
+			// The half row owed after the third event is dropped.
+			name:   "a pause starts again at one row",
+			events: []wheel{{0, 1, 1}, {fastWheel, 1, 1}, {fastWheel, 1, 2}, {slowWheel, 1, 1}, {fastWheel, 1, 1}},
+		},
+		{
+			name:   "a change of direction starts again at one row",
+			events: []wheel{{0, 1, 1}, {fastWheel, 1, 1}, {fastWheel, 1, 2}, {fastWheel, -1, -1}, {fastWheel, -1, -1}},
+		},
+		{
+			name:   "the multiplier stops at max",
+			accel:  &ScrollAccel{Window: 50 * time.Millisecond, Step: 1, Max: 3},
+			events: []wheel{{0, 1, 1}, {fastWheel, 1, 2}, {fastWheel, 1, 3}, {fastWheel, 1, 3}},
+		},
+		{
+			name:   "a max below one does not accelerate",
+			accel:  &ScrollAccel{Window: 50 * time.Millisecond, Step: 1, Max: 0},
+			events: []wheel{{0, 1, 1}, {fastWheel, 1, 1}, {fastWheel, 1, 1}},
+		},
+		{
+			name:   "a step below zero does not slow down",
+			accel:  &ScrollAccel{Window: 50 * time.Millisecond, Step: -1, Max: 8},
+			events: []wheel{{0, 1, 1}, {fastWheel, 1, 1}, {fastWheel, 1, 1}},
+		},
+		{
+			name:   "a zero delta moves nothing and keeps the streak",
+			events: []wheel{{0, 1, 1}, {fastWheel, 0, 0}, {fastWheel, 1, 1}, {fastWheel, 1, 2}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := tt.accel
+			if a == nil {
+				a = newTestScrollAccel()
+			}
+			now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+			for i, w := range tt.events {
+				now = now.Add(w.gap)
+				if got := a.Scale(w.delta, now); got != w.want {
+					t.Errorf("event %d: Scale(%d) = %d, want %d", i, w.delta, got, w.want)
+				}
+			}
+		})
+	}
+}
+
+// TestScrollBox_ScrollAccel_Wheel sends wheel events to a ScrollBox gap
+// apart on synctest's clock, and checks how far they scroll it.
+func TestScrollBox_ScrollAccel_Wheel(t *testing.T) {
+	down := input.ScrollInfo{DeltaY: 1}
+	right := input.ScrollInfo{DeltaX: 1}
+	tests := []struct {
+		name   string
+		accel  *ScrollAccel
+		gap    time.Duration
+		events []input.ScrollInfo
+		want   int
+	}{
+		{
+			name:   "without an accelerator each event moves one row",
+			gap:    fastWheel,
+			events: slices.Repeat([]input.ScrollInfo{down}, 5),
+			want:   5,
+		},
+		{
+			name:   "slow events move one row each",
+			accel:  newTestScrollAccel(),
+			gap:    slowWheel,
+			events: slices.Repeat([]input.ScrollInfo{down}, 5),
+			want:   5,
+		},
+		{
+			// The events move 1, 1, 2, 3, and 3 rows.
+			name:   "fast events accelerate",
+			accel:  newTestScrollAccel(),
+			gap:    fastWheel,
+			events: slices.Repeat([]input.ScrollInfo{down}, 5),
+			want:   10,
+		},
+		{
+			// The downward events move 1, 1, 2, and 3 rows.
+			name:   "sideways drift does not break the streak",
+			accel:  newTestScrollAccel(),
+			gap:    fastWheel,
+			events: []input.ScrollInfo{down, down, right, down, down},
+			want:   7,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				sb := newTestScrollBox(20, 10, 20, 100, ScrollBoxWithScrollAccel(tt.accel))
+				for _, s := range tt.events {
+					time.Sleep(tt.gap)
+					sb.OnMouseScrollHandler(&input.MouseEvent{Type: input.MouseScroll, Button: input.ButtonNone, Scroll: &s})
+				}
+				if got := sb.ScrollY(); got != tt.want {
+					t.Errorf("scrollY = %d after %d events %v apart, want %d", got, len(tt.events), tt.gap, tt.want)
+				}
+			})
+		})
 	}
 }

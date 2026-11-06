@@ -1,6 +1,7 @@
 package widget
 
 import (
+	"cmp"
 	"time"
 
 	"github.com/unaquatic/fluid/buffer"
@@ -55,6 +56,9 @@ type ScrollBox struct {
 
 	// stickyGap separates consecutive sticky children in cells.
 	stickyGap int
+
+	// scrollAccel, when set, speeds up vertical wheel scrolling.
+	scrollAccel *ScrollAccel
 }
 
 // ScrollBoxOption configures a ScrollBox during construction.
@@ -87,7 +91,13 @@ func NewScrollBox(opts ...ScrollBoxOption) *ScrollBox {
 		if e.Scroll != nil {
 			oldY := sb.scrollY
 			oldX := sb.scrollX
-			sb.handleScroll(e.Scroll.DeltaX, e.Scroll.DeltaY, e.Mods.Has(input.ModCtrl))
+			// Only vertical deltas reach the accelerator, so the sideways
+			// drift of a trackpad swipe does not break its streak.
+			deltaY := e.Scroll.DeltaY
+			if sb.scrollAccel != nil && deltaY != 0 {
+				deltaY = sb.scrollAccel.Scale(deltaY, time.Now())
+			}
+			sb.handleScroll(e.Scroll.DeltaX, deltaY, e.Mods.Has(input.ModCtrl))
 			if sb.scrollY != oldY || sb.scrollX != oldX {
 				e.StopPropagation()
 			}
@@ -529,6 +539,54 @@ func (sb *ScrollBox) handleScroll(deltaX, deltaY int, ctrl bool) {
 	// The setters update userScrolled in both directions, including re-engagement.
 }
 
+// ScrollAccel speeds up mouse-wheel scrolling while wheel events arrive in
+// quick succession, so a slow turn of the wheel moves one row at a time and a
+// fast one covers more ground. Each event that follows the previous one in
+// the same direction within Window raises the multiplier by Step, up to Max.
+// A longer pause or a change of direction starts again at 1.
+//
+// The terminal does not say whether wheel events come from a wheel or a
+// trackpad, and a trackpad already sends more events the faster it is
+// swiped, so Max also bounds how far the two compound.
+//
+// A ScrollAccel holds the state of the current streak, so each ScrollBox
+// needs its own.
+type ScrollAccel struct {
+	// Window is the longest gap between two events that continues a streak.
+	Window time.Duration
+	// Step is how much the multiplier grows with each event of a streak.
+	// Values below 0 are treated as 0.
+	Step float64
+	// Max caps the multiplier. Values below 1 are treated as 1.
+	Max float64
+
+	last  time.Time
+	dir   int
+	mult  float64
+	carry float64 // fraction of a row owed to the next event of the streak
+}
+
+// Scale returns the number of rows to scroll for delta, a vertical wheel
+// delta received at now. Fractions of a row carry over to the next event of
+// the streak, so a multiplier of 1.5 moves one row and then two. The result
+// has the sign of delta, and is not zero unless delta is.
+func (a *ScrollAccel) Scale(delta int, now time.Time) int {
+	if delta == 0 {
+		return 0
+	}
+	dir := cmp.Compare(delta, 0)
+	if dir != a.dir || now.Sub(a.last) > a.Window {
+		a.mult, a.carry = 1, 0
+	} else {
+		a.mult = min(a.mult+max(a.Step, 0), max(a.Max, 1))
+	}
+	a.dir, a.last = dir, now
+	a.carry += float64(delta) * a.mult
+	rows := int(a.carry)
+	a.carry -= float64(rows)
+	return rows
+}
+
 func (sb *ScrollBox) clampScrollY(y int) int {
 	if y < 0 {
 		return 0
@@ -719,6 +777,12 @@ func ScrollBoxWithAutoScroll(edge AutoScrollEdge) ScrollBoxOption {
 // Edge following still takes precedence until the user scrolls away.
 func ScrollBoxWithAnchorScroll(v bool) ScrollBoxOption {
 	return func(sb *ScrollBox) { sb.anchorScroll = v }
+}
+
+// ScrollBoxWithScrollAccel speeds up vertical mouse-wheel scrolling with a,
+// which the ScrollBox keeps and updates; nil scrolls one row per wheel event.
+func ScrollBoxWithScrollAccel(a *ScrollAccel) ScrollBoxOption {
+	return func(sb *ScrollBox) { sb.scrollAccel = a }
 }
 
 // ScrollBoxWithStickyGap sets the gap in cells between consecutive sticky children.
