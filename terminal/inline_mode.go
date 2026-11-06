@@ -19,6 +19,10 @@ func (r *Renderer) InlineMode() bool {
 // scrollback when the terminal was resized or a changed row is in the
 // scrollback.
 //
+// Rows committed with CommitInline are not in the last inline frame, which a
+// return then cannot be compared against, so the first inline frame after it
+// puts them back, as SetInlineReprint describes, and writes every row.
+//
 // Call it from the event-loop goroutine, for example through Enqueue. Before
 // setup it only records the mode.
 func (r *Renderer) SetInlineMode(inline bool) {
@@ -43,9 +47,13 @@ func (r *Renderer) SetInlineMode(inline bool) {
 		r.inlineCursorRow = 0
 		r.inlineTermHeight = 0
 		r.inlineLiveRow, r.inlineLiveWas = 0, 0
+		r.inlineCommitted, r.inlineReprintDue = false, false
 		return
 	}
 
+	if inline && r.inlineCommitted {
+		r.inlineReprintDue = true
+	}
 	r.applyScreenMode(inline)
 	r.processResize(w, h)
 	r.RequestRender()

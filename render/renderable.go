@@ -38,6 +38,8 @@ type Renderable interface {
 	Remove(id string)
 	// InsertBefore inserts child immediately before anchor in the child list.
 	InsertBefore(child, anchor Renderable)
+	// InsertAfter inserts child immediately after anchor in the child list.
+	InsertAfter(child, anchor Renderable)
 	// Renderable returns the direct child identified by id, or nil.
 	Renderable(id string) Renderable
 	// FindDescendantByID returns the first matching node in a depth-first search

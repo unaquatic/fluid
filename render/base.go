@@ -425,6 +425,20 @@ func (b *BaseRenderable) InsertBefore(child, anchor Renderable) {
 	b.Add(child)
 }
 
+// InsertAfter inserts child immediately after anchor. It appends child when
+// anchor is nil or not a direct child.
+func (b *BaseRenderable) InsertAfter(child, anchor Renderable) {
+	if anchor != nil {
+		for i, c := range b.children {
+			if c.ID() == anchor.ID() {
+				b.Add(child, i+1)
+				return
+			}
+		}
+	}
+	b.Add(child)
+}
+
 // Renderable returns the direct child identified by id, or nil.
 func (b *BaseRenderable) Renderable(id string) Renderable {
 	for _, child := range b.children {
