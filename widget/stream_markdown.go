@@ -11,6 +11,7 @@ import (
 	"github.com/unaquatic/fluid/layout"
 	"github.com/unaquatic/fluid/render"
 	"github.com/unaquatic/fluid/style"
+	"github.com/unaquatic/fluid/textbuf"
 )
 
 // StreamMarkdown renders incrementally changing Markdown through stable child widgets.
@@ -26,8 +27,12 @@ type StreamMarkdown struct {
 	fullContent string
 
 	// parser and styles match the options used to construct child widgets.
+	// styles.Fg is the default foreground, as SetFg sets it.
 	parser markdownParser
 	styles mdStyles
+
+	// wrapMode is how the children wrap their lines, as SetWrapMode sets it.
+	wrapMode textbuf.WrapMode
 
 	// allBlocks is reparsed whenever fullContent changes.
 	allBlocks []mdBlock
@@ -78,6 +83,7 @@ func NewStreamMarkdown(opts ...StreamMarkdownOption) *StreamMarkdown {
 	tmpl := NewMarkdown("", sm.mdOpts...)
 	sm.parser = tmpl.parser
 	sm.styles = tmpl.mdStyles()
+	sm.wrapMode = tmpl.wrapMode
 
 	return sm
 }
@@ -90,11 +96,17 @@ func (sm *StreamMarkdown) SetContent(content string) {
 		return
 	}
 	sm.fullContent = content
-	sm.allBlocks = sm.parser.Parse(content, sm.styles)
+	sm.reparse()
+}
+
+// reparse parses the full content with the parse styles, and hands the blocks
+// to the children, which wrap again only those that changed.
+func (sm *StreamMarkdown) reparse() {
+	sm.allBlocks = sm.parser.Parse(sm.fullContent, sm.styles)
 	sm.bareBlocks = nil
-	start, bare := bareLineStart(content)
+	start, bare := bareLineStart(sm.fullContent)
 	if sm.bareLine = bare; bare {
-		sm.bareBlocks = sm.parser.Parse(content[:start], sm.styles)
+		sm.bareBlocks = sm.parser.Parse(sm.fullContent[:start], sm.styles)
 	}
 	sm.distributeBlocks()
 }
@@ -110,9 +122,25 @@ func bareLineStart(content string) (int, bool) {
 // isText reports whether r is a letter or a digit.
 func isText(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) }
 
+// AppendContent appends source text to the content, as SetContent would set
+// it, as Markdown.AppendContent does.
+func (sm *StreamMarkdown) AppendContent(text string) {
+	sm.SetContent(sm.fullContent + text)
+}
+
 // Content returns the full content string.
 func (sm *StreamMarkdown) Content() string {
 	return sm.fullContent
+}
+
+// LineCount returns the number of rendered (post-wrap) lines of the blocks the
+// widget shows, as Markdown.LineCount does.
+func (sm *StreamMarkdown) LineCount() int {
+	n := 0
+	for _, child := range sm.children {
+		n += child.LineCount()
+	}
+	return n
 }
 
 // SetStreaming reports whether more content is still to come. While it is,
@@ -175,6 +203,58 @@ func (sm *StreamMarkdown) SetBg(c style.Color) {
 	for _, child := range sm.children {
 		child.SetBg(c)
 	}
+	sm.RequestRender()
+}
+
+// Fg returns the default foreground color of the Markdown blocks.
+func (sm *StreamMarkdown) Fg() style.Color { return sm.styles.Fg }
+
+// SetFg sets the default foreground color, as StreamMarkdownWithFg does, and
+// requests a frame. The parser applies inline styles, so the content is
+// parsed again; the children wrap again only the blocks that change.
+func (sm *StreamMarkdown) SetFg(c style.Color) {
+	if c == sm.styles.Fg {
+		return
+	}
+	sm.styles.Fg = c
+	sm.mdOpts = append(sm.mdOpts, MarkdownWithFg(c))
+	for _, child := range sm.children {
+		// A child holds a block, not content, so set its foreground
+		// directly: Markdown.SetFg marks the child's own, empty, content for
+		// parsing, which would clear the block unless a later setBlocks
+		// handed it back.
+		child.fg = c
+	}
+	if len(sm.children) > 0 {
+		sm.reparse()
+	}
+	sm.RequestRender()
+}
+
+// WrapModeValue returns the configured wrap mode.
+func (sm *StreamMarkdown) WrapModeValue() textbuf.WrapMode { return sm.wrapMode }
+
+// SetWrapMode sets the wrap mode of the Markdown blocks, as
+// StreamMarkdownWithWrapMode does, and requests a frame.
+func (sm *StreamMarkdown) SetWrapMode(wm textbuf.WrapMode) {
+	if wm == sm.wrapMode {
+		return
+	}
+	sm.wrapMode = wm
+	sm.mdOpts = append(sm.mdOpts, MarkdownWithWrapMode(wm))
+	for _, child := range sm.children {
+		child.SetWrapMode(wm)
+		// The rows a block wraps into set its height.
+		child.LayoutNode().MarkDirty()
+	}
+	sm.RequestRender()
+}
+
+// SetHeight sets the widget's height dynamically after construction, as
+// Markdown.SetHeight does.
+func (sm *StreamMarkdown) SetHeight(s layout.Scalar) {
+	sm.LayoutNode().Height = s
+	sm.LayoutNode().MarkDirty()
 	sm.RequestRender()
 }
 
@@ -451,6 +531,15 @@ func StreamMarkdownWithCodeBg(c style.Color) StreamMarkdownOption {
 	}
 }
 
+// StreamMarkdownWithCode sets the complete inline-code style on each child, as
+// MarkdownWithCode does, and leaves fenced code as it is. StreamMarkdownWithTheme
+// sets that style from its theme too, so apply this after it.
+func StreamMarkdownWithCode(e style.Entry) StreamMarkdownOption {
+	return func(sm *StreamMarkdown) {
+		sm.mdOpts = append(sm.mdOpts, MarkdownWithCode(e))
+	}
+}
+
 // StreamMarkdownWithCodeBlockBg sets only the fenced-block background on each child.
 func StreamMarkdownWithCodeBlockBg(c style.Color) StreamMarkdownOption {
 	return func(sm *StreamMarkdown) {
@@ -492,6 +581,36 @@ func StreamMarkdownWithCodeBlockFit(v bool) StreamMarkdownOption {
 func StreamMarkdownWithProsePadding(n int) StreamMarkdownOption {
 	return func(sm *StreamMarkdown) {
 		sm.mdOpts = append(sm.mdOpts, MarkdownWithProsePadding(n))
+	}
+}
+
+// StreamMarkdownWithStrong sets the style for **strong** spans on each child.
+func StreamMarkdownWithStrong(e style.Entry) StreamMarkdownOption {
+	return func(sm *StreamMarkdown) {
+		sm.mdOpts = append(sm.mdOpts, MarkdownWithStrong(e))
+	}
+}
+
+// StreamMarkdownWithEmph sets the style for *emphasis* spans on each child.
+func StreamMarkdownWithEmph(e style.Entry) StreamMarkdownOption {
+	return func(sm *StreamMarkdown) {
+		sm.mdOpts = append(sm.mdOpts, MarkdownWithEmph(e))
+	}
+}
+
+// StreamMarkdownWithWrapMode sets the wrap mode on each child.
+func StreamMarkdownWithWrapMode(wm textbuf.WrapMode) StreamMarkdownOption {
+	return func(sm *StreamMarkdown) {
+		sm.mdOpts = append(sm.mdOpts, MarkdownWithWrapMode(wm))
+	}
+}
+
+// StreamMarkdownWithHighlighter sets the SyntaxHighlighter for fenced code
+// blocks on each child. StreamMarkdownWithTheme installs one from its theme
+// too, so apply this after it.
+func StreamMarkdownWithHighlighter(h SyntaxHighlighter) StreamMarkdownOption {
+	return func(sm *StreamMarkdown) {
+		sm.mdOpts = append(sm.mdOpts, MarkdownWithHighlighter(h))
 	}
 }
 
