@@ -5,7 +5,7 @@ package style
 //
 // Widgets can override individual theme roles through their own styling APIs.
 type Theme struct {
-	// Name identifies the theme, such as "darcula-solid".
+	// Name identifies the theme, such as "dark-flow".
 	Name string
 
 	// Core surfaces.

@@ -130,7 +130,7 @@ func TestCode_SyntaxHighlighting_UnknownLanguage(t *testing.T) {
 
 func TestCode_ThemeSwitch(t *testing.T) {
 	code := "func main() {}"
-	monokai, darcula := style.DefaultDark(), style.DarculaSolid()
+	monokai, darkFlow := style.DefaultDark(), style.DarkFlow()
 	c := NewCode(code, CodeWithFiletype("go"), CodeWithTheme(monokai))
 
 	if c.Theme() != monokai {
@@ -144,9 +144,9 @@ func TestCode_ThemeSwitch(t *testing.T) {
 	fgMonokai := buf1.Cell(0, 0).Fg
 
 	// Change the highlighter theme after construction.
-	c.SetTheme(darcula)
-	if c.Theme() != darcula {
-		t.Errorf("expected theme %q, got %q", darcula.Name, c.Theme().Name)
+	c.SetTheme(darkFlow)
+	if c.Theme() != darkFlow {
+		t.Errorf("expected theme %q, got %q", darkFlow.Name, c.Theme().Name)
 	}
 
 	buf2 := buffer.New(30, 1)
@@ -446,7 +446,7 @@ func TestCode_ActiveLine(t *testing.T) {
 }
 
 func TestCode_Options(t *testing.T) {
-	theme := style.DarculaSolid()
+	theme := style.DarkFlow()
 	c := NewCode("test",
 		CodeWithID("code1"),
 		CodeWithFg(style.ColorGreen),
@@ -1257,7 +1257,7 @@ func TestDiff_SetViewMode(t *testing.T) {
 }
 
 func TestDiff_Options(t *testing.T) {
-	theme := style.DarculaSolid()
+	theme := style.DarkFlow()
 	d := NewDiff("test",
 		DiffWithID("diff1"),
 		DiffWithViewMode(DiffSplit),

@@ -22,7 +22,7 @@ type serveOptions struct {
 	// root is the directory whose golden files the editor opens and saves.
 	root string
 	// theme is the file holding the theme whose roles the palette offers, as
-	// JSON, or "" for style.DarculaSolid.
+	// JSON, or "" for style.DarkFlow.
 	theme string
 }
 
@@ -49,7 +49,7 @@ func runDesign(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("fluid design", flag.ContinueOnError)
 	fs.IntVar(&o.port, "port", 4098, "Port to listen on")
 	fs.StringVar(&o.root, "root", ".", "Open and save the golden files under `dir`")
-	fs.StringVar(&o.theme, "theme", "", "Offer the roles of the style.Theme in JSON `file` (default style.DarculaSolid)")
+	fs.StringVar(&o.theme, "theme", "", "Offer the roles of the style.Theme in JSON `file` (default style.DarkFlow)")
 	fs.Usage = func() {
 		fmt.Fprint(fs.Output(), "Usage:\n"+designSynopsis+"\nFlags:\n")
 		fs.PrintDefaults()

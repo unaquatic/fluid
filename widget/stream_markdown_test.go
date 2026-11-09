@@ -355,7 +355,7 @@ func TestStreamMarkdown_DefinitionsAndFootnotesAreText(t *testing.T) {
 // a theme, gives inline code the entry it names in every block, in color,
 // background, and attributes, and leaves fenced code the theme's colors.
 func TestStreamMarkdown_WithCode(t *testing.T) {
-	th := style.DarculaSolid()
+	th := style.DarkFlow()
 	code := style.Entry{
 		Fg:    style.ColorFromInts(1, 2, 3, 255),
 		Bg:    style.ColorFromInts(4, 5, 6, 255),
@@ -396,7 +396,7 @@ func TestStreamMarkdown_WithStrongEmph(t *testing.T) {
 	strong := style.Entry{Fg: style.ColorFromInts(1, 2, 3, 255), Attrs: style.AttrBold | style.AttrUnderline}
 	emph := style.Entry{Fg: style.ColorFromInts(4, 5, 6, 255), Attrs: style.AttrItalic | style.AttrStrikethrough}
 	sm := NewStreamMarkdown(
-		StreamMarkdownWithTheme(style.DarculaSolid()),
+		StreamMarkdownWithTheme(style.DarkFlow()),
 		StreamMarkdownWithStrong(strong), StreamMarkdownWithEmph(emph),
 	)
 	sm.SetContent("A **heavy** and *slanted* word.")
@@ -424,7 +424,7 @@ func (h markHighlighter) Highlight(content, _ string, _, _ style.Color) ([]textb
 func TestStreamMarkdown_WithHighlighter(t *testing.T) {
 	mark := style.ColorFromInts(7, 8, 9, 255)
 	sm := NewStreamMarkdown(
-		StreamMarkdownWithTheme(style.DarculaSolid()),
+		StreamMarkdownWithTheme(style.DarkFlow()),
 		StreamMarkdownWithHighlighter(markHighlighter{fg: mark}),
 	)
 	sm.SetContent("```go\nx := 1\n```")

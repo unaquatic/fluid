@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DarculaSolid — theme editor</title>
+<title>DarkFlow — theme editor</title>
 <style>
   /* type16, the font of aquatic's pages, embedded as ../aquatic/cmd/catalog/index.html embeds it.
      It is sharp only at 17 or 34px (1 or 2 px per font dot), with odd line heights, which keep the
@@ -198,8 +198,8 @@
 <body>
 
 <header>
-  <h1>DarculaSolid</h1>
-  <span class="path">fluid/style/themes_darcula.go</span>
+  <h1>DarkFlow</h1>
+  <span class="path">fluid/style/themes_darkflow.go</span>
   <span class="spacer"></span>
   <button id="reset">Reset all</button>
   <button id="copy" class="primary">Copy Go</button>
@@ -1216,7 +1216,7 @@ function assistantBubble() {
   fence.style.color = hex("CodeFg");
   fence.append(
     paint("Keyword", "func"), " ",
-    paint("Function", "DarculaSolid"), "() *",
+    paint("Function", "DarkFlow"), "() *",
     paint("Type", "Theme"), " {\n    ",
     paint("Comment", "// Canvas"), "\n    ",
     paint("Variable", "canvasBg"), " := ",
@@ -1292,7 +1292,7 @@ function emitFields(keys, indent) {
 }
 
 function emitTheme() {
-  const out = ["\treturn &Theme{", '\t\tName: "darcula-solid",'];
+  const out = ["\treturn &Theme{", '\t\tName: "dark-flow",'];
   for (const g of GROUPS) {
     out.push("", "\t\t// " + g.comment);
     if (g.heading) {
@@ -1317,8 +1317,8 @@ function emitTheme() {
 
 function emitGo() {
   return [
-    "// DarculaSolid returns the Darcula Solid palette.",
-    "func DarculaSolid() *Theme {",
+    "// DarkFlow returns the Dark Flow palette.",
+    "func DarkFlow() *Theme {",
     ...emitBase(),
     "",
     ...emitTheme(),

@@ -9,10 +9,10 @@ import (
 )
 
 // loadTheme returns the theme in the file at path, a style.Theme as JSON, or
-// style.DarculaSolid when path is empty.
+// style.DarkFlow when path is empty.
 func loadTheme(path string) (*style.Theme, error) {
 	if path == "" {
-		return style.DarculaSolid(), nil
+		return style.DarkFlow(), nil
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {

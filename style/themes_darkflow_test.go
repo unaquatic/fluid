@@ -2,9 +2,9 @@ package style
 
 import "testing"
 
-// TestDarculaSolid_Signature pins the palette's identifying colors.
-func TestDarculaSolid_Signature(t *testing.T) {
-	th := DarculaSolid()
+// TestDarkFlow_Signature pins the palette's identifying colors.
+func TestDarkFlow_Signature(t *testing.T) {
+	th := DarkFlow()
 
 	checks := []struct {
 		name    string
@@ -33,10 +33,10 @@ func TestDarculaSolid_Signature(t *testing.T) {
 	}
 }
 
-// TestDarculaSolid_SharedColors verifies that the roles of each group share
+// TestDarkFlow_SharedColors verifies that the roles of each group share
 // one color, so that changing one color changes them all.
-func TestDarculaSolid_SharedColors(t *testing.T) {
-	th := DarculaSolid()
+func TestDarkFlow_SharedColors(t *testing.T) {
+	th := DarkFlow()
 
 	groups := map[string][]struct {
 		name string
@@ -74,20 +74,20 @@ func TestDarculaSolid_SharedColors(t *testing.T) {
 	}
 }
 
-// TestDarculaSolid_AttributeMasks verifies decorations on representative syntax
+// TestDarkFlow_AttributeMasks verifies decorations on representative syntax
 // roles.
-func TestDarculaSolid_AttributeMasks(t *testing.T) {
-	th := DarculaSolid()
+func TestDarkFlow_AttributeMasks(t *testing.T) {
+	th := DarkFlow()
 
 	if th.Code.Keyword.Attrs&AttrBold == 0 {
 		t.Error("Keyword missing AttrBold")
 	}
 }
 
-// TestDarculaSolid_FullyPopulated verifies that every directly consumed color
+// TestDarkFlow_FullyPopulated verifies that every directly consumed color
 // role is opaque.
-func TestDarculaSolid_FullyPopulated(t *testing.T) {
-	th := DarculaSolid()
+func TestDarkFlow_FullyPopulated(t *testing.T) {
+	th := DarkFlow()
 
 	roles := []struct {
 		name string
