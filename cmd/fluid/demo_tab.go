@@ -33,7 +33,7 @@ func runTabDemo(ctx context.Context, o demoOptions) error {
 
 	codeWidget := widget.NewCode(sampleTabCode,
 		widget.CodeWithFiletype("go"),
-		widget.CodeWithTheme(style.DarculaSolid()),
+		widget.CodeWithTheme(style.DarkFlow()),
 		widget.CodeWithWrapMode(textbuf.WrapWord),
 		widget.CodeWithLayout(layout.WithFlexGrow(1)),
 	)

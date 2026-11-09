@@ -10,7 +10,7 @@
 // golden frames files, the format that testutil.AssertGoldenFrames checks
 // and agents read, written by testutil.GoldenFrames itself. It also exports
 // a design as a PNG image or as text with ANSI escape sequences. The palette
-// offers the roles of a theme, style.DarculaSolid unless -theme names a
+// offers the roles of a theme, style.DarkFlow unless -theme names a
 // style.Theme as JSON, and the colors the golden files already use.
 //
 // "fluid design ansi" prints golden files with ANSI escape sequences.

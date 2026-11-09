@@ -9,12 +9,12 @@ import (
 	"github.com/unaquatic/fluid/style"
 )
 
-// TestLoadTheme checks that loadTheme gives style.DarculaSolid for no file,
+// TestLoadTheme checks that loadTheme gives style.DarkFlow for no file,
 // reads a theme written as JSON, and fails on a file that holds none.
 func TestLoadTheme(t *testing.T) {
 	th, err := loadTheme("")
-	if err != nil || *th != *style.DarculaSolid() {
-		t.Errorf("loadTheme(\"\") = %v, %v; want style.DarculaSolid", th, err)
+	if err != nil || *th != *style.DarkFlow() {
+		t.Errorf("loadTheme(\"\") = %v, %v; want style.DarkFlow", th, err)
 	}
 
 	dir := t.TempDir()

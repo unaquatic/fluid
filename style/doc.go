@@ -4,7 +4,7 @@
 // 256-color, and 16-color terminals, text attributes, [Style], styled text,
 // and border styles. A [Theme] names the roles widgets draw with, such as
 // surfaces, Markdown, syntax tokens, and selections; [ThemeFromSeeds] derives
-// one from a few OKLCH seed colors, and [DarculaSolid] defines one directly.
+// one from a few OKLCH seed colors, and [DarkFlow] defines one directly.
 //
 // A Color is an RGBA color, and [ColorTransparent] leaves the background
 // beneath a cell showing. The terminal renderer maps each color to the

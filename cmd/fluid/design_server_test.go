@@ -42,7 +42,7 @@ func newServer(t *testing.T) (*httptest.Server, string) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { root.Close() })
-	srv := httptest.NewServer((&server{library: library{root: root}, theme: style.DarculaSolid()}).handler())
+	srv := httptest.NewServer((&server{library: library{root: root}, theme: style.DarkFlow()}).handler())
 	t.Cleanup(srv.Close)
 	return srv, dir
 }

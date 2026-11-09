@@ -85,7 +85,7 @@ type legendColor struct {
 func runHTML(args []string) error {
 	flags := flag.NewFlagSet("fluid design html", flag.ContinueOnError)
 	out := flags.String("o", "goldens.html", "Write the page to `file`")
-	bgHex := flags.String("bg", formatHex(style.DarculaSolid().Bg), "Show transparent cells on `color`, as #rrggbb")
+	bgHex := flags.String("bg", formatHex(style.DarkFlow().Bg), "Show transparent cells on `color`, as #rrggbb")
 	flags.Usage = func() {
 		fmt.Fprint(flags.Output(), "Usage:\n  fluid design html [-o file] [-bg color] [dir...]\n\nFlags:\n")
 		flags.PrintDefaults()

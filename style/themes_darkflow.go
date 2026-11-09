@@ -1,9 +1,8 @@
 package style
 
-// DarculaSolid returns the Darcula Solid palette: Darcula's roles in
-// brighter syntax colors, on a canvas a shade darker than Darcula's editor,
-// with one color for all text, code included.
-func DarculaSolid() *Theme {
+// DarkFlow returns the Dark Flow palette: bright syntax colors on a
+// near-black canvas, with one color for all text, code included.
+func DarkFlow() *Theme {
 	var (
 		// Canvas colors: the canvas, behind text and code, and the raised
 		// surface of notices, code blocks, and boxes, a shade lighter.
@@ -42,7 +41,7 @@ func DarculaSolid() *Theme {
 	)
 
 	return &Theme{
-		Name: "darcula-solid",
+		Name: "dark-flow",
 
 		// Core surfaces.
 		Bg:            canvasBg,
