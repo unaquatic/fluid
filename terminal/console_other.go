@@ -9,3 +9,9 @@ import "os"
 func enableVirtualTerminal(*os.File) (restore func() error, err error) {
 	return nil, nil
 }
+
+// openConsoleInput returns nil, as a terminal outside Windows sends its
+// input as bytes, which are read from f itself.
+func openConsoleInput(*os.File) (consoleInput, error) {
+	return nil, nil
+}

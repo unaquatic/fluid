@@ -76,10 +76,13 @@ type Backend struct {
 
 	oldState      *term.State  // The terminal state saved before raw mode.
 	restoreOutput func() error // Restores the output mode Setup changed, or nil.
-	colorMode     style.ColorMode
-	indexers      map[style.ColorMode]style.Indexers
-	width         int
-	height        int
+	// console reads the input records of the Windows console that stdin is,
+	// in place of stdin, from Setup to Restore, and is nil otherwise.
+	console   consoleInput
+	colorMode style.ColorMode
+	indexers  map[style.ColorMode]style.Indexers
+	width     int
+	height    int
 
 	mouseEnabled         bool
 	kittyKeyboardEnabled bool
@@ -129,9 +132,10 @@ func (t *Backend) SetIndexers(m style.ColorMode, x style.Indexers) {
 }
 
 // Setup enters raw mode when stdin is a terminal, has a Windows console that
-// stdout writes to interpret escape sequences, records the terminal size,
-// optionally enters the alternate screen, enables bracketed paste, and hides
-// the cursor.
+// stdout writes to interpret escape sequences, opens the input records of a
+// Windows console that stdin is, records the terminal size, optionally
+// enters the alternate screen, enables bracketed paste, and hides the
+// cursor.
 func (t *Backend) Setup(useAlternateScreen bool) error {
 	if f, ok := t.stdout.(*os.File); ok {
 		restore, err := enableVirtualTerminal(f)
@@ -149,6 +153,17 @@ func (t *Backend) Setup(useAlternateScreen bool) error {
 			return fmt.Errorf("terminal: failed to enter raw mode: %w", err)
 		}
 		t.oldState = oldState
+
+		// A Setup again ends the input loop of the one before.
+		t.closeConsole()
+		console, err := openConsoleInput(f)
+		if err != nil {
+			term.Restore(int(f.Fd()), oldState)
+			t.oldState = nil
+			t.restoreOutputMode()
+			return err
+		}
+		t.console = console
 	}
 
 	// A failed size query leaves the cached dimensions unchanged.
@@ -192,6 +207,9 @@ func (t *Backend) Restore() error {
 	// depend on it.
 	defer t.restoreOutputMode()
 
+	// The input loop reading the console ends before its mode is restored.
+	t.closeConsole()
+
 	if t.oldState != nil {
 		if f, ok := t.stdin.(*os.File); ok {
 			return term.Restore(int(f.Fd()), t.oldState)
@@ -208,6 +226,24 @@ func (t *Backend) restoreOutputMode() {
 		_ = t.restoreOutput()
 		t.restoreOutput = nil
 	}
+}
+
+// closeConsole closes the console input that Setup opened, if any, which
+// ends a read of it, and forgets it, so that a second call does nothing.
+func (t *Backend) closeConsole() {
+	if t.console != nil {
+		_ = t.console.Close()
+		t.console = nil
+	}
+}
+
+// inputReader returns what the input loop reads: the console input that
+// Setup opened, or else stdin.
+func (t *Backend) inputReader() io.Reader {
+	if t.console != nil {
+		return t.console
+	}
+	return t.stdin
 }
 
 // Size returns the terminal dimensions of stdout, or of stdin when stdout is

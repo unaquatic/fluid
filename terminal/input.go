@@ -1,18 +1,20 @@
 package terminal
 
 import (
+	"io"
 	"slices"
 
 	"github.com/unaquatic/fluid/input"
 	"github.com/unaquatic/fluid/render"
 )
 
-// inputLoop reads terminal bytes in a background goroutine and enqueues parsed
-// events for dispatch on the event-loop goroutine.
-func (r *Renderer) inputLoop() {
+// inputLoop reads terminal bytes from in, as Backend.inputReader returns it,
+// in a background goroutine and enqueues parsed events for dispatch on the
+// event-loop goroutine. It ends when a read fails.
+func (r *Renderer) inputLoop(in io.Reader) {
 	buf := make([]byte, 4096)
 	for {
-		n, err := r.backend.stdin.Read(buf)
+		n, err := in.Read(buf)
 		if err != nil || r.destroyed.Load() {
 			return
 		}
@@ -279,10 +281,10 @@ func (r *Renderer) dispatchPasteEvent(evt input.TerminalEvent) {
 }
 
 // watchResize reads the terminal size in a background goroutine whenever
-// notifyResize reports it may have changed, and enqueues changed dimensions on
-// the event loop.
-func (r *Renderer) watchResize() {
-	resized, stop := notifyResize()
+// resized, as Backend.notifyResize returns it, reports it may have changed,
+// and enqueues changed dimensions on the event loop. It calls stop when it
+// ends.
+func (r *Renderer) watchResize(resized <-chan resizeNotice, stop func()) {
 	defer stop()
 
 	for {
