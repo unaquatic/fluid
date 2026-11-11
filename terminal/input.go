@@ -1,10 +1,7 @@
 package terminal
 
 import (
-	"os"
-	"os/signal"
 	"slices"
-	"syscall"
 
 	"github.com/unaquatic/fluid/input"
 	"github.com/unaquatic/fluid/render"
@@ -281,16 +278,16 @@ func (r *Renderer) dispatchPasteEvent(evt input.TerminalEvent) {
 	}
 }
 
-// watchResize receives SIGWINCH in a background goroutine and enqueues changed
-// terminal dimensions on the event loop.
+// watchResize reads the terminal size in a background goroutine whenever
+// notifyResize reports it may have changed, and enqueues changed dimensions on
+// the event loop.
 func (r *Renderer) watchResize() {
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGWINCH)
-	defer signal.Stop(sigCh)
+	resized, stop := notifyResize()
+	defer stop()
 
 	for {
 		select {
-		case <-sigCh:
+		case <-resized:
 			w, h, err := r.backend.Size()
 			if err != nil {
 				continue

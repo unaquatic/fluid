@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
 
 	"github.com/unaquatic/fluid/style"
-	"golang.org/x/sys/unix"
 	"golang.org/x/term"
 )
 
@@ -57,6 +57,10 @@ func DetectColorMode() style.ColorMode {
 		return style.ColorTrueColor
 	case strings.Contains(term, "256color"):
 		return style.Color256
+	case term == "" && runtime.GOOS == "windows":
+		// The Windows console sets no TERM and draws 24-bit color since
+		// Windows 10.
+		return style.ColorTrueColor
 	case term == "" || term == "dumb":
 		return style.Color16
 	default:
@@ -70,11 +74,12 @@ type Backend struct {
 	stdin  io.Reader
 	stdout io.Writer
 
-	oldState  *term.State // The terminal state saved before raw mode.
-	colorMode style.ColorMode
-	indexers  map[style.ColorMode]style.Indexers
-	width     int
-	height    int
+	oldState      *term.State  // The terminal state saved before raw mode.
+	restoreOutput func() error // Restores the output mode Setup changed, or nil.
+	colorMode     style.ColorMode
+	indexers      map[style.ColorMode]style.Indexers
+	width         int
+	height        int
 
 	mouseEnabled         bool
 	kittyKeyboardEnabled bool
@@ -123,13 +128,24 @@ func (t *Backend) SetIndexers(m style.ColorMode, x style.Indexers) {
 	t.indexers[m] = x
 }
 
-// Setup enters raw mode when stdin is a terminal, records its size, optionally
-// enters the alternate screen, enables bracketed paste, and hides the cursor.
+// Setup enters raw mode when stdin is a terminal, has a Windows console that
+// stdout writes to interpret escape sequences, records the terminal size,
+// optionally enters the alternate screen, enables bracketed paste, and hides
+// the cursor.
 func (t *Backend) Setup(useAlternateScreen bool) error {
+	if f, ok := t.stdout.(*os.File); ok {
+		restore, err := enableVirtualTerminal(f)
+		if err != nil {
+			return err
+		}
+		t.restoreOutput = restore
+	}
+
 	// Raw mode is available only for an os.File terminal.
 	if f, ok := t.stdin.(*os.File); ok {
 		oldState, err := term.MakeRaw(int(f.Fd()))
 		if err != nil {
+			t.restoreOutputMode()
 			return fmt.Errorf("terminal: failed to enter raw mode: %w", err)
 		}
 		t.oldState = oldState
@@ -172,6 +188,10 @@ func (t *Backend) Restore() error {
 		t.LeaveAlternateScreen()
 	}
 
+	// The output mode is restored last, after the sequences above that
+	// depend on it.
+	defer t.restoreOutputMode()
+
 	if t.oldState != nil {
 		if f, ok := t.stdin.(*os.File); ok {
 			return term.Restore(int(f.Fd()), t.oldState)
@@ -181,19 +201,27 @@ func (t *Backend) Restore() error {
 	return nil
 }
 
-// Size returns terminal dimensions from stdout or stdin using TIOCGWINSZ.
+// restoreOutputMode restores the output mode that Setup changed, if any, and
+// forgets it, so that a second call does nothing.
+func (t *Backend) restoreOutputMode() {
+	if t.restoreOutput != nil {
+		_ = t.restoreOutput()
+		t.restoreOutput = nil
+	}
+}
+
+// Size returns the terminal dimensions of stdout, or of stdin when stdout is
+// not a terminal.
 func (t *Backend) Size() (width, height int, err error) {
 	// Prefer stdout because it identifies the rendered terminal.
 	if f, ok := t.stdout.(*os.File); ok {
-		ws, err := unix.IoctlGetWinsize(int(f.Fd()), unix.TIOCGWINSZ)
-		if err == nil {
-			return int(ws.Col), int(ws.Row), nil
+		if w, h, err := term.GetSize(int(f.Fd())); err == nil {
+			return w, h, nil
 		}
 	}
 	if f, ok := t.stdin.(*os.File); ok {
-		ws, err := unix.IoctlGetWinsize(int(f.Fd()), unix.TIOCGWINSZ)
-		if err == nil {
-			return int(ws.Col), int(ws.Row), nil
+		if w, h, err := term.GetSize(int(f.Fd())); err == nil {
+			return w, h, nil
 		}
 	}
 	return 0, 0, errors.New("terminal: unable to get terminal size")
