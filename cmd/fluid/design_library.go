@@ -8,6 +8,7 @@ import (
 	"iter"
 	"os"
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -62,9 +63,18 @@ func isGolden(p string) bool {
 	return strings.HasSuffix(p, framesSuffix) || strings.HasSuffix(p, sequenceSuffix)
 }
 
+// validPath reports whether p is a slash-separated path inside the root, as
+// fs.ValidPath reports, that names a file on this system. On Windows that
+// rules out a backslash, which would separate elements there, a drive
+// letter, and a reserved name, as filepath.Localize does.
+func validPath(p string) bool {
+	_, err := filepath.Localize(p)
+	return err == nil
+}
+
 // load reads the snapshots of the golden file at p.
 func (l library) load(p string) ([]testutil.Snapshot, error) {
-	if !fs.ValidPath(p) || !isGolden(p) {
+	if !validPath(p) || !isGolden(p) {
 		return nil, fmt.Errorf("%s: not a golden file in the library", p)
 	}
 	data, err := l.root.ReadFile(p)
@@ -82,7 +92,7 @@ func (l library) load(p string) ([]testutil.Snapshot, error) {
 // Unless overwrite is set, it fails with an error matching fs.ErrExist when
 // the file is there already.
 func (l library) save(p, doc string, overwrite bool) error {
-	if !fs.ValidPath(p) || !strings.HasSuffix(p, framesSuffix) || path.Base(p) == framesSuffix {
+	if !validPath(p) || !strings.HasSuffix(p, framesSuffix) || path.Base(p) == framesSuffix {
 		return errBadPath
 	}
 	if err := l.root.MkdirAll(path.Dir(p), 0o755); err != nil {

@@ -276,9 +276,12 @@ func (r *Renderer) Start() error {
 	r.controlState = StateExplicitStarted
 	r.mu.Unlock()
 
+	// The loops get their sources here, before a Restore can drop them.
+	in := r.backend.inputReader()
+	resized, stopResize := r.backend.notifyResize()
 	go r.eventLoop()
-	go r.inputLoop()
-	go r.watchResize()
+	go r.inputLoop(in)
+	go r.watchResize(resized, stopResize)
 
 	return nil
 }
@@ -300,9 +303,12 @@ func (r *Renderer) Auto() error {
 	r.controlState = StateAutoStarted
 	r.mu.Unlock()
 
+	// The loops get their sources here, before a Restore can drop them.
+	in := r.backend.inputReader()
+	resized, stopResize := r.backend.notifyResize()
 	go r.eventLoop()
-	go r.inputLoop()
-	go r.watchResize()
+	go r.inputLoop(in)
+	go r.watchResize(resized, stopResize)
 
 	return nil
 }

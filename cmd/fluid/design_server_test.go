@@ -5,9 +5,11 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -97,7 +99,8 @@ func TestHandler(t *testing.T) {
 		{"library colors", "GET", "/api/library", "", 200, `{"hex":"#242424","name":"SurfaceRaised","fg":0,"bg":1}`},
 		{"open", "GET", "/api/open?path=testdata/sample.frames.golden", "", 200, `"names":{"#242424":"SurfaceRaised"}`},
 		{"open step", "GET", "/api/open?path=testdata/sample.frames.golden&step=1", "", 400, `step "1" is not between 0 and 0`},
-		{"open missing", "GET", "/api/open?path=testdata/none.frames.golden", "", 404, "no such file"},
+		// Each system words a missing file its own way, but names it.
+		{"open missing", "GET", "/api/open?path=testdata/none.frames.golden", "", 404, "none.frames.golden"},
 		{"open outside", "GET", "/api/open?path=../sample.frames.golden", "", 400, "not a golden file"},
 		{"open other", "GET", "/api/open?path=go.mod", "", 400, "not a golden file"},
 		{"parse", "POST", "/api/parse", sample, 200, `{"ch":"h","fg":"#ffffff","bg":"#242424"}`},
@@ -141,13 +144,18 @@ func TestSave(t *testing.T) {
 	if status, _ := save("path=designs/new.frames.golden&overwrite=1"); status != 200 {
 		t.Errorf("saving over a file with overwrite=1 = %d, want 200", status)
 	}
-	for _, p := range []string{
+	bad := []string{
 		"path=../escape.frames.golden",
-		"path=" + filepath.Join(dir, "abs.frames.golden"),
+		"path=" + url.QueryEscape(filepath.Join(dir, "abs.frames.golden")),
 		"path=designs/new.txt",
 		"path=.frames.golden",
 		"path=",
-	} {
+	}
+	if runtime.GOOS == "windows" {
+		// A backslash separates path elements on Windows.
+		bad = append(bad, "path="+url.QueryEscape(`..\escape.frames.golden`))
+	}
+	for _, p := range bad {
 		if status, body := save(p); status != http.StatusBadRequest {
 			t.Errorf("save %s = %d %s, want 400", p, status, body)
 		}
