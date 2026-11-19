@@ -84,6 +84,19 @@ func TestSelect_WrapSelection(t *testing.T) {
 	}
 }
 
+// TestSelect_MoveEmpty checks that moving the selection of a select whose
+// items were all taken away, as a search that matches nothing does, leaves
+// it where it is rather than panicking, with wrapping on.
+func TestSelect_MoveEmpty(t *testing.T) {
+	s := setupSelect()
+	s.SetItems(nil)
+	s.MoveUp()
+	s.MoveDown()
+	if s.SelectedIndex() != 0 || s.SelectedItem() != nil {
+		t.Errorf("selection = %d, %v; want 0 and no item", s.SelectedIndex(), s.SelectedItem())
+	}
+}
+
 func TestSelect_HomeEnd(t *testing.T) {
 	s := setupSelect()
 	s.SetSelectedIndex(1)

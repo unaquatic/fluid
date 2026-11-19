@@ -336,8 +336,12 @@ func (s *Select) HandleKeyPress(e *input.KeyEvent) bool {
 	return handled
 }
 
-// MoveUp selects the previous enabled item.
+// MoveUp selects the previous enabled item. It does nothing while there are
+// no items.
 func (s *Select) MoveUp() {
+	if len(s.items) == 0 {
+		return
+	}
 	start := s.selectedIndex
 	for {
 		if s.selectedIndex > 0 {
@@ -362,8 +366,12 @@ func (s *Select) MoveUp() {
 	s.RequestRender()
 }
 
-// MoveDown selects the next enabled item.
+// MoveDown selects the next enabled item. It does nothing while there are
+// no items.
 func (s *Select) MoveDown() {
+	if len(s.items) == 0 {
+		return
+	}
 	start := s.selectedIndex
 	for {
 		if s.selectedIndex < len(s.items)-1 {
